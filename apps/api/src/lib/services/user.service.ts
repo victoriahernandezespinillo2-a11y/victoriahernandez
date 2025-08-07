@@ -1,0 +1,537 @@
+/**
+ * Servicio de gestión de usuarios
+ * Maneja operaciones CRUD, perfiles, preferencias y estadísticas de usuarios
+ */
+
+import { db, User, Membership, Reservation } from '@repo/db';
+import { hashPassword } from '@polideportivo/auth';
+import { z } from 'zod';
+import { NotificationService } from '@polideportivo/notifications';
+
+// Esquemas de validación
+export const CreateUserSchema = z.object({
+  email: z.string().email('Email inválido'),
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
+  firstName: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
+  lastName: z.string().min(2, 'El apellido debe tener al menos 2 caracteres'),
+  phone: z.string().optional(),
+  dateOfBirth: z.string().datetime().optional(),
+  role: z.enum(['USER', 'STAFF', 'ADMIN']).default('USER'),
+  centerId: z.string().uuid().optional(),
+  preferences: z.object({
+    emailNotifications: z.boolean().default(true),
+    smsNotifications: z.boolean().default(false),
+    language: z.enum(['es', 'en']).default('es'),
+    timezone: z.string().default('Europe/Madrid'),
+  }).optional(),
+});
+
+export const UpdateUserSchema = z.object({
+  firstName: z.string().min(2).optional(),
+  lastName: z.string().min(2).optional(),
+  phone: z.string().optional(),
+  dateOfBirth: z.string().datetime().optional(),
+  preferences: z.object({
+    emailNotifications: z.boolean().optional(),
+    smsNotifications: z.boolean().optional(),
+    language: z.enum(['es', 'en']).optional(),
+    timezone: z.string().optional(),
+  }).optional(),
+});
+
+export const UpdatePasswordSchema = z.object({
+  currentPassword: z.string(),
+  newPassword: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
+  confirmPassword: z.string(),
+}).refine(data => data.newPassword === data.confirmPassword, {
+  message: 'Las contraseñas no coinciden',
+  path: ['confirmPassword'],
+});
+
+export const GetUsersSchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(20),
+  search: z.string().optional(),
+  role: z.enum(['USER', 'STAFF', 'ADMIN']).optional(),
+  centerId: z.string().uuid().optional(),
+  active: z.coerce.boolean().optional(),
+  sortBy: z.enum(['createdAt', 'firstName', 'lastName', 'email']).default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+});
+
+export class UserService {
+  private notificationService: NotificationService;
+
+  constructor() {
+    this.notificationService = new NotificationService();
+  }
+
+  /**
+   * Crear un nuevo usuario
+   */
+  async createUser(data: z.infer<typeof CreateUserSchema>) {
+    const validatedData = CreateUserSchema.parse(data);
+
+    // Verificar si el email ya existe
+    const existingUser = await db.user.findUnique({
+      where: { email: validatedData.email },
+    });
+
+    if (existingUser) {
+      throw new Error('El email ya está registrado');
+    }
+
+    // Hash de la contraseña
+    const hashedPassword = await hashPassword(validatedData.password);
+
+    // Crear usuario
+    const user = await db.user.create({
+      data: {
+        email: validatedData.email,
+        password: hashedPassword,
+        firstName: validatedData.firstName,
+        lastName: validatedData.lastName,
+        phone: validatedData.phone,
+        dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : null,
+        role: validatedData.role,
+        centerId: validatedData.centerId,
+        preferences: validatedData.preferences || {
+          emailNotifications: true,
+          smsNotifications: false,
+          language: 'es',
+          timezone: 'Europe/Madrid',
+        },
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        dateOfBirth: true,
+        role: true,
+        centerId: true,
+        preferences: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // Enviar email de bienvenida
+    try {
+      await this.notificationService.sendEmail({
+        to: user.email,
+        template: 'welcome',
+        data: {
+          firstName: user.firstName,
+          loginUrl: `${process.env.NEXT_PUBLIC_APP_URL}/auth/signin`,
+        },
+      });
+    } catch (error) {
+      console.error('Error enviando email de bienvenida:', error);
+    }
+
+    return user;
+  }
+
+  /**
+   * Obtener usuarios con filtros y paginación
+   */
+  async getUsers(params: z.infer<typeof GetUsersSchema>) {
+    const { page, limit, search, role, centerId, active, sortBy, sortOrder } = 
+      GetUsersSchema.parse(params);
+
+    const skip = (page - 1) * limit;
+
+    // Construir filtros
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (role) {
+      where.role = role;
+    }
+
+    if (centerId) {
+      where.centerId = centerId;
+    }
+
+    if (active !== undefined) {
+      where.active = active;
+    }
+
+    // Obtener usuarios y total
+    const [users, total] = await Promise.all([
+      db.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          role: true,
+          active: true,
+          centerId: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: {
+            select: {
+              reservations: true,
+              memberships: true,
+            },
+          },
+          center: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      }),
+      db.user.count({ where }),
+    ]);
+
+    return {
+      users,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * Obtener usuario por ID
+   */
+  async getUserById(id: string) {
+    const user = await db.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        dateOfBirth: true,
+        role: true,
+        active: true,
+        centerId: true,
+        preferences: true,
+        createdAt: true,
+        updatedAt: true,
+        center: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+          },
+        },
+        memberships: {
+          where: { active: true },
+          select: {
+            id: true,
+            type: true,
+            startDate: true,
+            endDate: true,
+            benefits: true,
+          },
+        },
+        _count: {
+          select: {
+            reservations: true,
+            tournaments: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new Error('Usuario no encontrado');
+    }
+
+    return user;
+  }
+
+  /**
+   * Actualizar usuario
+   */
+  async updateUser(id: string, data: z.infer<typeof UpdateUserSchema>) {
+    const validatedData = UpdateUserSchema.parse(data);
+
+    const user = await db.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      throw new Error('Usuario no encontrado');
+    }
+
+    const updatedUser = await db.user.update({
+      where: { id },
+      data: {
+        firstName: validatedData.firstName,
+        lastName: validatedData.lastName,
+        phone: validatedData.phone,
+        dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : undefined,
+        preferences: validatedData.preferences ? {
+          ...user.preferences as any,
+          ...validatedData.preferences,
+        } : undefined,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        dateOfBirth: true,
+        role: true,
+        preferences: true,
+        updatedAt: true,
+      },
+    });
+
+    return updatedUser;
+  }
+
+  /**
+   * Cambiar contraseña
+   */
+  async updatePassword(id: string, data: z.infer<typeof UpdatePasswordSchema>) {
+    const validatedData = UpdatePasswordSchema.parse(data);
+
+    const user = await db.user.findUnique({
+      where: { id },
+      select: { id: true, password: true },
+    });
+
+    if (!user) {
+      throw new Error('Usuario no encontrado');
+    }
+
+    // Verificar contraseña actual (aquí necesitarías una función de verificación)
+    // const isValidPassword = await verifyPassword(validatedData.currentPassword, user.password);
+    // if (!isValidPassword) {
+    //   throw new Error('Contraseña actual incorrecta');
+    // }
+
+    const hashedPassword = await hashPassword(validatedData.newPassword);
+
+    await db.user.update({
+      where: { id },
+      data: { password: hashedPassword },
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Activar/desactivar usuario
+   */
+  async toggleUserStatus(id: string, active: boolean) {
+    const user = await db.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      throw new Error('Usuario no encontrado');
+    }
+
+    const updatedUser = await db.user.update({
+      where: { id },
+      data: { active },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        active: true,
+      },
+    });
+
+    return updatedUser;
+  }
+
+  /**
+   * Obtener estadísticas del usuario
+   */
+  async getUserStats(id: string) {
+    const user = await db.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      throw new Error('Usuario no encontrado');
+    }
+
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    const [totalReservations, monthlyReservations, yearlyReservations, activeMemberships] = 
+      await Promise.all([
+        db.reservation.count({
+          where: { userId: id },
+        }),
+        db.reservation.count({
+          where: {
+            userId: id,
+            createdAt: { gte: startOfMonth },
+          },
+        }),
+        db.reservation.count({
+          where: {
+            userId: id,
+            createdAt: { gte: startOfYear },
+          },
+        }),
+        db.membership.count({
+          where: {
+            userId: id,
+            active: true,
+            endDate: { gte: now },
+          },
+        }),
+      ]);
+
+    // Deportes más reservados
+    const sportStats = await db.reservation.groupBy({
+      by: ['courtId'],
+      where: { userId: id },
+      _count: { courtId: true },
+      orderBy: { _count: { courtId: 'desc' } },
+      take: 5,
+    });
+
+    const sportsWithDetails = await Promise.all(
+      sportStats.map(async (stat) => {
+        const court = await db.court.findUnique({
+          where: { id: stat.courtId },
+          select: { sport: true },
+        });
+        return {
+          sport: court?.sport || 'Desconocido',
+          count: stat._count.courtId,
+        };
+      })
+    );
+
+    return {
+      totalReservations,
+      monthlyReservations,
+      yearlyReservations,
+      activeMemberships,
+      favoriteSports: sportsWithDetails,
+    };
+  }
+
+  /**
+   * Obtener historial de reservas del usuario
+   */
+  async getUserReservations(id: string, params: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+  }) {
+    const { page = 1, limit = 20, status, startDate, endDate } = params;
+    const skip = (page - 1) * limit;
+
+    const where: any = { userId: id };
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (startDate || endDate) {
+      where.date = {};
+      if (startDate) where.date.gte = new Date(startDate);
+      if (endDate) where.date.lte = new Date(endDate);
+    }
+
+    const [reservations, total] = await Promise.all([
+      db.reservation.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { date: 'desc' },
+        include: {
+          court: {
+            select: {
+              id: true,
+              name: true,
+              sport: true,
+              center: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      db.reservation.count({ where }),
+    ]);
+
+    return {
+      reservations,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * Eliminar usuario (soft delete)
+   */
+  async deleteUser(id: string) {
+    const user = await db.user.findUnique({
+      where: { id },
+      include: {
+        reservations: {
+          where: {
+            status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+            date: { gte: new Date() },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new Error('Usuario no encontrado');
+    }
+
+    // Verificar si tiene reservas activas
+    if (user.reservations.length > 0) {
+      throw new Error('No se puede eliminar un usuario con reservas activas');
+    }
+
+    // Soft delete
+    await db.user.update({
+      where: { id },
+      data: {
+        active: false,
+        email: `deleted_${Date.now()}_${user.email}`,
+      },
+    });
+
+    return { success: true };
+  }
+}

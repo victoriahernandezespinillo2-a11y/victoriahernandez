@@ -1,0 +1,30 @@
+{
+  "name": "@repo/auth",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
+    "./providers": "./src/providers.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/db": "workspace:*",
+    "next-auth": "5.0.0-beta.25",
+    "@auth/prisma-adapter": "^2.7.4",
+    "bcryptjs": "^2.4.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.15.3",
+    "eslint": "^9.31.0",
+    "typescript": "5.8.2"
+  }
+}

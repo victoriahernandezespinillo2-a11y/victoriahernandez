@@ -1,0 +1,90 @@
+/**
+ * API Routes para perfil del usuario autenticado
+ * GET /api/users/profile - Obtener perfil del usuario actual
+ * PUT /api/users/profile - Actualizar perfil del usuario actual
+ */
+
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { UserService, UpdateUserSchema } from '../../../../lib/services/user.service';
+import { withAuthMiddleware, ApiResponse, AuthenticatedContext } from '../../../../lib/middleware';
+
+const userService = new UserService();
+
+/**
+ * GET /api/users/profile
+ * Obtener perfil del usuario autenticado
+ */
+export const GET = withAuthMiddleware(async (
+  req: NextRequest,
+  { user }: AuthenticatedContext
+) => {
+  try {
+    const userData = await userService.getUserById(user.id);
+    
+    return ApiResponse.success(userData);
+  } catch (error) {
+    console.error('Error obteniendo perfil:', error);
+    
+    if (error instanceof Error && error.message === 'Usuario no encontrado') {
+      return ApiResponse.notFound('Usuario');
+    }
+    
+    return ApiResponse.error(
+      error instanceof Error ? error.message : 'Error interno del servidor',
+      500
+    );
+  }
+});
+
+/**
+ * PUT /api/users/profile
+ * Actualizar perfil del usuario autenticado
+ */
+export const PUT = withAuthMiddleware(async (
+  req: NextRequest,
+  { user }: AuthenticatedContext
+) => {
+  try {
+    const body = await req.json();
+    
+    const updatedUser = await userService.updateUser(user.id, body);
+    
+    return ApiResponse.success(updatedUser);
+  } catch (error) {
+    console.error('Error actualizando perfil:', error);
+    
+    if (error instanceof z.ZodError) {
+      return ApiResponse.validation(
+        error.errors.map(err => ({
+          field: err.path.join('.'),
+          message: err.message,
+        }))
+      );
+    }
+    
+    if (error instanceof Error && error.message === 'Usuario no encontrado') {
+      return ApiResponse.notFound('Usuario');
+    }
+    
+    return ApiResponse.error(
+      error instanceof Error ? error.message : 'Error interno del servidor',
+      500
+    );
+  }
+});
+
+/**
+ * OPTIONS /api/users/profile
+ * Manejar preflight requests
+ */
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}

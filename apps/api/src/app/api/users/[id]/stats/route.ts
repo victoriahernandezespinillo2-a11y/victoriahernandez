@@ -1,0 +1,59 @@
+/**
+ * API Routes para estadísticas de usuarios
+ * GET /api/users/[id]/stats - Obtener estadísticas del usuario
+ */
+
+import { NextRequest } from 'next/server';
+import { UserService } from '../../../../../lib/services/user.service';
+import { withAuthMiddleware, ApiResponse, AuthenticatedContext } from '../../../../../lib/middleware';
+
+const userService = new UserService();
+
+/**
+ * GET /api/users/[id]/stats
+ * Obtener estadísticas del usuario
+ * Los usuarios pueden ver sus propias estadísticas, STAFF/ADMIN pueden ver cualquier usuario
+ */
+export const GET = withAuthMiddleware(async (
+  req: NextRequest,
+  { params, user }: AuthenticatedContext & { params: { id: string } }
+) => {
+  try {
+    const userId = params.id;
+    
+    // Verificar permisos: usuarios solo pueden ver sus propias estadísticas
+    if (user.role === 'USER' && user.id !== userId) {
+      return ApiResponse.forbidden('Solo puedes ver tus propias estadísticas');
+    }
+    
+    const stats = await userService.getUserStats(userId);
+    
+    return ApiResponse.success(stats);
+  } catch (error) {
+    console.error('Error obteniendo estadísticas del usuario:', error);
+    
+    if (error instanceof Error && error.message === 'Usuario no encontrado') {
+      return ApiResponse.notFound('Usuario');
+    }
+    
+    return ApiResponse.error(
+      error instanceof Error ? error.message : 'Error interno del servidor',
+      500
+    );
+  }
+});
+
+/**
+ * OPTIONS /api/users/[id]/stats
+ * Manejar preflight requests
+ */
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}

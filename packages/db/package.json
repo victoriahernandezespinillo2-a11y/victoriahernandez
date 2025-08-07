@@ -1,0 +1,35 @@
+{
+  "name": "@repo/db",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:seed": "tsx src/seed.ts",
+    "db:clean": "tsx src/clean.ts",
+    "db:setup-production": "tsx src/setup-production.ts",
+    "db:add-courts": "tsx src/add-courts.ts",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "next-auth": "5.0.0-beta.29",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.15.3",
+    "eslint": "^9.31.0",
+    "tsx": "^4.19.2",
+    "typescript": "5.8.2"
+  }
+}

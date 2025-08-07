@@ -16,9 +16,13 @@
   "engines": {
     "node": ">=18"
   },
-  "packageManager": "npm@10.9.2",
+  "packageManager": "pnpm@9.0.0",
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "@types/pg": "^8.15.5",
+    "pg": "^8.16.3"
+  }
 }
