@@ -4,11 +4,16 @@
  */
 
 import { NextRequest } from 'next/server';
+
+// Asegurar Node.js runtime para Prisma
+export const runtime = 'nodejs';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
-import { PrismaClient } from '@prisma/client';
+import { db } from '@repo/db';
+import { ReservationStatus } from '@prisma/client';
 import { z } from 'zod';
 
-const prisma = new PrismaClient();
+// Usar el cliente compartido para respetar DATABASE_URL/DIRECT_DATABASE_URL
+const prisma = db;
 
 const DashboardQuerySchema = z.object({
   period: z.enum(['7d', '30d', '90d', '1y']).optional().default('30d'),
@@ -21,23 +26,22 @@ const DashboardQuerySchema = z.object({
  */
 export async function OPTIONS(request: NextRequest) {
   // Las peticiones OPTIONS no requieren autenticación
-  const response = new Response(null, { status: 200 });
-  
-  // Configurar headers CORS
   const origin = request.headers.get('origin');
   const allowedOrigins = process.env.NODE_ENV === 'production'
     ? ['https://polideportivo.com', 'https://admin.polideportivo.com']
     : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
 
-  if (origin && allowedOrigins.includes(origin)) {
-    response.headers.set('Access-Control-Allow-Origin', origin);
-  }
-  
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
+  };
 
-  return response;
+  if (origin && allowedOrigins.includes(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin;
+  }
+
+  return new Response(null, { status: 200, headers });
 }
 
 /**
@@ -99,7 +103,7 @@ export async function GET(request: NextRequest) {
         prisma.reservation.aggregate({
           where: {
             ...baseFilter,
-            status: 'paid'
+            status: ReservationStatus.PAID
           },
           _sum: {
             totalPrice: true
@@ -133,7 +137,7 @@ export async function GET(request: NextRequest) {
         prisma.reservation.aggregate({
           where: {
             ...previousFilter,
-            status: 'paid'
+            status: ReservationStatus.PAID
           },
           _sum: {
             totalPrice: true
@@ -173,24 +177,64 @@ export async function GET(request: NextRequest) {
         };
       };
       
-      // Obtener datos para gráficos de tendencias (por día)
-      const dailyStats = await prisma.$queryRaw`
-        SELECT 
-          DATE(created_at) as date,
-          COUNT(CASE WHEN table_name = 'reservations' THEN 1 END) as reservations,
-          COUNT(CASE WHEN table_name = 'users' THEN 1 END) as users,
-          COUNT(CASE WHEN table_name = 'memberships' THEN 1 END) as memberships,
-          COALESCE(SUM(CASE WHEN table_name = 'reservations' AND status = 'paid' THEN total_price ELSE 0 END), 0) as revenue
-        FROM (
-          SELECT created_at, 'reservations' as table_name, total_price, status FROM reservations WHERE created_at >= ${startDate}
-          UNION ALL
-          SELECT created_at, 'users' as table_name, NULL as total_price, NULL as status FROM users WHERE created_at >= ${startDate}
-          UNION ALL
-          SELECT created_at, 'memberships' as table_name, NULL as total_price, NULL as status FROM memberships WHERE created_at >= ${startDate}
-        ) combined
-        GROUP BY DATE(created_at)
-        ORDER BY date
-      `;
+      // Obtener datos para gráficos de tendencias (por día) sin SQL crudo
+      const [resByDate, paidRevenueByDate, usersByDate, membershipsByDate] = await Promise.all([
+        prisma.reservation.groupBy({
+          by: ['createdAt'],
+          where: baseFilter,
+          _count: { id: true },
+        }),
+        prisma.reservation.groupBy({
+          by: ['createdAt'],
+          where: { ...baseFilter, status: ReservationStatus.PAID },
+          _sum: { totalPrice: true },
+        }),
+        prisma.user.groupBy({
+          by: ['createdAt'],
+          where: {
+            createdAt: { gte: startDate, lte: now },
+          },
+          _count: { id: true },
+        }),
+        prisma.membership.groupBy({
+          by: ['createdAt'],
+          where: baseFilter,
+          _count: { id: true },
+        }),
+      ]);
+
+      // Construir serie diaria entre startDate y now
+      const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+      const days: string[] = [];
+      const cursor = new Date(startDate);
+      while (cursor <= now) {
+        days.push(dayKey(cursor));
+        cursor.setDate(cursor.getDate() - 0 + 1);
+      }
+
+      const toDay = (ts: Date) => dayKey(new Date(ts));
+      const mapCounts = (arr: any[], key: 'count' | 'sum'): Record<string, number> => {
+        const m: Record<string, number> = {};
+        for (const it of arr) {
+          const k = toDay(it.createdAt as Date);
+          const value = key === 'count' ? (it._count?.id || 0) : (Number(it._sum?.totalPrice || 0));
+          m[k] = (m[k] || 0) + value;
+        }
+        return m;
+      };
+
+      const resMap = mapCounts(resByDate as any[], 'count');
+      const revMap = mapCounts(paidRevenueByDate as any[], 'sum');
+      const usersMap = mapCounts(usersByDate as any[], 'count');
+      const memMap = mapCounts(membershipsByDate as any[], 'count');
+
+      const dailyStats = days.map((d) => ({
+        date: d,
+        reservations: resMap[d] || 0,
+        users: usersMap[d] || 0,
+        memberships: memMap[d] || 0,
+        revenue: revMap[d] || 0,
+      }));
       
       // Obtener top canchas más reservadas
       const topCourts = await prisma.court.findMany({

@@ -10,9 +10,18 @@ export function middleware(request: NextRequest) {
 
   // Verificar autenticación usando cookies de NextAuth
   // NextAuth usa diferentes nombres de cookies según la configuración
-  const sessionToken = request.cookies.get('next-auth.session-token')?.value ||
-                      request.cookies.get('__Secure-next-auth.session-token')?.value ||
-                      request.cookies.get('authjs.session-token')?.value;
+  const configuredCookieName = process.env.NEXTAUTH_COOKIE_NAME || undefined;
+  const sessionToken =
+    // Cookie configurada explícitamente (p. ej. next-auth.session-token-web)
+    (configuredCookieName ? request.cookies.get(configuredCookieName)?.value : undefined) ||
+    // Nombres estándar
+    request.cookies.get('next-auth.session-token')?.value ||
+    request.cookies.get('__Secure-next-auth.session-token')?.value ||
+    request.cookies.get('authjs.session-token')?.value ||
+    // Cualquier variante next-auth.session-token-* (por puerto)
+    request.cookies
+      .getAll?.()
+      ?.find((c) => c.name?.startsWith?.('next-auth.session-token'))?.value;
   
   if (!sessionToken) {
     const signInUrl = new URL('/auth/signin', request.url);

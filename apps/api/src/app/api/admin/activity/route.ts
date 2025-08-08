@@ -7,7 +7,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withAdminMiddleware, withCors } from '@/lib/middleware';
 import { ApiResponse } from '@/lib/middleware';
-import { db } from '../../../../../../../packages/db/src';
+import { db } from '@repo/db';
+import { ReservationStatus } from '@prisma/client';
 
 /**
  * OPTIONS /api/admin/activity
@@ -86,7 +87,7 @@ export const GET = withAdminMiddleware(async (request: NextRequest) => {
       // Obtener pagos recientes (reservas pagadas)
       const recentPayments = await db.reservation.findMany({
         where: {
-          status: 'paid',
+          status: ReservationStatus.PAID,
           updatedAt: {
             gte: hoursAgo
           }

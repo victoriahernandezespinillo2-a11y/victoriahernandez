@@ -6,10 +6,12 @@
 
 import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
-import { PrismaClient } from '@prisma/client';
+import { db } from '@repo/db';
+import { ReservationStatus } from '@prisma/client';
 import { z } from 'zod';
 
-const prisma = new PrismaClient();
+// Usar cliente compartido para respetar configuración de conexión (Supabase, SSL, PgBouncer)
+const prisma = db;
 
 const GetReportsQuerySchema = z.object({
   type: z.enum([
@@ -226,39 +228,46 @@ function calculateDateRange(params: any) {
 async function generateRevenueReport(startDate: Date, endDate: Date, centerId?: string, groupBy: string = 'day') {
   const baseFilter = {
     createdAt: { gte: startDate, lte: endDate },
-    status: 'COMPLETED' as const,
     ...(centerId && { centerId })
-  };
-  
-  const [totalRevenue, revenueByType, revenueByPeriod] = await Promise.all([
-    prisma.payment.aggregate({
-      where: baseFilter,
-      _sum: { amount: true },
-      _count: { id: true }
+  } as const;
+
+  const paidWhere = { ...baseFilter, status: ReservationStatus.PAID } as const;
+
+  const [reservationRevenue, revenueByMethod, revenueByPeriod] = await Promise.all([
+    prisma.reservation.aggregate({
+      where: paidWhere,
+      _sum: { totalPrice: true },
+      _count: { id: true },
     }),
-    
-    prisma.payment.groupBy({
-      by: ['type'],
-      where: baseFilter,
-      _sum: { amount: true },
-      _count: { id: true }
+    prisma.reservation.groupBy({
+      by: ['paymentMethod'],
+      where: paidWhere,
+      _sum: { totalPrice: true },
+      _count: { id: true },
     }),
-    
-    prisma.payment.groupBy({
+    prisma.reservation.groupBy({
       by: ['createdAt'],
-      where: baseFilter,
-      _sum: { amount: true },
-      _count: { id: true }
-    })
+      where: paidWhere,
+      _sum: { totalPrice: true },
+      _count: { id: true },
+    }),
   ]);
-  
+
   return {
     summary: {
-      totalRevenue: totalRevenue._sum.amount || 0,
-      totalTransactions: totalRevenue._count.id
+      totalRevenue: Number(reservationRevenue._sum.totalPrice || 0),
+      totalTransactions: reservationRevenue._count.id,
     },
-    byType: revenueByType,
-    byPeriod: revenueByPeriod
+    byMethod: revenueByMethod.map((r) => ({
+      method: r.paymentMethod || 'UNKNOWN',
+      totalAmount: Number(r._sum.totalPrice || 0),
+      count: r._count.id,
+    })),
+    byPeriod: revenueByPeriod.map((r) => ({
+      date: r.createdAt,
+      totalAmount: Number(r._sum.totalPrice || 0),
+      count: r._count.id,
+    })),
   };
 }
 
@@ -271,8 +280,9 @@ async function generateUsageReport(startDate: Date, endDate: Date, centerId?: st
   const [totalReservations, reservationsBySport, reservationsByStatus] = await Promise.all([
     prisma.reservation.count({ where: baseFilter }),
     
+    // Agrupar por courtId y luego mapear a sportType
     prisma.reservation.groupBy({
-      by: ['court'],
+      by: ['courtId'],
       where: baseFilter,
       _count: { id: true }
     }),
@@ -284,11 +294,20 @@ async function generateUsageReport(startDate: Date, endDate: Date, centerId?: st
     })
   ]);
   
+  const courtIds = reservationsBySport.map((r: any) => r.courtId);
+  const courts = await prisma.court.findMany({
+    where: { id: { in: courtIds } },
+    select: { id: true, sportType: true }
+  });
+
   return {
     summary: {
       totalReservations
     },
-    bySport: reservationsBySport,
+    bySport: reservationsBySport.map((r: any) => ({
+      sportType: courts.find(c => c.id === r.courtId)?.sportType || 'UNKNOWN',
+      count: r._count.id
+    })),
     byStatus: reservationsByStatus
   };
 }
@@ -298,7 +317,7 @@ async function generateUsersReport(startDate: Date, endDate: Date, groupBy: stri
     createdAt: { gte: startDate, lte: endDate }
   };
   
-  const [totalUsers, usersByRole, usersByStatus] = await Promise.all([
+  const [totalUsers, usersByRole, usersByActive] = await Promise.all([
     prisma.user.count({ where: baseFilter }),
     
     prisma.user.groupBy({
@@ -308,7 +327,7 @@ async function generateUsersReport(startDate: Date, endDate: Date, groupBy: stri
     }),
     
     prisma.user.groupBy({
-      by: ['status'],
+      by: ['isActive'],
       where: baseFilter,
       _count: { id: true }
     })
@@ -319,7 +338,7 @@ async function generateUsersReport(startDate: Date, endDate: Date, groupBy: stri
       totalUsers
     },
     byRole: usersByRole,
-    byStatus: usersByStatus
+    byActive: usersByActive
   };
 }
 
@@ -330,13 +349,13 @@ async function generateCourtsReport(startDate: Date, endDate: Date, centerId?: s
     prisma.court.count({ where }),
     
     prisma.court.groupBy({
-      by: ['sport'],
+      by: ['sportType'],
       where,
       _count: { id: true }
     }),
     
     prisma.court.groupBy({
-      by: ['status'],
+      by: ['maintenanceStatus'],
       where,
       _count: { id: true }
     })
@@ -429,7 +448,7 @@ async function generateTournamentsReport(startDate: Date, endDate: Date, centerI
     }),
     
     prisma.tournament.groupBy({
-      by: ['sport'],
+      by: ['sportType'],
       where: baseFilter,
       _count: { id: true }
     })
@@ -448,37 +467,34 @@ async function generatePaymentsReport(startDate: Date, endDate: Date, centerId?:
   const baseFilter = {
     createdAt: { gte: startDate, lte: endDate },
     ...(centerId && { centerId })
-  };
-  
-  const [totalPayments, paymentsByStatus, paymentsByMethod] = await Promise.all([
-    prisma.payment.aggregate({
-      where: baseFilter,
-      _sum: { amount: true },
-      _count: { id: true }
+  } as const;
+
+  const [paidAgg, byStatus, byMethod] = await Promise.all([
+    prisma.reservation.aggregate({
+      where: { ...baseFilter, status: ReservationStatus.PAID },
+      _sum: { totalPrice: true },
+      _count: { id: true },
     }),
-    
-    prisma.payment.groupBy({
+    prisma.reservation.groupBy({
       by: ['status'],
       where: baseFilter,
-      _sum: { amount: true },
-      _count: { id: true }
+      _count: { id: true },
     }),
-    
-    prisma.payment.groupBy({
-      by: ['method'],
+    prisma.reservation.groupBy({
+      by: ['paymentMethod'],
       where: baseFilter,
-      _sum: { amount: true },
-      _count: { id: true }
-    })
+      _sum: { totalPrice: true },
+      _count: { id: true },
+    }),
   ]);
-  
+
   return {
     summary: {
-      totalAmount: totalPayments._sum.amount || 0,
-      totalPayments: totalPayments._count.id
+      totalAmount: Number(paidAgg._sum.totalPrice || 0),
+      totalPayments: paidAgg._count.id,
     },
-    byStatus: paymentsByStatus,
-    byMethod: paymentsByMethod
+    byStatus: byStatus.map((r) => ({ status: r.status, count: r._count.id })),
+    byMethod: byMethod.map((r) => ({ method: r.paymentMethod || 'UNKNOWN', totalAmount: Number(r._sum.totalPrice || 0), count: r._count.id })),
   };
 }
 
@@ -493,5 +509,13 @@ function convertToCSV(data: any): string {
  * Manejar preflight requests
  */
 export async function OPTIONS() {
-  return ApiResponse.success(null);
+  // Manejo explícito de CORS en preflight
+  const origin = '*';
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Origin': origin,
+  };
+  return new Response(null, { status: 200, headers });
 }
