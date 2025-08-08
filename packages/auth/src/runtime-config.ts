@@ -22,3 +22,4 @@ export const NEXT_RUNTIME_CONFIG = {
   // Paquetes externos que requieren Node.js Runtime
   serverComponentsExternalPackages: ['bcryptjs', 'pg']
 };
+

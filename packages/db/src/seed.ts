@@ -1,15 +1,17 @@
+import { config } from 'dotenv';
 import { db } from './index.js';
-import { MembershipType, ReservationStatus, MaintenanceType, MaintenanceStatus, UserRole } from './index.js';
 import bcrypt from 'bcryptjs';
+
+// Cargar variables de entorno
+config();
 
 async function main() {
   console.log('🌱 Iniciando seed de la base de datos...');
 
   // Limpiar datos existentes
   console.log('🧹 Limpiando datos existentes...');
-  await db.gdprDeletionRequest.deleteMany();
-  await db.webhookEvent.deleteMany();
-  await db.outboxEvent.deleteMany();
+  
+  // Eliminar datos en orden correcto para evitar errores de foreign key
   await db.waitingList.deleteMany();
   await db.pricingRule.deleteMany();
   await db.maintenanceSchedule.deleteMany();
@@ -21,19 +23,21 @@ async function main() {
   await db.center.deleteMany();
   await db.user.deleteMany();
 
+  console.log('✅ Todas las tablas limpiadas');
+
   // Crear centro deportivo
   console.log('🏢 Creando centro deportivo...');
   const center = await db.center.create({
     data: {
       name: 'Polideportivo Oroquieta',
       address: 'Calle Principal 123, Oroquieta, Misamis Occidental',
-      phone: '+63 88 123 4567',
-      email: 'info@polideportivo.com',
-      settings: JSON.stringify({
+      phone: '+63 88 531 2345',
+      email: 'info@polideportivooroquieta.com',
+      settings: {
         timezone: 'Asia/Manila',
         currency: 'PHP',
         language: 'es',
-        operatingHours: {
+        business_hours: {
           monday: { open: '06:00', close: '22:00' },
           tuesday: { open: '06:00', close: '22:00' },
           wednesday: { open: '06:00', close: '22:00' },
@@ -42,290 +46,271 @@ async function main() {
           saturday: { open: '07:00', close: '21:00' },
           sunday: { open: '07:00', close: '20:00' }
         }
-      })
+      }
     }
   });
 
-  // Crear canchas
-  console.log('🏀 Creando canchas...');
-  const courts = await Promise.all([
-    db.court.create({
-      data: {
-        centerId: center.id,
-        name: 'Cancha de Básquetbol 1',
-        sportType: 'basketball',
-        capacity: 20,
-        basePricePerHour: 500.00,
-        isActive: true,
-        maintenanceStatus: 'operational'
-      }
-    }),
-    db.court.create({
-      data: {
-        centerId: center.id,
-        name: 'Cancha de Básquetbol 2',
-        sportType: 'basketball',
-        capacity: 20,
-        basePricePerHour: 500.00,
-        isActive: true,
-        maintenanceStatus: 'operational'
-      }
-    }),
-    db.court.create({
-      data: {
-        centerId: center.id,
-        name: 'Cancha de Voleibol',
-        sportType: 'volleyball',
-        capacity: 12,
-        basePricePerHour: 400.00,
-        isActive: true,
-        maintenanceStatus: 'operational'
-      }
-    }),
-    db.court.create({
-      data: {
-        centerId: center.id,
-        name: 'Cancha de Tenis',
-        sportType: 'tennis',
-        capacity: 4,
-        basePricePerHour: 600.00,
-        isActive: true,
-        maintenanceStatus: 'operational'
-      }
-    }),
-    db.court.create({
-      data: {
-        centerId: center.id,
-        name: 'Cancha de Fútbol Sala',
-        sportType: 'futsal',
-        capacity: 14,
-        basePricePerHour: 700.00,
-        isActive: true,
-        maintenanceStatus: 'operational'
-      }
-    })
-  ]);
+  console.log(`✅ Centro creado: ${center.name}`);
 
-  // Crear usuarios de ejemplo
+  // Crear canchas
+  console.log('🏟️ Creando canchas...');
+  const courts = [];
+  const courtTypes = ['FUTBOL', 'BASQUET', 'TENIS', 'VOLEIBOL'];
+  
+  for (let i = 0; i < 8; i++) {
+    const courtType = courtTypes[i % courtTypes.length];
+    const court = await db.court.create({
+      data: {
+        name: `Cancha ${courtType} ${Math.floor(i / courtTypes.length) + 1}`,
+        type: courtType,
+        capacity: courtType === 'TENIS' ? 4 : courtType === 'VOLEIBOL' ? 12 : 22,
+        hourly_rate: courtType === 'TENIS' ? 800 : courtType === 'FUTBOL' ? 1200 : 1000,
+        is_active: true,
+        center_id: center.id,
+        features: {
+          lighting: true,
+          sound_system: i % 2 === 0,
+          air_conditioning: courtType === 'BASQUET',
+          parking: true,
+          lockers: true,
+          showers: true
+        }
+      }
+    });
+    courts.push(court);
+  }
+
+  console.log(`✅ ${courts.length} canchas creadas`);
+
+  // Crear usuarios
   console.log('👥 Creando usuarios...');
+  const users = [];
   
-  // Hashear contraseñas
-  const adminPassword = await bcrypt.hash('admin123', 12);
-  const userPassword = await bcrypt.hash('user123', 12);
-  
-  const users = await Promise.all([
-    db.user.create({
-      data: {
-        email: 'admin@polideportivo.com',
-        password: adminPassword,
-        name: 'Administrador Principal',
-        phone: '+63 917 123 4567',
-        role: UserRole.admin,
-        membershipType: 'annual',
-        membershipExpiresAt: new Date('2025-12-31'),
-        creditsBalance: 100,
-        isActive: true,
-        gdprConsent: true,
-        gdprConsentDate: new Date()
+  // Admin user
+  const adminUser = await db.user.create({
+    data: {
+      email: 'admin@polideportivooroquieta.com',
+      password: await bcrypt.hash('admin123', 10),
+      name: 'Administrador',
+      phone: '+63 88 531 2345',
+      role: 'ADMIN',
+      is_active: true,
+      email_verified: new Date(),
+      profile: {
+        birth_date: '1980-01-01',
+        emergency_contact: '+63 88 531 2346',
+        preferences: {
+          notifications: true,
+          newsletter: true,
+          language: 'es'
+        }
       }
-    }),
-    db.user.create({
+    }
+  });
+  users.push(adminUser);
+
+  // Regular users
+  const regularUsers = [
+    {
+      email: 'juan.dela.cruz@email.com',
+      name: 'Juan Dela Cruz',
+      phone: '+63 917 123 4567'
+    },
+    {
+      email: 'maria.santos@email.com', 
+      name: 'Maria Santos',
+      phone: '+63 918 234 5678'
+    },
+    {
+      email: 'pedro.garcia@email.com',
+      name: 'Pedro Garcia', 
+      phone: '+63 919 345 6789'
+    }
+  ];
+
+  for (const userData of regularUsers) {
+    const user = await db.user.create({
       data: {
-        email: 'juan.dela.cruz@gmail.com',
-        password: userPassword,
-        name: 'Juan Dela Cruz',
-        phone: '+63 917 234 5678',
-        role: UserRole.user,
-        dateOfBirth: new Date('1990-05-15'),
-        membershipType: 'monthly',
-        membershipExpiresAt: new Date('2025-02-28'),
-        creditsBalance: 20,
-        isActive: true,
-        gdprConsent: true,
-        gdprConsentDate: new Date()
+        email: userData.email,
+        password: await bcrypt.hash('password123', 10),
+        name: userData.name,
+        phone: userData.phone,
+        role: 'USER',
+        is_active: true,
+        email_verified: new Date(),
+        profile: {
+          preferences: {
+            notifications: true,
+            newsletter: false,
+            language: 'es'
+          }
+        }
       }
-    }),
-    db.user.create({
-      data: {
-        email: 'maria.santos@gmail.com',
-        password: userPassword,
-        name: 'Maria Santos',
-        phone: '+63 917 345 6789',
-        role: UserRole.user,
-        dateOfBirth: new Date('1985-08-22'),
-        membershipType: 'quarterly',
-        membershipExpiresAt: new Date('2025-03-31'),
-        creditsBalance: 50,
-        isActive: true,
-        gdprConsent: true,
-        gdprConsentDate: new Date()
-      }
-    }),
-    db.user.create({
-      data: {
-        email: 'pedro.garcia@gmail.com',
-        password: userPassword,
-        name: 'Pedro Garcia',
-        phone: '+63 917 456 7890',
-        role: UserRole.user,
-        dateOfBirth: new Date('1992-12-10'),
-        creditsBalance: 0,
-        isActive: true,
-        gdprConsent: true,
-        gdprConsentDate: new Date()
-      }
-    })
-  ]);
+    });
+    users.push(user);
+  }
+
+  console.log(`✅ ${users.length} usuarios creados`);
 
   // Crear membresías
   console.log('💳 Creando membresías...');
-  await Promise.all([
-    db.membership.create({
+  for (const user of users.slice(1)) { // Excluir admin
+    await db.membership.create({
       data: {
-        userId: users[1].id,
-        type: MembershipType.MONTHLY,
-        creditsIncluded: 20,
-        creditsRemaining: 20,
-        price: 2000.00,
-        discountPercentage: 10.00,
-        validFrom: new Date('2025-01-01'),
-        validUntil: new Date('2025-01-31'),
-        autoRenewal: true,
-        status: 'active'
+        user_id: user.id,
+        type: 'MONTHLY',
+        status: 'ACTIVE',
+        start_date: new Date(),
+        end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 días
+        price: 1500,
+        benefits: {
+          discount_percentage: 10,
+          priority_booking: false,
+          free_hours: 2
+        }
       }
-    }),
-    db.membership.create({
-      data: {
-        userId: users[2].id,
-        type: MembershipType.QUARTERLY,
-        creditsIncluded: 60,
-        creditsRemaining: 50,
-        price: 5500.00,
-        discountPercentage: 15.00,
-        validFrom: new Date('2025-01-01'),
-        validUntil: new Date('2025-03-31'),
-        autoRenewal: false,
-        status: 'active'
-      }
-    })
-  ]);
+    });
+  }
+
+  console.log(`✅ ${users.length - 1} membresías creadas`);
 
   // Crear reglas de precios
   console.log('💰 Creando reglas de precios...');
   for (const court of courts) {
-    await Promise.all([
-      // Horario pico (18:00 - 21:00)
-      db.pricingRule.create({
-        data: {
-          courtId: court.id,
-          name: 'Horario Pico',
-          timeStart: '18:00',
-          timeEnd: '21:00',
-          daysOfWeek: "1,2,3,4,5", // Lunes a Viernes
-          priceMultiplier: 1.5,
-          memberDiscount: 20.00,
-          isActive: true
+    // Precio normal
+    await db.pricingRule.create({
+      data: {
+        court_id: court.id,
+        name: `Precio Normal - ${court.name}`,
+        base_price: court.hourly_rate,
+        day_of_week: null,
+        start_time: '06:00',
+        end_time: '18:00',
+        is_active: true,
+        conditions: {
+          min_duration: 60,
+          max_duration: 180
         }
-      }),
-      // Fin de semana
-      db.pricingRule.create({
-        data: {
-          courtId: court.id,
-          name: 'Fin de Semana',
-          timeStart: '08:00',
-          timeEnd: '20:00',
-          daysOfWeek: "6,7", // Sábado y Domingo
-          priceMultiplier: 1.3,
-          memberDiscount: 15.00,
-          isActive: true
+      }
+    });
+
+    // Precio nocturno
+    await db.pricingRule.create({
+      data: {
+        court_id: court.id,
+        name: `Precio Nocturno - ${court.name}`,
+        base_price: Math.round(court.hourly_rate * 1.2),
+        day_of_week: null,
+        start_time: '18:00',
+        end_time: '22:00',
+        is_active: true,
+        conditions: {
+          min_duration: 60,
+          max_duration: 180
         }
-      })
-    ]);
+      }
+    });
   }
 
-  // Crear algunas reservas de ejemplo
-  console.log('📅 Creando reservas de ejemplo...');
+  console.log(`✅ ${courts.length * 2} reglas de precios creadas`);
+
+  // Crear una reserva de ejemplo
+  console.log('📅 Creando reserva de ejemplo...');
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(10, 0, 0, 0);
-
+  
   const endTime = new Date(tomorrow);
-  endTime.setHours(11, 0, 0, 0);
+  endTime.setHours(12, 0, 0, 0);
 
   await db.reservation.create({
     data: {
-      courtId: courts[0].id,
-      userId: users[1].id,
-      startTime: tomorrow,
-      endTime: endTime,
-      status: ReservationStatus.PAID,
-      totalPrice: 500.00,
-      paymentMethod: 'credit_card',
-      notes: 'Reserva de ejemplo para básquetbol'
+      user_id: users[1].id,
+      court_id: courts[0].id,
+      start_time: tomorrow,
+      end_time: endTime,
+      status: 'CONFIRMED',
+      total_price: courts[0].hourly_rate * 2,
+      payment_status: 'PAID',
+      notes: 'Reserva de ejemplo para demostración'
     }
   });
+
+  console.log('✅ 1 reserva creada');
 
   // Crear torneo de ejemplo
   console.log('🏆 Creando torneo de ejemplo...');
+  const tournamentStart = new Date();
+  tournamentStart.setDate(tournamentStart.getDate() + 7);
+  
+  const tournamentEnd = new Date(tournamentStart);
+  tournamentEnd.setDate(tournamentEnd.getDate() + 2);
+
   const tournament = await db.tournament.create({
     data: {
-      name: 'Torneo de Básquetbol Enero 2025',
-      sport: 'basketball',
-      format: 'elimination',
-      startDate: new Date('2025-02-01'),
-      endDate: new Date('2025-02-15'),
-      maxParticipants: 16,
-      registrationFee: 1000.00,
-      prizePool: 10000.00,
-      status: 'open',
-      rules: 'Torneo eliminatorio de básquetbol. Equipos de 5 jugadores.'
+      name: 'Torneo de Fútbol Oroquieta 2024',
+      description: 'Torneo amistoso de fútbol para la comunidad',
+      start_date: tournamentStart,
+      end_date: tournamentEnd,
+      max_participants: 16,
+      entry_fee: 500,
+      prize_pool: 8000,
+      status: 'OPEN',
+      rules: {
+        age_limit: { min: 16, max: 45 },
+        team_size: 11,
+        match_duration: 90,
+        registration_deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
+      }
     }
   });
 
-  // Registrar participantes en el torneo
-  await Promise.all([
-    db.tournamentUser.create({
+  // Agregar participantes al torneo
+  for (const user of users.slice(1, 3)) {
+    await db.tournamentUser.create({
       data: {
-        tournamentId: tournament.id,
-        userId: users[1].id,
-        status: 'registered'
+        tournament_id: tournament.id,
+        user_id: user.id,
+        registration_date: new Date(),
+        status: 'CONFIRMED',
+        payment_status: 'PAID'
       }
-    }),
-    db.tournamentUser.create({
-      data: {
-        tournamentId: tournament.id,
-        userId: users[2].id,
-        status: 'registered'
-      }
-    })
-  ]);
+    });
+  }
+
+  console.log('✅ 1 torneo con 2 participantes creado');
 
   // Crear programación de mantenimiento
   console.log('🔧 Creando programación de mantenimiento...');
-  const nextWeek = new Date();
-  nextWeek.setDate(nextWeek.getDate() + 7);
-  nextWeek.setHours(8, 0, 0, 0);
+  const maintenanceDate = new Date();
+  maintenanceDate.setDate(maintenanceDate.getDate() + 3);
+  maintenanceDate.setHours(8, 0, 0, 0);
+  
+  const maintenanceEnd = new Date(maintenanceDate);
+  maintenanceEnd.setHours(12, 0, 0, 0);
 
   await db.maintenanceSchedule.create({
     data: {
-      courtId: courts[2].id,
-      type: MaintenanceType.CLEANING,
-      scheduledDate: nextWeek,
-      estimatedDuration: 120, // 2 horas
-      priority: 'medium',
-      assignedTo: 'Equipo de Limpieza',
-      status: MaintenanceStatus.SCHEDULED,
-      cost: 500.00,
-      notes: 'Limpieza profunda de la cancha de voleibol'
+      court_id: courts[0].id,
+      title: 'Mantenimiento de césped artificial',
+      description: 'Limpieza y revisión del césped artificial de la cancha',
+      start_time: maintenanceDate,
+      end_time: maintenanceEnd,
+      status: 'SCHEDULED',
+      priority: 'MEDIUM',
+      assigned_to: 'Equipo de Mantenimiento',
+      estimated_cost: 2000
     }
   });
 
-  console.log('✅ Seed completado exitosamente!');
-  console.log(`📊 Datos creados:`);
+  console.log('✅ 1 programación de mantenimiento creada');
+
+  console.log('\n🎉 Seed completado exitosamente!');
+  console.log('\n📊 Resumen de datos creados:');
   console.log(`   - 1 Centro deportivo`);
   console.log(`   - ${courts.length} Canchas`);
-  console.log(`   - ${users.length} Usuarios`);
-  console.log(`   - 2 Membresías`);
+  console.log(`   - ${users.length} Usuarios (1 admin, ${users.length - 1} regulares)`);
+  console.log(`   - ${users.length - 1} Membresías`);
   console.log(`   - ${courts.length * 2} Reglas de precios`);
   console.log(`   - 1 Reserva`);
   console.log(`   - 1 Torneo con 2 participantes`);

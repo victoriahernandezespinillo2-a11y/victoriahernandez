@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Trophy,
   Calendar,
@@ -21,30 +21,40 @@ import {
   Crown,
   Gift,
 } from 'lucide-react';
+import { useTournaments } from '@/lib/hooks';
 
 interface Tournament {
   id: string;
   name: string;
   sport: string;
-  description: string;
+  description?: string;
   startDate: string;
   endDate: string;
-  registrationDeadline: string;
+  registrationStartDate?: string;
+  registrationEndDate?: string;
   maxParticipants: number;
-  currentParticipants: number;
-  entryFee: number;
-  prizes: {
-    first: number;
-    second: number;
-    third: number;
+  registrationFee: number;
+  prizePool?: number;
+  type: 'SINGLE_ELIMINATION' | 'DOUBLE_ELIMINATION' | 'ROUND_ROBIN' | 'SWISS';
+  format: 'INDIVIDUAL' | 'DOUBLES' | 'TEAM';
+  category: 'OPEN' | 'JUNIOR' | 'SENIOR' | 'AMATEUR' | 'PROFESSIONAL';
+  status: 'DRAFT' | 'REGISTRATION_OPEN' | 'REGISTRATION_CLOSED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  organizer?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  rules?: string;
+  requirements?: string[];
+  prizes?: Array<{
+    position: number;
+    description: string;
+    value?: number;
+  }>;
+  isPublic?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    participants: number;
   };
-  level: 'beginner' | 'intermediate' | 'advanced' | 'open';
-  format: 'single-elimination' | 'double-elimination' | 'round-robin' | 'swiss';
-  status: 'upcoming' | 'registration-open' | 'registration-closed' | 'in-progress' | 'completed';
-  organizer: string;
-  location: string;
-  rules: string[];
-  image?: string;
   isRegistered?: boolean;
 }
 
@@ -65,159 +75,45 @@ interface UserTournament {
   prize?: number;
 }
 
-// Mock data - En producción esto vendría de la API
-const tournaments: Tournament[] = [
-  {
-    id: '1',
-    name: 'Copa de Fútbol Primavera 2024',
-    sport: 'Fútbol',
-    description: 'Torneo de fútbol 5 vs 5 para equipos amateur. Categoría abierta con premios en efectivo.',
-    startDate: '2024-02-15',
-    endDate: '2024-02-25',
-    registrationDeadline: '2024-02-10',
-    maxParticipants: 16,
-    currentParticipants: 12,
-    entryFee: 200000,
-    prizes: {
-      first: 1000000,
-      second: 500000,
-      third: 250000
-    },
-    level: 'open',
-    format: 'single-elimination',
-    status: 'registration-open',
-    organizer: 'Polideportivo Oroquieta',
-    location: 'Canchas A1, A2, A3',
-    rules: [
-      'Equipos de 5 jugadores + 3 suplentes máximo',
-      'Partidos de 40 minutos (20 min cada tiempo)',
-      'Tarjetas amarillas y rojas según reglamento FIFA',
-      'Todos los jugadores deben estar registrados'
-    ]
-  },
-  {
-    id: '2',
-    name: 'Torneo de Tenis Individual',
-    sport: 'Tenis',
-    description: 'Competencia individual de tenis para jugadores intermedios y avanzados.',
-    startDate: '2024-02-20',
-    endDate: '2024-02-22',
-    registrationDeadline: '2024-02-15',
-    maxParticipants: 32,
-    currentParticipants: 28,
-    entryFee: 50000,
-    prizes: {
-      first: 300000,
-      second: 150000,
-      third: 75000
-    },
-    level: 'intermediate',
-    format: 'single-elimination',
-    status: 'registration-open',
-    organizer: 'Club de Tenis Oroquieta',
-    location: 'Canchas de Tenis T1-T4',
-    rules: [
-      'Partidos a mejor de 3 sets',
-      'Tie-break a 7 puntos en caso de empate 6-6',
-      'Máximo 2 horas por partido',
-      'Equipamiento propio obligatorio'
-    ],
-    isRegistered: true
-  },
-  {
-    id: '3',
-    name: 'Liga de Baloncesto 3x3',
-    sport: 'Baloncesto',
-    description: 'Torneo de baloncesto 3 contra 3 estilo streetball.',
-    startDate: '2024-03-01',
-    endDate: '2024-03-15',
-    registrationDeadline: '2024-02-25',
-    maxParticipants: 24,
-    currentParticipants: 8,
-    entryFee: 150000,
-    prizes: {
-      first: 600000,
-      second: 300000,
-      third: 150000
-    },
-    level: 'open',
-    format: 'round-robin',
-    status: 'upcoming',
-    organizer: 'Liga Urbana de Baloncesto',
-    location: 'Cancha de Baloncesto B1',
-    rules: [
-      'Equipos de 3 jugadores + 1 suplente',
-      'Partidos a 21 puntos o 10 minutos',
-      'Canasta vale 1 punto dentro del arco, 2 fuera',
-      'Cambio de posesión cada canasta'
-    ]
-  },
-  {
-    id: '4',
-    name: 'Campeonato de Voleibol Mixto',
-    sport: 'Voleibol',
-    description: 'Torneo de voleibol con equipos mixtos (hombres y mujeres).',
-    startDate: '2024-01-20',
-    endDate: '2024-01-21',
-    registrationDeadline: '2024-01-15',
-    maxParticipants: 12,
-    currentParticipants: 12,
-    entryFee: 180000,
-    prizes: {
-      first: 500000,
-      second: 250000,
-      third: 125000
-    },
-    level: 'intermediate',
-    format: 'double-elimination',
-    status: 'completed',
-    organizer: 'Asociación de Voleibol',
-    location: 'Cancha de Voleibol V1',
-    rules: [
-      'Equipos de 6 jugadores (mínimo 2 mujeres en cancha)',
-      'Partidos a mejor de 3 sets',
-      'Sets a 25 puntos (diferencia de 2)',
-      'Set decisivo a 15 puntos'
-    ]
-  }
-];
+// Los datos ahora vienen de la API
 
-const userTournaments: UserTournament[] = [
-  {
-    tournamentId: '2',
-    tournamentName: 'Torneo de Tenis Individual',
-    sport: 'Tenis',
-    status: 'registered',
-    registrationDate: '2024-01-10',
-    currentRound: 'Esperando inicio',
-    nextMatch: {
-      date: '2024-02-20',
-      time: '09:00',
-      opponent: 'Carlos Mendoza',
-      court: 'Cancha T2'
-    }
-  },
-  {
-    tournamentId: '4',
-    tournamentName: 'Campeonato de Voleibol Mixto',
-    sport: 'Voleibol',
-    status: 'runner-up',
-    registrationDate: '2024-01-05',
-    finalPosition: 2,
-    prize: 250000
-  }
-];
+// Los datos de torneos del usuario también vendrán de la API
 
 export default function TournamentsPage() {
   const [activeTab, setActiveTab] = useState<'available' | 'my-tournaments'>('available');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSport, setSelectedSport] = useState('all');
-  const [selectedLevel, setSelectedLevel] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  
+  // Hook para gestión de torneos
+  const { tournaments: tournamentsData, loading, error, getTournaments, joinTournament, leaveTournament } = useTournaments();
+  
+  // Extraer los torneos del objeto de respuesta de la API
+  const tournaments = tournamentsData?.tournaments || [];
+  const pagination = tournamentsData?.pagination;
+
+  // Cargar torneos al montar el componente y cuando cambien los filtros
+  useEffect(() => {
+    const params: any = {};
+    
+    if (selectedSport !== 'all') {
+      params.sport = selectedSport;
+    }
+    
+    if (selectedCategory !== 'all') {
+      params.category = selectedCategory;
+    }
+    
+    if (selectedStatus !== 'all') {
+      params.status = selectedStatus;
+    }
+    
+    getTournaments(params);
+  }, [selectedSport, selectedCategory, selectedStatus, getTournaments]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CO', {
@@ -236,48 +132,37 @@ export default function TournamentsPage() {
     });
   };
 
-  const getLevelColor = (level: string) => {
-    switch (level) {
-      case 'beginner':
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case 'JUNIOR':
         return 'bg-green-100 text-green-800';
-      case 'intermediate':
+      case 'AMATEUR':
         return 'bg-yellow-100 text-yellow-800';
-      case 'advanced':
+      case 'PROFESSIONAL':
         return 'bg-red-100 text-red-800';
-      case 'open':
+      case 'SENIOR':
+        return 'bg-purple-100 text-purple-800';
+      case 'OPEN':
         return 'bg-blue-100 text-blue-800';
       default:
         return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getLevelText = (level: string) => {
-    switch (level) {
-      case 'beginner':
-        return 'Principiante';
-      case 'intermediate':
-        return 'Intermedio';
-      case 'advanced':
-        return 'Avanzado';
-      case 'open':
-        return 'Abierto';
-      default:
-        return level;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'registration-open':
+      case 'REGISTRATION_OPEN':
         return 'bg-green-100 text-green-800';
-      case 'registration-closed':
+      case 'REGISTRATION_CLOSED':
         return 'bg-yellow-100 text-yellow-800';
-      case 'in-progress':
+      case 'IN_PROGRESS':
         return 'bg-blue-100 text-blue-800';
-      case 'completed':
+      case 'COMPLETED':
         return 'bg-gray-100 text-gray-800';
-      case 'upcoming':
-        return 'bg-purple-100 text-purple-800';
+      case 'CANCELLED':
+        return 'bg-red-100 text-red-800';
+      case 'DRAFT':
+        return 'bg-orange-100 text-orange-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -285,99 +170,66 @@ export default function TournamentsPage() {
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'registration-open':
+      case 'REGISTRATION_OPEN':
         return 'Inscripciones Abiertas';
-      case 'registration-closed':
+      case 'REGISTRATION_CLOSED':
         return 'Inscripciones Cerradas';
-      case 'in-progress':
+      case 'IN_PROGRESS':
         return 'En Progreso';
-      case 'completed':
-        return 'Finalizado';
-      case 'upcoming':
-        return 'Próximamente';
+      case 'COMPLETED':
+        return 'Completado';
+      case 'CANCELLED':
+        return 'Cancelado';
+      case 'DRAFT':
+        return 'Borrador';
       default:
         return status;
     }
   };
 
-  const getUserStatusColor = (status: string) => {
-    switch (status) {
-      case 'registered':
-        return 'bg-blue-100 text-blue-800';
-      case 'in-progress':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'eliminated':
-        return 'bg-red-100 text-red-800';
-      case 'winner':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'runner-up':
-        return 'bg-gray-100 text-gray-800';
-      case 'third-place':
-        return 'bg-orange-100 text-orange-800';
+  const getCategoryText = (category: string) => {
+    switch (category) {
+      case 'JUNIOR':
+        return 'Junior';
+      case 'AMATEUR':
+        return 'Amateur';
+      case 'PROFESSIONAL':
+        return 'Profesional';
+      case 'SENIOR':
+        return 'Senior';
+      case 'OPEN':
+        return 'Abierto';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return category;
     }
   };
 
-  const getUserStatusText = (status: string) => {
-    switch (status) {
-      case 'registered':
-        return 'Inscrito';
-      case 'in-progress':
-        return 'En Competencia';
-      case 'eliminated':
-        return 'Eliminado';
-      case 'winner':
-        return 'Campeón';
-      case 'runner-up':
-        return 'Subcampeón';
-      case 'third-place':
-        return 'Tercer Lugar';
-      default:
-        return status;
-    }
-  };
+  // Funciones duplicadas eliminadas - usando las versiones de la API
 
-  const getUserStatusIcon = (status: string) => {
-    switch (status) {
-      case 'winner':
-        return <Crown className="h-4 w-4" />;
-      case 'runner-up':
-        return <Medal className="h-4 w-4" />;
-      case 'third-place':
-        return <Award className="h-4 w-4" />;
-      default:
-        return <Trophy className="h-4 w-4" />;
-    }
-  };
-
-  const filteredTournaments = tournaments.filter(tournament => {
-    const matchesSearch = tournament.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         tournament.sport.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSport = selectedSport === 'all' || tournament.sport === selectedSport;
-    const matchesLevel = selectedLevel === 'all' || tournament.level === selectedLevel;
-    const matchesStatus = selectedStatus === 'all' || tournament.status === selectedStatus;
-    
-    return matchesSearch && matchesSport && matchesLevel && matchesStatus;
-  });
-
-  const sports = [...new Set(tournaments.map(t => t.sport))];
-
+  // Función para manejar la inscripción a torneos
   const handleRegisterTournament = async (tournamentId: string) => {
-    setIsLoading(true);
     try {
-      // Aquí iría la llamada a la API para inscribirse al torneo
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await joinTournament(tournamentId);
       alert('¡Te has inscrito exitosamente al torneo!');
       setShowRegistrationModal(false);
       setSelectedTournament(null);
+      // Recargar los torneos para actualizar la información
+      getTournaments();
     } catch (error) {
       console.error('Error registering for tournament:', error);
       alert('Error al inscribirse al torneo. Inténtalo de nuevo.');
-    } finally {
-      setIsLoading(false);
     }
   };
+
+  // Filtrar torneos basado en la búsqueda
+  const filteredTournaments = tournaments.filter(tournament => {
+    const matchesSearch = tournament.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         tournament.sport.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesSearch;
+  });
+
+  // Obtener deportes únicos para el filtro
+  const sports = [...new Set(tournaments.map(t => t.sport))];
 
   const renderAvailableTournaments = () => (
     <div className="space-y-6">
@@ -431,18 +283,19 @@ export default function TournamentsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nivel
+                    Categoría
                   </label>
                   <select
-                    value={selectedLevel}
-                    onChange={(e) => setSelectedLevel(e.target.value)}
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="all">Todos los niveles</option>
-                    <option value="beginner">Principiante</option>
-                    <option value="intermediate">Intermedio</option>
-                    <option value="advanced">Avanzado</option>
-                    <option value="open">Abierto</option>
+                    <option value="all">Todas las categorías</option>
+                    <option value="JUNIOR">Junior</option>
+                    <option value="AMATEUR">Amateur</option>
+                    <option value="PROFESSIONAL">Profesional</option>
+                    <option value="SENIOR">Senior</option>
+                    <option value="OPEN">Abierto</option>
                   </select>
                 </div>
                 <div>
@@ -455,10 +308,12 @@ export default function TournamentsPage() {
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="all">Todos los estados</option>
-                    <option value="registration-open">Inscripciones Abiertas</option>
-                    <option value="upcoming">Próximamente</option>
-                    <option value="in-progress">En Progreso</option>
-                    <option value="completed">Finalizados</option>
+                    <option value="REGISTRATION_OPEN">Inscripciones Abiertas</option>
+                    <option value="REGISTRATION_CLOSED">Inscripciones Cerradas</option>
+                    <option value="IN_PROGRESS">En Progreso</option>
+                    <option value="COMPLETED">Completados</option>
+                    <option value="CANCELLED">Cancelados</option>
+                    <option value="DRAFT">Borrador</option>
                   </select>
                 </div>
               </div>
@@ -467,15 +322,31 @@ export default function TournamentsPage() {
         </div>
       </div>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-2 text-gray-600">Cargando torneos...</span>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <p className="text-red-600">Error al cargar los torneos: {error}</p>
+        </div>
+      )}
+
       {/* Tournaments Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredTournaments.length === 0 ? (
-          <div className="col-span-full text-center py-12">
-            <Trophy className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-            <p className="text-gray-500">No se encontraron torneos con los filtros seleccionados.</p>
-          </div>
-        ) : (
-          filteredTournaments.map((tournament) => (
+      {!loading && !error && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {filteredTournaments.length === 0 ? (
+             <div className="col-span-full text-center py-12">
+               <Trophy className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+               <p className="text-gray-500">No se encontraron torneos.</p>
+             </div>
+           ) : (
+             filteredTournaments.map((tournament) => (
             <div key={tournament.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-6">
                 <div className="flex items-start justify-between mb-4">
@@ -487,15 +358,10 @@ export default function TournamentsPage() {
                         {getStatusText(tournament.status)}
                       </span>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        getLevelColor(tournament.level)
+                        getCategoryColor(tournament.category)
                       }`}>
-                        {getLevelText(tournament.level)}
+                        {getCategoryText(tournament.category)}
                       </span>
-                      {tournament.isRegistered && (
-                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          Inscrito
-                        </span>
-                      )}
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-1">
                       {tournament.name}
@@ -512,11 +378,11 @@ export default function TournamentsPage() {
                   </div>
                   <div className="flex items-center text-gray-600">
                     <Users className="h-4 w-4 mr-2" />
-                    {tournament.currentParticipants}/{tournament.maxParticipants}
+                    {tournament._count?.participants || 0}/{tournament.maxParticipants}
                   </div>
                   <div className="flex items-center text-gray-600">
                     <MapPin className="h-4 w-4 mr-2" />
-                    {tournament.location}
+                    {tournament.center?.name || 'Centro no especificado'}
                   </div>
                   <div className="flex items-center text-gray-600">
                     <Target className="h-4 w-4 mr-2" />
@@ -529,13 +395,13 @@ export default function TournamentsPage() {
                     <div>
                       <div className="text-sm text-gray-500">Inscripción</div>
                       <div className="font-semibold text-gray-900">
-                        {formatCurrency(tournament.entryFee)}
+                        {formatCurrency(tournament.registrationFee || 0)}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm text-gray-500">Premio 1er lugar</div>
+                      <div className="text-sm text-gray-500">Premio Total</div>
                       <div className="font-semibold text-yellow-600">
-                        {formatCurrency(tournament.prizes.first)}
+                        {formatCurrency(tournament.prizePool || 0)}
                       </div>
                     </div>
                   </div>
@@ -548,7 +414,7 @@ export default function TournamentsPage() {
                       <Eye className="h-4 w-4 mr-2" />
                       Ver Detalles
                     </button>
-                    {tournament.status === 'registration-open' && !tournament.isRegistered && (
+                    {tournament.status === 'REGISTRATION_OPEN' && (
                       <button
                         onClick={() => {
                           setSelectedTournament(tournament);
@@ -564,122 +430,25 @@ export default function TournamentsPage() {
                 </div>
               </div>
             </div>
-          ))
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 
   const renderMyTournaments = () => (
     <div className="space-y-6">
-      {userTournaments.length === 0 ? (
-        <div className="text-center py-12">
-          <Trophy className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-          <p className="text-gray-500 mb-4">No tienes torneos registrados aún.</p>
-          <button
-            onClick={() => setActiveTab('available')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
-            Explorar Torneos
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {userTournaments.map((userTournament) => {
-            const tournament = tournaments.find(t => t.id === userTournament.tournamentId);
-            if (!tournament) return null;
-
-            return (
-              <div key={userTournament.tournamentId} className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${
-                          getUserStatusColor(userTournament.status)
-                        }`}>
-                          {getUserStatusIcon(userTournament.status)}
-                          <span className="ml-1">{getUserStatusText(userTournament.status)}</span>
-                        </span>
-                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          {userTournament.sport}
-                        </span>
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                        {userTournament.tournamentName}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        Inscrito el {formatDate(userTournament.registrationDate)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {userTournament.nextMatch && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                      <h4 className="font-medium text-blue-900 mb-2 flex items-center">
-                        <Zap className="h-4 w-4 mr-2" />
-                        Próximo Partido
-                      </h4>
-                      <div className="grid grid-cols-2 gap-2 text-sm text-blue-800">
-                        <div>
-                          <span className="font-medium">Fecha:</span> {formatDate(userTournament.nextMatch.date)}
-                        </div>
-                        <div>
-                          <span className="font-medium">Hora:</span> {userTournament.nextMatch.time}
-                        </div>
-                        <div>
-                          <span className="font-medium">Oponente:</span> {userTournament.nextMatch.opponent}
-                        </div>
-                        <div>
-                          <span className="font-medium">Cancha:</span> {userTournament.nextMatch.court}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {userTournament.currentRound && (
-                    <div className="mb-4">
-                      <div className="text-sm text-gray-500">Estado actual</div>
-                      <div className="font-medium text-gray-900">{userTournament.currentRound}</div>
-                    </div>
-                  )}
-
-                  {userTournament.finalPosition && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium text-yellow-900">
-                            Posición Final: #{userTournament.finalPosition}
-                          </div>
-                          {userTournament.prize && (
-                            <div className="text-sm text-yellow-800">
-                              Premio: {formatCurrency(userTournament.prize)}
-                            </div>
-                          )}
-                        </div>
-                        <Gift className="h-6 w-6 text-yellow-600" />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="border-t border-gray-200 pt-4">
-                    <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                      <div className="flex items-center">
-                        <Calendar className="h-4 w-4 mr-2" />
-                        {formatDate(tournament.startDate)}
-                      </div>
-                      <div className="flex items-center">
-                        <MapPin className="h-4 w-4 mr-2" />
-                        {tournament.location}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <div className="text-center py-12">
+        <Trophy className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+        <p className="text-gray-500 mb-4">La funcionalidad de "Mis Torneos" se implementará próximamente.</p>
+        <button
+          onClick={() => setActiveTab('available')}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+        >
+          Ver Torneos Disponibles
+        </button>
+      </div>
     </div>
   );
 
@@ -717,7 +486,7 @@ export default function TournamentsPage() {
               }`}
             >
               <Medal className="h-4 w-4 mr-2" />
-              Mis Torneos ({userTournaments.length})
+              Mis Torneos (0)
             </button>
           </nav>
         </div>
@@ -744,9 +513,9 @@ export default function TournamentsPage() {
                       {getStatusText(selectedTournament.status)}
                     </span>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      getLevelColor(selectedTournament.level)
+                      getCategoryColor(selectedTournament.category)
                     }`}>
-                      {getLevelText(selectedTournament.level)}
+                      {getCategoryText(selectedTournament.category)}
                     </span>
                   </div>
                 </div>

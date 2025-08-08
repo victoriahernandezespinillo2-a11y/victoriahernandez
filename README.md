@@ -1,135 +1,110 @@
-# Turborepo starter
+## Polideportivo Oroquieta — Monorepo Full‑Stack
 
-This Turborepo starter is maintained by the Turborepo core team.
+Reservas, membresías, torneos, pagos y administración en un único monorepo productivo.
 
-## Using this example
+- Framework: Next.js 15 (apps: `web`, `admin`, `api`) + React 19
+- Backend: API REST con middlewares (auth, roles, CORS, rate‑limit, logging, validación con Zod)
+- Base de datos: Prisma + PostgreSQL (Supabase) con RLS y PgBouncer
+- Autenticación: NextAuth v5 (JWT), cookies aisladas por app, providers (credenciales, Google opcional)
+- Monorepo: Turborepo + pnpm workspaces
+- UI: Tailwind CSS
 
-Run the following command:
-
-```sh
-npx create-turbo@latest
-```
-
-## What's inside?
-
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
+### Estructura
 
 ```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+polideportivo-platform/
+├─ apps/
+│  ├─ web/      # Frontend usuario (puerto 3001)
+│  ├─ admin/    # Panel administrador (puerto 3003)
+│  └─ api/      # Backend REST (puerto 3002)
+├─ packages/
+│  ├─ auth/     # Config/handlers NextAuth compartidos
+│  ├─ db/       # Prisma Client y utilidades DB
+│  └─ ui/       # Componentes UI compartidos
+├─ turbo.json   # Pipelines Turborepo
+└─ pnpm-workspace.yaml
 ```
 
-You can build a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+### Requisitos
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
+- Node.js 20+
+- pnpm 8+
+- Supabase (Postgres con SSL activo)
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
+### Variables de entorno (resumen)
 
-### Develop
+- Raíz (`.env`):
+  - `DATABASE_URL=postgresql://...:6543/...?...&pgbouncer=true&sslmode=require`
+  - `DIRECT_DATABASE_URL=postgresql://...:5432/...?...&sslmode=require`
+  - `AUTH_SECRET` (o `NEXTAUTH_SECRET`)
 
-To develop all apps and packages, run the following command:
+- `apps/web/.env.local` (dev):
+  - `NEXTAUTH_URL=http://localhost:3001`
+  - `AUTH_URL=http://localhost:3001`
+  - `NEXTAUTH_COOKIE_NAME=next-auth.session-token-web`
 
-```
-cd my-turborepo
+- `apps/admin/.env.local` (dev):
+  - `NEXTAUTH_URL=http://localhost:3003`
+  - `AUTH_URL=http://localhost:3003`
+  - `NEXTAUTH_COOKIE_NAME=next-auth.session-token-3003`
+  - `NEXT_PUBLIC_API_URL=http://localhost:3002` (si no se usan rewrites)
 
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
+Notas:
+- `packages/db` normaliza `DATABASE_URL` (SSL, PgBouncer) y usa `DIRECT_DATABASE_URL` para migraciones.
+- Cookies de sesión aisladas por app para evitar colisiones.
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
-```
+### Instalación
 
-You can develop a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+```bash
+pnpm install
 ```
 
-### Remote Caching
+### Base de datos (Prisma + Supabase)
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
+```bash
+pnpm --filter @repo/db exec prisma generate
+pnpm --filter @repo/db exec prisma db push
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+Crear usuario admin (opcional en dev):
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
+```bash
+$env:ADMIN_EMAIL="admin@polideportivo.com"
+$env:ADMIN_PASSWORD="admin1234"
+pnpm --filter @repo/db exec tsx src/scripts/create-admin.ts
 ```
 
-## Useful Links
+### Desarrollo
 
-Learn more about the power of Turborepo:
+```bash
+pnpm dev
+```
 
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+Puertos: web 3001, api 3002, admin 3003.
+
+Rewrites (evitar CORS en dev):
+- `apps/web/next.config.js` y `apps/admin/next.config.js` proxyean `/api/*` a `api` excepto `/api/auth/*`.
+- El cliente del `web` usa base relativa y `credentials: 'include'`.
+
+### Autenticación
+
+- NextAuth v5 (JWT) desde `packages/auth`.
+- Middlewares de autorización por rol en `apps/api/src/lib/middleware`.
+
+### Middlewares API clave
+
+- `withAuth`, `withRole`, `withCors`, `withRateLimit`, `withLogging`, `withErrorHandling`.
+
+### Scripts útiles
+
+- Listado rápido de usuarios: `polideportivo-platform/list-users.js`
+- Crear admin: `packages/db/src/scripts/create-admin.ts`
+
+### Despliegue (resumen)
+
+- Vercel para `web` y `admin`.
+- `api` en Vercel (Node.js runtime) con Prisma y `DATABASE_URL` con SSL.
+
+### Licencia
+
+Privado/Propietario.

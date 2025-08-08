@@ -35,7 +35,7 @@ interface Court {
 
 
 
-const typeColors = {
+const typeColors: Record<string, string> = {
   FOOTBALL: 'bg-green-100 text-green-800',
   BASKETBALL: 'bg-orange-100 text-orange-800',
   TENNIS: 'bg-yellow-100 text-yellow-800',
@@ -43,7 +43,7 @@ const typeColors = {
   MULTIPURPOSE: 'bg-blue-100 text-blue-800'
 };
 
-const typeLabels = {
+const typeLabels: Record<string, string> = {
   FOOTBALL: 'Fútbol',
   BASKETBALL: 'Básquetbol',
   TENNIS: 'Tenis',
@@ -51,14 +51,14 @@ const typeLabels = {
   MULTIPURPOSE: 'Multiusos'
 };
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   AVAILABLE: 'bg-green-100 text-green-800',
   OCCUPIED: 'bg-red-100 text-red-800',
   MAINTENANCE: 'bg-yellow-100 text-yellow-800',
   INACTIVE: 'bg-gray-100 text-gray-800'
 };
 
-const statusLabels = {
+const statusLabels: Record<string, string> = {
   AVAILABLE: 'Disponible',
   OCCUPIED: 'Ocupada',
   MAINTENANCE: 'Mantenimiento',
@@ -107,10 +107,10 @@ export default function CourtsPage() {
   }
 
   // Obtener centros únicos para el filtro
-  const uniqueCenters = Array.from(new Set(courts.map(court => court.centerName)));
+  const uniqueCenters = Array.from(new Set(courts?.map(court => court.centerName) || []));
 
   // Filtrar canchas
-  const filteredCourts = courts.filter(court => {
+  const filteredCourts = courts?.filter(court => {
     const matchesSearch = 
       court.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       court.centerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -121,7 +121,7 @@ export default function CourtsPage() {
     const matchesCenter = centerFilter === 'ALL' || court.centerName === centerFilter;
     
     return matchesSearch && matchesType && matchesStatus && matchesCenter;
-  });
+  }) || [];
 
   // Paginación
   const totalPages = Math.ceil(filteredCourts.length / itemsPerPage);
@@ -139,8 +139,8 @@ export default function CourtsPage() {
     }
   };
 
-  const totalRevenue = courts.reduce((sum, court) => sum + court.hourlyRate, 0);
-  const averageRate = courts.length > 0 ? totalRevenue / courts.length : 0;
+  const totalRevenue = courts?.reduce((sum, court) => sum + court.hourlyRate, 0) || 0;
+  const averageRate = (courts?.length || 0) > 0 ? totalRevenue / (courts?.length || 1) : 0;
 
   return (
     <div className="space-y-6">
@@ -172,7 +172,7 @@ export default function CourtsPage() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total Canchas</p>
-              <p className="text-2xl font-semibold text-gray-900">{courts.length}</p>
+              <p className="text-2xl font-semibold text-gray-900">{courts?.length || 0}</p>
             </div>
           </div>
         </div>
@@ -186,7 +186,7 @@ export default function CourtsPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Disponibles</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {courts.filter(c => c.status === 'AVAILABLE').length}
+                {courts?.filter(c => c.status === 'AVAILABLE').length || 0}
               </p>
             </div>
           </div>
@@ -214,7 +214,7 @@ export default function CourtsPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">En Uso</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {courts.filter(c => c.status === 'OCCUPIED').length}
+                {courts?.filter(c => c.status === 'OCCUPIED').length || 0}
               </p>
             </div>
           </div>
@@ -356,14 +356,14 @@ export default function CourtsPage() {
               <div className="mb-4">
                 <p className="text-xs text-gray-500 mb-2">Características:</p>
                 <div className="flex flex-wrap gap-1">
-                  {court.features.slice(0, 3).map((feature, index) => (
+                  {court.features?.slice(0, 3).map((feature: string, index: number) => (
                     <span key={index} className="inline-flex px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
                       {feature}
                     </span>
                   ))}
-                  {court.features.length > 3 && (
+                  {(court.features?.length || 0) > 3 && (
                     <span className="inline-flex px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
-                      +{court.features.length - 3} más
+                      +{(court.features?.length || 0) - 3} más
                     </span>
                   )}
                 </div>

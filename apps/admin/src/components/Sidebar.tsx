@@ -113,7 +113,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   };
 
   return (
-    <div className={`bg-gray-900 text-white transition-all duration-300 flex flex-col ${
+    <aside className={`bg-gray-900 text-white transition-all duration-300 flex flex-col h-screen overflow-y-auto border-r border-gray-800 ${
       isCollapsed ? 'w-16' : 'w-64'
     }`}>
       {/* Header */}
@@ -229,6 +229,6 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           </div>
         )}
       </div>
-    </div>
+    </aside>
   );
 }

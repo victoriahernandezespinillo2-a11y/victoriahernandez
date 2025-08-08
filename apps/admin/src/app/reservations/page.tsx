@@ -38,7 +38,7 @@ interface Reservation {
 
 
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   PENDING: 'bg-yellow-100 text-yellow-800',
   CONFIRMED: 'bg-blue-100 text-blue-800',
   CANCELLED: 'bg-red-100 text-red-800',
@@ -46,7 +46,7 @@ const statusColors = {
   NO_SHOW: 'bg-gray-100 text-gray-800'
 };
 
-const statusLabels = {
+const statusLabels: Record<string, string> = {
   PENDING: 'Pendiente',
   CONFIRMED: 'Confirmada',
   CANCELLED: 'Cancelada',
@@ -54,13 +54,13 @@ const statusLabels = {
   NO_SHOW: 'No se presentó'
 };
 
-const paymentStatusColors = {
+const paymentStatusColors: Record<string, string> = {
   PENDING: 'bg-yellow-100 text-yellow-800',
   PAID: 'bg-green-100 text-green-800',
   REFUNDED: 'bg-blue-100 text-blue-800'
 };
 
-const paymentStatusLabels = {
+const paymentStatusLabels: Record<string, string> = {
   PENDING: 'Pendiente',
   PAID: 'Pagado',
   REFUNDED: 'Reembolsado'
@@ -108,7 +108,7 @@ export default function ReservationsPage() {
   }
 
   // Filtrar reservas
-  const filteredReservations = reservations.filter(reservation => {
+  const filteredReservations = reservations?.filter(reservation => {
     const matchesSearch = 
       reservation.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       reservation.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -120,7 +120,7 @@ export default function ReservationsPage() {
     const matchesDate = !dateFilter || reservation.date === dateFilter;
     
     return matchesSearch && matchesStatus && matchesPayment && matchesDate;
-  });
+  }) || [];
 
   // Paginación
   const totalPages = Math.ceil(filteredReservations.length / itemsPerPage);
@@ -149,10 +149,10 @@ export default function ReservationsPage() {
 
   // Calcular estadísticas
   const totalRevenue = reservations
-    .filter(r => r.paymentStatus === 'PAID')
-    .reduce((sum, r) => sum + r.totalAmount, 0);
+    ?.filter(r => r.paymentStatus === 'PAID')
+    .reduce((sum, r) => sum + r.totalAmount, 0) || 0;
   
-  const todayReservations = reservations.filter(r => r.date === new Date().toISOString().split('T')[0]);
+  const todayReservations = reservations?.filter(r => r.date === new Date().toISOString().split('T')[0]) || [];
 
   return (
     <div className="space-y-6">
@@ -184,7 +184,7 @@ export default function ReservationsPage() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total Reservas</p>
-              <p className="text-2xl font-semibold text-gray-900">{reservations.length}</p>
+              <p className="text-2xl font-semibold text-gray-900">{reservations?.length || 0}</p>
             </div>
           </div>
         </div>
@@ -195,7 +195,7 @@ export default function ReservationsPage() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Hoy</p>
-              <p className="text-2xl font-semibold text-gray-900">{todayReservations.length}</p>
+              <p className="text-2xl font-semibold text-gray-900">{todayReservations?.length || 0}</p>
             </div>
           </div>
         </div>
@@ -218,7 +218,7 @@ export default function ReservationsPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Confirmadas</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {reservations.filter(r => r.status === 'CONFIRMED').length}
+                {reservations?.filter(r => r.status === 'CONFIRMED').length || 0}
               </p>
             </div>
           </div>

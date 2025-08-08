@@ -1,19 +1,22 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Configurar el directorio src
   pageExtensions: ['ts', 'tsx', 'js', 'jsx'],
-  // Configuración para el monorepo
-  transpilePackages: ['@repo/ui'],
-  
-  // Configurar rewrites para redirigir llamadas API al servidor API
-  // EXCLUIR rutas de autenticación para evitar conflictos
+  transpilePackages: ['@repo/ui', '@repo/auth', '@repo/db'],
   async rewrites() {
-    return [
-      {
-        source: '/api/((?!auth).*)/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/$1/:path*`,
-      },
-    ];
+    // Usamos afterFiles para que las rutas internas como /api/auth/* NO se reescriban
+    // y el resto de /api/* se proxyeen al backend API.
+    return {
+      beforeFiles: [],
+      afterFiles: [
+        // Excluir explícitamente NextAuth del rewrite
+        // Solo reescribir cuando el path NO empieza por auth/
+        {
+          source: '/api/:path((?!auth/).*)',
+          destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/:path`,
+        },
+      ],
+      fallback: [],
+    };
   },
 };
 

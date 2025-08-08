@@ -42,7 +42,7 @@ interface Tournament {
 
 // Los datos ahora vienen de la API real
 
-const sportColors = {
+const sportColors: Record<string, string> = {
   FOOTBALL: 'bg-green-100 text-green-800',
   BASKETBALL: 'bg-orange-100 text-orange-800',
   TENNIS: 'bg-yellow-100 text-yellow-800',
@@ -50,7 +50,7 @@ const sportColors = {
   MULTIPURPOSE: 'bg-blue-100 text-blue-800'
 };
 
-const sportLabels = {
+const sportLabels: Record<string, string> = {
   FOOTBALL: 'Fútbol',
   BASKETBALL: 'Básquetbol',
   TENNIS: 'Tenis',
@@ -58,7 +58,7 @@ const sportLabels = {
   MULTIPURPOSE: 'Multiusos'
 };
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   DRAFT: 'bg-gray-100 text-gray-800',
   REGISTRATION_OPEN: 'bg-green-100 text-green-800',
   REGISTRATION_CLOSED: 'bg-yellow-100 text-yellow-800',
@@ -67,7 +67,7 @@ const statusColors = {
   CANCELLED: 'bg-red-100 text-red-800'
 };
 
-const statusLabels = {
+const statusLabels: Record<string, string> = {
   DRAFT: 'Borrador',
   REGISTRATION_OPEN: 'Inscripciones Abiertas',
   REGISTRATION_CLOSED: 'Inscripciones Cerradas',

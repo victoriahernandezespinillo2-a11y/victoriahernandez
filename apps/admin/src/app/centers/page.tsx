@@ -85,7 +85,7 @@ export default function CentersPage() {
   }
 
   // Filtrar centros
-  const filteredCenters = centers.filter(center => {
+  const filteredCenters = centers?.filter(center => {
     const matchesSearch = 
       center.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       center.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -94,7 +94,7 @@ export default function CentersPage() {
     const matchesStatus = statusFilter === 'ALL' || center.status === statusFilter;
     
     return matchesSearch && matchesStatus;
-  });
+  }) || [];
 
   // Paginación
   const totalPages = Math.ceil(filteredCenters.length / itemsPerPage);
@@ -112,8 +112,8 @@ export default function CentersPage() {
     }
   };
 
-  const totalCourts = centers.reduce((sum, center) => sum + center.courtsCount, 0);
-  const totalCapacity = centers.reduce((sum, center) => sum + center.capacity, 0);
+  const totalCourts = centers?.reduce((sum, center) => sum + center.courtsCount, 0) || 0;
+  const totalCapacity = centers?.reduce((sum, center) => sum + center.capacity, 0) || 0;
 
   return (
     <div className="space-y-6">
@@ -145,7 +145,7 @@ export default function CentersPage() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total Centros</p>
-              <p className="text-2xl font-semibold text-gray-900">{centers.length}</p>
+              <p className="text-2xl font-semibold text-gray-900">{centers?.length || 0}</p>
             </div>
           </div>
         </div>
@@ -159,7 +159,7 @@ export default function CentersPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Centros Activos</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {centers.filter(c => c.status === 'ACTIVE').length}
+                {centers?.filter(c => c.status === 'ACTIVE').length || 0}
               </p>
             </div>
           </div>
@@ -237,9 +237,9 @@ export default function CentersPage() {
                     {center.name}
                   </h3>
                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                    statusColors[center.status]
+                    statusColors[center.status as keyof typeof statusColors]
                   }`}>
-                    {statusLabels[center.status]}
+                    {statusLabels[center.status as keyof typeof statusLabels]}
                   </span>
                 </div>
                 <div className="flex space-x-1">

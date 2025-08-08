@@ -52,7 +52,10 @@ export class PricingService {
       include: {
         pricingRules: {
           where: { isActive: true },
-          orderBy: { priceMultiplier: 'desc' }, // Aplicar reglas con mayor multiplicador primero
+          // Ordenar por nombre; si en tu esquema existe priority, puedes añadirlo aquí
+          orderBy: [
+            { name: 'asc' as const },
+          ],
         },
       },
     });
@@ -62,7 +65,7 @@ export class PricingService {
     }
     
     // Obtener información del usuario si se proporciona
-    let user: User | null = null;
+    let user: (User & { memberships: any[] }) | null = null;
     if (validatedInput.userId) {
       user = await db.user.findUnique({
         where: { id: validatedInput.userId },
@@ -97,20 +100,24 @@ export class PricingService {
     
     // Aplicar reglas de precios
     for (const rule of applicableRules) {
-      finalMultiplier *= Number(rule.priceMultiplier);
+      const adjustment = (rule as any)?.adjustment || {};
+      const priceMultiplier = Number(adjustment.priceMultiplier ?? 1.0);
+      const ruleMemberDiscount = Number(adjustment.memberDiscount ?? 0);
+
+      finalMultiplier *= priceMultiplier;
       appliedRules.push(rule.name);
       
-      if (Number(rule.priceMultiplier) !== 1.0) {
-        const ruleEffect = basePrice * (Number(rule.priceMultiplier) - 1);
+      if (priceMultiplier !== 1.0) {
+        const ruleEffect = basePrice * (priceMultiplier - 1);
         breakdown.push({
-          description: `${rule.name} (${Number(rule.priceMultiplier)}x)`,
+          description: `${rule.name} (${priceMultiplier}x)`,
           amount: ruleEffect,
         });
       }
       
       // Aplicar descuento de miembro si corresponde
-      if (user && this.hasMembership(user) && Number(rule.memberDiscount) > memberDiscount) {
-        memberDiscount = Number(rule.memberDiscount);
+      if (user && this.hasMembership(user) && ruleMemberDiscount > memberDiscount) {
+        memberDiscount = ruleMemberDiscount;
       }
     }
     
@@ -157,24 +164,31 @@ export class PricingService {
     const dayOfWeek = startTime.getDay() === 0 ? 7 : startTime.getDay(); // Convertir domingo de 0 a 7
     
     return rules.filter(rule => {
+      const conditions = (rule as any)?.conditions || {};
+      const condDays: number[] = Array.isArray(conditions.daysOfWeek) ? conditions.daysOfWeek : [];
+      const seasonStart: Date | null = conditions.seasonStart ? new Date(conditions.seasonStart) : null;
+      const seasonEnd: Date | null = conditions.seasonEnd ? new Date(conditions.seasonEnd) : null;
+      const timeStartStr: string | undefined = conditions.timeStart;
+      const timeEndStr: string | undefined = conditions.timeEnd;
+
       // Verificar día de la semana
-      if (!rule.daysOfWeek.includes(dayOfWeek)) {
+      if (condDays.length > 0 && !condDays.includes(dayOfWeek)) {
         return false;
       }
       
       // Verificar temporada
-      if (rule.seasonStart && rule.seasonEnd) {
+      if (seasonStart && seasonEnd) {
         const currentDate = new Date(startTime);
         currentDate.setHours(0, 0, 0, 0);
         
-        if (currentDate < rule.seasonStart || currentDate > rule.seasonEnd) {
+        if (currentDate < seasonStart || currentDate > seasonEnd) {
           return false;
         }
       }
       
       // Verificar horario
-      const ruleStartTime = this.parseTimeString(rule.timeStart);
-      const ruleEndTime = this.parseTimeString(rule.timeEnd);
+      const ruleStartTime = this.parseTimeString(timeStartStr || '00:00');
+      const ruleEndTime = this.parseTimeString(timeEndStr || '23:59');
       
       const reservationStartMinutes = startTime.getHours() * 60 + startTime.getMinutes();
       const reservationEndMinutes = endTime.getHours() * 60 + endTime.getMinutes();
@@ -232,18 +246,27 @@ export class PricingService {
       }
     }
     
-    return await db.pricingRule.create({
+    const conditions = {
+      timeStart: validatedInput.timeStart,
+      timeEnd: validatedInput.timeEnd,
+      daysOfWeek: validatedInput.daysOfWeek,
+      seasonStart: validatedInput.seasonStart ?? null,
+      seasonEnd: validatedInput.seasonEnd ?? null,
+    };
+    const adjustment = {
+      priceMultiplier: validatedInput.priceMultiplier,
+      memberDiscount: validatedInput.memberDiscount,
+    };
+
+    // Algunos campos del modelo (type, validFrom, validUntil, priority) pueden existir según el esquema actual.
+    // Para mantener compatibilidad entre esquemas, enviamos solo campos seguros y casteamos como any.
+    return await (db.pricingRule as any).create({
       data: {
         courtId: validatedInput.courtId,
         name: validatedInput.name,
-        timeStart: validatedInput.timeStart,
-        timeEnd: validatedInput.timeEnd,
-        daysOfWeek: validatedInput.daysOfWeek,
-        seasonStart: validatedInput.seasonStart,
-        seasonEnd: validatedInput.seasonEnd,
-        priceMultiplier: validatedInput.priceMultiplier,
-        memberDiscount: validatedInput.memberDiscount,
         isActive: validatedInput.isActive,
+        conditions,
+        adjustment,
       },
     });
   }
@@ -256,7 +279,6 @@ export class PricingService {
       where: { courtId },
       orderBy: [
         { isActive: 'desc' },
-        { priceMultiplier: 'desc' },
         { name: 'asc' },
       ],
     });
@@ -293,9 +315,49 @@ export class PricingService {
       }
     }
     
-    return await db.pricingRule.update({
+    // Preparar actualización sobre conditions/adjustment si vienen campos del schema extendido
+    const data: any = { ...input };
+    if (
+      input.timeStart ||
+      input.timeEnd ||
+      input.daysOfWeek ||
+      input.seasonStart ||
+      input.seasonEnd
+    ) {
+      const current = (existingRule as any).conditions || {};
+      data.conditions = {
+        ...current,
+        ...(input.timeStart ? { timeStart: input.timeStart } : {}),
+        ...(input.timeEnd ? { timeEnd: input.timeEnd } : {}),
+        ...(input.daysOfWeek ? { daysOfWeek: input.daysOfWeek } : {}),
+        ...(input.seasonStart ? { seasonStart: input.seasonStart } : {}),
+        ...(input.seasonEnd ? { seasonEnd: input.seasonEnd } : {}),
+      };
+      // Eliminar campos desconocidos para el modelo base
+      delete (data as any).timeStart;
+      delete (data as any).timeEnd;
+      delete (data as any).daysOfWeek;
+      delete (data as any).seasonStart;
+      delete (data as any).seasonEnd;
+    }
+
+    if (
+      input.priceMultiplier !== undefined ||
+      input.memberDiscount !== undefined
+    ) {
+      const currentAdj = (existingRule as any).adjustment || {};
+      data.adjustment = {
+        ...currentAdj,
+        ...(input.priceMultiplier !== undefined ? { priceMultiplier: input.priceMultiplier } : {}),
+        ...(input.memberDiscount !== undefined ? { memberDiscount: input.memberDiscount } : {}),
+      };
+      delete (data as any).priceMultiplier;
+      delete (data as any).memberDiscount;
+    }
+
+    return await (db.pricingRule as any).update({
       where: { id },
-      data: input,
+      data,
     });
   }
   
@@ -367,7 +429,7 @@ export class PricingService {
           gte: startDate,
           lte: endDate,
         },
-        status: { in: ['confirmed', 'completed'] },
+        status: { in: ['PAID', 'COMPLETED'] },
       },
       select: {
         totalPrice: true,

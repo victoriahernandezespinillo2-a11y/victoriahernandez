@@ -47,19 +47,22 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       )}
 
       {/* Sidebar */}
-      <div className={`
-        ${isMobile ? 'fixed' : 'relative'} 
-        ${isMobile && !isMobileSidebarOpen ? '-translate-x-full' : 'translate-x-0'}
-        transition-transform duration-300 ease-in-out z-50 h-screen
-      `}>
-        <Sidebar 
-          isCollapsed={isMobile ? false : isSidebarCollapsed} 
+      <div
+        className={`
+          ${isMobile ? 'fixed' : 'sticky'}
+          top-0
+          ${isMobile && !isMobileSidebarOpen ? '-translate-x-full' : 'translate-x-0'}
+          transition-transform duration-300 ease-in-out z-50 h-screen
+        `}
+      >
+        <Sidebar
+          isCollapsed={isMobile ? false : isSidebarCollapsed}
           onToggle={toggleSidebar}
         />
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col min-h-screen min-w-0">
         {/* Header */}
         <Header 
           onToggleSidebar={toggleSidebar}
@@ -67,8 +70,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         />
 
         {/* Page content */}
-        <main className="flex-1 p-6 overflow-auto">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 p-6 overflow-y-auto">
+          <div className="w-full">
             {children}
           </div>
         </main>

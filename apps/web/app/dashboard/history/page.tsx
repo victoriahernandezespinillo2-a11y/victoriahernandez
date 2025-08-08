@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Calendar,
   Clock,
@@ -17,6 +17,7 @@ import {
   Activity,
   BarChart3,
 } from 'lucide-react';
+import { useUserProfile, useUserHistory } from '@/lib/hooks';
 
 interface HistoryItem {
   id: string;
@@ -44,103 +45,93 @@ interface MonthlyStats {
   averageRating: number;
 }
 
-// Mock data - En producción esto vendría de la API
-const historyData: HistoryItem[] = [
-  {
-    id: '1',
-    type: 'reservation',
-    sport: 'Fútbol',
-    court: 'Cancha A1',
-    date: '2024-01-15',
-    startTime: '18:00',
-    endTime: '19:00',
-    duration: 60,
-    cost: 50000,
-    credits: 50,
-    status: 'completed',
-    rating: 5,
-    participants: ['Juan Pérez', 'María García', 'Carlos López'],
-    notes: 'Excelente partido, cancha en perfectas condiciones'
-  },
-  {
-    id: '2',
-    type: 'tournament',
-    sport: 'Tenis',
-    court: 'Cancha T2',
-    date: '2024-01-12',
-    startTime: '16:00',
-    endTime: '18:00',
-    duration: 120,
-    cost: 0,
-    credits: 0,
-    status: 'completed',
-    rating: 4,
-    notes: 'Torneo mensual - Segundo lugar'
-  },
-  {
-    id: '3',
-    type: 'reservation',
-    sport: 'Baloncesto',
-    court: 'Cancha B1',
-    date: '2024-01-10',
-    startTime: '20:00',
-    endTime: '21:30',
-    duration: 90,
-    cost: 75000,
-    credits: 75,
-    status: 'completed',
-    rating: 4,
-    participants: ['Ana Rodríguez', 'Luis Martín']
-  },
-  {
-    id: '4',
-    type: 'reservation',
-    sport: 'Fútbol',
-    court: 'Cancha A2',
-    date: '2024-01-08',
-    startTime: '19:00',
-    endTime: '20:00',
-    duration: 60,
-    cost: 50000,
-    credits: 50,
-    status: 'cancelled',
-    notes: 'Cancelado por lluvia'
-  },
-  {
-    id: '5',
-    type: 'training',
-    sport: 'Tenis',
-    court: 'Cancha T1',
-    date: '2024-01-05',
-    startTime: '15:00',
-    endTime: '16:00',
-    duration: 60,
-    cost: 80000,
-    credits: 80,
-    status: 'completed',
-    rating: 5,
-    notes: 'Sesión de entrenamiento personal'
-  }
-];
+// Función para transformar datos de la API al formato del componente
+const transformReservationToHistoryItem = (reservation: any): HistoryItem => {
+  const startTime = new Date(reservation.startTime);
+  const endTime = new Date(reservation.endTime);
+  const duration = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+  
+  return {
+    id: reservation.id,
+    type: 'reservation', // Por ahora solo manejamos reservas
+    sport: reservation.court?.sport || 'Desconocido',
+    court: reservation.court?.name || 'Cancha desconocida',
+    date: startTime.toISOString().split('T')[0],
+    startTime: startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+    endTime: endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+    duration,
+    cost: reservation.totalAmount || 0,
+    credits: 0, // Por ahora no manejamos créditos
+    status: mapReservationStatus(reservation.status),
+    rating: reservation.rating,
+    notes: reservation.notes
+  };
+};
 
-const monthlyStats: MonthlyStats[] = [
-  {
-    month: 'Enero 2024',
-    totalReservations: 12,
-    totalHours: 18,
-    totalCost: 600000,
-    favoritesSport: 'Fútbol',
-    averageRating: 4.5
-  },
-  {
-    month: 'Diciembre 2023',
-    totalReservations: 8,
-    totalHours: 12,
-    totalCost: 400000,
-    favoritesSport: 'Tenis',
-    averageRating: 4.2
+// Función para mapear estados de reserva
+const mapReservationStatus = (status: string): 'completed' | 'cancelled' | 'no-show' => {
+  switch (status) {
+    case 'COMPLETED':
+      return 'completed';
+    case 'CANCELLED':
+      return 'cancelled';
+    case 'NO_SHOW':
+      return 'no-show';
+    default:
+      return 'completed';
   }
-];
+};
+
+// Función para calcular estadísticas mensuales
+const calculateMonthlyStats = (data: HistoryItem[]): MonthlyStats[] => {
+  const monthlyData: { [key: string]: HistoryItem[] } = {};
+  
+  // Agrupar por mes
+  data.forEach(item => {
+    const date = new Date(item.date);
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    if (!monthlyData[monthKey]) {
+      monthlyData[monthKey] = [];
+    }
+    monthlyData[monthKey].push(item);
+  });
+  
+  // Calcular estadísticas para cada mes
+  return Object.entries(monthlyData)
+    .map(([monthKey, items]) => {
+      const completedItems = items.filter(item => item.status === 'completed');
+      const totalHours = completedItems.reduce((sum, item) => sum + item.duration, 0) / 60;
+      const totalCost = completedItems.reduce((sum, item) => sum + item.cost, 0);
+      const ratingsItems = completedItems.filter(item => item.rating);
+      const averageRating = ratingsItems.length > 0 
+        ? ratingsItems.reduce((sum, item) => sum + (item.rating || 0), 0) / ratingsItems.length 
+        : 0;
+      
+      // Encontrar deporte favorito
+      const sportCounts: { [key: string]: number } = {};
+      completedItems.forEach(item => {
+        sportCounts[item.sport] = (sportCounts[item.sport] || 0) + 1;
+      });
+      const favoritesSport = Object.entries(sportCounts)
+        .sort(([,a], [,b]) => b - a)[0]?.[0] || 'N/A';
+      
+      const date = new Date(monthKey + '-01');
+      const monthName = date.toLocaleDateString('es-ES', { 
+        year: 'numeric', 
+        month: 'long' 
+      });
+      
+      return {
+        month: monthName.charAt(0).toUpperCase() + monthName.slice(1),
+        totalReservations: completedItems.length,
+        totalHours: Math.round(totalHours * 10) / 10,
+        totalCost,
+        favoritesSport,
+        averageRating: Math.round(averageRating * 10) / 10
+      };
+    })
+    .sort((a, b) => b.month.localeCompare(a.month)); // Ordenar por mes descendente
+};
 
 export default function HistoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -149,6 +140,36 @@ export default function HistoryPage() {
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'stats'>('list');
+  
+  // Hooks para obtener datos del usuario
+  const { profile } = useUserProfile();
+  const { historyData: apiData, loading, error, getUserHistory } = useUserHistory();
+  
+  // Estado para los datos transformados
+  const [historyData, setHistoryData] = useState<HistoryItem[]>([]);
+  const [monthlyStats, setMonthlyStats] = useState<MonthlyStats[]>([]);
+  
+  // Cargar datos cuando el perfil esté disponible
+  useEffect(() => {
+    if (profile?.id) {
+      getUserHistory(profile.id, {
+        limit: 100, // Obtener más datos para estadísticas
+        page: 1
+      });
+    }
+  }, [profile?.id, getUserHistory]);
+  
+  // Transformar datos cuando lleguen de la API
+  useEffect(() => {
+    if (apiData?.reservations) {
+      const transformedData = apiData.reservations.map(transformReservationToHistoryItem);
+      setHistoryData(transformedData);
+      
+      // Calcular estadísticas mensuales
+      const stats = calculateMonthlyStats(transformedData);
+      setMonthlyStats(stats);
+    }
+  }, [apiData]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CO', {
@@ -244,6 +265,36 @@ export default function HistoryPage() {
     // Aquí iría la lógica para exportar los datos
     alert('Exportando datos del historial...');
   };
+
+  // Mostrar loading mientras se cargan los datos
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-3 text-gray-600">Cargando historial...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar error si hay algún problema
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <div className="text-red-600 mb-2">Error al cargar el historial</div>
+          <div className="text-red-500 text-sm">{error}</div>
+          <button 
+            onClick={() => profile?.id && getUserHistory(profile.id, { limit: 100, page: 1 })}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

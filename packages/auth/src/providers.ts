@@ -11,40 +11,40 @@ const credentialsSchema = z.object({
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
 });
 
-export const providers: Provider[] = [
-  // Proveedor de Google
-  Google({
-    clientId: process.env.GOOGLE_CLIENT_ID!,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    profile(profile) {
-      // Validar email
-      if (!profile.email) {
-        throw new Error('Email requerido para autenticación con Google');
-      }
-      
-      // Determinar rol usando función centralizada
-      const role = determineUserRole(profile.email);
-      
-      // Log del intento de acceso
-      logSecurityEvent({
-        type: 'LOGIN_ATTEMPT',
-        email: profile.email,
-        role,
-        provider: 'google'
-      });
-      
-      return {
-        id: profile.sub,
-        email: profile.email,
-        name: profile.name,
-        image: profile.picture,
-        role,
-        creditsBalance: role === 'admin' ? 1000 : (role === 'staff' ? 500 : 0),
-      };
-    },
-  }),
-  
-  // Proveedor de credenciales (email/password)
+const providersList: Provider[] = [];
+
+// Incluir Google solo si hay credenciales configuradas
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  providersList.push(
+    Google({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      profile(profile) {
+        if (!profile.email) {
+          throw new Error('Email requerido para autenticación con Google');
+        }
+        const role = determineUserRole(profile.email);
+        logSecurityEvent({
+          type: 'LOGIN_ATTEMPT',
+          email: profile.email,
+          role,
+          provider: 'google'
+        });
+        return {
+          id: profile.sub,
+          email: profile.email,
+          name: profile.name,
+          image: profile.picture,
+          role,
+          creditsBalance: role === 'admin' ? 1000 : (role === 'staff' ? 500 : 0),
+        };
+      },
+    })
+  );
+}
+
+// Proveedor de credenciales (siempre disponible)
+providersList.push(
   Credentials({
     name: 'credentials',
     credentials: {
@@ -69,7 +69,9 @@ export const providers: Provider[] = [
         
         // Buscar usuario en la base de datos
         console.log('🔍 [AUTH] Buscando usuario:', validatedCredentials.email);
-        const user = await db.findUserByEmail(validatedCredentials.email);
+        const user = await db.user.findUnique({
+          where: { email: validatedCredentials.email }
+        });
         
         if (!user) {
           console.log('❌ [AUTH] Usuario no encontrado en la base de datos');
@@ -128,8 +130,10 @@ export const providers: Provider[] = [
         return null;
       }
     },
-  }),
-];
+  }) as unknown as Provider
+);
+
+export const providers: Provider[] = providersList;
 
 // Funciones de utilidad para autenticación
 export const hashPassword = async (password: string): Promise<string> => {
@@ -150,19 +154,17 @@ export const createUser = async (userData: {
 }) => {
   const hashedPassword = await hashPassword(userData.password);
   
-  const user = await db.createUser({
-    email: userData.email,
-    password: hashedPassword,
-    name: userData.name || null,
-    phone: userData.phone || null,
-    role: UserRole.user,
-    dateOfBirth: null,
-    membershipType: null,
-    membershipExpiresAt: null,
-    creditsBalance: 0,
-    isActive: true,
-    gdprConsent: true,
-    gdprConsentDate: new Date()
+  const user = await db.user.create({
+    data: {
+      email: userData.email,
+      password: hashedPassword,
+      name: userData.name || null,
+      phone: userData.phone || null,
+      role: 'USER',
+      isActive: true,
+      emailVerified: true,
+      emailVerifiedAt: new Date(),
+    }
   });
   
   return user;
@@ -170,15 +172,18 @@ export const createUser = async (userData: {
 
 // Función para validar si un email ya existe
 export const emailExists = async (email: string): Promise<boolean> => {
-  const user = await db.findUserByEmail(email);
+  const user = await db.user.findUnique({
+    where: { email }
+  });
   
   return !!user;
 };
 
 // Función para actualizar la última actividad del usuario
 export const updateUserActivity = async (userId: string) => {
-  await db.updateUser(userId, {
-    updatedAt: new Date()
+  await db.user.update({
+    where: { id: userId },
+    data: { updatedAt: new Date(), lastLoginAt: new Date() }
   });
 };
 
@@ -246,7 +251,7 @@ export const requireRole = (allowedRoles: string[]) => {
 
 // Middleware para verificar membresía activa
 export const requireActiveMembership = async (userId: string): Promise<boolean> => {
-  const user = await db.findUserById(userId);
+  const user = await db.user.findUnique({ where: { id: userId } });
   
   if (!user) {
     return false;

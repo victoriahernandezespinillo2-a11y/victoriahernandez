@@ -28,13 +28,13 @@ interface User {
 
 
 
-const roleColors = {
+const roleColors: Record<string, string> = {
   USER: 'bg-blue-100 text-blue-800',
   STAFF: 'bg-green-100 text-green-800',
   ADMIN: 'bg-purple-100 text-purple-800'
 };
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   ACTIVE: 'bg-green-100 text-green-800',
   INACTIVE: 'bg-gray-100 text-gray-800',
   SUSPENDED: 'bg-red-100 text-red-800'
@@ -81,7 +81,7 @@ export default function UsersPage() {
   }
 
   // Filtrar usuarios
-  const filteredUsers = users.filter(user => {
+  const filteredUsers = users?.filter(user => {
     const matchesSearch = 
       user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -91,7 +91,7 @@ export default function UsersPage() {
     const matchesStatus = statusFilter === 'ALL' || user.status === statusFilter;
     
     return matchesSearch && matchesRole && matchesStatus;
-  });
+  }) || [];
 
   // Paginación
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
@@ -139,7 +139,7 @@ export default function UsersPage() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total Usuarios</p>
-              <p className="text-2xl font-semibold text-gray-900">{users.length}</p>
+              <p className="text-2xl font-semibold text-gray-900">{users?.length || 0}</p>
             </div>
           </div>
         </div>
@@ -153,7 +153,7 @@ export default function UsersPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Usuarios Activos</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {users.filter(u => u.status === 'ACTIVE').length}
+                {users?.filter(u => u.status === 'ACTIVE').length || 0}
               </p>
             </div>
           </div>
@@ -168,7 +168,7 @@ export default function UsersPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Administradores</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {users.filter(u => u.role === 'ADMIN').length}
+                {users?.filter(u => u.role === 'ADMIN').length || 0}
               </p>
             </div>
           </div>
@@ -183,7 +183,7 @@ export default function UsersPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Staff</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {users.filter(u => u.role === 'STAFF').length}
+                {users?.filter(u => u.role === 'STAFF').length || 0}
               </p>
             </div>
           </div>

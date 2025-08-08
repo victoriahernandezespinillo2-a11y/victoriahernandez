@@ -14,6 +14,8 @@ export const authConfig: NextAuthConfig = {
   // adapter: PrismaAdapter(db), // Comentado porque db no es un cliente Prisma
   providers,
   trustHost: true,
+  // Aceptar tanto AUTH_SECRET (v5) como NEXTAUTH_SECRET (compat) con fallback seguro en dev
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-secret-change-in-prod',
   basePath: '/api/auth',
   pages: {
     signIn: '/auth/signin',
@@ -25,13 +27,15 @@ export const authConfig: NextAuthConfig = {
   },
   cookies: {
     sessionToken: {
-      name: 'next-auth.session-token',
+      // Nombre único por app/puerto para evitar colisiones entre 3001/3003
+      name: (process.env.NEXTAUTH_COOKIE_NAME
+        || (process.env.PORT ? `next-auth.session-token-${process.env.PORT}` : 'next-auth.session-token')),
       options: {
         domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
         path: '/',
         httpOnly: true,
         sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production'
+        secure: process.env.NODE_ENV === 'production' ? true : false,
       }
     }
   },
@@ -46,13 +50,27 @@ export const authConfig: NextAuthConfig = {
       return token;
     },
     async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as string;
-        session.user.membershipType = token.membershipType as string;
-        session.user.creditsBalance = token.creditsBalance as number;
+      // Proteger cuando no hay sesión o usuario aún (no autenticado)
+      if (token && session?.user) {
+        session.user.id = (token.id as string) ?? session.user.id;
+        session.user.role = (token.role as string) ?? session.user.role ?? 'user';
+        session.user.membershipType = (token.membershipType as string) ?? session.user.membershipType;
+        session.user.creditsBalance = Number((token.creditsBalance as number) ?? session.user.creditsBalance ?? 0);
       }
-      return session;
+      return session ?? null;
+    },
+    async redirect({ url, baseUrl }) {
+      try {
+        const target = new URL(url, baseUrl);
+        const base = new URL(baseUrl);
+        // Forzar redirección al mismo origen (evita salto a 3001 desde 3003)
+        if (target.origin !== base.origin) {
+          return base.origin + '/';
+        }
+        return target.toString();
+      } catch {
+        return baseUrl + '/';
+      }
     },
     async signIn({ user, account, profile }) {
       try {

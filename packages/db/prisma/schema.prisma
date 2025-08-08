@@ -1,0 +1,344 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+model User {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  // Nombre completo existente; añadimos nombres separados opcionales
+  name                 String?
+  firstName            String?   @map("first_name")
+  lastName             String?   @map("last_name")
+  phone                String?
+  password             String?
+  role                 UserRole  @default(USER)
+  dateOfBirth          DateTime? @map("date_of_birth")
+  membershipType       String?   @map("membership_type")
+  membershipExpiresAt  DateTime? @map("membership_expires_at")
+  creditsBalance       Int       @default(0) @map("credits_balance")
+  isActive             Boolean   @default(true) @map("is_active")
+  avatar               String?
+  lastLoginAt          DateTime? @map("last_login_at")
+  emailVerified        Boolean   @default(false) @map("email_verified")
+  emailVerifiedAt      DateTime? @map("email_verified_at")
+  gdprConsent          Boolean   @default(false) @map("gdpr_consent")
+  gdprConsentDate      DateTime? @map("gdpr_consent_date")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  // Relaciones
+  reservations         Reservation[]
+  memberships          Membership[]
+  tournamentUsers      TournamentUser[]
+  waitingLists         WaitingList[]
+  refreshTokens        RefreshToken[]
+  passwordResetTokens  PasswordResetToken[]
+
+  @@map("users")
+}
+
+model Center {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  phone     String?
+  email     String?
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  courts      Court[]
+  tournaments Tournament[]
+
+  @@map("centers")
+}
+
+model Court {
+  id                 String   @id @default(cuid())
+  centerId           String   @map("center_id")
+  name               String
+  sportType          String   @map("sport_type")
+  capacity           Int?
+  basePricePerHour   Decimal  @map("base_price_per_hour")
+  isActive           Boolean  @default(true) @map("is_active")
+  maintenanceStatus  String   @default("operational") @map("maintenance_status")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  center                Center                @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  reservations          Reservation[]
+  maintenanceSchedules  MaintenanceSchedule[]
+  pricingRules          PricingRule[]
+  waitingLists         WaitingList[]
+
+  @@map("courts")
+}
+
+model Reservation {
+  id                 String    @id @default(cuid())
+  courtId            String    @map("court_id")
+  userId             String    @map("user_id")
+  startTime          DateTime  @map("start_time")
+  endTime            DateTime  @map("end_time")
+  status             ReservationStatus @default(PENDING)
+  totalPrice         Decimal   @map("total_price")
+  paymentMethod      String?   @map("payment_method")
+  paymentIntentId    String?   @map("payment_intent_id")
+  isRecurring        Boolean   @default(false) @map("is_recurring")
+  recurringParentId  String?   @map("recurring_parent_id")
+  checkInTime        DateTime? @map("check_in_time")
+  checkOutTime       DateTime? @map("check_out_time")
+  notes              String?
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  // Relaciones
+  court              Court     @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recurringParent    Reservation? @relation("RecurringReservations", fields: [recurringParentId], references: [id])
+  recurringChildren  Reservation[] @relation("RecurringReservations")
+
+  @@map("reservations")
+}
+
+model Tournament {
+  id                     String   @id @default(cuid())
+  name                   String
+  description            String
+  sport                  String
+  centerId               String   @map("center_id")
+  type                   String   @default("SINGLE_ELIMINATION")
+  format                 String   @default("INDIVIDUAL")
+  category               String   @default("OPEN")
+  maxParticipants        Int      @map("max_participants")
+  registrationFee        Decimal  @map("registration_fee")
+  prizePool              Decimal? @map("prize_pool")
+  registrationStartDate  DateTime @map("registration_start_date")
+  registrationEndDate    DateTime @map("registration_end_date")
+  startDate              DateTime @map("start_date")
+  endDate                DateTime @map("end_date")
+  status                 String   @default("DRAFT")
+  rules                  String?
+  requirements           Json?    @default("[]")
+  prizes                 Json?    @default("[]")
+  organizer              String
+  contactEmail           String   @map("contact_email")
+  contactPhone           String?  @map("contact_phone")
+  isPublic               Boolean  @default(true) @map("is_public")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  center         Center           @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  tournamentUsers TournamentUser[]
+
+  @@map("tournaments")
+}
+
+model TournamentUser {
+  id           String   @id @default(cuid())
+  tournamentId String   @map("tournament_id")
+  userId       String   @map("user_id")
+  status       String   @default("registered")
+  registeredAt DateTime @default(now()) @map("registered_at")
+  partnerId    String?  @map("partner_id")
+  teamName     String?  @map("team_name")
+  seedNumber   Int?     @map("seed_number")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
+  @@map("tournament_users")
+}
+
+model Membership {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  type          MembershipType
+  status        String   @default("active")
+  validFrom     DateTime @map("valid_from")
+  validUntil    DateTime @map("valid_until")
+  price         Decimal
+  paymentMethod String?  @map("payment_method")
+  paymentIntentId String? @map("payment_intent_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("memberships")
+}
+
+model WaitingList {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  courtId      String   @map("court_id")
+  requestedTime DateTime @map("requested_time")
+  duration     Int      // en minutos
+  priority     Int      @default(0)
+  status       String   @default("waiting")
+  notified     Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  court Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  @@map("waiting_lists")
+}
+
+model MaintenanceSchedule {
+  id          String   @id @default(cuid())
+  courtId     String   @map("court_id")
+  type        MaintenanceType
+  status      MaintenanceStatus @default(SCHEDULED)
+  scheduledAt DateTime @map("scheduled_at")
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  description String
+  notes       String?
+  cost        Decimal?
+  assignedTo  String?  @map("assigned_to")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  court Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  @@map("maintenance_schedules")
+}
+
+model PricingRule {
+  id          String   @id @default(cuid())
+  courtId     String?  @map("court_id")
+  name        String
+  description String?
+  type        String   // 'time_based', 'day_based', 'membership_discount', etc.
+  // Condiciones y ajustes genéricos
+  conditions  Json     // Condiciones para aplicar la regla
+  adjustment  Json     // Ajuste de precio (porcentaje, cantidad fija, etc.)
+
+  // Campos específicos usados por el servicio de precios
+  priceMultiplier Decimal  @default(1.0) @map("price_multiplier")
+  memberDiscount  Decimal  @default(0.0) @map("member_discount")
+  timeStart       String   @map("time_start")
+  timeEnd         String   @map("time_end")
+  daysOfWeek      Int[]    @map("days_of_week")
+  seasonStart     DateTime? @map("season_start")
+  seasonEnd       DateTime? @map("season_end")
+  isActive    Boolean  @default(true) @map("is_active")
+  priority    Int      @default(0)
+  validFrom   DateTime @map("valid_from")
+  validUntil  DateTime @map("valid_until")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  court Court? @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  @@map("pricing_rules")
+}
+
+// Enums
+enum UserRole {
+  USER
+  STAFF
+  ADMIN
+}
+
+enum ReservationStatus {
+  PENDING
+  PAID
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum MembershipType {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+  PUNCH_CARD
+}
+
+enum MaintenanceType {
+  CLEANING
+  REPAIR
+  INSPECTION
+  RENOVATION
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+/// Registros de eventos salientes (notificaciones, pagos, etc.)
+model OutboxEvent {
+  id         String   @id @default(cuid())
+  eventType  String   @map("event_type")
+  eventData  Json     @map("event_data")
+  processed  Boolean  @default(false)
+  processedAt DateTime? @map("processed_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("outbox_events")
+}
+
+/// Registros de webhooks recibidos (Stripe, Redsys, etc.)
+model WebhookEvent {
+  id         String   @id @default(cuid())
+  provider   String
+  eventType  String   @map("event_type")
+  eventId    String?  @map("event_id")
+  eventData  Json     @map("event_data")
+  processed  Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("webhook_events")
+}
+
+/// Almacenamiento de refresh tokens para sesiones JWT
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("refresh_tokens")
+}
+
+/// Tokens de restablecimiento de contraseña
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("password_reset_tokens")
+}

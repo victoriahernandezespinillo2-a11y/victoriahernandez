@@ -15,9 +15,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body className="antialiased">
+      <body className="antialiased h-full">
         <SessionWrapper>
-          <ConditionalLayout>{children}</ConditionalLayout>
+          <div className="flex min-h-screen bg-gray-50">
+            <ConditionalLayout>{children}</ConditionalLayout>
+          </div>
         </SessionWrapper>
       </body>
     </html>

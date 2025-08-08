@@ -205,6 +205,13 @@ export class PaymentService {
   }
 
   /**
+   * Crear pago directo (alias para createPaymentIntent)
+   */
+  async createPayment(data: CreatePaymentData): Promise<PaymentIntent> {
+    return await this.createPaymentIntent(data);
+  }
+
+  /**
    * Obtener estado de pago
    */
   async getPaymentStatus(paymentId: string): Promise<any> {

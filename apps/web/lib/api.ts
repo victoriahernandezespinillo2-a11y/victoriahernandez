@@ -3,7 +3,8 @@
  * Maneja todas las llamadas HTTP a la API backend
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+// Usar rutas relativas y dejar que next.config.js haga proxy vía rewrites
+const API_BASE_URL = '';
 
 /**
  * Configuración base para las peticiones fetch
@@ -27,20 +28,34 @@ async function apiRequest<T>(
       ...options.headers,
     },
     ...options,
+    credentials: 'include',
   };
 
   try {
     const response = await fetch(url, config);
     
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.error || `HTTP error! status: ${response.status}`
-      );
+      let message = '';
+      try {
+        const asJson = await response.json();
+        message = asJson?.error || JSON.stringify(asJson);
+      } catch {
+        try {
+          message = await response.text();
+        } catch {
+          message = '';
+        }
+      }
+      throw new Error(message || `HTTP ${response.status}`);
     }
 
-    const data = await response.json();
-    return data.data || data;
+    try {
+      const data = await response.json();
+      return data.data || data;
+    } catch {
+      const text = await response.text();
+      return text as unknown as T;
+    }
   } catch (error) {
     console.error(`API Error [${endpoint}]:`, error);
     throw error;

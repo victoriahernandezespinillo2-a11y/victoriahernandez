@@ -108,12 +108,36 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
       if (!user) {
         console.log('🍪 [AUTH] Intentando autenticación con NextAuth cookies');
         try {
-          // Leer cookies de NextAuth directamente
-          const sessionToken = req.cookies.get('next-auth.session-token')?.value ||
-                              req.cookies.get('__Secure-next-auth.session-token')?.value;
-          
+          const cookies = req.cookies;
+          const configuredCookieName = process.env.NEXTAUTH_COOKIE_NAME;
+
+          // Construir lista de nombres candidatos
+          const candidateNames = [
+            configuredCookieName,
+            'next-auth.session-token',
+            '__Secure-next-auth.session-token',
+          ].filter(Boolean) as string[];
+
+          // Buscar cookie por nombres conocidos
+          let sessionToken: string | undefined;
+          for (const name of candidateNames) {
+            const val = cookies.get(name)?.value;
+            if (val) { sessionToken = val; break; }
+          }
+
+          // Si no se encontró, escanear cualquier cookie que empiece por next-auth.session-token
+          if (!sessionToken) {
+            const all = (cookies as any).getAll?.() || [];
+            for (const c of all) {
+              if (typeof c?.name === 'string' && (c.name.startsWith('next-auth.session-token') || c.name.startsWith('__Secure-next-auth.session-token'))) {
+                sessionToken = c.value;
+                break;
+              }
+            }
+          }
+
           console.log('🍪 [AUTH] Session token:', sessionToken ? 'Presente' : 'Ausente');
-          
+
           if (sessionToken) {
             // Para desarrollo, usar usuarios de prueba basados en el token
             // En producción, esto debería validar el JWT token
@@ -137,7 +161,7 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
                 emailVerified: true
               }
             ];
-            
+
             // Por simplicidad en desarrollo, usar el primer usuario admin
             user = testUsers[0];
             console.log('✅ [AUTH] Usuario de prueba asignado:', user.email, 'Rol:', user.role);
@@ -366,6 +390,22 @@ export const withErrorHandling = (handler: ApiHandler): ApiHandler => {
  */
 export const withCors = (handler: ApiHandler): ApiHandler => {
   return async (req: NextRequest, context) => {
+    // Manejo de preflight: responder antes de pasar al handler
+    if (req.method === 'OPTIONS') {
+      const pre = new NextResponse(null, { status: 200 });
+      const origin = req.headers.get('origin');
+      const allowedOrigins = process.env.NODE_ENV === 'production'
+        ? ['https://polideportivo.com', 'https://admin.polideportivo.com']
+        : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
+      if (origin && allowedOrigins.includes(origin)) {
+        pre.headers.set('Access-Control-Allow-Origin', origin);
+      }
+      pre.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      pre.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      pre.headers.set('Access-Control-Allow-Credentials', 'true');
+      return pre;
+    }
+
     const response = await handler(req, context);
     
     // Configurar headers CORS
@@ -532,6 +572,13 @@ export const ApiResponse = {
     return NextResponse.json(
       { success: false, error: message },
       { status: 500 }
+    );
+  },
+  
+  conflict: (message: string) => {
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 409 }
     );
   },
 };

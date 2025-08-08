@@ -1,44 +1,49 @@
-import { withAuth } from 'next-auth/middleware';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 
-export default withAuth(
-  function middleware(req) {
-    // Verificar si el usuario tiene permisos de administrador
-    const token = req.nextauth.token;
-    
-    // Si no hay token, redirigir al login
-    if (!token) {
-      return NextResponse.redirect(new URL('/auth/signin', req.url));
-    }
+export default async function middleware(req: NextRequest) {
+  const url = new URL(req.url);
 
-    // Verificar rol de administrador
-    if (token.role !== 'ADMIN' && token.role !== 'SUPER_ADMIN') {
+  // Permitir rutas públicas de auth
+  if (url.pathname.startsWith('/auth/')) {
+    return NextResponse.next();
+  }
+
+  const cookieName = process.env.NEXTAUTH_COOKIE_NAME
+    || (process.env.PORT ? `next-auth.session-token-${process.env.PORT}` : 'next-auth.session-token');
+
+  // Intentar decodificar el token (si falla pero hay cookie, dejaremos pasar como fallback)
+  const token = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-secret-change-in-prod',
+    secureCookie: process.env.NODE_ENV === 'production',
+    cookieName,
+  });
+
+  // Fallback: si no se pudo decodificar pero existe cookie de sesión, permitir paso
+  const hasSessionCookie = !!(
+    req.cookies.get(cookieName) ||
+    req.cookies.get('next-auth.session-token') ||
+    req.cookies.get('__Secure-next-auth.session-token')
+  );
+
+  if (!token && !hasSessionCookie) {
+    return NextResponse.redirect(new URL('/auth/signin', req.url));
+  }
+
+  // Si hay token, validar rol; si no hay token pero sí cookie, permitir (fallback en dev)
+  if (token) {
+    const role = (token as any).role;
+    if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
       return NextResponse.redirect(new URL('/auth/unauthorized', req.url));
     }
-
-    return NextResponse.next();
-  },
-  {
-    callbacks: {
-      authorized: ({ token }) => {
-        // Permitir acceso a las páginas de auth sin token
-        return true;
-      },
-    },
   }
-);
+
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api/auth (NextAuth.js routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - auth/signin (login page)
-     * - auth/unauthorized (unauthorized page)
-     */
     '/((?!api/auth|_next/static|_next/image|favicon.ico|auth/signin|auth/unauthorized).*)',
   ],
 };

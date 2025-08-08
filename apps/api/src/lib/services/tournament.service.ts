@@ -232,23 +232,30 @@ export class TournamentService {
       if (endDate) where.startDate.lte = new Date(endDate);
     }
 
-    // Obtener torneos y total
-    const [tournaments, total] = await Promise.all([
-      db.tournament.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { [sortBy]: sortOrder },
-        include: {
-          _count: {
-            select: {
-              participants: true,
-            },
-          },
-        },
-      }),
-      db.tournament.count({ where }),
-    ]);
+    // Obtener torneos usando Prisma
+    const tournaments = await db.tournament.findMany({
+      where,
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        [sortBy]: sortOrder
+      },
+      skip,
+      take: limit
+    });
+    
+    const total = await db.tournament.count({ where });
 
     return {
       tournaments,
@@ -560,16 +567,16 @@ export class TournamentService {
     try {
       await this.notificationService.sendEmail({
         to: user.email,
-        template: 'tournament_registration_confirmation',
-        data: {
-          userName: user.firstName,
-          tournamentName: tournament.name,
-          startDate: tournament.startDate.toLocaleDateString('es-ES'),
-          registrationFee: tournament.registrationFee,
-          partnerName: participant.partner 
-            ? `${participant.partner.firstName} ${participant.partner.lastName}` 
-            : null,
-        },
+        subject: 'Confirmación de registro en torneo',
+        html: `
+          <h2>¡Registro confirmado!</h2>
+          <p>Hola ${user.firstName},</p>
+          <p>Tu registro en el torneo "${tournament.name}" ha sido confirmado.</p>
+          <p><strong>Fecha de inicio:</strong> ${tournament.startDate.toLocaleDateString('es-ES')}</p>
+          <p><strong>Tarifa de registro:</strong> €${tournament.registrationFee}</p>
+          ${participant.partner ? `<p><strong>Compañero:</strong> ${participant.partner.firstName} ${participant.partner.lastName}</p>` : ''}
+          <p>¡Te esperamos!</p>
+        `
       });
     } catch (error) {
       console.error('Error enviando confirmación de inscripción:', error);

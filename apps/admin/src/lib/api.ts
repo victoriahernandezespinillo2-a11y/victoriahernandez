@@ -5,7 +5,9 @@
 
 import { getSession } from 'next-auth/react';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+// Para evitar CORS en desarrollo, por defecto usamos rutas relativas
+// y dejamos que Next.js (rewrites) proxy a la API.
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 class ApiClient {
   private baseURL: string;
@@ -43,17 +45,31 @@ class ApiClient {
     };
 
     try {
-      const response = await fetch(url, config);
-      
+      const response = await fetch(url, { ...config, credentials: 'include' });
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.error || `HTTP error! status: ${response.status}`
-        );
+        let message = '';
+        try {
+          const asJson = await response.json();
+          message = asJson?.error || JSON.stringify(asJson);
+        } catch {
+          try {
+            message = await response.text();
+          } catch {
+            message = '';
+          }
+        }
+        throw new Error(`HTTP ${response.status}: ${message || 'Unknown error'}`);
       }
 
-      const data = await response.json();
-      return data.data || data;
+      // Intentar JSON; si no, retornar texto para diagnóstico
+      try {
+        const data = await response.json();
+        return (data as any).data || data;
+      } catch {
+        const text = await response.text();
+        return text as unknown as T;
+      }
     } catch (error) {
       console.error(`API Error [${endpoint}]:`, error);
       throw error;

@@ -16,13 +16,25 @@ import { useSession, signOut } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+interface Activity {
+  id: string;
+  type: string;
+  user: string;
+  action: string;
+  timestamp: string;
+  details?: string;
+  target?: string;
+  time?: string;
+  icon?: string;
+}
+
 export default function AdminHomePage() {
   const { data: session, status } = useSession();
   const { dashboardData, loading, error, getDashboardStats } = useAdminDashboard();
   const router = useRouter();
 
   // Estado para actividad reciente
-  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(true);
 
   // Función para obtener actividad reciente
@@ -31,11 +43,11 @@ export default function AdminHomePage() {
       console.log('🔄 Iniciando fetchRecentActivity...');
       setLoadingActivities(true);
       console.log('📡 Llamando a adminApi.dashboard.getRecentActivity...');
-      const data = await adminApi.dashboard.getRecentActivity({ limit: 5, hours: 24 });
+      const data = await adminApi.dashboard.getRecentActivity({ limit: 5, hours: 24 }) as any;
       console.log('📥 Respuesta recibida:', data);
       if (data && data.activities) {
         console.log('✅ Actividades encontradas:', data.activities.length);
-        setRecentActivities(data.activities);
+        setRecentActivities(data.activities as Activity[]);
       } else {
         console.log('⚠️ No se encontraron actividades en la respuesta');
         setRecentActivities([]);
@@ -52,6 +64,7 @@ export default function AdminHomePage() {
           target: '',
           time: '',
           icon: 'ExclamationTriangleIcon',
+          timestamp: new Date().toISOString(),
         },
       ]);
     } finally {
@@ -351,7 +364,7 @@ export default function AdminHomePage() {
                             <div>
                               <span className="h-8 w-8 rounded-full bg-gray-400 flex items-center justify-center ring-8 ring-white">
                                 {(() => {
-                                  const IconComponent = getActivityIcon(activity.icon);
+                                  const IconComponent = getActivityIcon(activity.icon || 'CalendarDaysIcon');
                                   return <IconComponent className="h-5 w-5 text-white" aria-hidden="true" />;
                                 })()}
                               </span>

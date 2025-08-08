@@ -130,21 +130,27 @@ export function useAdminUsers() {
   const { data, loading, error, execute, reset, setData } = useApiState<User[]>([]);
 
   const getUsers = useCallback((params?: any) => {
-    return execute(() => adminApi.users.getAll(params));
+    return execute(() => adminApi.users.getAll(params) as Promise<User[]>);
   }, [execute]);
 
-  const createUser = useCallback(async (userData: Partial<User>) => {
-    const newUser = await adminApi.users.create(userData);
+  const createUser = useCallback(async (userData: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    phone?: string;
+  }) => {
+    const newUser = await adminApi.users.create(userData) as User;
     setData(prev => prev ? [newUser, ...prev] : [newUser]);
     return newUser;
   }, [setData]);
 
-  const getUser = useCallback((id: string) => {
-    return execute(() => adminApi.users.getById(id));
-  }, [execute]);
+  const getUser = useCallback(async (id: string) => {
+    return await adminApi.users.getById(id) as User;
+  }, []);
 
   const updateUser = useCallback(async (id: string, updateData: Partial<User>) => {
-    const updatedUser = await adminApi.users.update(id, updateData);
+    const updatedUser = await adminApi.users.update(id, updateData) as User;
     setData(prev => 
       prev ? prev.map(user => user.id === id ? updatedUser : user) : [updatedUser]
     );
@@ -176,21 +182,29 @@ export function useAdminCenters() {
   const { data, loading, error, execute, reset, setData } = useApiState<Center[]>([]);
 
   const getCenters = useCallback((params?: any) => {
-    return execute(() => adminApi.centers.getAll(params));
+    return execute(() => adminApi.centers.getAll(params) as Promise<Center[]>);
   }, [execute]);
 
-  const createCenter = useCallback(async (centerData: Partial<Center>) => {
-    const newCenter = await adminApi.centers.create(centerData);
+  const createCenter = useCallback(async (centerData: {
+    name: string;
+    description?: string;
+    address: string;
+    city: string;
+    phone: string;
+    email?: string;
+    settings: any;
+  }) => {
+    const newCenter = await adminApi.centers.create(centerData) as Center;
     setData(prev => prev ? [newCenter, ...prev] : [newCenter]);
     return newCenter;
   }, [setData]);
 
-  const getCenter = useCallback((id: string) => {
-    return execute(() => adminApi.centers.getById(id));
-  }, [execute]);
+  const getCenter = useCallback(async (id: string) => {
+    return await adminApi.centers.getById(id) as Center;
+  }, []);
 
   const updateCenter = useCallback(async (id: string, updateData: Partial<Center>) => {
-    const updatedCenter = await adminApi.centers.update(id, updateData);
+    const updatedCenter = await adminApi.centers.update(id, updateData) as Center;
     setData(prev => 
       prev ? prev.map(center => center.id === id ? updatedCenter : center) : [updatedCenter]
     );
@@ -222,21 +236,30 @@ export function useAdminCourts() {
   const { data, loading, error, execute, reset, setData } = useApiState<Court[]>([]);
 
   const getCourts = useCallback((params?: any) => {
-    return execute(() => adminApi.courts.getAll(params));
+    return execute(() => adminApi.courts.getAll(params) as Promise<Court[]>);
   }, [execute]);
 
-  const createCourt = useCallback(async (courtData: Partial<Court>) => {
-    const newCourt = await adminApi.courts.create(courtData);
+  const createCourt = useCallback(async (courtData: {
+    name: string;
+    centerId: string;
+    sport: string;
+    surface: string;
+    isIndoor: boolean;
+    hasLighting: boolean;
+    maxPlayers: number;
+    hourlyRate: number;
+  }) => {
+    const newCourt = await adminApi.courts.create(courtData) as Court;
     setData(prev => prev ? [newCourt, ...prev] : [newCourt]);
     return newCourt;
   }, [setData]);
 
-  const getCourt = useCallback((id: string) => {
-    return execute(() => adminApi.courts.getById(id));
-  }, [execute]);
+  const getCourt = useCallback(async (id: string) => {
+    return await adminApi.courts.getById(id) as Court;
+  }, []);
 
   const updateCourt = useCallback(async (id: string, updateData: Partial<Court>) => {
-    const updatedCourt = await adminApi.courts.update(id, updateData);
+    const updatedCourt = await adminApi.courts.update(id, updateData) as Court;
     setData(prev => 
       prev ? prev.map(court => court.id === id ? updatedCourt : court) : [updatedCourt]
     );
@@ -268,15 +291,20 @@ export function useAdminReservations() {
   const { data, loading, error, execute, reset, setData } = useApiState<Reservation[]>([]);
 
   const getReservations = useCallback((params?: any) => {
-    return execute(() => adminApi.reservations.getAll(params));
+    return execute(() => adminApi.reservations.getAll(params) as Promise<Reservation[]>);
   }, [execute]);
 
-  const getReservation = useCallback((id: string) => {
-    return execute(() => adminApi.reservations.getById(id));
-  }, [execute]);
+  const getReservation = useCallback(async (id: string) => {
+    return await adminApi.reservations.getById(id) as Reservation;
+  }, []);
 
-  const updateReservation = useCallback(async (id: string, updateData: Partial<Reservation>) => {
-    const updatedReservation = await adminApi.reservations.update(id, updateData);
+  const updateReservation = useCallback(async (id: string, updateData: Partial<{
+    status: string;
+    startTime: string;
+    endTime: string;
+    notes: string;
+  }>) => {
+    const updatedReservation = await adminApi.reservations.update(id, updateData) as Reservation;
     setData(prev => 
       prev ? prev.map(res => res.id === id ? updatedReservation : res) : [updatedReservation]
     );
@@ -307,21 +335,31 @@ export function useAdminTournaments() {
   const { data, loading, error, execute, reset, setData } = useApiState<Tournament[]>([]);
 
   const getTournaments = useCallback((params?: any) => {
-    return execute(() => adminApi.tournaments.getAll(params));
+    return execute(() => adminApi.tournaments.getAll(params) as Promise<Tournament[]>);
   }, [execute]);
 
-  const createTournament = useCallback(async (tournamentData: Partial<Tournament>) => {
-    const newTournament = await adminApi.tournaments.create(tournamentData);
+  const createTournament = useCallback(async (tournamentData: {
+    name: string;
+    description?: string;
+    sport: string;
+    centerId: string;
+    startDate: string;
+    endDate: string;
+    maxParticipants: number;
+    entryFee: number;
+    rules?: string;
+  }) => {
+    const newTournament = await adminApi.tournaments.create(tournamentData) as Tournament;
     setData(prev => prev ? [newTournament, ...prev] : [newTournament]);
     return newTournament;
   }, [setData]);
 
-  const getTournament = useCallback((id: string) => {
-    return execute(() => adminApi.tournaments.getById(id));
-  }, [execute]);
+  const getTournament = useCallback(async (id: string) => {
+    return await adminApi.tournaments.getById(id) as Tournament;
+  }, []);
 
   const updateTournament = useCallback(async (id: string, updateData: Partial<Tournament>) => {
-    const updatedTournament = await adminApi.tournaments.update(id, updateData);
+    const updatedTournament = await adminApi.tournaments.update(id, updateData) as Tournament;
     setData(prev => 
       prev ? prev.map(tournament => tournament.id === id ? updatedTournament : tournament) : [updatedTournament]
     );
@@ -353,12 +391,12 @@ export function useAdminPayments() {
   const { data, loading, error, execute, reset, setData } = useApiState<Payment[]>([]);
 
   const getPayments = useCallback((params?: any) => {
-    return execute(() => adminApi.payments.getAll(params));
+    return execute(() => adminApi.payments.getAll(params) as Promise<Payment[]>);
   }, [execute]);
 
-  const getPayment = useCallback((id: string) => {
-    return execute(() => adminApi.payments.getById(id));
-  }, [execute]);
+  const getPayment = useCallback(async (id: string) => {
+    return await adminApi.payments.getById(id) as Payment;
+  }, []);
 
   const refundPayment = useCallback(async (id: string, refundData: any) => {
     const result = await adminApi.payments.refund(id, refundData);
@@ -369,9 +407,9 @@ export function useAdminPayments() {
     return result;
   }, [setData]);
 
-  const getPaymentStats = useCallback(() => {
-    return execute(() => adminApi.payments.getStats());
-  }, [execute]);
+  const getPaymentStats = useCallback(async () => {
+    return await adminApi.payments.getStats();
+  }, []);
 
   return {
     payments: data,
@@ -403,6 +441,38 @@ export function useAdminReports() {
     return execute(() => adminApi.reports.getCustomers(params));
   }, [execute]);
 
+  const getGeneralReport = useCallback((params?: {
+    type: 'revenue' | 'usage' | 'users' | 'courts' | 'maintenance' | 'memberships' | 'tournaments' | 'payments';
+    period?: '7d' | '30d' | '90d' | '1y' | 'custom';
+    startDate?: string;
+    endDate?: string;
+    centerId?: string;
+    groupBy?: 'day' | 'week' | 'month';
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+    const query = searchParams.toString();
+    return execute(async () => {
+      const response = await fetch(`/api/admin/reports${query ? `?${query}` : ''}`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.data || data;
+    });
+  }, [execute]);
+
   return {
     reportData: data,
     loading,
@@ -410,6 +480,7 @@ export function useAdminReports() {
     getRevenueReport,
     getUsageReport,
     getCustomersReport,
+    getGeneralReport,
     reset,
   };
 }
@@ -421,21 +492,28 @@ export function useAdminMaintenance() {
   const { data, loading, error, execute, reset, setData } = useApiState<MaintenanceRecord[]>([]);
 
   const getMaintenanceRecords = useCallback((params?: any) => {
-    return execute(() => adminApi.maintenance.getAll(params));
+    return execute(() => adminApi.maintenance.getAll(params) as Promise<MaintenanceRecord[]>);
   }, [execute]);
 
-  const createMaintenanceRecord = useCallback(async (maintenanceData: Partial<MaintenanceRecord>) => {
-    const newRecord = await adminApi.maintenance.create(maintenanceData);
+  const createMaintenanceRecord = useCallback(async (recordData: {
+    courtId: string;
+    type: string;
+    description: string;
+    scheduledDate: string;
+    estimatedDuration: number;
+    priority: string;
+  }) => {
+    const newRecord = await adminApi.maintenance.create(recordData) as MaintenanceRecord;
     setData(prev => prev ? [newRecord, ...prev] : [newRecord]);
     return newRecord;
   }, [setData]);
 
-  const getMaintenanceRecord = useCallback((id: string) => {
-    return execute(() => adminApi.maintenance.getById(id));
-  }, [execute]);
+  const getMaintenanceRecord = useCallback(async (id: string) => {
+    return await adminApi.maintenance.getById(id) as MaintenanceRecord;
+  }, []);
 
   const updateMaintenanceRecord = useCallback(async (id: string, updateData: Partial<MaintenanceRecord>) => {
-    const updatedRecord = await adminApi.maintenance.update(id, updateData);
+    const updatedRecord = await adminApi.maintenance.update(id, updateData) as MaintenanceRecord;
     setData(prev => 
       prev ? prev.map(record => record.id === id ? updatedRecord : record) : [updatedRecord]
     );
