@@ -5,7 +5,7 @@
 
 import { db, MaintenanceSchedule } from '@repo/db';
 import { z } from 'zod';
-import { NotificationService } from '@polideportivo/notifications';
+import { NotificationService } from '@repo/notifications';
 
 // Esquemas de validación
 export const CreateMaintenanceSchema = z.object({

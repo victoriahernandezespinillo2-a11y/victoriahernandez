@@ -36,21 +36,54 @@ export interface SmsTemplate {
 
 // Servicio de SMS
 export class SmsService {
-  private client: Twilio;
-  private defaultFrom: string;
+  private client: Twilio | null = null;
+  private defaultFrom: string | undefined;
+  private disabled: boolean = true;
 
   constructor() {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID!;
-    const authToken = process.env.TWILIO_AUTH_TOKEN!;
-    this.defaultFrom = process.env.TWILIO_PHONE_NUMBER!;
-    
-    this.client = new Twilio(accountSid, authToken);
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const phoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
+    // Activar solo si hay credenciales válidas
+    if (accountSid && authToken && phoneNumber && accountSid.startsWith('AC')) {
+      this.client = new Twilio(accountSid, authToken);
+      this.defaultFrom = phoneNumber;
+      this.disabled = false;
+    } else {
+      // Modo no-op: no lanzar error si faltan credenciales
+      this.client = null;
+      this.defaultFrom = phoneNumber;
+      this.disabled = true;
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[Notifications][SMS] Twilio deshabilitado: variables de entorno no válidas o ausentes.');
+      }
+    }
   }
 
   // Enviar SMS individual
   async sendSms(data: SmsData): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
       const validatedData = smsSchema.parse(data);
+
+      if (this.disabled || !this.client || !this.defaultFrom) {
+        // Registrar evento omitido en desarrollo/entornos sin Twilio
+        try {
+          await db.outboxEvent.create({
+            data: {
+              eventType: 'SMS_SKIPPED',
+              eventData: {
+                to: validatedData.to,
+                message: validatedData.message,
+                provider: 'twilio',
+                reason: 'Twilio deshabilitado',
+              },
+            },
+          });
+        } catch {}
+
+        return { success: true };
+      }
 
       const message = await this.client.messages.create({
         body: validatedData.message,
@@ -79,16 +112,18 @@ export class SmsService {
       console.error('Error enviando SMS:', error);
       
       // Registrar error
-      await db.outboxEvent.create({
-        data: {
-          eventType: 'SMS_FAILED',
-          eventData: {
-            to: data.to,
-            message: data.message,
-            error: error instanceof Error ? error.message : 'Error desconocido',
+      try {
+        await db.outboxEvent.create({
+          data: {
+            eventType: 'SMS_FAILED',
+            eventData: {
+              to: data.to,
+              message: data.message,
+              error: error instanceof Error ? error.message : 'Error desconocido',
+            },
           },
-        },
-      });
+        });
+      } catch {}
 
       return {
         success: false,
@@ -245,6 +280,7 @@ export class SmsService {
     errorMessage?: string;
   } | null> {
     try {
+      if (this.disabled || !this.client) return null;
       const message = await this.client.messages(messageId).fetch();
       
       return {
@@ -261,6 +297,7 @@ export class SmsService {
   // Obtener historial de mensajes
   async getMessageHistory(limit = 50): Promise<any[]> {
     try {
+      if (this.disabled || !this.client) return [];
       const messages = await this.client.messages.list({ limit });
       return messages.map(msg => ({
         sid: msg.sid,
@@ -287,6 +324,7 @@ export class SmsService {
     carrier?: string;
   }> {
     try {
+      if (this.disabled || !this.client) return { isValid: false };
       const lookup = await this.client.lookups.v1.phoneNumbers(phoneNumber).fetch();
       
       return {

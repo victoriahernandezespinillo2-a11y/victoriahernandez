@@ -5,8 +5,8 @@
 
 import { db, Membership, User } from '@repo/db';
 import { z } from 'zod';
-import { NotificationService } from '@polideportivo/notifications';
-import { PaymentService } from '@polideportivo/payments';
+import { NotificationService } from '@repo/notifications';
+import { PaymentService } from '@repo/payments';
 
 // Esquemas de validación
 export const CreateMembershipSchema = z.object({

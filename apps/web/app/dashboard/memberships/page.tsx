@@ -194,7 +194,7 @@ export default function MembershipsPage() {
               
               return (
                 <div
-                  key={plan.id}
+                  key={plan.type}
                   className={`relative rounded-lg border-2 p-6 transition-all ${
                     isCurrentPlan
                       ? 'border-green-500 bg-green-50'
