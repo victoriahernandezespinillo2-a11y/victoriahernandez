@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import {
   CreditCard,
   Star,
@@ -15,123 +16,37 @@ import {
   TrendingUp,
 } from 'lucide-react';
 
-interface MembershipPlan {
-  id: string;
+type ApiMembershipType = {
+  type: 'BASIC' | 'PREMIUM' | 'VIP';
   name: string;
-  price: number;
-  credits: number;
-  features: string[];
-  popular?: boolean;
-  color: string;
-  icon: React.ComponentType<any>;
-}
+  monthlyPrice: number;
+  benefits: Record<string, any>;
+};
 
-interface CreditPackage {
+type ApiMembership = {
   id: string;
-  credits: number;
+  type: 'BASIC' | 'PREMIUM' | 'VIP';
+  startDate: string;
+  endDate: string;
+  active: boolean;
   price: number;
-  bonus?: number;
-  popular?: boolean;
-}
-
-// Mock data - En producción esto vendría de la API
-const membershipPlans: MembershipPlan[] = [
-  {
-    id: 'basic',
-    name: 'Básico',
-    price: 50000,
-    credits: 100,
-    features: [
-      'Acceso a todas las canchas',
-      'Reservas hasta 7 días anticipados',
-      'Soporte por email',
-      'Historial de reservas'
-    ],
-    color: 'gray',
-    icon: Shield
-  },
-  {
-    id: 'premium',
-    name: 'Premium',
-    price: 80000,
-    credits: 200,
-    features: [
-      'Todo lo del plan Básico',
-      'Reservas hasta 30 días anticipados',
-      'Descuento del 10% en todas las reservas',
-      'Soporte prioritario',
-      'Acceso a torneos exclusivos',
-      'Cancelación gratuita hasta 1 hora antes'
-    ],
-    popular: true,
-    color: 'blue',
-    icon: Star
-  },
-  {
-    id: 'vip',
-    name: 'VIP',
-    price: 120000,
-    credits: 350,
-    features: [
-      'Todo lo del plan Premium',
-      'Reservas ilimitadas',
-      'Descuento del 20% en todas las reservas',
-      'Soporte 24/7',
-      'Acceso prioritario a nuevas canchas',
-      'Invitaciones a eventos especiales',
-      'Entrenador personal (2 sesiones/mes)'
-    ],
-    color: 'purple',
-    icon: Crown
-  }
-];
-
-const creditPackages: CreditPackage[] = [
-  {
-    id: 'small',
-    credits: 50,
-    price: 25000
-  },
-  {
-    id: 'medium',
-    credits: 100,
-    price: 45000,
-    bonus: 10
-  },
-  {
-    id: 'large',
-    credits: 200,
-    price: 80000,
-    bonus: 30,
-    popular: true
-  },
-  {
-    id: 'xlarge',
-    credits: 500,
-    price: 180000,
-    bonus: 100
-  }
-];
-
-// Mock current user data
-const currentUser = {
-  membershipType: 'premium',
-  creditsBalance: 150,
-  membershipExpiry: '2024-03-15',
-  totalSpent: 240000,
-  reservationsThisMonth: 8
 };
 
 export default function MembershipsPage() {
-  const [selectedPlan, setSelectedPlan] = useState<string>(currentUser.membershipType);
-  const [selectedCredits, setSelectedCredits] = useState<string>('');
+  const { data: session } = useSession();
+  const [planTypes, setPlanTypes] = useState<ApiMembershipType[]>([]);
+  const [currentMembership, setCurrentMembership] = useState<ApiMembership | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
+  const userCredits = (session?.user as any)?.creditsBalance ?? 0;
+  const userId = (session?.user as any)?.id as string | undefined;
+
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CO', {
+    return new Intl.NumberFormat('es-ES', {
       style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0
+      currency: 'EUR',
+      minimumFractionDigits: 2
     }).format(amount);
   };
 
@@ -143,15 +58,47 @@ export default function MembershipsPage() {
     });
   };
 
-  const handleUpgradePlan = async (planId: string) => {
+  useEffect(() => {
+    // Cargar tipos de membresía
+    fetch('/api/memberships/types', { credentials: 'include' })
+      .then(res => res.ok ? res.json() : Promise.reject(res))
+      .then(json => setPlanTypes((json.data || json) as ApiMembershipType[]))
+      .catch(() => setPlanTypes([]));
+
+    // Cargar membresía actual
+    fetch('/api/memberships?limit=1&sortBy=endDate&sortOrder=desc', { credentials: 'include' })
+      .then(res => res.ok ? res.json() : Promise.reject(res))
+      .then(json => {
+        const memberships = (json.data?.memberships || json.memberships || []) as ApiMembership[];
+        setCurrentMembership(memberships[0] || null);
+        if (memberships[0]) setSelectedPlan(memberships[0].type.toLowerCase());
+      })
+      .catch(() => setCurrentMembership(null));
+  }, []);
+
+  const handleUpgradePlan = async (planKey: 'basic' | 'premium' | 'vip') => {
     setIsLoading(true);
     try {
-      // Aquí iría la llamada a la API para actualizar el plan
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      alert('¡Plan actualizado exitosamente!');
+      if (!userId) throw new Error('Usuario no autenticado');
+      const mapKeyToType = { basic: 'BASIC', premium: 'PREMIUM', vip: 'VIP' } as const;
+
+      const res = await fetch('/api/memberships', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, type: mapKeyToType[planKey], duration: 1, paymentMethod: 'CASH', autoRenew: false }),
+      });
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || `HTTP ${res.status}`);
+      }
+      const json = await res.json();
+      const created = json.data || json;
+      setCurrentMembership(created);
+      setSelectedPlan(planKey);
     } catch (error) {
       console.error('Error upgrading plan:', error);
-      alert('Error al actualizar el plan. Inténtalo de nuevo.');
+      alert('Error al actualizar el plan.');
     } finally {
       setIsLoading(false);
     }
@@ -171,7 +118,15 @@ export default function MembershipsPage() {
     }
   };
 
-  const currentPlan = membershipPlans.find(plan => plan.id === currentUser.membershipType);
+  const currentPlanName = useMemo(() => {
+    const map = { BASIC: 'Básico', PREMIUM: 'Premium', VIP: 'VIP' } as const;
+    return currentMembership ? map[currentMembership.type] : '—';
+  }, [currentMembership]);
+
+  const currentPlan = useMemo(() => {
+    const key = (currentMembership?.type || '').toLowerCase();
+    return planTypes.find(pt => pt.type.toLowerCase() === key) || null;
+  }, [currentMembership, planTypes]);
 
   return (
     <div className="space-y-6">
@@ -195,28 +150,23 @@ export default function MembershipsPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600 capitalize">
-                {currentUser.membershipType}
+                {currentPlanName}
               </div>
               <div className="text-sm text-gray-500">Plan Actual</div>
               <div className="text-xs text-gray-400 mt-1">
-                Vence: {formatDate(currentUser.membershipExpiry)}
+                Vence: {currentMembership?.endDate ? formatDate(currentMembership.endDate) : '—'}
               </div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
-                {currentUser.creditsBalance}
+                {userCredits}
               </div>
               <div className="text-sm text-gray-500">Créditos Disponibles</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">
-                {currentUser.reservationsThisMonth}
-              </div>
-              <div className="text-sm text-gray-500">Reservas Este Mes</div>
-            </div>
+            {/* Reservas del mes: pendiente de endpoint específico */}
             <div className="text-center">
               <div className="text-2xl font-bold text-orange-600">
-                {formatCurrency(currentUser.totalSpent)}
+                {currentMembership ? formatCurrency(currentMembership.price) : '—'}
               </div>
               <div className="text-sm text-gray-500">Total Gastado</div>
             </div>
@@ -237,14 +187,10 @@ export default function MembershipsPage() {
         </div>
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {membershipPlans.map((plan) => {
-              const IconComponent = plan.icon;
-              const isCurrentPlan = plan.id === currentUser.membershipType;
-              const colorClasses = {
-                gray: 'border-gray-200 bg-gray-50',
-                blue: 'border-blue-200 bg-blue-50',
-                purple: 'border-purple-200 bg-purple-50'
-              };
+            {planTypes.map((plan) => {
+              const IconComponent = plan.type === 'VIP' ? Crown : plan.type === 'PREMIUM' ? Star : Shield;
+              const planKey = plan.type.toLowerCase() as 'basic' | 'premium' | 'vip';
+              const isCurrentPlan = currentMembership?.type === plan.type;
               
               return (
                 <div
@@ -274,40 +220,31 @@ export default function MembershipsPage() {
                   )}
 
                   <div className="text-center mb-4">
-                    <IconComponent className={`h-8 w-8 mx-auto mb-2 ${
-                      plan.color === 'gray' ? 'text-gray-600' :
-                      plan.color === 'blue' ? 'text-blue-600' :
-                      'text-purple-600'
-                    }`} />
+                    <IconComponent className="h-8 w-8 mx-auto mb-2 text-gray-700" />
                     <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
                     <div className="mt-2">
                       <span className="text-3xl font-bold text-gray-900">
-                        {formatCurrency(plan.price)}
+                        {formatCurrency(plan.monthlyPrice)}
                       </span>
                       <span className="text-gray-500">/mes</span>
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {plan.credits} créditos incluidos
-                    </p>
                   </div>
 
                   <ul className="space-y-2 mb-6">
-                    {plan.features.map((feature, index) => (
-                      <li key={index} className="flex items-start text-sm">
+                    {Object.entries(plan.benefits || {}).map(([key, value]) => (
+                      <li key={key} className="flex items-start text-sm">
                         <Check className="h-4 w-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                        <span className="text-gray-600">{feature}</span>
+                        <span className="text-gray-600">{key}: {String(value)}</span>
                       </li>
                     ))}
                   </ul>
 
                   <button
-                    onClick={() => !isCurrentPlan && handleUpgradePlan(plan.id)}
+                    onClick={() => !isCurrentPlan && handleUpgradePlan(planKey)}
                     disabled={isCurrentPlan || isLoading}
                     className={`w-full py-2 px-4 rounded-md font-medium transition-colors ${
                       isCurrentPlan
                         ? 'bg-green-100 text-green-800 cursor-not-allowed'
-                        : plan.popular
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
                         : 'bg-gray-900 text-white hover:bg-gray-800'
                     }`}
                   >
@@ -320,7 +257,7 @@ export default function MembershipsPage() {
         </div>
       </div>
 
-      {/* Credit Packages */}
+      {/* Paquetes de Créditos - pendiente de API real */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="p-6 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -332,62 +269,8 @@ export default function MembershipsPage() {
           </p>
         </div>
         <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {creditPackages.map((pkg) => (
-              <div
-                key={pkg.id}
-                className={`relative rounded-lg border-2 p-4 transition-all ${
-                  pkg.popular
-                    ? 'border-yellow-400 bg-yellow-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                {pkg.popular && (
-                  <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
-                    <span className="bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-                      Mejor Valor
-                    </span>
-                  </div>
-                )}
-
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900 mb-1">
-                    {pkg.credits}
-                    {pkg.bonus && (
-                      <span className="text-sm text-green-600 ml-1">
-                        +{pkg.bonus}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm text-gray-500 mb-2">
-                    {pkg.bonus ? `${pkg.credits + pkg.bonus} créditos totales` : 'créditos'}
-                  </div>
-                  <div className="text-lg font-semibold text-gray-900 mb-3">
-                    {formatCurrency(pkg.price)}
-                  </div>
-                  
-                  {pkg.bonus && (
-                    <div className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full mb-3">
-                      <Gift className="h-3 w-3 inline mr-1" />
-                      +{pkg.bonus} créditos gratis
-                    </div>
-                  )}
-
-                  <button
-                    onClick={() => handleBuyCredits(pkg.id)}
-                    disabled={isLoading}
-                    className={`w-full py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-                      pkg.popular
-                        ? 'bg-yellow-500 text-white hover:bg-yellow-600'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                    } disabled:opacity-50`}
-                  >
-                    <ShoppingCart className="h-4 w-4 inline mr-1" />
-                    {isLoading ? 'Comprando...' : 'Comprar'}
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div className="text-sm text-gray-500">
+            Próximamente: paquetes de créditos desde el backend.
           </div>
         </div>
       </div>
