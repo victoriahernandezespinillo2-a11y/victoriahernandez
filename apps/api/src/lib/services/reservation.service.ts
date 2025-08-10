@@ -442,6 +442,69 @@ export class ReservationService {
     
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
+
+    // Obtener configuración de horarios desde el centro
+    const courtRef = await db.court.findUnique({
+      where: { id: courtId },
+      select: { centerId: true },
+    });
+
+    let slotMinutes = 30;
+    let dayRanges: Array<{ start: string; end: string }> = [{ start: '06:00', end: '23:00' }];
+
+    if (courtRef?.centerId) {
+      const center = await db.center.findUnique({
+        where: { id: courtRef.centerId },
+        select: { settings: true },
+      });
+
+      const settings: any = center?.settings || {};
+      // Compatibilidad: permitir settings.booking.slotMinutes o settings.slot.minutes
+      if (typeof settings?.booking?.slotMinutes === 'number') {
+        slotMinutes = Math.max(5, Math.min(240, Math.floor(settings.booking.slotMinutes)));
+      } else if (typeof settings?.slot?.minutes === 'number') {
+        slotMinutes = Math.max(5, Math.min(240, Math.floor(settings.slot.minutes)));
+      }
+
+      // Horarios por día (operatingHours: monday..sunday { open, close, closed })
+      const oh = settings?.operatingHours;
+      if (oh && typeof oh === 'object') {
+        const weekday = date.getDay(); // 0: domingo ... 6: sábado
+        const map: Record<number, string> = {
+          0: 'sunday',
+          1: 'monday',
+          2: 'tuesday',
+          3: 'wednesday',
+          4: 'thursday',
+          5: 'friday',
+          6: 'saturday',
+        };
+        const key = map[weekday];
+        const config = (oh as any)[key];
+        if (config?.closed === true) {
+          dayRanges = [];
+        } else if (config?.open && config?.close) {
+          dayRanges = [{ start: config.open, end: config.close }];
+        }
+      }
+
+      // Excepciones opcionales: settings.exceptions: [{ date: 'YYYY-MM-DD', closed?: true, ranges?: [{start,end}]}]
+      const exceptions = Array.isArray(settings?.exceptions) ? settings.exceptions : [];
+      if (exceptions.length > 0) {
+        const ymd = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const ex = exceptions.find((e: any) => e?.date === ymd);
+        if (ex) {
+          if (ex.closed === true) {
+            dayRanges = [];
+          } else if (Array.isArray(ex.ranges) && ex.ranges.length > 0) {
+            // Validar formato básico HH:MM
+            dayRanges = ex.ranges
+              .filter((r: any) => typeof r?.start === 'string' && typeof r?.end === 'string')
+              .map((r: any) => ({ start: r.start, end: r.end }));
+          }
+        }
+      }
+    }
     
     // Obtener reservas del día
     const reservations = await this.getReservationsByCourt(courtId, {
@@ -463,33 +526,52 @@ export class ReservationService {
       select: { scheduledAt: true, startedAt: true, completedAt: true },
     });
     
-    // Generar slots de 30 minutos desde las 6:00 hasta las 23:30
-    const slots = [];
-    const slotDuration = 30 * 60 * 1000; // 30 minutos en milisegundos
-    
-    for (let hour = 6; hour < 24; hour++) {
-      for (let minute = 0; minute < 60; minute += 30) {
-        const slotStart = new Date(date);
-        slotStart.setHours(hour, minute, 0, 0);
-        
-        const slotEnd = new Date(slotStart.getTime() + slotDuration);
-        
-        // Verificar si el slot está ocupado
-        const isReserved = reservations.some(reservation => 
-          slotStart < reservation.endTime && slotEnd > reservation.startTime
-        );
-        
-        const isInMaintenance = maintenanceSchedules.some(m => {
-          const maintStart = m.startedAt ?? m.scheduledAt ?? startOfDay;
-          const maintEnd = m.completedAt ?? endOfDay;
-          return slotStart < maintEnd && slotEnd > maintStart;
-        });
-        
-        slots.push({
-          start: slotStart,
-          end: slotEnd,
-          available: !isReserved && !isInMaintenance,
-        });
+    // Si el día está cerrado o no hay rangos configurados -> sin disponibilidad
+    const slots: Array<{ start: Date; end: Date; available: boolean }> = [];
+    if (dayRanges.length === 0) {
+      return { available: false, slots };
+    }
+
+    const slotDuration = slotMinutes * 60 * 1000;
+
+    for (const range of dayRanges) {
+      const [startH, startM] = String(range.start).split(':').map((n) => Number(n));
+      const [endH, endM] = String(range.end).split(':').map((n) => Number(n));
+      if (
+        Number.isFinite(startH) && Number.isFinite(startM) &&
+        Number.isFinite(endH) && Number.isFinite(endM)
+      ) {
+        const rangeStart = new Date(date);
+        rangeStart.setHours(startH, startM, 0, 0);
+        const rangeEnd = new Date(date);
+        rangeEnd.setHours(endH, endM, 0, 0);
+
+        let cursor = new Date(rangeStart);
+        while (new Date(cursor.getTime() + slotDuration) <= rangeEnd) {
+          const slotStart = new Date(cursor);
+          const slotEnd = new Date(cursor.getTime() + slotDuration);
+
+          // Verificar conflictos con reservas
+          const isReserved = reservations.some((reservation) =>
+            slotStart < reservation.endTime && slotEnd > reservation.startTime
+          );
+
+          // Verificar conflictos de mantenimiento
+          const isInMaintenance = maintenanceSchedules.some((m) => {
+            const maintStart = m.startedAt ?? m.scheduledAt ?? startOfDay;
+            const maintEnd = m.completedAt ?? endOfDay;
+            return slotStart < maintEnd && slotEnd > maintStart;
+          });
+
+          slots.push({
+            start: slotStart,
+            end: slotEnd,
+            available: !isReserved && !isInMaintenance,
+          });
+
+          // avanzar al siguiente slot
+          cursor = new Date(cursor.getTime() + slotDuration);
+        }
       }
     }
     

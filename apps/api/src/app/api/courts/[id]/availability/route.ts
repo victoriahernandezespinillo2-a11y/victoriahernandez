@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@repo/auth';
 import { reservationService } from '../../../../../lib/services/reservation.service';
+import { db } from '@repo/db';
 import { z } from 'zod';
 
 // Esquema para consultar disponibilidad
@@ -48,12 +49,45 @@ export async function GET(
     
     const validatedParams = AvailabilityQuerySchema.parse(queryParams);
     
-    // Construir fecha y hora de inicio y fin
+    // Construir fecha
     const date = new Date(validatedParams.date);
-    
-    // Si no se especifica hora de inicio, usar horario de apertura (06:00)
-    const startTime = validatedParams.startTime || '06:00';
-    const endTime = validatedParams.endTime || '23:00';
+
+    // Obtener horario por defecto del centro para ese día si no viene en query
+    let startTime = validatedParams.startTime;
+    let endTime = validatedParams.endTime;
+
+    if (!startTime || !endTime) {
+      const court = await db.court.findUnique({ where: { id: courtId }, select: { centerId: true } });
+      if (court?.centerId) {
+        const center = await db.center.findUnique({ where: { id: court.centerId }, select: { settings: true } });
+        const settings: any = center?.settings || {};
+        const oh = settings?.operatingHours;
+        if (oh && typeof oh === 'object') {
+          const weekday = date.getDay();
+          const map: Record<number, string> = { 0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday' };
+          const key = map[weekday];
+          const config = (oh as any)[key];
+          if (config?.closed === true) {
+            // Centro cerrado ese día
+            return NextResponse.json({
+              courtId,
+              date: validatedParams.date,
+              duration: validatedParams.duration,
+              timeRange: { start: null, end: null },
+              availability: { totalSlots: 0, availableSlots: 0, occupiedSlots: 0 },
+              slots: [],
+              reservations: [],
+              maintenanceSchedules: [],
+            });
+          }
+          if (!startTime && config?.open) startTime = config.open;
+          if (!endTime && config?.close) endTime = config.close;
+        }
+      }
+      // fallback final si no hubo configuración
+      if (!startTime) startTime = '06:00';
+      if (!endTime) endTime = '23:00';
+    }
     
     const [startHour, startMinute] = startTime.split(':').map(Number);
     const [endHour, endMinute] = endTime.split(':').map(Number);
@@ -72,16 +106,27 @@ export async function GET(
 
     const baseSlots = baseAvailability.slots;
 
+    // Determinar el tamaño de paso (minutos) a partir de los baseSlots
+    let stepMinutes = 30;
+    try {
+      const sorted = [...baseSlots].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+      if (sorted.length >= 2) {
+        const diffMs = new Date(sorted[1].start).getTime() - new Date(sorted[0].start).getTime();
+        const inferred = Math.max(1, Math.round(diffMs / 60000));
+        if (Number.isFinite(inferred)) stepMinutes = inferred;
+      }
+    } catch {}
+
     // Generar slots disponibles basados en la duración solicitada
     const duration = validatedParams.duration;
     const availableSlots: Array<{ startTime: string; endTime: string; duration: number; available: boolean; timeSlot: string }> = [];
 
-    // Crear slots cada 30 minutos dentro del rango horario
+    // Crear slots cada stepMinutes dentro del rango horario
     let currentTime = new Date(startDateTime);
     while (currentTime < endDateTime) {
       const slotEnd = new Date(currentTime.getTime() + duration * 60000);
       if (slotEnd <= endDateTime) {
-        // Verificar que todos los sub-slots de 30min dentro del rango [currentTime, slotEnd) están disponibles
+        // Verificar que todos los sub-slots dentro del rango [currentTime, slotEnd) están disponibles
         let ok = true;
         let probe = new Date(currentTime);
         while (probe < slotEnd) {
@@ -90,8 +135,8 @@ export async function GET(
             ok = false;
             break;
           }
-          // avanzar 30 minutos
-          probe = new Date(probe.getTime() + 30 * 60000);
+          // avanzar stepMinutes
+          probe = new Date(probe.getTime() + stepMinutes * 60000);
         }
 
         availableSlots.push({
@@ -102,7 +147,7 @@ export async function GET(
           timeSlot: `${currentTime.getHours().toString().padStart(2, '0')}:${currentTime.getMinutes().toString().padStart(2, '0')} - ${slotEnd.getHours().toString().padStart(2, '0')}:${slotEnd.getMinutes().toString().padStart(2, '0')}`,
         });
       }
-      currentTime = new Date(currentTime.getTime() + 30 * 60000);
+      currentTime = new Date(currentTime.getTime() + stepMinutes * 60000);
     }
     
     return NextResponse.json({

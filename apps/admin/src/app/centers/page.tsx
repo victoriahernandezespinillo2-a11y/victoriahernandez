@@ -52,6 +52,21 @@ export default function CentersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editingCenterId, setEditingCenterId] = useState<string | null>(null);
+  const [ohForm, setOhForm] = useState<any>({
+    slotMinutes: 30,
+    operatingHours: {
+      monday: { open: '08:00', close: '22:00', closed: false },
+      tuesday: { open: '08:00', close: '22:00', closed: false },
+      wednesday: { open: '08:00', close: '22:00', closed: false },
+      thursday: { open: '08:00', close: '22:00', closed: false },
+      friday: { open: '08:00', close: '23:00', closed: false },
+      saturday: { open: '08:00', close: '23:00', closed: false },
+      sunday: { open: '08:00', close: '20:00', closed: false },
+    },
+    exceptions: [] as Array<{ date: string; closed?: boolean; start?: string; end?: string }>,
+  });
   const [form, setForm] = useState({
     name: '',
     address: '',
@@ -266,7 +281,45 @@ export default function CentersPage() {
                   <button className="text-blue-600 hover:text-blue-900 p-1">
                     <EyeIcon className="h-4 w-4" />
                   </button>
-                  <button className="text-green-600 hover:text-green-900 p-1">
+                  <button
+                    className="text-green-600 hover:text-green-900 p-1"
+                    onClick={async () => {
+                      try {
+                        setIsLoading(true);
+                        setEditingCenterId(center.id);
+                        // Cargar detalles del centro para leer settings actuales
+                        // Reutilizamos getCenters o hacemos un fetch puntual a /api/admin/centers/[id] vía hooks
+                        // Para simplicidad, consultamos el endpoint público de centros (siempre autenticado) no está disponible aquí,
+                        // usamos updateCenter con datos existentes; mejor: haremos una llamada manual
+                        const res = await fetch(`/api/admin/centers/${center.id}`, { credentials: 'include' });
+                        const json = await res.json();
+                        const centerData = (json?.data || json);
+                        const settings = centerData?.settings || {};
+                        // Mapear valores existentes
+                        const slotMinutes = settings?.slot?.minutes || settings?.booking?.slotMinutes || 30;
+                        const operatingHours = settings?.operatingHours || ohForm.operatingHours;
+                        const exceptions = Array.isArray(settings?.exceptions) ? settings.exceptions : [];
+                        setOhForm({
+                          slotMinutes,
+                          operatingHours: {
+                            monday: operatingHours?.monday || ohForm.operatingHours.monday,
+                            tuesday: operatingHours?.tuesday || ohForm.operatingHours.tuesday,
+                            wednesday: operatingHours?.wednesday || ohForm.operatingHours.wednesday,
+                            thursday: operatingHours?.thursday || ohForm.operatingHours.thursday,
+                            friday: operatingHours?.friday || ohForm.operatingHours.friday,
+                            saturday: operatingHours?.saturday || ohForm.operatingHours.saturday,
+                            sunday: operatingHours?.sunday || ohForm.operatingHours.sunday,
+                          },
+                          exceptions,
+                        });
+                        setShowEdit(true);
+                      } catch (e) {
+                        alert('No se pudieron cargar los detalles del centro');
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    }}
+                  >
                     <PencilIcon className="h-4 w-4" />
                   </button>
                   <button 
@@ -399,6 +452,206 @@ export default function CentersPage() {
                 }}
                 className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
                 disabled={isLoading || !form.name}
+              >
+                {isLoading ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Horarios */}
+      {showEdit && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Configurar Horarios y Slots</h3>
+              <button onClick={() => setShowEdit(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div className="p-4 space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* Slot size */}
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Tamaño de slot (minutos)</label>
+                <input
+                  type="number"
+                  min={5}
+                  max={240}
+                  value={ohForm.slotMinutes}
+                  onChange={(e) => setOhForm({ ...ohForm, slotMinutes: Number(e.target.value) })}
+                  className="w-32 border rounded px-3 py-2"
+                />
+              </div>
+              {/* Operating hours per day */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  ['monday','Lunes'],
+                  ['tuesday','Martes'],
+                  ['wednesday','Miércoles'],
+                  ['thursday','Jueves'],
+                  ['friday','Viernes'],
+                  ['saturday','Sábado'],
+                  ['sunday','Domingo'],
+                ].map(([key,label]) => (
+                  <div key={key} className="border rounded p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium">{label}</span>
+                      <label className="text-sm inline-flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={ohForm.operatingHours[key as keyof typeof ohForm.operatingHours]?.closed || false}
+                          onChange={(e) => setOhForm({
+                            ...ohForm,
+                            operatingHours: {
+                              ...ohForm.operatingHours,
+                              [key]: {
+                                ...(ohForm.operatingHours as any)[key],
+                                closed: e.target.checked,
+                              },
+                            },
+                          })}
+                        />
+                        Cerrado
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <label className="block text-xs text-gray-600 mb-1">Apertura</label>
+                        <input
+                          type="time"
+                          value={ohForm.operatingHours[key as any]?.open || ''}
+                          onChange={(e) => setOhForm({
+                            ...ohForm,
+                            operatingHours: {
+                              ...ohForm.operatingHours,
+                              [key]: { ...(ohForm.operatingHours as any)[key], open: e.target.value },
+                            },
+                          })}
+                          disabled={ohForm.operatingHours[key as any]?.closed}
+                          className="w-full border rounded px-3 py-2"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs text-gray-600 mb-1">Cierre</label>
+                        <input
+                          type="time"
+                          value={ohForm.operatingHours[key as any]?.close || ''}
+                          onChange={(e) => setOhForm({
+                            ...ohForm,
+                            operatingHours: {
+                              ...ohForm.operatingHours,
+                              [key]: { ...(ohForm.operatingHours as any)[key], close: e.target.value },
+                            },
+                          })}
+                          disabled={ohForm.operatingHours[key as any]?.closed}
+                          className="w-full border rounded px-3 py-2"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Exceptions */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Excepciones</span>
+                  <button
+                    className="text-sm px-2 py-1 border rounded"
+                    onClick={() => setOhForm({ ...ohForm, exceptions: [...ohForm.exceptions, { date: '', closed: true }] })}
+                  >
+                    Añadir excepción
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {ohForm.exceptions.map((ex: any, idx: number) => (
+                    <div key={idx} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Fecha</label>
+                        <input
+                          type="date"
+                          value={ex.date || ''}
+                          onChange={(e) => {
+                            const next = [...ohForm.exceptions];
+                            next[idx] = { ...next[idx], date: e.target.value };
+                            setOhForm({ ...ohForm, exceptions: next });
+                          }}
+                          className="w-full border rounded px-3 py-2"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Cerrado</label>
+                        <input
+                          type="checkbox"
+                          checked={!!ex.closed}
+                          onChange={(e) => {
+                            const next = [...ohForm.exceptions];
+                            next[idx] = { ...next[idx], closed: e.target.checked };
+                            setOhForm({ ...ohForm, exceptions: next });
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Desde</label>
+                        <input
+                          type="time"
+                          value={ex.start || ''}
+                          onChange={(e) => {
+                            const next = [...ohForm.exceptions];
+                            next[idx] = { ...next[idx], start: e.target.value };
+                            setOhForm({ ...ohForm, exceptions: next });
+                          }}
+                          disabled={ex.closed}
+                          className="w-full border rounded px-3 py-2"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Hasta</label>
+                        <input
+                          type="time"
+                          value={ex.end || ''}
+                          onChange={(e) => {
+                            const next = [...ohForm.exceptions];
+                            next[idx] = { ...next[idx], end: e.target.value };
+                            setOhForm({ ...ohForm, exceptions: next });
+                          }}
+                          disabled={ex.closed}
+                          className="w-full border rounded px-3 py-2"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t flex justify-end gap-2">
+              <button onClick={() => setShowEdit(false)} className="px-4 py-2 border rounded">Cancelar</button>
+              <button
+                className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                disabled={!editingCenterId}
+                onClick={async () => {
+                  if (!editingCenterId) return;
+                  setIsLoading(true);
+                  try {
+                    const payload: any = {
+                      settings: {
+                        operatingHours: ohForm.operatingHours,
+                        slot: { minutes: Number(ohForm.slotMinutes) || 30 },
+                        exceptions: ohForm.exceptions.map((ex: any) =>
+                          ex.closed
+                            ? { date: ex.date, closed: true }
+                            : { date: ex.date, ranges: [{ start: ex.start, end: ex.end }] }
+                        ),
+                      },
+                    };
+                    await updateCenter(editingCenterId, payload as any);
+                    setShowEdit(false);
+                    setEditingCenterId(null);
+                    getCenters({ page: 1, limit: 50 }).catch(() => {});
+                  } catch (e) {
+                    alert('No se pudo guardar la configuración de horarios');
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
               >
                 {isLoading ? 'Guardando...' : 'Guardar'}
               </button>

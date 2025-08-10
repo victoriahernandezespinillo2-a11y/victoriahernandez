@@ -226,7 +226,8 @@ export async function GET(
       description: center.description,
       amenities: center.amenities,
       images: center.images,
-      openingHours: center.openingHours,
+      // Exponer settings completos, incluyendo operatingHours/slot/exceptions si existen
+      settings: center.settings,
       coordinates: center.coordinates,
       isActive: center.isActive,
       stats: {
@@ -281,16 +282,45 @@ export async function GET(
             : null,
         },
       })),
-      operatingHours: {
-        isCurrentlyOpen: (() => {
-          // Verificar si el centro está abierto actualmente
-          // Esto es una implementación básica, se puede mejorar
+      operatingHours: (() => {
+        try {
+          const settings: any = center.settings || {};
+          const oh = settings?.operatingHours;
+          if (!oh) {
+            // fallback simple
+            const currentHour = now.getHours();
+            return {
+              isCurrentlyOpen: currentHour >= 6 && currentHour < 23,
+              nextOpeningTime: null,
+              nextClosingTime: null,
+            };
+          }
+          const weekday = now.getDay();
+          const map: Record<number, string> = { 0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday' };
+          const key = map[weekday];
+          const config = (oh as any)[key];
+          if (!config || config.closed) {
+            return { isCurrentlyOpen: false, nextOpeningTime: null, nextClosingTime: null };
+          }
+          const [ohh, ohm] = String(config.open).split(':').map(Number);
+          const [chh, chm] = String(config.close).split(':').map(Number);
+          const openAt = new Date(now); openAt.setHours(ohh || 0, ohm || 0, 0, 0);
+          const closeAt = new Date(now); closeAt.setHours(chh || 0, chm || 0, 0, 0);
+          const isOpen = now >= openAt && now < closeAt;
+          return {
+            isCurrentlyOpen: isOpen,
+            nextOpeningTime: isOpen ? null : openAt.toISOString(),
+            nextClosingTime: isOpen ? closeAt.toISOString() : null,
+          };
+        } catch {
           const currentHour = now.getHours();
-          return currentHour >= 6 && currentHour < 23; // Asumiendo 6:00 - 23:00
-        })(),
-        nextOpeningTime: null, // Se puede calcular basado en openingHours
-        nextClosingTime: null, // Se puede calcular basado en openingHours
-      },
+          return {
+            isCurrentlyOpen: currentHour >= 6 && currentHour < 23,
+            nextOpeningTime: null,
+            nextClosingTime: null,
+          };
+        }
+      })(),
       createdAt: center.createdAt,
       updatedAt: center.updatedAt,
     };
