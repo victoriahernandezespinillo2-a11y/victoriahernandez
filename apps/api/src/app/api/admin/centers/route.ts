@@ -10,37 +10,21 @@ import { db } from '@repo/db';
 import { z } from 'zod';
 
 const GetCentersQuerySchema = z.object({
-  page: z.string().transform(Number).optional().default('1'),
-  limit: z.string().transform(Number).optional().default('20'),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   search: z.string().optional(),
-  status: z.enum(['ACTIVE', 'INACTIVE', 'MAINTENANCE']).optional(),
   sortBy: z.enum(['name', 'createdAt', 'courtsCount', 'reservationsCount']).optional().default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
-  includeStats: z.string().transform(Boolean).optional().default('true')
+  includeStats: z.coerce.boolean().optional().default(false)
 });
 
 const CreateCenterSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
-  description: z.string().optional(),
-  address: z.string().min(5, 'La dirección debe tener al menos 5 caracteres'),
+  address: z.string().min(3, 'La dirección debe tener al menos 3 caracteres').optional(),
   phone: z.string().optional(),
   email: z.string().email('Email inválido').optional(),
+  description: z.string().optional(),
   website: z.string().url('URL inválida').optional(),
-  status: z.enum(['ACTIVE', 'INACTIVE', 'MAINTENANCE']).default('ACTIVE'),
-  operatingHours: z.object({
-    monday: z.object({ open: z.string(), close: z.string() }).optional(),
-    tuesday: z.object({ open: z.string(), close: z.string() }).optional(),
-    wednesday: z.object({ open: z.string(), close: z.string() }).optional(),
-    thursday: z.object({ open: z.string(), close: z.string() }).optional(),
-    friday: z.object({ open: z.string(), close: z.string() }).optional(),
-    saturday: z.object({ open: z.string(), close: z.string() }).optional(),
-    sunday: z.object({ open: z.string(), close: z.string() }).optional()
-  }).optional(),
-  amenities: z.array(z.string()).optional().default([]),
-  coordinates: z.object({
-    latitude: z.number(),
-    longitude: z.number()
-  }).optional()
 });
 
 /**
@@ -53,40 +37,29 @@ export async function GET(request: NextRequest) {
     try {
       const { searchParams } = req.nextUrl;
       const params = GetCentersQuerySchema.parse(Object.fromEntries(searchParams.entries()));
-      
+
       const skip = (params.page - 1) * params.limit;
-      
-      // Construir filtros
+
+      // Filtros compatibles con el esquema actual
       const where: any = {};
-      
       if (params.search) {
         where.OR = [
           { name: { contains: params.search, mode: 'insensitive' } },
-          { description: { contains: params.search, mode: 'insensitive' } },
-          { address: { contains: params.search, mode: 'insensitive' } }
+          { address: { contains: params.search, mode: 'insensitive' } },
         ];
       }
-      
-      if (params.status) {
-        where.status = params.status;
-      }
-      
-      // Construir ordenamiento
+
+      // Ordenamiento simple
       let orderBy: any = {};
-      
       switch (params.sortBy) {
         case 'courtsCount':
-          orderBy = { courts: { _count: params.sortOrder } };
-          break;
         case 'reservationsCount':
-          // Para ordenar por reservas necesitamos una consulta más compleja
-          orderBy = { name: params.sortOrder }; // Fallback
+          orderBy = { name: params.sortOrder };
           break;
         default:
-          orderBy[params.sortBy] = params.sortOrder;
+          orderBy = { [params.sortBy!]: params.sortOrder };
       }
-      
-      // Obtener centros y total
+
       const [centers, total] = await Promise.all([
         db.center.findMany({
           where,
@@ -96,86 +69,32 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             name: true,
-            description: true,
             address: true,
             phone: true,
             email: true,
-            website: true,
-            status: true,
-            operatingHours: true,
-            amenities: true,
-            coordinates: true,
             createdAt: true,
             updatedAt: true,
-            _count: {
-              select: {
-                courts: true,
-                users: true
-              }
-            }
+            _count: { select: { courts: true } },
           }
         }),
         db.center.count({ where })
       ]);
-      
-      // Obtener estadísticas adicionales si se solicitan
-      let centersWithStats = centers;
-      
-      if (params.includeStats) {
-        centersWithStats = await Promise.all(
-          centers.map(async (center) => {
-            const [reservationsCount, totalRevenue, activeMaintenances, averageOccupancy] = await Promise.all([
-              // Total de reservas
-              db.reservation.count({
-                where: {
-                  court: {
-                    centerId: center.id
-                  }
-                }
-              }),
-              
-              // Ingresos totales
-              db.payment.aggregate({
-                where: {
-                  centerId: center.id,
-                  status: 'COMPLETED'
-                },
-                _sum: {
-                  amount: true
-                }
-              }),
-              
-              // Mantenimientos activos
-              db.maintenance.count({
-                where: {
-                  court: {
-                    centerId: center.id
-                  },
-                  status: { in: ['SCHEDULED', 'IN_PROGRESS'] }
-                }
-              }),
-              
-              // Ocupación promedio (últimos 30 días)
-              getAverageOccupancy(center.id)
-            ]);
-            
-            return {
-              ...center,
-              stats: {
-                totalReservations: reservationsCount,
-                totalRevenue: totalRevenue._sum.amount || 0,
-                activeMaintenances,
-                averageOccupancy,
-                totalCourts: center._count.courts,
-                totalUsers: center._count.users
-              }
-            };
-          })
-        );
-      }
-      
+
+      const mapped = centers.map(c => ({
+        id: c.id,
+        name: c.name,
+        address: c.address || '',
+        phone: c.phone || '',
+        email: c.email || '',
+        status: 'ACTIVE' as const,
+        courtsCount: c._count.courts,
+        capacity: 0,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+      }));
+
       const result = {
-        data: centersWithStats,
+        data: mapped,
         pagination: {
           page: params.page,
           limit: params.limit,
@@ -184,14 +103,13 @@ export async function GET(request: NextRequest) {
         },
         filters: {
           search: params.search,
-          status: params.status
         },
         sorting: {
           sortBy: params.sortBy,
           sortOrder: params.sortOrder
         }
       };
-      
+
       return ApiResponse.success(result);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -202,7 +120,7 @@ export async function GET(request: NextRequest) {
           }))
         );
       }
-      
+
       console.error('Error obteniendo centros:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
@@ -215,7 +133,7 @@ export async function GET(request: NextRequest) {
  * Acceso: ADMIN únicamente
  */
 export async function POST(request: NextRequest) {
-  return withAdminMiddleware(async (req, { params }) => {
+  return withAdminMiddleware(async (req, { user }) => {
     try {
       const body = await req.json();
       const centerData = CreateCenterSchema.parse(body);
@@ -234,35 +152,45 @@ export async function POST(request: NextRequest) {
         return ApiResponse.error('Ya existe un centro con ese nombre', 409);
       }
       
-      // Crear centro
+      // Mapear datos al esquema real (guardar extras en settings)
+      const settings: any = {};
+      if (centerData.description) settings.description = centerData.description;
+      if (centerData.website) settings.website = centerData.website;
+
       const newCenter = await db.center.create({
         data: {
-          ...centerData,
-          createdBy: user.id
+          name: centerData.name,
+          address: centerData.address,
+          phone: centerData.phone,
+          email: centerData.email,
+          settings,
         },
         select: {
           id: true,
           name: true,
-          description: true,
           address: true,
           phone: true,
           email: true,
-          website: true,
-          status: true,
-          operatingHours: true,
-          amenities: true,
-          coordinates: true,
           createdAt: true,
-          _count: {
-            select: {
-              courts: true,
-              users: true
-            }
-          }
+          updatedAt: true,
+          _count: { select: { courts: true } },
         }
       });
       
-      return ApiResponse.success(newCenter);
+      const mapped = {
+        id: newCenter.id,
+        name: newCenter.name,
+        address: newCenter.address || '',
+        phone: newCenter.phone || '',
+        email: newCenter.email || '',
+        status: 'ACTIVE' as const,
+        courtsCount: newCenter._count.courts,
+        capacity: 0,
+        createdAt: newCenter.createdAt,
+        updatedAt: newCenter.updatedAt,
+      };
+
+      return ApiResponse.success(mapped, 201);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(

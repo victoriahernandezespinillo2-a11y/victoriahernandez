@@ -223,7 +223,7 @@ export default function TournamentsPage() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Premios Totales</p>
-              <p className="text-2xl font-semibold text-gray-900">₱{totalPrizePool.toFixed(0)}</p>
+              <p className="text-2xl font-semibold text-gray-900">€{totalPrizePool.toFixed(0)}</p>
             </div>
           </div>
         </div>
@@ -371,13 +371,13 @@ export default function TournamentsPage() {
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
                 <div className="text-center">
                   <p className="text-lg font-semibold text-green-600">
-                    ₱{tournament.registrationFee.toFixed(0)}
+                   €{tournament.registrationFee.toFixed(0)}
                   </p>
                   <p className="text-xs text-gray-500">Inscripción</p>
                 </div>
                 <div className="text-center">
                   <p className="text-lg font-semibold text-purple-600">
-                    ₱{tournament.prizePool.toFixed(0)}
+                   €{tournament.prizePool.toFixed(0)}
                   </p>
                   <p className="text-xs text-gray-500">Premio</p>
                 </div>

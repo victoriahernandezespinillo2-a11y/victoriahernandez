@@ -3,16 +3,13 @@ import { auth } from '@repo/auth';
 import { db } from '@repo/db';
 import { z } from 'zod';
 
-// Esquema para filtros de búsqueda de canchas
+// Esquema para filtros de búsqueda de canchas (adaptado al esquema actual)
 const GetCourtsSchema = z.object({
-  centerId: z.string().cuid().optional(),
+  centerId: z.string().optional(),
   sport: z.string().optional(),
-  surface: z.string().optional(),
   isActive: z.string().transform(val => val === 'true').optional(),
-  hasLighting: z.string().transform(val => val === 'true').optional(),
-  isIndoor: z.string().transform(val => val === 'true').optional(),
-  page: z.string().transform(Number).optional().default('1'),
-  limit: z.string().transform(Number).optional().default('20'),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
 });
 
 /**
@@ -31,7 +28,6 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const params = Object.fromEntries(searchParams.entries());
-    
     const validatedParams = GetCourtsSchema.parse(params);
     
     // Construir filtros para Prisma
@@ -42,30 +38,17 @@ export async function GET(request: NextRequest) {
     }
     
     if (validatedParams.sport) {
-      where.sport = {
+      where.sportType = {
         contains: validatedParams.sport,
         mode: 'insensitive',
-      };
-    }
-    
-    if (validatedParams.surface) {
-      where.surface = {
-        contains: validatedParams.surface,
-        mode: 'insensitive',
-      };
+      } as any;
     }
     
     if (validatedParams.isActive !== undefined) {
       where.isActive = validatedParams.isActive;
     }
     
-    if (validatedParams.hasLighting !== undefined) {
-      where.hasLighting = validatedParams.hasLighting;
-    }
-    
-    if (validatedParams.isIndoor !== undefined) {
-      where.isIndoor = validatedParams.isIndoor;
-    }
+    // Campos hasLighting/isIndoor/surface no existen en el esquema actual
     
     // Obtener total de registros para paginación
     const totalCourts = await db.court.count({ where });
@@ -84,23 +67,13 @@ export async function GET(request: NextRequest) {
             id: true,
             name: true,
             address: true,
-            city: true,
             phone: true,
             email: true,
-            openingHours: true,
-            amenities: true,
           },
         },
         _count: {
           select: {
-            reservations: {
-              where: {
-                status: 'confirmed',
-                startTime: {
-                  gte: new Date(),
-                },
-              },
-            },
+            reservations: true,
           },
         },
       },
@@ -108,7 +81,6 @@ export async function GET(request: NextRequest) {
       take: limit,
       orderBy: [
         { isActive: 'desc' },
-        { center: { name: 'asc' } },
         { name: 'asc' },
       ],
     });
@@ -117,19 +89,15 @@ export async function GET(request: NextRequest) {
     const formattedCourts = courts.map(court => ({
       id: court.id,
       name: court.name,
-      sport: court.sport,
-      surface: court.surface,
-      isIndoor: court.isIndoor,
-      hasLighting: court.hasLighting,
-      maxPlayers: court.maxPlayers,
-      hourlyRate: court.hourlyRate,
+      sportType: (court as any).sportType,
+      capacity: (court as any).capacity ?? 0,
+      pricePerHour: Number((court as any).basePricePerHour) || 0,
       isActive: court.isActive,
-      description: court.description,
-      amenities: court.amenities,
-      images: court.images,
+      amenities: [],
+      images: [],
       center: court.center,
       stats: {
-        activeReservations: court._count.reservations,
+        activeReservations: (court as any)._count?.reservations || 0,
       },
       createdAt: court.createdAt,
       updatedAt: court.updatedAt,
@@ -148,10 +116,7 @@ export async function GET(request: NextRequest) {
       filters: {
         centerId: validatedParams.centerId,
         sport: validatedParams.sport,
-        surface: validatedParams.surface,
         isActive: validatedParams.isActive,
-        hasLighting: validatedParams.hasLighting,
-        isIndoor: validatedParams.isIndoor,
       },
     });
   } catch (error) {

@@ -4,11 +4,14 @@
  */
 
 import { z } from 'zod';
-import { PrismaClient, PaymentStatus, PaymentMethod, PaymentProvider } from '@prisma/client';
+import type Stripe from 'stripe';
+import { PaymentStatus, PaymentMethod, PaymentProvider } from '@prisma/client';
+import { db } from '@repo/db';
 import { PaymentService as PaymentServiceCore } from '@repo/payments';
 import { NotificationService } from '@repo/notifications';
 
-const prisma = new PrismaClient();
+// Usar el cliente Prisma compartido del monorepo
+const prisma = db;
 const notificationService = new NotificationService();
 const paymentCore = new PaymentServiceCore();
 
@@ -653,17 +656,17 @@ export class PaymentService {
    */
   private async sendPaymentSuccessNotification(payment: any): Promise<void> {
     try {
-      await notificationService.create({
-        userId: payment.userId,
-        type: 'PAYMENT_SUCCESS',
-        title: 'Pago procesado exitosamente',
-        message: `Tu pago de €${payment.amount} ha sido procesado correctamente.`,
-        channels: ['EMAIL', 'IN_APP'],
-        data: {
-          paymentId: payment.id,
-          amount: payment.amount
-        }
+      const user = await prisma.user.findUnique({
+        where: { id: payment.userId },
+        select: { email: true, firstName: true, lastName: true },
       });
+      if (user?.email) {
+        await notificationService.sendEmail({
+          to: user.email,
+          subject: 'Pago procesado exitosamente',
+          html: `<p>Hola ${user.firstName ?? ''},</p><p>Tu pago de €${payment.amount} ha sido procesado correctamente.</p><p>ID de pago: ${payment.id}</p>`,
+        });
+      }
     } catch (error) {
       console.error('Error enviando notificación de pago exitoso:', error);
     }
@@ -674,17 +677,17 @@ export class PaymentService {
    */
   private async sendPaymentFailedNotification(payment: any): Promise<void> {
     try {
-      await notificationService.create({
-        userId: payment.userId,
-        type: 'PAYMENT_FAILED',
-        title: 'Error en el pago',
-        message: `Hubo un problema procesando tu pago de €${payment.amount}. Por favor, intenta nuevamente.`,
-        channels: ['EMAIL', 'IN_APP'],
-        data: {
-          paymentId: payment.id,
-          amount: payment.amount
-        }
+      const user = await prisma.user.findUnique({
+        where: { id: payment.userId },
+        select: { email: true, firstName: true, lastName: true },
       });
+      if (user?.email) {
+        await notificationService.sendEmail({
+          to: user.email,
+          subject: 'Error en el pago',
+          html: `<p>Hola ${user.firstName ?? ''},</p><p>Hubo un problema procesando tu pago de €${payment.amount}. Por favor, intenta nuevamente.</p><p>ID de pago: ${payment.id}</p>`,
+        });
+      }
     } catch (error) {
       console.error('Error enviando notificación de pago fallido:', error);
     }
@@ -695,17 +698,17 @@ export class PaymentService {
    */
   private async sendRefundNotification(payment: any, refundAmount: number): Promise<void> {
     try {
-      await notificationService.create({
-        userId: payment.userId,
-        type: 'REFUND_PROCESSED',
-        title: 'Reembolso procesado',
-        message: `Se ha procesado un reembolso de €${refundAmount} para tu pago.`,
-        channels: ['EMAIL', 'IN_APP'],
-        data: {
-          paymentId: payment.id,
-          refundAmount
-        }
+      const user = await prisma.user.findUnique({
+        where: { id: payment.userId },
+        select: { email: true, firstName: true, lastName: true },
       });
+      if (user?.email) {
+        await notificationService.sendEmail({
+          to: user.email,
+          subject: 'Reembolso procesado',
+          html: `<p>Hola ${user.firstName ?? ''},</p><p>Se ha procesado un reembolso de €${refundAmount} para tu pago.</p><p>ID de pago: ${payment.id}</p>`,
+        });
+      }
     } catch (error) {
       console.error('Error enviando notificación de reembolso:', error);
     }
@@ -716,19 +719,17 @@ export class PaymentService {
    */
   private async sendDisputeNotification(payment: any, dispute: any): Promise<void> {
     try {
-      // Notificar al equipo de administración
-      await notificationService.create({
-        type: 'PAYMENT_DISPUTE',
-        title: 'Nueva disputa de pago',
-        message: `Se ha creado una disputa para el pago ${payment.id} por €${dispute.amount / 100}.`,
-        channels: ['EMAIL'],
-        data: {
-          paymentId: payment.id,
-          disputeId: dispute.id,
-          amount: dispute.amount / 100,
-          reason: dispute.reason
-        }
+      const user = await prisma.user.findUnique({
+        where: { id: payment.userId },
+        select: { email: true, firstName: true, lastName: true },
       });
+      if (user?.email) {
+        await notificationService.sendEmail({
+          to: user.email,
+          subject: 'Disputa de pago creada',
+          html: `<p>Hola ${user.firstName ?? ''},</p><p>Se ha registrado una disputa para tu pago ${payment.id} por €${(dispute.amount / 100).toFixed(2)}.</p><p>Motivo: ${dispute.reason}</p>`,
+        });
+      }
     } catch (error) {
       console.error('Error enviando notificación de disputa:', error);
     }

@@ -64,41 +64,44 @@ export async function GET(
     const endDateTime = new Date(date);
     endDateTime.setHours(endHour, endMinute, 0, 0);
     
-    // Obtener disponibilidad de la cancha
-    const availability = await reservationService.getCourtAvailability(
+    // Obtener disponibilidad base del día (slots de 30 min)
+    const baseAvailability = await reservationService.getCourtAvailability(
       courtId,
-      startDateTime,
-      endDateTime
+      date
     );
-    
+
+    const baseSlots = baseAvailability.slots;
+
     // Generar slots disponibles basados en la duración solicitada
     const duration = validatedParams.duration;
-    const availableSlots = [];
-    
+    const availableSlots: Array<{ startTime: string; endTime: string; duration: number; available: boolean; timeSlot: string }> = [];
+
     // Crear slots cada 30 minutos dentro del rango horario
     let currentTime = new Date(startDateTime);
-    
     while (currentTime < endDateTime) {
       const slotEnd = new Date(currentTime.getTime() + duration * 60000);
-      
       if (slotEnd <= endDateTime) {
-        // Verificar si este slot está disponible
-        const isAvailable = await reservationService.checkAvailability(
-          courtId,
-          currentTime,
-          duration
-        );
-        
+        // Verificar que todos los sub-slots de 30min dentro del rango [currentTime, slotEnd) están disponibles
+        let ok = true;
+        let probe = new Date(currentTime);
+        while (probe < slotEnd) {
+          const subSlot = baseSlots.find(s => new Date(s.start).getTime() === probe.getTime());
+          if (!subSlot || !subSlot.available) {
+            ok = false;
+            break;
+          }
+          // avanzar 30 minutos
+          probe = new Date(probe.getTime() + 30 * 60000);
+        }
+
         availableSlots.push({
           startTime: currentTime.toISOString(),
           endTime: slotEnd.toISOString(),
           duration,
-          available: isAvailable,
+          available: ok,
           timeSlot: `${currentTime.getHours().toString().padStart(2, '0')}:${currentTime.getMinutes().toString().padStart(2, '0')} - ${slotEnd.getHours().toString().padStart(2, '0')}:${slotEnd.getMinutes().toString().padStart(2, '0')}`,
         });
       }
-      
-      // Avanzar 30 minutos
       currentTime = new Date(currentTime.getTime() + 30 * 60000);
     }
     
@@ -116,23 +119,8 @@ export async function GET(
         occupiedSlots: availableSlots.filter(slot => !slot.available).length,
       },
       slots: availableSlots,
-      reservations: availability.reservations.map(reservation => ({
-        id: reservation.id,
-        startTime: reservation.startTime,
-        endTime: reservation.endTime,
-        status: reservation.status,
-        user: {
-          name: reservation.user.name,
-          email: reservation.user.email,
-        },
-      })),
-      maintenanceSchedules: availability.maintenanceSchedules.map(maintenance => ({
-        id: maintenance.id,
-        startTime: maintenance.startTime,
-        endTime: maintenance.endTime,
-        type: maintenance.type,
-        description: maintenance.description,
-      })),
+      reservations: [],
+      maintenanceSchedules: [],
     });
   } catch (error) {
     console.error('Error obteniendo disponibilidad:', error);

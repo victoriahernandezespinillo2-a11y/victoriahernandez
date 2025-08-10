@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
   Clock,
@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api';
+import { useCourts, usePricing } from '@/lib/hooks';
 
 interface Court {
   id: string;
@@ -30,81 +32,14 @@ interface TimeSlot {
   price: number;
 }
 
-// Mock data - En producción esto vendría de la API
-const mockCourts: Court[] = [
-  {
-    id: '1',
-    name: 'Cancha de Fútbol A',
-    type: 'Fútbol',
-    capacity: 22,
-    pricePerHour: 25000,
-    amenities: ['Césped sintético', 'Iluminación LED', 'Vestuarios', 'Graderías']
-  },
-  {
-    id: '2',
-    name: 'Cancha de Fútbol B',
-    type: 'Fútbol',
-    capacity: 22,
-    pricePerHour: 25000,
-    amenities: ['Césped sintético', 'Iluminación LED', 'Vestuarios']
-  },
-  {
-    id: '3',
-    name: 'Cancha de Básquet A',
-    type: 'Básquet',
-    capacity: 10,
-    pricePerHour: 20000,
-    amenities: ['Piso de madera', 'Tableros profesionales', 'Iluminación LED']
-  },
-  {
-    id: '4',
-    name: 'Cancha de Básquet B',
-    type: 'Básquet',
-    capacity: 10,
-    pricePerHour: 20000,
-    amenities: ['Piso sintético', 'Tableros estándar', 'Iluminación']
-  },
-  {
-    id: '5',
-    name: 'Cancha de Tenis 1',
-    type: 'Tenis',
-    capacity: 4,
-    pricePerHour: 30000,
-    amenities: ['Superficie de arcilla', 'Red profesional', 'Iluminación nocturna']
-  },
-  {
-    id: '6',
-    name: 'Cancha de Voleibol A',
-    type: 'Voleibol',
-    capacity: 12,
-    pricePerHour: 18000,
-    amenities: ['Piso de madera', 'Red oficial', 'Marcador electrónico']
-  }
-];
+// Datos reales se cargan desde la API
 
-const generateTimeSlots = (selectedDate: string): TimeSlot[] => {
-  const slots: TimeSlot[] = [];
-  const today = new Date();
-  const selected = new Date(selectedDate);
-  const isToday = selected.toDateString() === today.toDateString();
-  const currentHour = today.getHours();
-
-  for (let hour = 6; hour <= 22; hour++) {
-    const timeString = `${hour.toString().padStart(2, '0')}:00`;
-    const isAvailable = !isToday || hour > currentHour;
-    
-    slots.push({
-      time: timeString,
-      available: isAvailable && Math.random() > 0.3, // Simulamos disponibilidad aleatoria
-      price: 25000 // Precio base, se ajustará según la cancha
-    });
-  }
-  
-  return slots;
-};
+// Los slots se calcularán desde el backend en base a disponibilidad real
 
 export default function NewReservationPage() {
   const router = useRouter();
+  const { courts, getCourts } = useCourts();
+  const { pricing, calculatePrice, reset: resetPricing } = usePricing();
   const [step, setStep] = useState(1);
   const [selectedSport, setSelectedSport] = useState<string>('');
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
@@ -113,12 +48,70 @@ export default function NewReservationPage() {
   const [duration, setDuration] = useState<number>(60);
   const [notes, setNotes] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [slots, setSlots] = useState<TimeSlot[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  const sports = ['Fútbol', 'Básquet', 'Tenis', 'Voleibol'];
-  const filteredCourts = selectedSport ? mockCourts.filter(court => court.type === selectedSport) : [];
-  const timeSlots = selectedDate ? generateTimeSlots(selectedDate) : [];
+  // Cargar canchas activas
+  useEffect(() => {
+    getCourts({ isActive: true }).catch(() => {});
+  }, [getCourts]);
+
+  // Deportes disponibles a partir de las canchas
+  const sports = useMemo(() => {
+    const list = Array.isArray(courts) ? (courts as any[]) : [];
+    const unique = new Set<string>();
+    list.forEach((c: any) => {
+      if (c?.sportType) unique.add(c.sportType);
+    });
+    return Array.from(unique);
+  }, [courts]);
+
+  // Canchas filtradas por deporte
+  const filteredCourts: any[] = useMemo(() => {
+    const list = Array.isArray(courts) ? (courts as any[]) : [];
+    if (!selectedSport) return list; // mostrar todas si no se eligió deporte
+    return list.filter((c: any) => c.sportType === selectedSport);
+  }, [courts, selectedSport]);
+
+  const getSportIcon = (sport: string) => {
+    switch (sport) {
+      case 'FOOTBALL':
+        return '⚽';
+      case 'BASKETBALL':
+        return '🏀';
+      case 'TENNIS':
+        return '🎾';
+      case 'VOLLEYBALL':
+        return '🏐';
+      case 'PADDLE':
+        return '🏓';
+      case 'SQUASH':
+        return '🎾';
+      default:
+        return '🏅';
+    }
+  };
+
+  const getSportLabel = (sport: string) => {
+    switch (sport) {
+      case 'FOOTBALL':
+        return 'Fútbol';
+      case 'BASKETBALL':
+        return 'Básquet';
+      case 'TENNIS':
+        return 'Tenis';
+      case 'VOLLEYBALL':
+        return 'Vóleibol';
+      case 'PADDLE':
+        return 'Pádel';
+      case 'SQUASH':
+        return 'Squash';
+      default:
+        return sport;
+    }
+  };
   
-  const totalCost = selectedCourt ? (selectedCourt.pricePerHour * duration / 60) : 0;
+  const totalCost = pricing?.total ?? (selectedCourt ? (selectedCourt.pricePerHour * duration / 60) : 0);
 
   // Obtener fecha mínima (hoy)
   const today = new Date();
@@ -135,24 +128,16 @@ export default function NewReservationPage() {
 
     setIsLoading(true);
     try {
-      // Aquí iría la llamada a la API para crear la reserva
-      // const response = await fetch('/api/reservations', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({
-      //     courtId: selectedCourt.id,
-      //     date: selectedDate,
-      //     startTime: selectedTime,
-      //     duration,
-      //     notes,
-      //     totalCost
-      //   }),
-      // });
-      
-      // Simulamos una reserva exitosa
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      alert('¡Reserva creada exitosamente!');
+      const [hour, minute] = selectedTime.split(':').map(Number);
+      const start = new Date(selectedDate + 'T00:00:00');
+      start.setHours(hour, minute, 0, 0);
+      await api.reservations.create({
+        courtId: selectedCourt.id,
+        startTime: start.toISOString(),
+        duration,
+        // paymentMethod omitido para usar flujo predeterminado en backend
+        notes,
+      });
       router.push('/dashboard/reservations');
     } catch (error) {
       console.error('Error creating reservation:', error);
@@ -178,6 +163,50 @@ export default function NewReservationPage() {
       day: 'numeric'
     });
   };
+
+  // Cargar disponibilidad cuando hay cancha, fecha y duración
+  useEffect(() => {
+    const loadAvailability = async () => {
+      try {
+        setError(null);
+        setIsLoading(true);
+        setSlots([]);
+        if (!selectedCourt || !selectedDate || !duration) return;
+        const res: any = await api.courts.getAvailability(selectedCourt.id, {
+          date: selectedDate,
+          duration: duration,
+        });
+        const nextSlots: TimeSlot[] = (res.slots || []).map((s: any) => ({
+          time: s.timeSlot?.split(' - ')[0] || new Date(s.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          available: !!s.available,
+          price: 0,
+        }));
+        setSlots(nextSlots);
+      } catch (e: any) {
+        setError(e?.message || 'Error cargando disponibilidad');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadAvailability();
+  }, [selectedCourt, selectedDate, duration]);
+
+  // Calcular precio cuando se selecciona hora
+  useEffect(() => {
+    const run = async () => {
+      try {
+        if (!selectedCourt || !selectedDate || !selectedTime) return;
+        const [hour, minute] = selectedTime.split(':').map(Number);
+        const start = new Date(selectedDate + 'T00:00:00');
+        start.setHours(hour, minute, 0, 0);
+        await calculatePrice({ courtId: selectedCourt.id, startTime: start.toISOString(), duration });
+      } catch {
+        // noop
+      }
+    };
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTime]);
 
   return (
     <div className="space-y-6">
@@ -262,8 +291,8 @@ export default function NewReservationPage() {
                   }`}
                 >
                   <div className="text-center">
-                    <div className="text-2xl mb-2">⚽</div>
-                    <div className="font-medium">{sport}</div>
+                    <div className="text-2xl mb-2">{getSportIcon(sport)}</div>
+                    <div className="font-medium">{getSportLabel(sport)}</div>
                   </div>
                 </button>
               ))}
@@ -308,7 +337,10 @@ export default function NewReservationPage() {
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-medium text-gray-900">{court.name}</h3>
+                      <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                        <span className="text-xl">{getSportIcon(court.sportType)}</span>
+                        {court.name}
+                      </h3>
                       <p className="text-sm text-gray-500 flex items-center mt-1">
                         <Users className="h-4 w-4 mr-1" />
                         Hasta {court.capacity} personas
@@ -412,7 +444,7 @@ export default function NewReservationPage() {
                   Horarios Disponibles para {formatDate(selectedDate)}
                 </label>
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                  {timeSlots.map((slot) => (
+                  {slots.map((slot) => (
                     <button
                       key={slot.time}
                       onClick={() => slot.available && setSelectedTime(slot.time)}

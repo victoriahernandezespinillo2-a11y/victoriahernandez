@@ -187,9 +187,30 @@ export async function PUT(
       }
       
       // Actualizar centro
+      // Mapear datos al esquema real: name/address/phone/email directos, resto se guarda en settings
+      const updateData: any = {};
+      if (centerData.name) updateData.name = centerData.name;
+      if (centerData.address) updateData.address = centerData.address;
+      if (centerData.phone) updateData.phone = centerData.phone;
+      if (centerData.email) updateData.email = centerData.email;
+
+      // Merge settings previos con nuevos metadatos
+      const current = await db.center.findUnique({ where: { id: centerId }, select: { settings: true } });
+      const mergedSettings = {
+        ...(current?.settings || {}),
+        ...(centerData.description ? { description: centerData.description } : {}),
+        ...(centerData.website ? { website: centerData.website } : {}),
+        ...(centerData.operatingHours ? { operatingHours: centerData.operatingHours } : {}),
+        ...(centerData.amenities ? { amenities: centerData.amenities } : {}),
+        ...(centerData.policies ? { policies: centerData.policies } : {}),
+        ...(centerData.location ? { location: centerData.location } : {}),
+        ...(centerData.settings ? centerData.settings : {}),
+      };
+      updateData.settings = mergedSettings;
+
       const updatedCenter = await db.center.update({
         where: { id: centerId },
-        data: centerData,
+        data: updateData,
         include: {
           _count: {
             select: {
@@ -201,7 +222,7 @@ export async function PUT(
       
       // Log de auditoría removido temporalmente - modelo no existe en schema
       
-      return ApiResponse.success(updatedCenter, 'Centro actualizado exitosamente');
+      return ApiResponse.success(updatedCenter);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(

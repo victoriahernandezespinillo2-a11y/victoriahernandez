@@ -10,15 +10,15 @@ import { db } from '@repo/db';
 import { z } from 'zod';
 
 const GetCourtsQuerySchema = z.object({
-  page: z.string().transform(Number).optional().default(1),
-  limit: z.string().transform(Number).optional().default(20),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(1000).optional().default(20),
   search: z.string().optional(),
   centerId: z.string().optional(),
   sport: z.enum(['FOOTBALL', 'BASKETBALL', 'TENNIS', 'VOLLEYBALL', 'PADDLE', 'SQUASH']).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'MAINTENANCE']).optional(),
   sortBy: z.enum(['name', 'sport', 'createdAt', 'reservationsCount', 'revenue']).optional().default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
-  includeStats: z.string().transform(Boolean).optional().default(true)
+  includeStats: z.coerce.boolean().optional().default(true)
 });
 
 const CreateCourtSchema = z.object({
@@ -54,45 +54,46 @@ export async function GET(request: NextRequest) {
       
       const skip = (params.page - 1) * params.limit;
       
-      // Construir filtros
+      // Construir filtros compatibles con el esquema actual
       const where: any = {};
-      
+
       if (params.search) {
-        where.OR = [
-          { name: { contains: params.search, mode: 'insensitive' } },
-          { description: { contains: params.search, mode: 'insensitive' } },
-          { surface: { contains: params.search, mode: 'insensitive' } }
-        ];
+        where.name = { contains: params.search, mode: 'insensitive' };
       }
-      
+
       if (params.centerId) {
         where.centerId = params.centerId;
       }
-      
+
       if (params.sport) {
-        where.sport = params.sport;
+        where.sportType = params.sport;
       }
-      
+
       if (params.status) {
-        where.status = params.status;
+        if (params.status === 'MAINTENANCE') {
+          where.maintenanceStatus = { not: 'operational' };
+        } else if (params.status === 'ACTIVE') {
+          where.isActive = true;
+        } else if (params.status === 'INACTIVE') {
+          where.isActive = false;
+        }
       }
       
-      // Construir ordenamiento
+      // Construir ordenamiento (adaptado al esquema)
       let orderBy: any = {};
-      
       switch (params.sortBy) {
-        case 'reservationsCount':
-          orderBy = { reservations: { _count: params.sortOrder } };
+        case 'sport':
+          orderBy = { sportType: params.sortOrder };
           break;
+        case 'reservationsCount':
         case 'revenue':
-          // Para ordenar por ingresos necesitamos una consulta más compleja
-          orderBy = { name: params.sortOrder }; // Fallback
+          orderBy = { name: params.sortOrder };
           break;
         default:
-          orderBy[params.sortBy] = params.sortOrder;
+          orderBy = { [params.sortBy!]: params.sortOrder };
       }
       
-      // Obtener canchas y total
+      // Obtener canchas y total (adaptado al esquema) y mapear a la forma esperada por el frontend
       const [courts, total] = await Promise.all([
         db.court.findMany({
           where,
@@ -102,98 +103,46 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             name: true,
-            description: true,
-            sport: true,
-            status: true,
+            centerId: true,
+            sportType: true,
             capacity: true,
-            pricePerHour: true,
-            features: true,
-            dimensions: true,
-            surface: true,
-            lighting: true,
-            covered: true,
-            equipment: true,
+            basePricePerHour: true,
+            isActive: true,
+            maintenanceStatus: true,
             createdAt: true,
             updatedAt: true,
-            center: {
-              select: {
-                id: true,
-                name: true,
-                address: true
-              }
-            },
-            _count: {
-              select: {
-                reservations: true,
-                maintenances: true
-              }
-            }
+            center: { select: { id: true, name: true } },
+            _count: { select: { reservations: true } },
           }
         }),
         db.court.count({ where })
       ]);
-      
-      // Obtener estadísticas adicionales si se solicitan
-      let courtsWithStats = courts;
-      
-      if (params.includeStats) {
-        courtsWithStats = await Promise.all(
-          courts.map(async (court) => {
-            const [revenue, occupancyRate, activeMaintenances, upcomingReservations] = await Promise.all([
-              // Ingresos totales
-              db.payment.aggregate({
-                where: {
-                  reservation: {
-                    courtId: court.id
-                  },
-                  status: 'COMPLETED'
-                },
-                _sum: {
-                  amount: true
-                }
-              }),
-              
-              // Tasa de ocupación (últimos 30 días)
-              getCourtOccupancyRate(court.id),
-              
-              // Mantenimientos activos
-              db.maintenance.count({
-                where: {
-                  courtId: court.id,
-                  status: { in: ['SCHEDULED', 'IN_PROGRESS'] }
-                }
-              }),
-              
-              // Reservas próximas (próximos 7 días)
-              db.reservation.count({
-                where: {
-                  courtId: court.id,
-                  startTime: {
-                    gte: new Date(),
-                    lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-                  },
-                  status: { in: ['CONFIRMED', 'PENDING'] }
-                }
-              })
-            ]);
-            
-            return {
-              ...court,
-              stats: {
-                totalRevenue: revenue._sum.amount || 0,
-                occupancyRate,
-                activeMaintenances,
-                upcomingReservations,
-                totalReservations: court._count.reservations,
-                totalMaintenances: court._count.maintenances
-              }
-            };
-          })
-        );
-      }
-      
+
+      const mapped = courts.map((c) => {
+        const hourlyRate = Number((c as any).basePricePerHour) || 0;
+        const inMaintenance = c.maintenanceStatus && c.maintenanceStatus !== 'operational';
+        const status = inMaintenance ? 'MAINTENANCE' : (c.isActive ? 'AVAILABLE' : 'INACTIVE');
+        return {
+          id: c.id,
+          name: c.name,
+          type: c.sportType || 'MULTIPURPOSE',
+          centerId: c.centerId,
+          centerName: c.center?.name || '',
+          description: '',
+          hourlyRate,
+          capacity: c.capacity ?? 0,
+          status,
+          features: [],
+          dimensions: '',
+          surface: '',
+          lighting: true,
+          covered: false,
+          createdAt: c.createdAt,
+        };
+      });
+
       const result = {
-        data: courtsWithStats,
+        data: mapped,
         pagination: {
           page: params.page,
           limit: params.limit,
@@ -264,44 +213,54 @@ export async function POST(request: NextRequest) {
         return ApiResponse.conflict('Ya existe una cancha con ese nombre en este centro');
       }
       
-      // Crear cancha
-      const newCourt = await db.court.create({
-        data: {
-          ...courtData,
-          createdBy: user.id
-        },
+      // Mapear al esquema de Prisma
+      const createData: any = {
+        name: courtData.name,
+        centerId: courtData.centerId,
+        sportType: courtData.sport,
+        capacity: courtData.capacity,
+        basePricePerHour: courtData.pricePerHour,
+        isActive: courtData.status ? courtData.status === 'ACTIVE' : true,
+        maintenanceStatus: courtData.status === 'MAINTENANCE' ? 'maintenance' : 'operational',
+      };
+
+      const created = await db.court.create({
+        data: createData,
         select: {
           id: true,
           name: true,
-          description: true,
-          sport: true,
-          status: true,
+          centerId: true,
+          sportType: true,
           capacity: true,
-          pricePerHour: true,
-          features: true,
-          dimensions: true,
-          surface: true,
-          lighting: true,
-          covered: true,
-          equipment: true,
+          basePricePerHour: true,
+          isActive: true,
+          maintenanceStatus: true,
           createdAt: true,
-          center: {
-            select: {
-              id: true,
-              name: true,
-              address: true
-            }
-          },
-          _count: {
-            select: {
-              reservations: true,
-              maintenances: true
-            }
-          }
+          center: { select: { id: true, name: true } },
         }
       });
+
+      const mapped = {
+        id: created.id,
+        name: created.name,
+        type: created.sportType || 'MULTIPURPOSE',
+        centerId: created.centerId,
+        centerName: created.center?.name || '',
+        description: '',
+        hourlyRate: Number((created as any).basePricePerHour) || 0,
+        capacity: created.capacity ?? 0,
+        status: created.maintenanceStatus && created.maintenanceStatus !== 'operational'
+          ? 'MAINTENANCE'
+          : (created.isActive ? 'AVAILABLE' : 'INACTIVE'),
+        features: [],
+        dimensions: '',
+        surface: courtData.surface || '',
+        lighting: courtData.lighting ?? true,
+        covered: courtData.covered ?? false,
+        createdAt: created.createdAt,
+      };
       
-      return ApiResponse.success(newCourt);
+      return ApiResponse.success(mapped);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(

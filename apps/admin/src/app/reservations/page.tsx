@@ -168,7 +168,12 @@ export default function ReservationsPage() {
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
-          <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+          <button
+            onClick={() => {
+              window.location.href = '/reservations/new';
+            }}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
             <PlusIcon className="h-4 w-4 mr-2" />
             Nueva Reserva
           </button>
@@ -206,7 +211,7 @@ export default function ReservationsPage() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Ingresos Totales</p>
-              <p className="text-2xl font-semibold text-gray-900">₱{totalRevenue.toFixed(2)}</p>
+              <p className="text-2xl font-semibold text-gray-900">€{totalRevenue.toFixed(2)}</p>
             </div>
           </div>
         </div>
@@ -371,7 +376,7 @@ export default function ReservationsPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    ₱{reservation.totalAmount.toFixed(2)}
+                   €{reservation.totalAmount.toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">

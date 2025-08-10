@@ -11,6 +11,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 class ApiClient {
   private baseURL: string;
+  private inFlight: Map<string, Promise<any>> = new Map();
 
   constructor(baseURL: string = API_BASE_URL) {
     this.baseURL = baseURL;
@@ -44,36 +45,58 @@ class ApiClient {
       credentials: 'include',
     };
 
-    try {
-      const response = await fetch(url, { ...config, credentials: 'include' });
+    const method = (config.method || 'GET').toString().toUpperCase();
 
-      if (!response.ok) {
-        let message = '';
-        try {
-          const asJson = await response.json();
-          message = asJson?.error || JSON.stringify(asJson);
-        } catch {
-          try {
-            message = await response.text();
-          } catch {
-            message = '';
-          }
-        }
-        throw new Error(`HTTP ${response.status}: ${message || 'Unknown error'}`);
-      }
-
-      // Intentar JSON; si no, retornar texto para diagnóstico
+    const doRequest = async (): Promise<T> => {
       try {
-        const data = await response.json();
-        return (data as any).data || data;
-      } catch {
-        const text = await response.text();
-        return text as unknown as T;
+        const response = await fetch(url, { ...config, credentials: 'include' });
+
+        if (!response.ok) {
+          let message = '';
+          try {
+            const asJson = await response.json();
+            message = asJson?.error || JSON.stringify(asJson);
+          } catch {
+            try {
+              message = await response.text();
+            } catch {
+              message = '';
+            }
+          }
+          throw new Error(`HTTP ${response.status}: ${message || 'Unknown error'}`);
+        }
+
+        // Intentar JSON; si no, retornar texto para diagnóstico
+        try {
+          const data = await response.json();
+          return (data as any).data || data;
+        } catch {
+          const text = await response.text();
+          return text as unknown as T;
+        }
+      } catch (error) {
+        console.error(`API Error [${endpoint}]:`, error);
+        throw error;
       }
-    } catch (error) {
-      console.error(`API Error [${endpoint}]:`, error);
-      throw error;
+    };
+
+    // Deduplicación de peticiones GET concurrentes al mismo recurso
+    if (method === 'GET') {
+      const key = url;
+      const existing = this.inFlight.get(key);
+      if (existing) {
+        return existing as Promise<T>;
+      }
+      const promise = doRequest();
+      this.inFlight.set(key, promise);
+      try {
+        return await promise;
+      } finally {
+        this.inFlight.delete(key);
+      }
     }
+
+    return doRequest();
   }
 }
 
@@ -168,32 +191,36 @@ export const adminApi = {
   centers: {
     getAll: (params?: {
       search?: string;
-      city?: string;
-      isActive?: boolean;
+      status?: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE';
       page?: number;
       limit?: number;
+      sortBy?: 'name' | 'createdAt' | 'courtsCount' | 'reservationsCount';
+      sortOrder?: 'asc' | 'desc';
+      includeStats?: boolean;
     }) => {
+      const allowedKeys = new Set(['search','status','page','limit','sortBy','sortOrder','includeStats']);
       const searchParams = new URLSearchParams();
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) {
+          if (value !== undefined && allowedKeys.has(key)) {
             searchParams.append(key, String(value));
           }
         });
       }
       const query = searchParams.toString();
-      return apiClient.request(`/api/admin/centers${query ? `?${query}` : ''}`);
+      return apiClient
+        .request(`/api/admin/centers${query ? `?${query}` : ''}`)
+        .then((res: any) => (Array.isArray(res?.data) ? res.data : res));
     },
     
     create: (data: {
       name: string;
-      description?: string;
-      address: string;
-      city: string;
-      phone: string;
+      address?: string;
+      phone?: string;
       email?: string;
-      settings: any;
-    }) => 
+      description?: string;
+      website?: string;
+    }) =>
       apiClient.request('/api/admin/centers', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -227,22 +254,37 @@ export const adminApi = {
   courts: {
     getAll: (params?: {
       centerId?: string;
-      sport?: string;
-      surface?: string;
-      isActive?: boolean;
+      sport?: 'FOOTBALL' | 'BASKETBALL' | 'TENNIS' | 'VOLLEYBALL' | 'PADDLE' | 'SQUASH';
+      status?: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE';
+      search?: string;
       page?: number;
       limit?: number;
+      sortBy?: 'name' | 'sport' | 'createdAt' | 'reservationsCount' | 'revenue';
+      sortOrder?: 'asc' | 'desc';
+      includeStats?: boolean;
     }) => {
+      const allowedKeys = new Set(['centerId','sport','status','search','page','limit','sortBy','sortOrder','includeStats']);
       const searchParams = new URLSearchParams();
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) {
+          if (value === undefined || value === null) return;
+          if (!allowedKeys.has(key)) return;
+          // Normalizar tipos esperados por la API
+          if (key === 'includeStats') {
+            searchParams.append(key, value ? 'true' : 'false');
+          } else if (key === 'page' || key === 'limit') {
+            const n = Number(value);
+            if (!Number.isFinite(n)) return;
+            searchParams.append(key, String(n));
+          } else {
             searchParams.append(key, String(value));
           }
         });
       }
       const query = searchParams.toString();
-      return apiClient.request(`/api/admin/courts${query ? `?${query}` : ''}`);
+      return apiClient
+        .request(`/api/admin/courts${query ? `?${query}` : ''}`)
+        .then((res: any) => (Array.isArray(res?.data) ? res.data : res));
     },
     
     create: (data: {
@@ -428,6 +470,54 @@ export const adminApi = {
     
     getStats: () => 
       apiClient.request('/api/payments/stats'),
+  },
+
+  // Gestión de precios (pricing)
+  pricing: {
+    calculate: (data: { courtId: string; startTime: string; duration: number; userId?: string }) =>
+      apiClient.request('/api/pricing/calculate', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getRules: (params?: { courtId?: string; centerId?: string; sport?: string; isActive?: boolean; page?: number; limit?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            searchParams.append(key, String(value));
+          }
+        });
+      }
+      const query = searchParams.toString();
+      return apiClient.request(`/api/pricing/rules${query ? `?${query}` : ''}`);
+    },
+
+    createRule: (data: any) =>
+      apiClient.request('/api/pricing/rules', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getRuleById: (id: string) =>
+      apiClient.request(`/api/pricing/rules/${id}`),
+
+    updateRule: (id: string, data: any) =>
+      apiClient.request(`/api/pricing/rules/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
+    deleteRule: (id: string) =>
+      apiClient.request(`/api/pricing/rules/${id}`, {
+        method: 'DELETE',
+      }),
+
+    testRule: (id: string, data: { courtId: string; startTime: string; duration: number; userId?: string; membershipId?: string }) =>
+      apiClient.request(`/api/pricing/rules/${id}/test`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
 
   // Reportes

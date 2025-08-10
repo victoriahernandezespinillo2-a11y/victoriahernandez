@@ -24,7 +24,7 @@ export const CreateReservationSchema = z.object({
 export const UpdateReservationSchema = z.object({
   startTime: z.string().datetime().optional(),
   duration: z.number().min(30).max(480).optional(),
-  status: z.enum(['pending', 'confirmed', 'cancelled', 'completed']).optional(),
+  status: z.enum(['PENDING', 'PAID', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW']).optional(),
   notes: z.string().optional(),
 });
 
@@ -47,45 +47,50 @@ export class ReservationService {
    */
   async createReservation(input: CreateReservationInput): Promise<Reservation> {
     const validatedInput = CreateReservationSchema.parse(input);
-    
-    return await db.$transaction(async (tx) => {
-      // 1. Verificar disponibilidad
+
+    // Calcular precio fuera de la transacción (solo lecturas)
+    const computedPrice = await this.pricingService.calculatePrice({
+      courtId: validatedInput.courtId,
+      startTime: new Date(validatedInput.startTime),
+      duration: validatedInput.duration,
+      userId: validatedInput.userId,
+    });
+
+    // Operaciones críticas dentro de transacción con mayor timeout
+    const reservation = await (db as any).$transaction(async (tx: any) => {
+      // 1) Verificar disponibilidad al momento de crear
       await this.checkAvailability(tx, {
         courtId: validatedInput.courtId,
         startTime: new Date(validatedInput.startTime),
         endTime: new Date(new Date(validatedInput.startTime).getTime() + validatedInput.duration * 60000),
       });
-      
-      // 2. Calcular precio dinámico
-      const price = await this.pricingService.calculatePrice({
-        courtId: validatedInput.courtId,
-        startTime: new Date(validatedInput.startTime),
-        duration: validatedInput.duration,
-        userId: validatedInput.userId,
-      });
-      
-      // 3. Crear reserva principal
-      const reservation = await tx.reservation.create({
+
+      // 2) Crear reserva principal
+      const created = await tx.reservation.create({
         data: {
           courtId: validatedInput.courtId,
           userId: validatedInput.userId,
           startTime: new Date(validatedInput.startTime),
           endTime: new Date(new Date(validatedInput.startTime).getTime() + validatedInput.duration * 60000),
-          totalPrice: price.total,
-          status: 'pending',
+          totalPrice: computedPrice.total,
+          status: 'PENDING',
           isRecurring: validatedInput.isRecurring,
           paymentMethod: validatedInput.paymentMethod,
           notes: validatedInput.notes,
         },
       });
-      
-      // 4. Crear reservas recurrentes si es necesario
+
+      // 3) Crear reservas recurrentes si es necesario (sigue dentro de la transacción)
       if (validatedInput.isRecurring && validatedInput.recurringPattern) {
-        await this.createRecurringReservations(tx, reservation, validatedInput.recurringPattern);
+        await this.createRecurringReservations(tx, created, validatedInput.recurringPattern);
       }
-      
-      // 5. Crear evento para procesamiento asíncrono
-      await tx.outboxEvent.create({
+
+      return created;
+    }, { timeout: 15000 });
+
+    // 4) Registrar evento asíncrono fuera de la transacción para no prolongarla
+    try {
+      await db.outboxEvent.create({
         data: {
           eventType: 'RESERVATION_CREATED',
           eventData: {
@@ -97,9 +102,13 @@ export class ReservationService {
           },
         },
       });
-      
-      return reservation;
-    });
+    } catch (e) {
+      // Log y continuar; no bloquear la creación por el outbox
+      // eslint-disable-next-line no-console
+      console.warn('No se pudo registrar outbox RESERVATION_CREATED:', e);
+    }
+
+    return reservation;
   }
 
   /**
@@ -122,7 +131,7 @@ export class ReservationService {
     const conflictingReservations = await tx.reservation.findMany({
       where: {
         courtId,
-        status: { in: ['pending', 'confirmed'] },
+        status: { in: ['PENDING', 'PAID', 'IN_PROGRESS'] },
         OR: [
           {
             startTime: { lt: endTime },
@@ -140,11 +149,11 @@ export class ReservationService {
     const maintenanceSchedules = await tx.maintenanceSchedule.findMany({
       where: {
         courtId,
-        status: { in: ['scheduled', 'in_progress'] },
-        scheduledDate: {
-          gte: startTime,
-          lt: endTime,
-        },
+        status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
+        OR: [
+          { scheduledAt: { lte: endTime } },
+          { completedAt: { gte: startTime } },
+        ],
       },
     });
     
@@ -270,7 +279,7 @@ export class ReservationService {
           gte: startDate,
           lte: endDate,
         },
-        status: { in: ['pending', 'confirmed'] },
+        status: { in: ['PENDING', 'PAID', 'IN_PROGRESS'] },
       },
       include: {
         user: {
@@ -440,16 +449,18 @@ export class ReservationService {
       endDate: endOfDay,
     });
     
-    // Obtener mantenimientos del día
+    // Obtener mantenimientos relevantes del día (adaptado al esquema actual)
     const maintenanceSchedules = await db.maintenanceSchedule.findMany({
       where: {
         courtId,
-        scheduledDate: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
-        status: { in: ['scheduled', 'in_progress'] },
+        status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
+        OR: [
+          { scheduledAt: { gte: startOfDay, lte: endOfDay } },
+          { startedAt: { gte: startOfDay, lte: endOfDay } },
+          { completedAt: { gte: startOfDay, lte: endOfDay } },
+        ],
       },
+      select: { scheduledAt: true, startedAt: true, completedAt: true },
     });
     
     // Generar slots de 30 minutos desde las 6:00 hasta las 23:30
@@ -468,9 +479,10 @@ export class ReservationService {
           slotStart < reservation.endTime && slotEnd > reservation.startTime
         );
         
-        const isInMaintenance = maintenanceSchedules.some(maintenance => {
-          const maintenanceEnd = new Date(maintenance.scheduledDate.getTime() + maintenance.estimatedDuration * 60000);
-          return slotStart < maintenanceEnd && slotEnd > maintenance.scheduledDate;
+        const isInMaintenance = maintenanceSchedules.some(m => {
+          const maintStart = m.startedAt ?? m.scheduledAt ?? startOfDay;
+          const maintEnd = m.completedAt ?? endOfDay;
+          return slotStart < maintEnd && slotEnd > maintStart;
         });
         
         slots.push({

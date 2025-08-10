@@ -123,7 +123,8 @@ export const api = {
         });
       }
       const query = searchParams.toString();
-      return apiRequest(`/api/courts${query ? `?${query}` : ''}`);
+      return apiRequest(`/api/courts${query ? `?${query}` : ''}`)
+        .then((res: any) => (Array.isArray(res?.courts) ? res.courts : res));
     },
     
     getById: (id: string) => 
@@ -176,8 +177,9 @@ export const api = {
     
     create: (data: {
       courtId: string;
-      startTime: string;
-      endTime: string;
+      startTime: string; // ISO
+      duration: number;  // minutos
+      paymentMethod?: 'stripe' | 'redsys' | 'credits' | 'CASH' | 'CARD' | 'TRANSFER';
       notes?: string;
     }) => 
       apiRequest('/api/reservations', {
@@ -291,8 +293,8 @@ export const api = {
   pricing: {
     calculate: (data: {
       courtId: string;
-      startTime: string;
-      endTime: string;
+      startTime: string;  // ISO
+      duration: number;   // minutos
       userId?: string;
     }) => 
       apiRequest('/api/pricing/calculate', {

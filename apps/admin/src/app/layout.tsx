@@ -15,7 +15,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body className="antialiased h-full">
+      <body className="antialiased h-full" suppressHydrationWarning>
         <SessionWrapper>
           <div className="flex min-h-screen bg-gray-50">
             <ConditionalLayout>{children}</ConditionalLayout>

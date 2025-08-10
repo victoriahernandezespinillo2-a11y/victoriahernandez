@@ -21,19 +21,14 @@ const CalculatePriceSchema = z.object({
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 401 }
-      );
-    }
+    // Intentar obtener sesión, pero permitir cálculo sin autenticación
+    const session = await auth().catch(() => null);
 
     const body = await request.json();
     const validatedData = CalculatePriceSchema.parse(body);
     
     // Usar el ID del usuario de la sesión si no se proporciona
-    const userId = validatedData.userId || session.user.id;
+    const userId = validatedData.userId || session?.user?.id;
     
     const pricing = await pricingService.calculatePrice({
       courtId: validatedData.courtId,
@@ -142,10 +137,14 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+    if (process.env.NODE_ENV !== 'production') {
+      const err = error as Error;
+      return NextResponse.json(
+        { error: err?.message || 'Error interno del servidor', stack: err?.stack },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
 

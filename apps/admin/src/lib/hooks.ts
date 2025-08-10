@@ -5,7 +5,7 @@
  * Facilitan el uso de la API administrativa y el manejo de estado en los componentes
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { adminApi } from './api';
 
 // Tipos básicos para mejorar el tipado
@@ -67,7 +67,18 @@ function useApiState<T>(initialData: T | null = null) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Guard de re-entrada estable para evitar llamadas concurrentes/repetitivas
+  const isExecutingRef = useRef(false);
+  // Mantener una referencia estable al valor inicial
+  const initialDataRef = useRef(initialData);
+
   const execute = useCallback(async (apiCall: () => Promise<T>) => {
+    console.log('[useApiState] execute called.');
+    if (isExecutingRef.current) {
+      console.log('[useApiState] API call already in progress, skipping re-execution.');
+      return;
+    }
+    isExecutingRef.current = true;
     try {
       setLoading(true);
       setError(null);
@@ -78,23 +89,23 @@ function useApiState<T>(initialData: T | null = null) {
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       setError(errorMessage);
       // Mantener el valor inicial en caso de error para evitar problemas con arrays
-      // Especialmente importante para hooks que esperan arrays
-      if (Array.isArray(initialData)) {
-        setData(initialData);
-      } else if (initialData !== null) {
-        setData(initialData);
+      if (Array.isArray(initialDataRef.current)) {
+        setData(initialDataRef.current);
+      } else if (initialDataRef.current !== null) {
+        setData(initialDataRef.current);
       }
       throw err;
     } finally {
       setLoading(false);
+      isExecutingRef.current = false;
     }
-  }, [initialData]);
+  }, []);
 
   const reset = useCallback(() => {
-    setData(initialData);
+    setData(initialDataRef.current);
     setError(null);
     setLoading(false);
-  }, [initialData]);
+  }, []);
 
   return { data, loading, error, execute, reset, setData };
 }
@@ -187,14 +198,40 @@ export function useAdminCenters() {
 
   const createCenter = useCallback(async (centerData: {
     name: string;
-    description?: string;
-    address: string;
-    city: string;
-    phone: string;
+    address?: string;
+    phone?: string;
     email?: string;
-    settings: any;
+    description?: string;
+    website?: string;
   }) => {
-    const newCenter = await adminApi.centers.create(centerData) as Center;
+    if (!centerData.name || centerData.name.trim().length < 2) {
+      throw new Error('El nombre debe tener al menos 2 caracteres');
+    }
+
+    const payload: any = { name: centerData.name.trim() };
+    if (centerData.address && centerData.address.trim().length > 0) payload.address = centerData.address.trim();
+    if (centerData.phone && centerData.phone.trim().length > 0) payload.phone = centerData.phone.trim();
+    if (centerData.email && centerData.email.trim().length > 0) {
+      const email = centerData.email.trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (emailRegex.test(email)) payload.email = email; // si no es válido, omitimos
+    }
+    if (centerData.description && centerData.description.trim().length > 0) payload.description = centerData.description.trim();
+    if (centerData.website && centerData.website.trim().length > 0) {
+      let website = centerData.website.trim();
+      if (!/^https?:\/\//i.test(website)) {
+        website = `https://${website}`;
+      }
+      try {
+        // validar URL
+        new URL(website);
+        payload.website = website;
+      } catch {
+        // omitir si es inválida
+      }
+    }
+
+    const newCenter = await adminApi.centers.create(payload) as Center;
     setData(prev => prev ? [newCenter, ...prev] : [newCenter]);
     return newCenter;
   }, [setData]);
@@ -249,7 +286,21 @@ export function useAdminCourts() {
     maxPlayers: number;
     hourlyRate: number;
   }) => {
-    const newCourt = await adminApi.courts.create(courtData) as Court;
+    // Mapear al esquema que espera el backend (CreateCourtSchema)
+    const payload: any = {
+      name: courtData.name.trim(),
+      centerId: courtData.centerId,
+      sport: courtData.sport,
+      // Mapas
+      capacity: Math.max(1, Number.isFinite(courtData.maxPlayers) ? Math.floor(courtData.maxPlayers) : 1),
+      pricePerHour: Number(courtData.hourlyRate) || 0,
+      surface: courtData.surface || undefined,
+      lighting: !!courtData.hasLighting,
+      covered: !!courtData.isIndoor,
+      status: 'ACTIVE',
+    };
+
+    const newCourt = await adminApi.courts.create(payload) as Court;
     setData(prev => prev ? [newCourt, ...prev] : [newCourt]);
     return newCourt;
   }, [setData]);

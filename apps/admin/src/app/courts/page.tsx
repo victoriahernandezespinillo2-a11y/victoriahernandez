@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   RectangleStackIcon,
   MagnifyingGlassIcon,
@@ -12,7 +12,7 @@ import {
   CurrencyDollarIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline';
-import { useAdminCourts } from '@/lib/hooks';
+import { useAdminCourts, useAdminCenters } from '@/lib/hooks';
 
 interface Court {
   id: string;
@@ -66,7 +66,8 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function CourtsPage() {
-  const { courts, loading, error, updateCourt, deleteCourt } = useAdminCourts();
+  const { courts, loading, error, getCourts, createCourt, updateCourt, deleteCourt } = useAdminCourts();
+  const { centers, getCenters } = useAdminCenters();
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -75,6 +76,29 @@ export default function CourtsPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const itemsPerPage = 8;
+
+  // Modal crear cancha
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({
+    name: '',
+    centerId: '',
+    sport: 'FOOTBALL',
+    surface: 'synthetic',
+    isIndoor: false,
+    hasLighting: true,
+    maxPlayers: 10,
+    hourlyRate: 20000,
+  });
+
+  // Cargar datos al montar el componente (guard reentrada StrictMode)
+  const didLoadRef = useRef(false);
+  useEffect(() => {
+    if (didLoadRef.current) return;
+    didLoadRef.current = true;
+    console.log('[CourtsPage] useEffect running for initial data load.');
+    getCourts({}).catch(() => {});
+    getCenters({}).catch(() => {});
+  }, [getCourts, getCenters]);
 
   // Mostrar estado de carga
   if (loading) {
@@ -107,10 +131,11 @@ export default function CourtsPage() {
   }
 
   // Obtener centros únicos para el filtro
-  const uniqueCenters = Array.from(new Set(courts?.map(court => court.centerName) || []));
+  const safeCourts = Array.isArray(courts) ? courts : [];
+  const uniqueCenters = Array.from(new Set(safeCourts.map((court: any) => court.centerName)));
 
   // Filtrar canchas
-  const filteredCourts = courts?.filter(court => {
+  const filteredCourts = safeCourts.filter((court: any) => {
     const matchesSearch = 
       court.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       court.centerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -156,7 +181,7 @@ export default function CourtsPage() {
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
-          <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+          <button onClick={() => setShowCreate(true)} className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
             <PlusIcon className="h-4 w-4 mr-2" />
             Nueva Cancha
           </button>
@@ -199,7 +224,7 @@ export default function CourtsPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Tarifa Promedio</p>
               <p className="text-2xl font-semibold text-gray-900">
-                ₱{averageRate.toFixed(0)}
+                €{averageRate.toFixed(0)}
               </p>
             </div>
           </div>
@@ -220,6 +245,86 @@ export default function CourtsPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal Crear Cancha */}
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-xl">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Nueva Cancha</h3>
+              <button onClick={() => setShowCreate(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Nombre</label>
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border rounded px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Centro</label>
+                <select value={form.centerId} onChange={(e) => setForm({ ...form, centerId: e.target.value })} className="w-full border rounded px-3 py-2">
+                  <option value="">Selecciona un centro</option>
+                  {(centers || []).map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Deporte</label>
+                  <select value={form.sport} onChange={(e) => setForm({ ...form, sport: e.target.value })} className="w-full border rounded px-3 py-2">
+                    <option value="FOOTBALL">Fútbol</option>
+                    <option value="BASKETBALL">Básquet</option>
+                    <option value="TENNIS">Tenis</option>
+                    <option value="VOLLEYBALL">Vóleibol</option>
+                    <option value="PADDLE">Pádel</option>
+                    <option value="SQUASH">Squash</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Superficie</label>
+                  <input value={form.surface} onChange={(e) => setForm({ ...form, surface: e.target.value })} className="w-full border rounded px-3 py-2" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="inline-flex items-center gap-2"><input type="checkbox" checked={form.isIndoor} onChange={(e) => setForm({ ...form, isIndoor: e.target.checked })} /> Cubierta</label>
+                <label className="inline-flex items-center gap-2"><input type="checkbox" checked={form.hasLighting} onChange={(e) => setForm({ ...form, hasLighting: e.target.checked })} /> Iluminación</label>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Máx. jugadores</label>
+                  <input type="number" min={1} value={form.maxPlayers} onChange={(e) => setForm({ ...form, maxPlayers: Number(e.target.value) })} className="w-full border rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Precio por hora</label>
+                  <input type="number" min={0} value={form.hourlyRate} onChange={(e) => setForm({ ...form, hourlyRate: Number(e.target.value) })} className="w-full border rounded px-3 py-2" />
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t flex justify-end gap-2">
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 border rounded">Cancelar</button>
+              <button
+                onClick={async () => {
+                  if (!form.name || !form.centerId) return;
+                  await createCourt({
+                    name: form.name,
+                    centerId: form.centerId,
+                    sport: form.sport,
+                    surface: form.surface,
+                    isIndoor: form.isIndoor,
+                    hasLighting: form.hasLighting,
+                    maxPlayers: form.maxPlayers,
+                    hourlyRate: form.hourlyRate,
+                  });
+                  setShowCreate(false);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Crear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters and Search */}
       <div className="bg-white rounded-lg shadow p-6">
@@ -386,7 +491,7 @@ export default function CourtsPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-500">Tarifa por hora</span>
                   <span className="text-2xl font-bold text-green-600">
-                    ₱{court.hourlyRate.toFixed(2)}
+                    €{court.hourlyRate.toFixed(2)}
                   </span>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   BuildingOfficeIcon,
   MagnifyingGlassIcon,
@@ -46,13 +46,30 @@ const statusLabels = {
 };
 
 export default function CentersPage() {
-  const { centers, loading, error, createCenter, updateCenter, deleteCenter } = useAdminCenters();
+  const { centers, loading, error, createCenter, updateCenter, deleteCenter, getCenters } = useAdminCenters();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({
+    name: '',
+    address: '',
+    phone: '',
+    email: '',
+    description: '',
+    website: '',
+  });
 
   const itemsPerPage = 6;
+
+  // Cargar centros al montar (con guard para StrictMode)
+  const loadedRef = useRef(false);
+  useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+    getCenters({ page: 1, limit: 50 }).catch(() => {});
+  }, [getCenters]);
 
   // Mostrar estado de carga
   if (loading) {
@@ -129,7 +146,10 @@ export default function CentersPage() {
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
-          <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
             <PlusIcon className="h-4 w-4 mr-2" />
             Nuevo Centro
           </button>
@@ -315,6 +335,75 @@ export default function CentersPage() {
           <p className="mt-1 text-sm text-gray-500">
             No se encontraron centros que coincidan con los filtros aplicados.
           </p>
+        </div>
+      )}
+
+      {/* Modal Crear Centro */}
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-xl">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Nuevo Centro</h3>
+              <button onClick={() => setShowCreate(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Nombre</label>
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border rounded px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Dirección</label>
+                <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full border rounded px-3 py-2" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Teléfono</label>
+                  <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full border rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Email</label>
+                  <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full border rounded px-3 py-2" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Descripción</label>
+                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full border rounded px-3 py-2" rows={3} />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Sitio web</label>
+                <input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} className="w-full border rounded px-3 py-2" />
+              </div>
+            </div>
+            <div className="p-4 border-t flex justify-end gap-2">
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 border rounded">Cancelar</button>
+              <button
+                onClick={async () => {
+                  setIsLoading(true);
+                  try {
+                    await createCenter({
+                      name: form.name,
+                      address: form.address,
+                      phone: form.phone,
+                      email: form.email,
+                      description: form.description,
+                      website: form.website,
+                    } as any);
+                    setShowCreate(false);
+                    setForm({ name: '', address: '', city: '', phone: '', email: '', description: '', openingHours: '', closingHours: '', status: 'ACTIVE', courtsCount: 0, capacity: 0, createdAt: '' } as any);
+                    getCenters({ page: 1, limit: 50 }).catch(() => {});
+                  } catch (e) {
+                    alert('Error al crear el centro');
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                disabled={isLoading || !form.name}
+              >
+                {isLoading ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

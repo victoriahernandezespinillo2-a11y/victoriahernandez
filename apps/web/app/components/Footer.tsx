@@ -5,12 +5,16 @@ import { useState, useEffect } from 'react';
 export function Footer() {
   const currentYear = new Date().getFullYear();
   const [isVisible, setIsVisible] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  // Evitar hidratación no determinista: inicializar tras montar
+  const [mounted, setMounted] = useState(false);
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [email, setEmail] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
 
-  // Update time every minute
+  // Marcar componente montado y configurar reloj
   useEffect(() => {
+    setMounted(true);
+    setCurrentTime(new Date());
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
@@ -48,7 +52,8 @@ export function Footer() {
   };
 
   const getCurrentStatus = () => {
-    const hour = currentTime.getHours();
+    const now = currentTime ?? new Date();
+    const hour = now.getHours();
     if (hour >= 6 && hour < 22) {
       return { status: 'Abierto', color: 'text-green-400', icon: 'fas fa-circle' };
     }
@@ -172,14 +177,16 @@ export function Footer() {
                   <h2 className="text-2xl font-bold text-white">
                     Polideportivo Oroquieta
                   </h2>
-                  <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2">
                     <p className="text-emerald-400 font-semibold">
                       Centro Deportivo Premium
                     </p>
-                    <div className={`flex items-center space-x-1 ${getCurrentStatus().color}`}>
-                      <i className={`${getCurrentStatus().icon} text-xs animate-pulse`}></i>
-                      <span className="text-xs font-medium">{getCurrentStatus().status}</span>
-                    </div>
+                      {mounted && (
+                        <div className={`flex items-center space-x-1 ${getCurrentStatus().color}`} suppressHydrationWarning>
+                          <i className={`${getCurrentStatus().icon} text-xs animate-pulse`}></i>
+                          <span className="text-xs font-medium">{getCurrentStatus().status}</span>
+                        </div>
+                      )}
                   </div>
                 </div>
               </div>
@@ -374,9 +381,11 @@ export function Footer() {
                     <div>
                       <p className="text-white font-medium">Horarios de Atención</p>
                       <p className="text-gray-300">{contactInfo.hours}</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Actualmente: <span className={getCurrentStatus().color}>{getCurrentStatus().status}</span>
-                      </p>
+                      {mounted && (
+                        <p className="text-xs text-gray-400 mt-1" suppressHydrationWarning>
+                          Actualmente: <span className={getCurrentStatus().color}>{getCurrentStatus().status}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -446,11 +455,13 @@ export function Footer() {
 
             {/* Final Stats */}
             <div className="text-center py-4 border-t border-gray-700/50">
-              <p className="text-gray-500 text-xs">
-                Última actualización: {currentTime.toLocaleDateString('es-CO')} • 
-                Versión 2.1.0 • 
-                <span className="text-emerald-400">Sistema Activo</span>
-              </p>
+              {mounted && currentTime && (
+                <p className="text-gray-500 text-xs" suppressHydrationWarning>
+                  Última actualización: {currentTime.toLocaleDateString('es-CO')} • 
+                  Versión 2.1.0 • 
+                  <span className="text-emerald-400">Sistema Activo</span>
+                </p>
+              )}
             </div>
           </div>
         </div>

@@ -10,6 +10,9 @@ import { headers } from 'next/headers';
 
 const paymentService = new PaymentService();
 
+// Forzar runtime Node.js (no Edge) para poder leer body crudo y validar firmas
+export const runtime = 'nodejs';
+
 /**
  * POST /api/payments/webhook
  * Manejar webhooks de Stripe
@@ -29,18 +32,9 @@ export async function POST(request: NextRequest) {
       return ApiResponse.badRequest('Cuerpo de la petición requerido');
     }
     
-    // Procesar el webhook
-    const result = await paymentService.handleWebhook({
-      body,
-      signature
-    });
-    
-    if (result.success) {
-      return ApiResponse.success({ received: true });
-    } else {
-      console.error('Error procesando webhook:', result.error);
-      return ApiResponse.badRequest(result.error || 'Error procesando webhook');
-    }
+    // Procesar el webhook con el servicio (arroja si la firma no es válida)
+    await paymentService.handleStripeWebhook(body, signature);
+    return ApiResponse.success({ received: true });
   } catch (error) {
     if (error instanceof Error) {
       // Errores específicos de Stripe

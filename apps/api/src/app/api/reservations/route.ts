@@ -147,9 +147,13 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+    if (process.env.NODE_ENV !== 'production') {
+      const err = error as Error;
+      return NextResponse.json(
+        { error: err?.message || 'Error interno del servidor', stack: err?.stack },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
