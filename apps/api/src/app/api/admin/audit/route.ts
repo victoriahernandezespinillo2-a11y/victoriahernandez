@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
       const totalPages = Math.ceil(total / queryParams.limit);
       
       return ApiResponse.success({
-        auditLogs: auditLogs.map(event => ({
+        auditLogs: auditLogs.map((event: any) => ({
           id: event.id,
           action: event.eventType,
           entityType: extractEntityType(event.eventData),
