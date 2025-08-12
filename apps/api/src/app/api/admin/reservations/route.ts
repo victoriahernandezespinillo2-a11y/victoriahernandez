@@ -280,7 +280,7 @@ export async function POST(request: NextRequest) {
             return ApiResponse.badRequest('Configuración de créditos no definida en el centro');
           }
           const creditsNeeded = Math.ceil(amount / euroPerCredit);
-          await db.$transaction(async (tx) => {
+          await db.$transaction(async (tx: any) => {
             const user = await tx.user.findUnique({ where: { id: userId }, select: { creditsBalance: true } });
             if (!user) throw new Error('Usuario no encontrado');
             if ((user.creditsBalance || 0) < creditsNeeded) {
