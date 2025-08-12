@@ -17,8 +17,9 @@ const paymentService = new PaymentService();
  * Acceso: STAFF o superior (usuarios pueden ver solo sus pagos)
  */
 export async function GET(request: NextRequest) {
-  return withAuthMiddleware(async (req, { user }) => {
+  return withAuthMiddleware(async (req, context: any) => {
     try {
+      const user = (context as any)?.user;
       const { searchParams } = req.nextUrl;
       const params = Object.fromEntries(searchParams.entries());
       
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
         params.userId = user.id;
       }
       
-      const result = await paymentService.getPayments(params);
+      const result = await paymentService.getPayments(params as any);
       
       return ApiResponse.success(result);
     } catch (error) {
@@ -52,8 +53,9 @@ export async function GET(request: NextRequest) {
  * Acceso: Usuario autenticado
  */
 export async function POST(request: NextRequest) {
-  return withAuthMiddleware(async (req, { user }) => {
+  return withAuthMiddleware(async (req, context: any) => {
     try {
+      const user = (context as any)?.user;
       const body = await req.json();
       
       // Asegurar que el pago es para el usuario autenticado (excepto ADMIN)
@@ -61,7 +63,7 @@ export async function POST(request: NextRequest) {
         body.userId = user.id;
       }
       
-      const paymentIntent = await paymentService.createPaymentIntent(body);
+      const paymentIntent = await paymentService.createPaymentIntent(body as any);
       
       return ApiResponse.success(paymentIntent);
     } catch (error) {
