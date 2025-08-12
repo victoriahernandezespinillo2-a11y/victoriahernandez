@@ -22,8 +22,9 @@ const SendDirectSchema = z.object({
  * Acceso: STAFF o superior
  */
 export async function POST(request: NextRequest) {
-  return withStaffMiddleware(async (req, { user }) => {
+  return withStaffMiddleware(async (req, context: any) => {
     try {
+      const user = (context as any)?.user;
       const body = await req.json();
       const { type, data } = SendDirectSchema.parse(body);
       
