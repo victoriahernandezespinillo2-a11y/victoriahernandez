@@ -133,17 +133,17 @@ export async function GET(request: NextRequest) {
     });
     
     // Formatear respuesta con estadísticas
-    const formattedCenters = centers.map(center => {
+    const formattedCenters = centers.map((center: any) => {
       const totalReservations = center.courts.reduce(
-        (sum, court) => sum + court._count.reservations,
+        (sum: number, court: any) => sum + court._count.reservations,
         0
       );
       
-      const sportsOffered = [...new Set(center.courts.map(court => (court as any).sportType))];
+      const sportsOffered = [...new Set(center.courts.map((court: any) => (court as any).sportType))];
       
       const priceRange = center.courts.length > 0 ? {
-        min: Math.min(...center.courts.map(court => Number((court as any).basePricePerHour || 0))),
-        max: Math.max(...center.courts.map(court => Number((court as any).basePricePerHour || 0))),
+        min: Math.min(...center.courts.map((court: any) => Number((court as any).basePricePerHour || 0))),
+        max: Math.max(...center.courts.map((court: any) => Number((court as any).basePricePerHour || 0))),
       } : null;
       
       return {
@@ -158,7 +158,7 @@ export async function GET(request: NextRequest) {
           sportsOffered,
           priceRange,
         },
-        courts: center.courts.map(court => ({
+        courts: center.courts.map((court: any) => ({
           id: court.id,
           name: court.name,
           sportType: (court as any).sportType,
