@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
         db.center.count({ where })
       ]);
 
-      const mapped = centers.map(c => ({
+      const mapped = centers.map((c: any) => ({
         id: c.id,
         name: c.name,
         address: c.address || '',
