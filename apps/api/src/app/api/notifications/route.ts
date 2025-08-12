@@ -13,7 +13,6 @@ import {
   withAuthMiddleware,
   withStaffMiddleware,
   ApiResponse as API,
-  AuthenticatedContext,
 } from '@/lib/middleware';
 import {
   NotificationService,
@@ -64,8 +63,9 @@ export async function GET(request: NextRequest) {
     corsHeaders['Access-Control-Allow-Credentials'] = 'true';
   }
 
-  return withAuthMiddleware(async (req: NextRequest, { user }: AuthenticatedContext) => {
+  return withAuthMiddleware(async (req: NextRequest, context: any) => {
     try {
+      const user = (context as any)?.user;
       const params = Object.fromEntries(req.nextUrl.searchParams.entries());
       if (params.limit !== undefined) params.limit = Number(params.limit) as any;
       if (params.page !== undefined) params.page = Number(params.page) as any;
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
       const parsed = QuerySchema.parse(params);
       const effectiveParams = {
         ...parsed,
-        ...(user.role === 'USER' ? { userId: user.id } : {}),
+        ...(user?.role === 'USER' ? { userId: user.id } : {}),
       } as any;
 
       let result;
@@ -110,8 +110,9 @@ export async function GET(request: NextRequest) {
  * Acceso: STAFF o superior
  */
 export async function POST(request: NextRequest) {
-  return withStaffMiddleware(async (req, { user }) => {
+  return withStaffMiddleware(async (req, context: any) => {
     try {
+      const user = (context as any)?.user;
       const body = await req.json();
       
       // Agregar información del creador
