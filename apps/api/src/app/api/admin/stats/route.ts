@@ -199,7 +199,7 @@ async function getUsageStats(startDate: Date, endDate: Date, centerId?: string, 
   
   return {
     usage: {
-      bySport: Object.entries(sportStats).map(([sport, count]: [string, number]) => ({ sport, count })),
+      bySport: (Object.entries(sportStats) as Array<[string, number]>).map(([sport, count]) => ({ sport, count })),
       popularTimes: popularTimes.map((item: any) => ({ time: item.startTime, count: item._count.id })),
       totalReservations: reservationsBySport.reduce((sum: number, item: any) => sum + item._count.id, 0)
     }
