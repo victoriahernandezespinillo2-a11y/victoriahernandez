@@ -238,8 +238,8 @@ export async function GET(
         sportsOffered: Object.keys(sportStats),
         sportStats,
         overallPriceRange: center.courts.length > 0 ? {
-          min: Math.min(...center.courts.map(court => Number((court as any).basePricePerHour || 0))),
-          max: Math.max(...center.courts.map(court => Number((court as any).basePricePerHour || 0))),
+          min: Math.min(...center.courts.map((court: any) => Number((court as any).basePricePerHour || 0))),
+          max: Math.max(...center.courts.map((court: any) => Number((court as any).basePricePerHour || 0))),
         } : { min: 0, max: 0 },
       },
       courts: center.courts.map((court: any) => ({
