@@ -84,11 +84,11 @@ export async function GET(request: NextRequest) {
           newMembershipsLast30Days: newMemberships
         },
         statusBreakdown: {
-          reservations: reservationsByStatus.reduce((acc, item) => {
+          reservations: reservationsByStatus.reduce((acc: Record<string, number>, item: any) => {
             acc[item.status] = item._count.id;
             return acc;
           }, {} as Record<string, number>),
-          memberships: membershipsByStatus.reduce((acc, item) => {
+          memberships: membershipsByStatus.reduce((acc: Record<string, number>, item: any) => {
             acc[item.status] = item._count.id;
             return acc;
           }, {} as Record<string, number>)
