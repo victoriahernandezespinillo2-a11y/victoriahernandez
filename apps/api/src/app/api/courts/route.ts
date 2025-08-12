@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
     });
     
     // Formatear respuesta
-    const formattedCourts = courts.map(court => ({
+    const formattedCourts = courts.map((court: any) => ({
       id: court.id,
       name: court.name,
       sportType: (court as any).sportType,
