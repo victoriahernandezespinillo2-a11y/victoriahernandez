@@ -178,7 +178,7 @@ export async function GET(
         occupancyRate: Math.round(occupancyRate * 100) / 100,
       },
       availability: {
-        isCurrentlyAvailable: !court.reservations.some(reservation => {
+        isCurrentlyAvailable: !court.reservations.some((reservation: any) => {
           const start = new Date(reservation.startTime);
           const end = new Date(reservation.endTime);
           return now >= start && now <= end;
