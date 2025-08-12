@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
       
       // Calcular estadísticas adicionales para cada usuario
       const usersWithStats = await Promise.all(
-        users.map(async (user) => {
+        users.map(async (user: any) => {
           const [totalSpent, activeReservations, activeMemberships] = await Promise.all([
             db.reservation.aggregate({
               where: {
