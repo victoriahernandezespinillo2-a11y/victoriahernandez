@@ -44,9 +44,7 @@ export async function POST(request: NextRequest) {
           return ApiResponse.badRequest('Tipo de notificación no válido');
       }
       
-      return ApiResponse.success(result, 
-        result.success ? `${type.toUpperCase()} enviado exitosamente` : `Error enviando ${type.toUpperCase()}`
-      );
+      return ApiResponse.success(result);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(
