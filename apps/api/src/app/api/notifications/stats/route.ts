@@ -20,8 +20,7 @@ export async function GET(request: NextRequest) {
     try {
       const { searchParams } = req.nextUrl;
       const params = Object.fromEntries(searchParams.entries());
-      
-      const stats = await notificationService.getNotificationStats(params);
+      const stats = await notificationService.getNotificationStats(params as any);
       
       return ApiResponse.success(stats);
     } catch (error) {
