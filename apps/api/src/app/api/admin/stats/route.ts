@@ -154,9 +154,9 @@ async function getRevenueStats(startDate: Date, endDate: Date, centerId?: string
   
   return {
     revenue: {
-      byPeriod: revenueByPeriod.map(r => ({ ...r, _sum: { totalPrice: Number(r._sum.totalPrice || 0) } })),
+      byPeriod: revenueByPeriod.map((r: any) => ({ ...r, _sum: { totalPrice: Number(r._sum.totalPrice || 0) } })),
       byType: revenueByType,
-      total: revenueByPeriod.reduce((sum, item) => sum + Number(item._sum.totalPrice || 0), 0)
+      total: revenueByPeriod.reduce((sum: number, item: any) => sum + Number(item._sum.totalPrice || 0), 0)
     }
   };
 }
@@ -179,8 +179,8 @@ async function getUsageStats(startDate: Date, endDate: Date, centerId?: string, 
     select: { id: true, sportType: true }
   });
   
-  const sportStats = reservationsBySport.reduce((acc, item) => {
-    const court = courts.find(c => c.id === (item as any).courtId);
+  const sportStats = reservationsBySport.reduce((acc: Record<string, number>, item: any) => {
+    const court = courts.find((c: any) => c.id === (item as any).courtId);
     if (court) {
       const sportKey = (court as any).sportType || 'UNKNOWN';
       acc[sportKey] = (acc[sportKey] || 0) + item._count.id;
@@ -199,9 +199,9 @@ async function getUsageStats(startDate: Date, endDate: Date, centerId?: string, 
   
   return {
     usage: {
-      bySport: Object.entries(sportStats).map(([sport, count]) => ({ sport, count })),
-      popularTimes: popularTimes.map(item => ({ time: item.startTime, count: item._count.id })),
-      totalReservations: reservationsBySport.reduce((sum, item) => sum + item._count.id, 0)
+      bySport: Object.entries(sportStats).map(([sport, count]: [string, number]) => ({ sport, count })),
+      popularTimes: popularTimes.map((item: any) => ({ time: item.startTime, count: item._count.id })),
+      totalReservations: reservationsBySport.reduce((sum: number, item: any) => sum + item._count.id, 0)
     }
   };
 }
@@ -231,9 +231,9 @@ async function getUserStats(startDate: Date, endDate: Date, groupBy: string) {
   
   return {
     users: {
-      byRole: usersByRole.map(item => ({ role: item.role, count: item._count.id })),
+      byRole: usersByRole.map((item: any) => ({ role: item.role, count: item._count.id })),
       active: activeUsers,
-      total: usersByRole.reduce((sum, item) => sum + item._count.id, 0)
+      total: usersByRole.reduce((sum: number, item: any) => sum + item._count.id, 0)
     }
   };
 }
@@ -275,7 +275,7 @@ async function getPerformanceStats(startDate: Date, endDate: Date, centerId?: st
   
   return {
     performance: {
-      courtOccupancy: courtOccupancy.map(court => ({
+      courtOccupancy: courtOccupancy.map((court: any) => ({
         courtId: court.id,
         courtName: court.name,
         reservations: court._count.reservations
