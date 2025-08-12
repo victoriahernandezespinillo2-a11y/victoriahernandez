@@ -35,7 +35,6 @@ export async function POST(request: NextRequest) {
       startTime: new Date(validatedData.startTime),
       duration: validatedData.duration,
       userId,
-      membershipId: validatedData.membershipId,
     });
     
     // Calcular precio para reservas recurrentes si aplica
@@ -65,7 +64,6 @@ export async function POST(request: NextRequest) {
           startTime: currentDate,
           duration: validatedData.duration,
           userId,
-          membershipId: validatedData.membershipId,
         });
         
         recurringPrices.push({
