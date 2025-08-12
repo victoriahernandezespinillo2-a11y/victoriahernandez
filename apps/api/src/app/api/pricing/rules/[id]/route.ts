@@ -195,7 +195,7 @@ export async function DELETE(
     }
 
     // Verificar permisos de administrador
-    const hasPermission = await withRole(['ADMIN'])(session);
+    const hasPermission = await withRole(['admin'])(session);
     if (!hasPermission) {
       return NextResponse.json(
         { error: 'Solo los administradores pueden eliminar reglas de precios' },
