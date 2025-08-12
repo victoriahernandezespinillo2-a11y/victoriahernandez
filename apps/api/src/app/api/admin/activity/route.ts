@@ -11,7 +11,8 @@ import { z } from 'zod';
 import { withAdminMiddleware, withCors } from '@/lib/middleware';
 import { ApiResponse as API } from '@/lib/middleware';
 import { db } from '@repo/db';
-import { ReservationStatus } from '@prisma/client';
+// Nota: evitar dependencia directa de enums generados por Prisma en el cliente
+// para compatibilidad entre versiones. Usamos literales tipados cuando sea necesario.
 
 /**
  * OPTIONS /api/admin/activity
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
           take: Math.floor(params.limit * 0.3),
         }),
         db.reservation.findMany({
-          where: { status: ReservationStatus.PAID, updatedAt: { gte: hoursAgo } },
+          where: { status: 'PAID' as any, updatedAt: { gte: hoursAgo } },
           include: { user: { select: { name: true } } },
           orderBy: { updatedAt: 'desc' },
           take: Math.floor(params.limit * 0.3),
