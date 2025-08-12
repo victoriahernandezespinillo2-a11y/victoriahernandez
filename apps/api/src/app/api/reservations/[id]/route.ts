@@ -3,12 +3,28 @@ import { auth } from '@repo/auth';
 import { reservationService } from '../../../../lib/services/reservation.service';
 import { z } from 'zod';
 
-// Esquema para actualizar reserva
+// Esquema para actualizar reserva (normaliza estados a mayúsculas válidas)
+const StatusEnum = z.enum(['PENDING', 'PAID', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW']);
 const UpdateReservationSchema = z.object({
   startTime: z.string().datetime().optional(),
   duration: z.number().min(30).max(480).optional(),
   notes: z.string().optional(),
-  status: z.enum(['confirmed', 'cancelled', 'completed', 'no_show']).optional(),
+  status: z
+    .preprocess((val) => {
+      if (val == null) return val as any;
+      const v = String(val).toLowerCase();
+      const map: Record<string, string> = {
+        confirmed: 'IN_PROGRESS',
+        cancelled: 'CANCELLED',
+        completed: 'COMPLETED',
+        no_show: 'NO_SHOW',
+        pending: 'PENDING',
+        paid: 'PAID',
+        in_progress: 'IN_PROGRESS',
+      };
+      return (map[v] || v.toUpperCase()) as any;
+    }, StatusEnum)
+    .optional(),
 });
 
 interface RouteParams {
@@ -111,8 +127,8 @@ export async function PUT(
     }
     
     // Verificar que la reserva se puede modificar
-    if (existingReservation.status === 'cancelled' || 
-        existingReservation.status === 'completed') {
+    if (existingReservation.status === 'CANCELLED' || 
+        existingReservation.status === 'COMPLETED') {
       return NextResponse.json(
         { error: 'No se puede modificar una reserva cancelada o completada' },
         { status: 400 }
