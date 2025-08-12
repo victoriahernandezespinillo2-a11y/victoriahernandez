@@ -475,8 +475,8 @@ async function generatePaymentsReport(startDate: Date, endDate: Date, centerId?:
       totalAmount: Number(paidAgg._sum.totalPrice || 0),
       totalPayments: paidAgg._count.id,
     },
-    byStatus: byStatus.map((r) => ({ status: r.status, count: r._count.id })),
-    byMethod: byMethod.map((r) => ({ method: r.paymentMethod || 'UNKNOWN', totalAmount: Number(r._sum.totalPrice || 0), count: r._count.id })),
+    byStatus: byStatus.map((r: any) => ({ status: r.status, count: r._count.id })),
+    byMethod: byMethod.map((r: any) => ({ method: r.paymentMethod || 'UNKNOWN', totalAmount: Number(r._sum.totalPrice || 0), count: r._count.id })),
   };
 }
 
