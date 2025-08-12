@@ -43,11 +43,9 @@ export async function POST(
         processedBy: user.id
       };
       
-      const result = await paymentService.refundPayment(refundData);
+      const result = await paymentService.processRefund(refundData as any);
       
-      return ApiResponse.success(result, 
-        result.success ? 'Reembolso procesado exitosamente' : 'Error procesando el reembolso'
-      );
+      return ApiResponse.success(result);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(
