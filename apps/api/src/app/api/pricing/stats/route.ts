@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { withAdminMiddleware, withStaffMiddleware, ApiResponse as API } from '@/lib/middleware';
 import { pricingService } from '../../../../lib/services/pricing.service';
 import { z } from 'zod';
@@ -65,7 +65,19 @@ export async function GET(request: NextRequest) {
         groupBy: validatedParams.groupBy,
       };
 
-      const stats = await pricingService.getPricingStats(filters);
+      let stats;
+      if (filters.courtId) {
+        stats = await pricingService.getPricingStats(filters.courtId, startDate, endDate);
+      } else {
+        stats = {
+          averagePrice: 0,
+          minPrice: 0,
+          maxPrice: 0,
+          totalRevenue: 0,
+          reservationCount: 0,
+          priceDistribution: [] as Array<{ range: string; count: number }>,
+        };
+      }
 
       return API.success({
         stats,
