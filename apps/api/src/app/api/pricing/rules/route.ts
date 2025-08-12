@@ -23,7 +23,7 @@ const CreatePricingRuleSchema = z.object({
   validFrom: z.string().datetime().optional(),
   validTo: z.string().datetime().optional(),
   membershipDiscount: z.number().min(0).max(100).optional(),
-  priority: z.number().min(1).max(100).optional().default('50'),
+  priority: z.number().min(1).max(100).optional().default(50),
   isActive: z.boolean().optional().default(true),
 });
 
