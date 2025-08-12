@@ -205,11 +205,11 @@ export async function GET(request: NextRequest) {
       summary: {
         totalSlots: bulkPricing.length,
         priceRange: bulkPricing.length > 0 ? {
-          min: Math.min(...bulkPricing.map(p => p.finalPrice)),
-          max: Math.max(...bulkPricing.map(p => p.finalPrice)),
+          min: Math.min(...bulkPricing.map((p: any) => Number(p.price?.total || 0))),
+          max: Math.max(...bulkPricing.map((p: any) => Number(p.price?.total || 0))),
         } : null,
         averagePrice: bulkPricing.length > 0 
-          ? bulkPricing.reduce((sum, p) => sum + p.finalPrice, 0) / bulkPricing.length
+          ? bulkPricing.reduce((sum: number, p: any) => sum + Number(p.price?.total || 0), 0) / bulkPricing.length
           : 0,
       },
     });
