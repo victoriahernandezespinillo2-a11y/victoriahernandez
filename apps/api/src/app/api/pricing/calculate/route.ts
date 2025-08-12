@@ -174,15 +174,21 @@ export async function GET(request: NextRequest) {
     const params = Object.fromEntries(searchParams.entries());
     const validatedParams = BulkPricingSchema.parse(params);
     
-    const bulkPricing = await pricingService.getBulkPricing({
-      courtId: validatedParams.courtId,
-      date: new Date(validatedParams.date),
-      duration: validatedParams.duration,
-      startHour: validatedParams.startHour,
-      endHour: validatedParams.endHour,
-      interval: validatedParams.interval,
-      userId: session.user.id,
-    });
+    // Construir slots en base a rango horario e intervalo, luego llamar al API real
+    const dayDate = new Date(validatedParams.date);
+    const slots: Array<{ startTime: Date; duration: number }> = [];
+    for (let h = validatedParams.startHour; h < validatedParams.endHour; h++) {
+      for (let m = 0; m < 60; m += validatedParams.interval) {
+        const start = new Date(dayDate);
+        start.setHours(h, m, 0, 0);
+        slots.push({ startTime: start, duration: validatedParams.duration });
+      }
+    }
+    const bulkPricing = await pricingService.getBulkPricing(
+      validatedParams.courtId,
+      slots,
+      session.user.id
+    );
     
     return NextResponse.json({
       bulkPricing,
