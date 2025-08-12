@@ -247,12 +247,12 @@ async function generateRevenueReport(startDate: Date, endDate: Date, centerId?: 
       totalRevenue: Number(reservationRevenue._sum.totalPrice || 0),
       totalTransactions: reservationRevenue._count.id,
     },
-    byMethod: revenueByMethod.map((r) => ({
+    byMethod: revenueByMethod.map((r: any) => ({
       method: r.paymentMethod || 'UNKNOWN',
       totalAmount: Number(r._sum.totalPrice || 0),
       count: r._count.id,
     })),
-    byPeriod: revenueByPeriod.map((r) => ({
+    byPeriod: revenueByPeriod.map((r: any) => ({
       date: r.createdAt,
       totalAmount: Number(r._sum.totalPrice || 0),
       count: r._count.id,
