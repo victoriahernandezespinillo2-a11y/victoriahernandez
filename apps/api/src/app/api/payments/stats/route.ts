@@ -20,8 +20,7 @@ export async function GET(request: NextRequest) {
     try {
       const { searchParams } = req.nextUrl;
       const params = Object.fromEntries(searchParams.entries());
-      
-      const stats = await paymentService.getPaymentStats(params);
+      const stats = await paymentService.getPaymentStats((params as any)?.centerId);
       
       return ApiResponse.success(stats);
     } catch (error) {
