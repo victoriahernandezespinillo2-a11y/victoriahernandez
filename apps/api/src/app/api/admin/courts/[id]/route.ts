@@ -190,7 +190,7 @@ export async function GET(request: NextRequest) {
           averageReservationValue: revenueStats._count.id > 0 ? 
             ((revenueStats as any)._sum.totalPrice || 0) / revenueStats._count.id : 0
         },
-        popularTimes: popularTimes.map(time => ({
+        popularTimes: popularTimes.map((time: any) => ({
           hour: new Date(time.startTime).getHours(),
           count: time._count.id
         }))
