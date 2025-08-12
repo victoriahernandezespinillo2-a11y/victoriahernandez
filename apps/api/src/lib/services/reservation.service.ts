@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { PricingService } from './pricing.service';
 import { NotificationService } from '@repo/notifications';
 import { PaymentService } from '@repo/payments';
-import QRCode from 'qrcode';
+// Importar qrcode dinámicamente donde se usa para evitar error de tipos en compilación
 
 // Esquemas de validación
 export const CreateReservationSchema = z.object({
@@ -129,6 +129,7 @@ export class ReservationService {
           process.env.JWT_SECRET || 'your-secret-key',
           { expiresIn: '3h' }
         );
+        const QRCode = (await import('qrcode')) as unknown as { toDataURL: (text: string, opts?: any) => Promise<string> };
         const qrDataUrl = await QRCode.toDataURL(jwtToken, { width: 256 });
 
         // Generar ICS
@@ -318,7 +319,7 @@ export class ReservationService {
     return await db.reservation.findMany({
       where: {
         userId,
-        ...(status && { status }),
+        ...(status && { status: (status.toUpperCase() as any) }),
         ...(startDate && endDate && {
           startTime: {
             gte: startDate,
@@ -447,14 +448,14 @@ export class ReservationService {
         throw new Error('Reserva no encontrada');
       }
       
-      if (reservation.status === 'cancelled') {
+      if (reservation.status === 'CANCELLED') {
         throw new Error('La reserva ya está cancelada');
       }
       
       const updatedReservation = await tx.reservation.update({
         where: { id },
         data: {
-          status: 'cancelled',
+          status: 'CANCELLED',
           notes: reason ? `${reservation.notes || ''} - Cancelada: ${reason}` : reservation.notes,
         },
       });
@@ -485,7 +486,7 @@ export class ReservationService {
     return await db.reservation.update({
       where: { id },
       data: {
-        status: 'confirmed',
+        status: 'IN_PROGRESS',
         checkInTime: new Date(),
       },
     });
@@ -498,7 +499,7 @@ export class ReservationService {
     return await db.reservation.update({
       where: { id },
       data: {
-        status: 'completed',
+        status: 'COMPLETED',
         checkOutTime: new Date(),
       },
     });

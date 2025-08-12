@@ -10,57 +10,30 @@ import { NotificationService } from '@repo/notifications';
 // Esquemas de validación
 export const CreateMaintenanceSchema = z.object({
   courtId: z.string().uuid('ID de cancha inválido'),
-  type: z.enum(['PREVENTIVE', 'CORRECTIVE', 'EMERGENCY'], {
+  type: z.enum(['CLEANING', 'REPAIR', 'INSPECTION', 'RENOVATION'], {
     errorMap: () => ({ message: 'Tipo de mantenimiento inválido' }),
   }),
-  title: z.string().min(3, 'El título debe tener al menos 3 caracteres'),
   description: z.string().min(10, 'La descripción debe tener al menos 10 caracteres'),
-  scheduledDate: z.string().datetime('Fecha programada inválida'),
-  estimatedDuration: z.number().min(30, 'La duración mínima es 30 minutos').max(1440, 'La duración máxima es 24 horas'),
-  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).default('MEDIUM'),
+  scheduledAt: z.string().datetime('Fecha programada inválida'),
   assignedTo: z.string().uuid('ID de técnico inválido').optional(),
-  materials: z.array(z.object({
-    name: z.string(),
-    quantity: z.number().min(1),
-    unit: z.string(),
-    estimatedCost: z.number().min(0).optional(),
-  })).optional(),
+  cost: z.number().min(0).optional(),
   notes: z.string().optional(),
 });
 
 export const UpdateMaintenanceSchema = z.object({
-  type: z.enum(['PREVENTIVE', 'CORRECTIVE', 'EMERGENCY']).optional(),
-  title: z.string().min(3).optional(),
+  type: z.enum(['CLEANING', 'REPAIR', 'INSPECTION', 'RENOVATION']).optional(),
   description: z.string().min(10).optional(),
-  scheduledDate: z.string().datetime().optional(),
-  estimatedDuration: z.number().min(30).max(1440).optional(),
-  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
+  scheduledAt: z.string().datetime().optional(),
+  status: z.enum(['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
   assignedTo: z.string().uuid().optional(),
-  materials: z.array(z.object({
-    name: z.string(),
-    quantity: z.number().min(1),
-    unit: z.string(),
-    estimatedCost: z.number().min(0).optional(),
-  })).optional(),
+  cost: z.number().min(0).optional(),
   notes: z.string().optional(),
 });
 
 export const CompleteMaintenanceSchema = z.object({
-  actualDuration: z.number().min(1, 'La duración real debe ser mayor a 0'),
   actualCost: z.number().min(0, 'El costo real no puede ser negativo').optional(),
-  completionNotes: z.string().min(10, 'Las notas de completado deben tener al menos 10 caracteres'),
-  materialsUsed: z.array(z.object({
-    name: z.string(),
-    quantity: z.number().min(1),
-    unit: z.string(),
-    actualCost: z.number().min(0).optional(),
-  })).optional(),
+  completionNotes: z.string().min(3, 'Notas demasiado cortas').optional(),
   nextMaintenanceDate: z.string().datetime().optional(),
-  issues: z.array(z.object({
-    description: z.string(),
-    severity: z.enum(['LOW', 'MEDIUM', 'HIGH']),
-    resolved: z.boolean(),
-  })).optional(),
 });
 
 export const GetMaintenanceSchema = z.object({
@@ -122,13 +95,10 @@ export class MaintenanceService {
     }
 
     // Verificar conflictos de horario
-    const scheduledAt = new Date(validatedData.scheduledDate);
-    const endDate = new Date(scheduledAt.getTime() + validatedData.estimatedDuration * 60000);
-
+    const scheduledAt = new Date(validatedData.scheduledAt);
     const conflicts = await this.checkMaintenanceConflicts(
       validatedData.courtId,
-      scheduledAt,
-      endDate
+      scheduledAt
     );
 
     if (conflicts.length > 0) {
@@ -140,22 +110,19 @@ export class MaintenanceService {
       data: {
         courtId: validatedData.courtId,
         type: validatedData.type,
-        title: validatedData.title,
         description: validatedData.description,
-        scheduledDate,
-        estimatedDuration: validatedData.estimatedDuration,
-        priority: validatedData.priority,
-        assignedTo: validatedData.assignedTo,
-        materials: validatedData.materials || [],
+        scheduledAt,
+        assignedTo: validatedData.assignedTo || undefined,
         notes: validatedData.notes,
+        cost: validatedData.cost as any,
         status: 'SCHEDULED',
       },
       include: {
         court: {
           select: {
             id: true,
-          name: true,
-          sportType: true,
+            name: true,
+            sportType: true,
             center: {
               select: {
                 id: true,
@@ -164,32 +131,16 @@ export class MaintenanceService {
             },
           },
         },
-        assignedUser: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
       },
     });
 
     // Enviar notificación al técnico asignado
-      if (maintenance.assignedTo) {
+    if ((maintenance as any).assignedTo) {
       try {
         await this.notificationService.sendEmail({
-            to: 'staff@polideportivo.com',
-          template: 'maintenance_assigned',
-          data: {
-              technicianName: 'Técnico',
-            maintenanceTitle: maintenance.title,
-            courtName: maintenance.court.name,
-            centerName: maintenance.court.center.name,
-              scheduledDate: scheduledAt.toLocaleDateString('es-ES'),
-              scheduledTime: scheduledAt.toLocaleTimeString('es-ES'),
-            priority: maintenance.priority,
-          },
+          to: 'staff@polideportivo.com',
+          subject: 'Nuevo mantenimiento asignado',
+          html: `<p>Se ha programado un mantenimiento en ${((maintenance as any).court?.name) ?? 'la instalación'} para el ${scheduledAt.toLocaleString('es-ES')}.</p>`
         });
       } catch (error) {
         console.error('Error enviando notificación de asignación:', error);
@@ -210,7 +161,6 @@ export class MaintenanceService {
       centerId,
       type,
       status,
-      priority,
       assignedTo,
       startDate,
       endDate,
@@ -228,9 +178,7 @@ export class MaintenanceService {
     }
 
     if (centerId) {
-      where.court = {
-        centerId,
-      };
+      where.court = { centerId } as any;
     }
 
     if (type) {
@@ -246,9 +194,9 @@ export class MaintenanceService {
     }
 
     if (startDate || endDate) {
-      where.scheduledAt = {} as any;
-      if (startDate) (where.scheduledAt as any).gte = new Date(startDate);
-      if (endDate) (where.scheduledAt as any).lte = new Date(endDate);
+      (where as any).scheduledAt = {} as any;
+      if (startDate) (where as any).scheduledAt.gte = new Date(startDate);
+      if (endDate) (where as any).scheduledAt.lte = new Date(endDate);
     }
 
     // Obtener mantenimientos y total
@@ -299,7 +247,7 @@ export class MaintenanceService {
           select: {
             id: true,
             name: true,
-            sport: true,
+            sportType: true,
             center: {
               select: {
                 id: true,
@@ -307,15 +255,6 @@ export class MaintenanceService {
                 address: true,
               },
             },
-          },
-        },
-        assignedUser: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
           },
         },
       },
@@ -348,17 +287,11 @@ export class MaintenanceService {
     }
 
     // Verificar conflictos si se cambia la fecha
-    if (validatedData.scheduledDate || validatedData.estimatedDuration) {
-      const newScheduledDate = validatedData.scheduledDate
-        ? new Date(validatedData.scheduledDate)
-        : maintenance.scheduledDate;
-      const newDuration = validatedData.estimatedDuration || maintenance.estimatedDuration;
-      const newEndDate = new Date(newScheduledDate.getTime() + newDuration * 60000);
-
+    if (validatedData.scheduledAt) {
+      const newScheduledAt = new Date(validatedData.scheduledAt);
       const conflicts = await this.checkMaintenanceConflicts(
         maintenance.courtId,
-        newScheduledDate,
-        newEndDate,
+        newScheduledAt,
         id
       );
 
@@ -371,13 +304,11 @@ export class MaintenanceService {
       where: { id },
       data: {
         type: validatedData.type,
-        title: validatedData.title,
         description: validatedData.description,
-        scheduledDate: validatedData.scheduledDate ? new Date(validatedData.scheduledDate) : undefined,
-        estimatedDuration: validatedData.estimatedDuration,
-        priority: validatedData.priority,
-        assignedTo: validatedData.assignedTo,
-        materials: validatedData.materials,
+        scheduledAt: validatedData.scheduledAt ? new Date(validatedData.scheduledAt) : undefined,
+        status: validatedData.status,
+        assignedTo: validatedData.assignedTo ?? undefined,
+        cost: (validatedData.cost as any) ?? undefined,
         notes: validatedData.notes,
       },
       include: {
@@ -385,15 +316,7 @@ export class MaintenanceService {
           select: {
             id: true,
             name: true,
-            sport: true,
-          },
-        },
-        assignedUser: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
+            sportType: true,
           },
         },
       },
@@ -410,7 +333,6 @@ export class MaintenanceService {
       where: { id },
       include: {
         court: true,
-        assignedUser: true,
       },
     });
 
@@ -426,7 +348,7 @@ export class MaintenanceService {
       where: { id },
       data: {
         status: 'IN_PROGRESS',
-        actualStartDate: new Date(),
+        startedAt: new Date(),
       },
     });
 
@@ -447,7 +369,7 @@ export class MaintenanceService {
             center: true,
           },
         },
-        assignedUser: true,
+        // assignedUser no existe en el include del modelo actual
       },
     });
 
@@ -463,12 +385,9 @@ export class MaintenanceService {
       where: { id },
       data: {
         status: 'COMPLETED',
-        completedDate: new Date(),
-        actualDuration: validatedData.actualDuration,
-        actualCost: validatedData.actualCost,
-        completionNotes: validatedData.completionNotes,
-        materialsUsed: validatedData.materialsUsed || [],
-        issues: validatedData.issues || [],
+        completedAt: new Date(),
+        cost: (validatedData.actualCost as any) ?? undefined,
+        notes: validatedData.completionNotes ?? undefined,
       },
     });
 
@@ -476,14 +395,11 @@ export class MaintenanceService {
     if (validatedData.nextMaintenanceDate) {
       await this.createMaintenance({
         courtId: maintenance.courtId,
-        type: 'PREVENTIVE',
-        title: `Mantenimiento preventivo - ${maintenance.court.name}`,
-        description: `Mantenimiento preventivo programado automáticamente`,
-        scheduledDate: validatedData.nextMaintenanceDate,
-        estimatedDuration: maintenance.estimatedDuration,
-        priority: 'MEDIUM',
-        assignedTo: maintenance.assignedTo,
-      });
+        type: 'INSPECTION',
+        description: `Inspección programada automáticamente`,
+        scheduledAt: validatedData.nextMaintenanceDate,
+        assignedTo: maintenance.assignedTo ?? undefined,
+      } as any);
     }
 
     return completedMaintenance;
@@ -521,37 +437,17 @@ export class MaintenanceService {
    */
   private async checkMaintenanceConflicts(
     courtId: string,
-    startDate: Date,
-    endDate: Date,
+    scheduledAt: Date,
     excludeId?: string
   ) {
+    const windowStart = new Date(scheduledAt.getTime() - 60 * 60 * 1000);
+    const windowEnd = new Date(scheduledAt.getTime() + 60 * 60 * 1000);
     const where: any = {
       courtId,
       status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
-      OR: [
-        {
-          scheduledDate: {
-            gte: startDate,
-            lt: endDate,
-          },
-        },
-        {
-          AND: [
-            { scheduledDate: { lte: startDate } },
-            {
-              scheduledDate: {
-                gte: new Date(startDate.getTime() - 24 * 60 * 60 * 1000), // 24 horas antes
-              },
-            },
-          ],
-        },
-      ],
+      scheduledAt: { gte: windowStart, lte: windowEnd },
     };
-
-    if (excludeId) {
-      where.id = { not: excludeId };
-    }
-
+    if (excludeId) where.id = { not: excludeId };
     return db.maintenanceSchedule.findMany({ where });
   }
 
@@ -578,14 +474,14 @@ export class MaintenanceService {
         where: {
           ...where,
           status: 'SCHEDULED',
-          scheduledDate: { lt: now },
+          scheduledAt: { lt: now },
         },
       }),
       db.maintenanceSchedule.count({
         where: {
           ...where,
           status: 'COMPLETED',
-          completedDate: { gte: startOfMonth },
+          completedAt: { gte: startOfMonth },
         },
       }),
     ]);
@@ -595,13 +491,6 @@ export class MaintenanceService {
       by: ['type'],
       where,
       _count: { type: true },
-    });
-
-    // Estadísticas por prioridad
-    const byPriority = await db.maintenanceSchedule.groupBy({
-      by: ['priority'],
-      where: { ...where, status: { in: ['SCHEDULED', 'IN_PROGRESS'] } },
-      _count: { priority: true },
     });
 
     return {
@@ -615,10 +504,7 @@ export class MaintenanceService {
         type: item.type,
         count: item._count.type,
       })),
-      byPriority: byPriority.map(item => ({
-        priority: item.priority,
-        count: item._count.priority,
-      })),
+      // No hay prioridad en el esquema actual
     };
   }
 
@@ -633,7 +519,7 @@ export class MaintenanceService {
     return db.maintenanceSchedule.findMany({
       where: {
         status: 'SCHEDULED',
-        scheduledDate: {
+        scheduledAt: {
           gte: now,
           lte: futureDate,
         },
@@ -651,16 +537,9 @@ export class MaintenanceService {
             },
           },
         },
-        assignedUser: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
+        // assignedUser relación no está definida en el esquema actual
       },
-      orderBy: { scheduledDate: 'asc' },
+      orderBy: { scheduledAt: 'asc' },
     });
   }
 }

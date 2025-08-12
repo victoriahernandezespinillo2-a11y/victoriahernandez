@@ -17,13 +17,6 @@ export const CreateUserSchema = z.object({
   phone: z.string().optional(),
   dateOfBirth: z.string().datetime().optional(),
   role: z.enum(['USER', 'STAFF', 'ADMIN']).default('USER'),
-  centerId: z.string().uuid().optional(),
-  preferences: z.object({
-    emailNotifications: z.boolean().default(true),
-    smsNotifications: z.boolean().default(false),
-    language: z.enum(['es', 'en']).default('es'),
-    timezone: z.string().default('Europe/Madrid'),
-  }).optional(),
 });
 
 export const UpdateUserSchema = z.object({
@@ -94,13 +87,7 @@ export class UserService {
         phone: validatedData.phone,
         dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : null,
         role: validatedData.role,
-        centerId: validatedData.centerId,
-        preferences: validatedData.preferences || {
-          emailNotifications: true,
-          smsNotifications: false,
-          language: 'es',
-          timezone: 'Europe/Madrid',
-        },
+        // centerId/preferences no existen en el modelo actual
       },
       select: {
         id: true,
@@ -110,8 +97,7 @@ export class UserService {
         phone: true,
         dateOfBirth: true,
         role: true,
-        centerId: true,
-        preferences: true,
+        isActive: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -121,11 +107,8 @@ export class UserService {
     try {
       await this.notificationService.sendEmail({
         to: user.email,
-        template: 'welcome',
-        data: {
-          firstName: user.firstName,
-          loginUrl: `${process.env.NEXT_PUBLIC_APP_URL}/auth/signin`,
-        },
+        subject: 'Bienvenido',
+        html: `<p>Hola ${user.firstName ?? ''}, bienvenido a la plataforma.</p>`,
       });
     } catch (error) {
       console.error('Error enviando email de bienvenida:', error);
@@ -158,12 +141,10 @@ export class UserService {
       where.role = role;
     }
 
-    if (centerId) {
-      where.centerId = centerId;
-    }
+    // centerId no existe en el modelo User
 
     if (active !== undefined) {
-      where.active = active;
+      where.isActive = active;
     }
 
     // Obtener usuarios y total
@@ -180,8 +161,7 @@ export class UserService {
           lastName: true,
           phone: true,
           role: true,
-          active: true,
-          centerId: true,
+          isActive: true,
           createdAt: true,
           updatedAt: true,
           _count: {
@@ -190,12 +170,7 @@ export class UserService {
               memberships: true,
             },
           },
-          center: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
+          // center no es relación en el schema actual
         },
       }),
       db.user.count({ where }),
@@ -226,32 +201,23 @@ export class UserService {
         phone: true,
         dateOfBirth: true,
         role: true,
-        active: true,
-        centerId: true,
-        preferences: true,
+        isActive: true,
         createdAt: true,
         updatedAt: true,
-        center: {
-          select: {
-            id: true,
-            name: true,
-            address: true,
-          },
-        },
+        // center no es relación en el modelo actual
         memberships: {
-          where: { active: true },
+          where: { status: 'active', validUntil: { gte: new Date() } },
           select: {
             id: true,
             type: true,
-            startDate: true,
-            endDate: true,
-            benefits: true,
+            validFrom: true,
+            validUntil: true,
           },
         },
         _count: {
           select: {
             reservations: true,
-            tournaments: true,
+            // tournaments no en el modelo actual
           },
         },
       },
@@ -285,10 +251,7 @@ export class UserService {
         lastName: validatedData.lastName,
         phone: validatedData.phone,
         dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : undefined,
-        preferences: validatedData.preferences ? {
-          ...user.preferences as any,
-          ...validatedData.preferences,
-        } : undefined,
+        // preferences no existe en el modelo actual
       },
       select: {
         id: true,
@@ -298,7 +261,6 @@ export class UserService {
         phone: true,
         dateOfBirth: true,
         role: true,
-        preferences: true,
         updatedAt: true,
       },
     });
@@ -351,13 +313,13 @@ export class UserService {
 
     const updatedUser = await db.user.update({
       where: { id },
-      data: { active },
+      data: { isActive: active },
       select: {
         id: true,
         email: true,
         firstName: true,
         lastName: true,
-        active: true,
+         isActive: true,
       },
     });
 
@@ -400,8 +362,8 @@ export class UserService {
         db.membership.count({
           where: {
             userId: id,
-            active: true,
-            endDate: { gte: now },
+            status: 'active',
+            validUntil: { gte: now },
           },
         }),
       ]);
@@ -419,10 +381,10 @@ export class UserService {
       sportStats.map(async (stat) => {
         const court = await db.court.findUnique({
           where: { id: stat.courtId },
-          select: { sport: true },
+          select: { sportType: true },
         });
         return {
-          sport: court?.sport || 'Desconocido',
+          sport: (court as any)?.sportType || 'Desconocido',
           count: stat._count.courtId,
         };
       })
@@ -457,9 +419,9 @@ export class UserService {
     }
 
     if (startDate || endDate) {
-      where.date = {};
-      if (startDate) where.date.gte = new Date(startDate);
-      if (endDate) where.date.lte = new Date(endDate);
+      where.startTime = {} as any;
+      if (startDate) (where.startTime as any).gte = new Date(startDate);
+      if (endDate) (where.startTime as any).lte = new Date(endDate);
     }
 
     const [reservations, total] = await Promise.all([
@@ -467,13 +429,13 @@ export class UserService {
         where,
         skip,
         take: limit,
-        orderBy: { date: 'desc' },
+        orderBy: { startTime: 'desc' },
         include: {
           court: {
             select: {
               id: true,
               name: true,
-              sport: true,
+              sportType: true,
               center: {
                 select: {
                   id: true,
@@ -508,7 +470,7 @@ export class UserService {
         reservations: {
           where: {
             status: { in: ['PAID', 'IN_PROGRESS'] },
-            date: { gte: new Date() },
+            startTime: { gte: new Date() },
           },
         },
       },
@@ -527,7 +489,7 @@ export class UserService {
     await db.user.update({
       where: { id },
       data: {
-        active: false,
+        isActive: false,
         email: `deleted_${Date.now()}_${user.email}`,
       },
     });

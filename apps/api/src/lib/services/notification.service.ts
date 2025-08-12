@@ -152,7 +152,6 @@ export class NotificationService {
         id: true,
         email: true,
         phone: true,
-        notificationPreferences: true,
       },
     });
 
@@ -160,7 +159,7 @@ export class NotificationService {
       throw new Error('Usuario no encontrado');
     }
 
-    const notification = await db.notification.create({
+    const notification = await (db as any).notification.create({
       data: {
         userId: validatedData.userId,
         type: validatedData.type,
@@ -198,7 +197,7 @@ export class NotificationService {
    * Enviar notificación por ID
    */
   async sendNotification(notificationId: string) {
-    const notification = await db.notification.findUnique({
+    const notification = await (db as any).notification.findUnique({
       where: { id: notificationId },
       include: {
         user: {
@@ -208,7 +207,6 @@ export class NotificationService {
             lastName: true,
             email: true,
             phone: true,
-            notificationPreferences: true,
           },
         },
       },
@@ -268,7 +266,7 @@ export class NotificationService {
       }
 
       // Actualizar estado de la notificación
-      const updatedNotification = await db.notification.update({
+      const updatedNotification = await (db as any).notification.update({
         where: { id: notificationId },
         data: {
           status,
@@ -280,7 +278,7 @@ export class NotificationService {
       return updatedNotification;
     } catch (error) {
       // Marcar como fallida
-      await db.notification.update({
+      await (db as any).notification.update({
         where: { id: notificationId },
         data: {
           status: 'FAILED',
@@ -506,7 +504,7 @@ export class NotificationService {
    * Cancelar notificación programada
    */
   async cancelNotification(notificationId: string) {
-    const notification = await db.notification.findUnique({
+    const notification = await (db as any).notification.findUnique({
       where: { id: notificationId },
     });
 
@@ -518,7 +516,7 @@ export class NotificationService {
       throw new Error('Solo se pueden cancelar notificaciones pendientes');
     }
 
-    const cancelledNotification = await db.notification.update({
+    const cancelledNotification = await (db as any).notification.update({
       where: { id: notificationId },
       data: {
         status: 'CANCELLED',
@@ -584,7 +582,7 @@ export class NotificationService {
   async processScheduledNotifications() {
     const now = new Date();
     
-    const pendingNotifications = await db.notification.findMany({
+    const pendingNotifications = await (db as any).notification.findMany({
       where: {
         status: 'PENDING',
         scheduledFor: {

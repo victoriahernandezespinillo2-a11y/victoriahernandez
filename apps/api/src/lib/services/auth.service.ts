@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import * as jwt from 'jsonwebtoken';
 import { PrismaClient, User, UserRole } from '@prisma/client';
 import { NotificationService } from './notification.service';
 
@@ -165,6 +165,9 @@ export class AuthService {
     }
 
     // Verificar contraseña
+    if (!user.password) {
+      throw new Error('Credenciales inválidas');
+    }
     const isValidPassword = await bcrypt.compare(validatedData.password, user.password);
     if (!isValidPassword) {
       throw new Error('Credenciales inválidas');
@@ -188,7 +191,7 @@ export class AuthService {
   async signOut(refreshToken: string): Promise<void> {
     try {
       // Verificar y decodificar el refresh token
-      const decoded = jwt.verify(refreshToken, this.JWT_REFRESH_SECRET) as any;
+    const decoded = jwt.verify(refreshToken, this.JWT_REFRESH_SECRET as jwt.Secret) as any;
       
       // Invalidar el refresh token en la base de datos
       await prisma.refreshToken.deleteMany({
@@ -210,7 +213,7 @@ export class AuthService {
 
     try {
       // Verificar refresh token
-      const decoded = jwt.verify(validatedData.refreshToken, this.JWT_REFRESH_SECRET) as any;
+      const decoded = jwt.verify(validatedData.refreshToken, this.JWT_REFRESH_SECRET as jwt.Secret) as any;
       
       // Verificar que el token existe en la base de datos
       const storedToken = await prisma.refreshToken.findFirst({
@@ -344,6 +347,9 @@ export class AuthService {
     }
 
     // Verificar contraseña actual
+    if (!user.password) {
+      throw new Error('Contraseña actual incorrecta');
+    }
     const isValidPassword = await bcrypt.compare(validatedData.currentPassword, user.password);
     if (!isValidPassword) {
       throw new Error('Contraseña actual incorrecta');
@@ -373,7 +379,7 @@ export class AuthService {
    */
   async verifyEmail(token: string): Promise<void> {
     try {
-      const decoded = jwt.verify(token, this.JWT_SECRET) as any;
+      const decoded = jwt.verify(token, this.JWT_SECRET as jwt.Secret) as any;
       
       await prisma.user.update({
         where: { id: decoded.userId },
@@ -438,14 +444,14 @@ export class AuthService {
     };
 
     // Access token
-    const accessToken = jwt.sign(payload, this.JWT_SECRET, {
-      expiresIn: this.JWT_EXPIRES_IN
+    const accessToken = jwt.sign(payload, this.JWT_SECRET as jwt.Secret, {
+      expiresIn: this.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn']
     });
 
     // Refresh token
     const refreshTokenExpiry = rememberMe ? '30d' : this.JWT_REFRESH_EXPIRES_IN;
-    const refreshToken = jwt.sign(payload, this.JWT_REFRESH_SECRET, {
-      expiresIn: refreshTokenExpiry
+    const refreshToken = jwt.sign(payload, this.JWT_REFRESH_SECRET as jwt.Secret, {
+      expiresIn: refreshTokenExpiry as jwt.SignOptions['expiresIn']
     });
 
     // Guardar refresh token en la base de datos
@@ -492,8 +498,8 @@ export class AuthService {
     return {
       id: user.id,
       email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
+      firstName: user.firstName ?? '',
+      lastName: user.lastName ?? '',
       role: user.role,
       isActive: user.isActive,
       emailVerified: user.emailVerified,
@@ -507,11 +513,7 @@ export class AuthService {
    * Enviar email de verificación
    */
   private async sendVerificationEmail(user: User): Promise<void> {
-    const verificationToken = jwt.sign(
-      { userId: user.id },
-      this.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    const verificationToken = jwt.sign({ userId: user.id }, this.JWT_SECRET as jwt.Secret, { expiresIn: '24h' });
 
     const verificationUrl = `${process.env.FRONTEND_URL}/auth/verify-email?token=${verificationToken}`;
 

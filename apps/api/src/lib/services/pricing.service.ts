@@ -720,18 +720,20 @@ export class PricingService {
   }> {
     const { centerId, courtIds: inputCourtIds, startDate, endDate, occupancyRate, scenarios } = input;
 
-    // Obtener canchas involucradas
+    // Obtener canchas involucradas y normalizar Decimal a número
     let courts: Array<{ id: string; basePricePerHour: number | null }>; 
     if (inputCourtIds && inputCourtIds.length > 0) {
-      courts = await db.court.findMany({
+      const raw = await db.court.findMany({
         where: { id: { in: inputCourtIds } },
         select: { id: true, basePricePerHour: true },
       });
+      courts = raw.map((c: any) => ({ id: c.id, basePricePerHour: Number(c.basePricePerHour ?? 0) }));
     } else if (centerId) {
-      courts = await db.court.findMany({
+      const raw = await db.court.findMany({
         where: { centerId },
         select: { id: true, basePricePerHour: true },
       });
+      courts = raw.map((c: any) => ({ id: c.id, basePricePerHour: Number(c.basePricePerHour ?? 0) }));
     } else {
       courts = [];
     }

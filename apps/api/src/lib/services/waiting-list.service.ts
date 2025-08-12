@@ -53,19 +53,13 @@ export class WaitingListService {
     // Calcular prioridad basada en membresía y historial
     const priority = await this.calculatePriority(validatedInput.userId);
     
-    // Calcular tiempo de expiración
-    const expiresAt = new Date(
-      Date.now() + validatedInput.maxWaitMinutes * 60 * 1000
-    );
-    
     const waitingListEntry = await db.waitingList.create({
       data: {
         courtId: validatedInput.courtId,
         userId: validatedInput.userId,
         requestedTime: new Date(validatedInput.requestedTime),
-        maxWaitMinutes: validatedInput.maxWaitMinutes,
+        duration: validatedInput.duration,
         priority,
-        expiresAt,
         status: 'waiting',
       },
     });
@@ -102,9 +96,9 @@ export class WaitingListService {
         },
         reservations: {
           where: {
-            status: { in: ['confirmed', 'completed'] },
+            status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
             createdAt: {
-              gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Últimos 30 días
+              gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
             },
           },
         },
@@ -118,26 +112,18 @@ export class WaitingListService {
     let priority = 0;
     
     // Prioridad por membresía
-    if (user.memberships.length > 0) {
-      const membership = user.memberships[0];
-      switch (membership.type) {
-        case 'annual':
-          priority += 50;
-          break;
-        case 'quarterly':
-          priority += 30;
-          break;
-        case 'monthly':
-          priority += 20;
-          break;
-        case 'punch_card':
-          priority += 10;
-          break;
-      }
+    if ((user as any).memberships?.length > 0) {
+      const membership = (user as any).memberships[0];
+      // Mapear tipos conocidos a prioridad
+      const type: string = String(membership.type || '').toUpperCase();
+      if (type === 'ANNUAL') priority += 50;
+      else if (type === 'QUARTERLY') priority += 30;
+      else if (type === 'MONTHLY') priority += 20;
+      else priority += 10;
     }
     
     // Prioridad por frecuencia de uso (últimos 30 días)
-    const reservationCount = user.reservations.length;
+    const reservationCount = (user as any).reservations?.length ?? 0;
     if (reservationCount >= 10) {
       priority += 20;
     } else if (reservationCount >= 5) {
@@ -181,7 +167,6 @@ export class WaitingListService {
       where: {
         courtId: reservation.courtId,
         status: 'waiting',
-        expiresAt: { gt: new Date() },
         requestedTime: {
           gte: new Date(reservation.startTime.getTime() - 30 * 60 * 1000), // 30 min antes
           lte: new Date(reservation.endTime.getTime() + 30 * 60 * 1000), // 30 min después
@@ -206,7 +191,7 @@ export class WaitingListService {
           where: { id: waitingEntry.id },
           data: {
             status: 'notified',
-            notifiedAt: new Date(),
+            notified: true,
           },
         });
         
@@ -274,7 +259,8 @@ export class WaitingListService {
       return { success: false, error: 'Esta oportunidad ya no está disponible' };
     }
     
-    if (waitingEntry.expiresAt < new Date()) {
+    // Si el tiempo solicitado ya pasó hace más de 30 min, consideramos expirado
+    if (waitingEntry.requestedTime.getTime() + 30 * 60 * 1000 < Date.now()) {
       return { success: false, error: 'Esta oportunidad ha expirado' };
     }
     
@@ -282,7 +268,7 @@ export class WaitingListService {
     const conflictingReservations = await db.reservation.findMany({
       where: {
         courtId: waitingEntry.courtId,
-        status: { in: ['pending', 'confirmed'] },
+        status: { in: ['PENDING', 'IN_PROGRESS'] },
         OR: [
           {
             startTime: { lt: waitingEntry.requestedTime },
@@ -329,7 +315,6 @@ export class WaitingListService {
       where: {
         userId,
         status: { in: ['waiting', 'notified'] },
-        expiresAt: { gt: new Date() },
       },
       include: {
         court: {
@@ -355,7 +340,6 @@ export class WaitingListService {
       where: {
         courtId,
         status: { in: ['waiting', 'notified'] },
-        expiresAt: { gt: new Date() },
         ...(startDate && endDate && {
           requestedTime: {
             gte: startDate,
@@ -411,7 +395,7 @@ export class WaitingListService {
     const result = await db.waitingList.updateMany({
       where: {
         status: { in: ['waiting', 'notified'] },
-        expiresAt: { lt: new Date() },
+        requestedTime: { lt: new Date(Date.now() - 30 * 60 * 1000) },
       },
       data: {
         status: 'expired',
@@ -446,19 +430,18 @@ export class WaitingListService {
       where: {
         ...where,
         status: 'converted',
-        notifiedAt: { not: null },
       },
       select: {
         createdAt: true,
-        notifiedAt: true,
+        updatedAt: true,
       },
     });
     
     const averageWaitTime = convertedEntries.length > 0
       ? convertedEntries.reduce((sum, entry) => {
-          const waitTime = entry.notifiedAt!.getTime() - entry.createdAt.getTime();
+          const waitTime = (entry.updatedAt?.getTime() || entry.createdAt.getTime()) - entry.createdAt.getTime();
           return sum + waitTime;
-        }, 0) / convertedEntries.length / (60 * 1000) // Convertir a minutos
+        }, 0) / convertedEntries.length / (60 * 1000)
       : 0;
     
     const totalProcessed = converted + expired;
