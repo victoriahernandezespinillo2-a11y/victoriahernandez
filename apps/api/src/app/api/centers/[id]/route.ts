@@ -224,9 +224,9 @@ export async function GET(
       settings: center.settings,
       stats: {
         totalCourts: center._count.courts,
-        activeCourts: center.courts.filter(court => court.isActive).length,
+        activeCourts: center.courts.filter((court: any) => court.isActive).length,
         totalActiveReservations: center.courts.reduce(
-          (sum, court) => sum + court._count.reservations,
+          (sum: number, court: any) => sum + court._count.reservations,
           0
         ),
         totalWaitingListEntries: center.courts.reduce(
@@ -242,7 +242,7 @@ export async function GET(
           max: Math.max(...center.courts.map(court => Number((court as any).basePricePerHour || 0))),
         } : { min: 0, max: 0 },
       },
-      courts: center.courts.map(court => ({
+      courts: center.courts.map((court: any) => ({
         id: court.id,
         name: court.name,
         sportType: (court as any).sportType,
