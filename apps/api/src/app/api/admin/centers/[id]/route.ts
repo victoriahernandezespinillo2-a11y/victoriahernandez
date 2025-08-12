@@ -249,8 +249,9 @@ export async function DELETE(request: NextRequest) {
       }
       
       // Verificar si tiene reservas futuras
-      const futureReservations = existingCenter.courts.reduce(
-        (total, court) => total + court.reservations.length, 0
+      const futureReservations = (existingCenter.courts as Array<{ reservations: any[] }>).reduce(
+        (total: number, court) => total + (court.reservations?.length || 0),
+        0
       );
       
       if (futureReservations > 0) {
