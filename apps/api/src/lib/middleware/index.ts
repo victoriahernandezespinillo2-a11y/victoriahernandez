@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { AppError, formatErrorResponse, ValidationAppError } from '../errors';
 import { AuthService } from '../services/auth.service';
 
 const authService = new AuthService();
@@ -36,7 +37,7 @@ export type MiddlewareHandler = (
  */
 export type ApiHandler = (
   req: NextRequest,
-  context: { params?: Record<string, string> }
+  context?: { params?: Record<string, string> }
 ) => Promise<NextResponse>;
 
 /**
@@ -348,39 +349,13 @@ export const withErrorHandling = (handler: ApiHandler): ApiHandler => {
       return await handler(req, context);
     } catch (error) {
       console.error('Error no manejado en API:', error);
-      
-      // Errores conocidos
       if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          {
-            error: 'Datos de entrada inválidos',
-            details: error.errors.map(err => ({
-              field: err.path.join('.'),
-              message: err.message,
-            })),
-          },
-          { status: 400 }
-        );
+        return formatErrorResponse(new ValidationAppError('Datos de entrada inválidos', error.errors));
       }
-
-      if (error instanceof Error) {
-        // En desarrollo, mostrar el error completo
-        if (process.env.NODE_ENV === 'development') {
-          return NextResponse.json(
-            {
-              error: error.message,
-              stack: error.stack,
-            },
-            { status: 500 }
-          );
-        }
+      if (error instanceof AppError) {
+        return formatErrorResponse(error);
       }
-
-      // Error genérico en producción
-      return NextResponse.json(
-        { error: 'Error interno del servidor' },
-        { status: 500 }
-      );
+      return formatErrorResponse(error as any);
     }
   };
 };

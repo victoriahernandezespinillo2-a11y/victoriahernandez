@@ -139,10 +139,15 @@ export function useAdminDashboard() {
  */
 export function useAdminUsers() {
   const { data, loading, error, execute, reset, setData } = useApiState<User[]>([]);
+  const [pagination, setPagination] = useState<{ page: number; limit: number; total: number; pages: number } | null>(null as any);
 
-  const getUsers = useCallback((params?: any) => {
-    return execute(() => adminApi.users.getAll(params) as Promise<User[]>);
-  }, [execute]);
+  const getUsers = useCallback(async (params?: any) => {
+    // si el caller necesita meta, usar getAllWithMeta
+    const res = await adminApi.users.getAllWithMeta(params);
+    setData(res.items as any);
+    setPagination(res.pagination);
+    return res.items as any;
+  }, [setData]);
 
   const createUser = useCallback(async (userData: {
     email: string;
@@ -182,6 +187,7 @@ export function useAdminUsers() {
     getUser,
     updateUser,
     deleteUser,
+    pagination,
     reset,
   };
 }
@@ -519,8 +525,10 @@ export function useAdminReports() {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      const data = await response.json();
-      return data.data || data;
+      const json = await response.json();
+      const report = json?.data || json;
+      // Devolver directamente el contenido del reporte (report.data) si existe
+      return report?.data ?? report;
     });
   }, [execute]);
 
@@ -532,6 +540,42 @@ export function useAdminReports() {
     getUsageReport,
     getCustomersReport,
     getGeneralReport,
+    reset,
+  };
+}
+
+/**
+ * Hook para notificaciones (Admin)
+ */
+export function useAdminNotifications() {
+  const { data, loading, error, execute, setData, reset } = useApiState<any[]>([]);
+
+  const getNotifications = useCallback((params?: any) => {
+    return execute(() => adminApi.notifications.getAll(params) as Promise<any[]>);
+  }, [execute]);
+
+  const markAsRead = useCallback(async (id: string) => {
+    await adminApi.notifications.markAsRead(id);
+    setData(prev => prev ? prev.map(n => n.id === id ? { ...n, readAt: new Date().toISOString() } : n) : prev);
+  }, [setData]);
+
+  const markAllAsRead = useCallback(async () => {
+    await adminApi.notifications.markAllAsRead();
+    setData(prev => prev ? prev.map(n => ({ ...n, readAt: new Date().toISOString() })) : prev);
+  }, [setData]);
+
+  const getStats = useCallback((params?: any) => {
+    return execute(() => adminApi.notifications.stats(params));
+  }, [execute]);
+
+  return {
+    notifications: data,
+    loading,
+    error,
+    getNotifications,
+    markAsRead,
+    markAllAsRead,
+    getStats,
     reset,
   };
 }

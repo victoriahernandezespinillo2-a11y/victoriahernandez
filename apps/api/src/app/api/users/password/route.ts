@@ -14,43 +14,42 @@ const userService = new UserService();
  * PUT /api/users/password
  * Cambiar contraseña del usuario autenticado
  */
-export const PUT = withAuthMiddleware(async (
-  req: NextRequest,
-  { user }: AuthenticatedContext
-) => {
-  try {
-    const body = await req.json();
-    
-    const result = await userService.updatePassword(user.id, body);
-    
-    return ApiResponse.success(result);
-  } catch (error) {
-    console.error('Error cambiando contraseña:', error);
-    
-    if (error instanceof z.ZodError) {
-      return ApiResponse.validation(
-        error.errors.map(err => ({
-          field: err.path.join('.'),
-          message: err.message,
-        }))
+export async function PUT(req: NextRequest) {
+  return withAuthMiddleware(async (request: NextRequest, { user }: AuthenticatedContext) => {
+    try {
+      const body = await request.json();
+      
+      const result = await userService.updatePassword(user.id, body);
+      
+      return ApiResponse.success(result);
+    } catch (error) {
+      console.error('Error cambiando contraseña:', error);
+      
+      if (error instanceof z.ZodError) {
+        return ApiResponse.validation(
+          error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message,
+          }))
+        );
+      }
+      
+      if (error instanceof Error) {
+        if (error.message === 'Usuario no encontrado') {
+          return ApiResponse.notFound('Usuario');
+        }
+        if (error.message === 'Contraseña actual incorrecta') {
+          return ApiResponse.error(error.message, 400);
+        }
+      }
+      
+      return ApiResponse.error(
+        error instanceof Error ? error.message : 'Error interno del servidor',
+        500
       );
     }
-    
-    if (error instanceof Error) {
-      if (error.message === 'Usuario no encontrado') {
-        return ApiResponse.notFound('Usuario');
-      }
-      if (error.message === 'Contraseña actual incorrecta') {
-        return ApiResponse.error(error.message, 400);
-      }
-    }
-    
-    return ApiResponse.error(
-      error instanceof Error ? error.message : 'Error interno del servidor',
-      500
-    );
-  }
-});
+  })(req);
+}
 
 /**
  * OPTIONS /api/users/password

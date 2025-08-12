@@ -83,7 +83,15 @@ export default function PricingPage() {
         // Cargar canchas (vía endpoint público para evitar depender de admin/*)
         const res = await fetch('/api/courts', { credentials: 'include' });
         const data = await res.json();
-        const courtsList: ApiCourt[] = (data?.data || data || []) as ApiCourt[];
+        const courtsList: ApiCourt[] = Array.isArray(data?.courts)
+          ? data.courts
+          : Array.isArray(data?.data?.courts)
+            ? data.data.courts
+            : Array.isArray(data?.data)
+              ? data.data
+              : Array.isArray(data)
+                ? data
+                : [];
         setCourts(courtsList);
       } catch (e: any) {
         setError(e?.message || 'Error cargando reglas de precio');
@@ -96,7 +104,8 @@ export default function PricingPage() {
 
   const courtById = useMemo(() => {
     const map = new Map<string, ApiCourt>();
-    for (const c of courts) map.set(c.id, c);
+    const list = Array.isArray(courts) ? courts : [];
+    for (const c of list) map.set(c.id, c);
     return map;
   }, [courts]);
   const itemsPerPage = 10;
@@ -388,8 +397,8 @@ export default function PricingPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex gap-1">
-                       {formatDays(rule.daysOfWeek).map((letter, idx) => (
-                        <span key={day} className="inline-flex items-center justify-center w-6 h-6 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                      {formatDays(rule.daysOfWeek).map((letter, idx) => (
+                        <span key={idx} className="inline-flex items-center justify-center w-6 h-6 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
                            {letter}
                         </span>
                       ))}
@@ -397,9 +406,9 @@ export default function PricingPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                      ${rule.basePrice.toLocaleString()}
-                     {rule.priceMultiplier !== 1.0 && (
+                      {rule.priceMultiplier !== 1.0 && (
                       <div className="text-xs text-gray-500">
-                         x{rule.priceMultiplier} pico
+                         x{rule.priceMultiplier}
                       </div>
                     )}
                   </td>

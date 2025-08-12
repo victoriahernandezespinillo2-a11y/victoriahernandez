@@ -16,12 +16,12 @@ const tournamentService = new TournamentService();
  * Acceso: Usuario autenticado
  */
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
   return withAuthMiddleware(async (req, { user }) => {
     try {
-      const { id: tournamentId } = params;
+      const pathname = req.nextUrl.pathname;
+      const tournamentId = pathname.split('/').slice(-2, -1)[0] as string;
       
       if (!tournamentId) {
         return ApiResponse.badRequest('ID de torneo requerido');

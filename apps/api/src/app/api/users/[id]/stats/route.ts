@@ -14,12 +14,12 @@ const userService = new UserService();
  * Obtener estadísticas del usuario
  * Los usuarios pueden ver sus propias estadísticas, STAFF/ADMIN pueden ver cualquier usuario
  */
-export const GET = withAuthMiddleware(async (
-  req: NextRequest,
-  { params, user }: AuthenticatedContext & { params: { id: string } }
-) => {
+export async function GET(req: NextRequest) {
+  return withAuthMiddleware(async (request: NextRequest, context: AuthenticatedContext) => {
   try {
-    const userId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const userId = pathname.split('/').pop() as string;
+    const { user } = context as any;
     
     // Verificar permisos: usuarios solo pueden ver sus propias estadísticas
     if (user.role === 'USER' && user.id !== userId) {
@@ -41,7 +41,8 @@ export const GET = withAuthMiddleware(async (
       500
     );
   }
-});
+  })(req);
+}
 
 /**
  * OPTIONS /api/users/[id]/stats

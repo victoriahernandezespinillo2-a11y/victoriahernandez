@@ -14,8 +14,7 @@ interface RouteParams {
  * Obtener detalles completos de un centro deportivo específico
  */
 export async function GET(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -26,7 +25,8 @@ export async function GET(
       );
     }
 
-    const centerId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const centerId = pathname.split('/').pop() as string;
     
     if (!centerId) {
       return NextResponse.json(
@@ -47,7 +47,7 @@ export async function GET(
                   gte: new Date(),
                 },
                 status: {
-                  in: ['confirmed', 'pending'],
+                  in: ['PAID', 'IN_PROGRESS', 'PENDING'],
                 },
               },
               select: {
@@ -63,19 +63,19 @@ export async function GET(
             },
             maintenanceSchedules: {
               where: {
-                startTime: {
-                  gte: new Date(),
-                },
+                status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
               },
               select: {
                 id: true,
-                startTime: true,
-                endTime: true,
+                status: true,
+                scheduledAt: true,
+                startedAt: true,
+                completedAt: true,
                 type: true,
                 description: true,
               },
               orderBy: {
-                startTime: 'asc',
+                scheduledAt: 'asc',
               },
               take: 3, // Próximos 3 mantenimientos por cancha
             },
@@ -86,10 +86,8 @@ export async function GET(
               select: {
                 id: true,
                 name: true,
-                basePrice: true,
-                timeSlots: true,
-                daysOfWeek: true,
-                membershipDiscount: true,
+                isActive: true,
+                priority: true,
               },
               orderBy: {
                 priority: 'desc',
@@ -99,7 +97,7 @@ export async function GET(
               select: {
                 reservations: {
                   where: {
-                    status: 'confirmed',
+                    status: { in: ['PAID', 'IN_PROGRESS'] },
                     startTime: {
                       gte: new Date(),
                     },
@@ -149,7 +147,7 @@ export async function GET(
         court: {
           centerId,
         },
-        status: 'confirmed',
+        status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
         startTime: {
           gte: startOfWeek,
           lte: endOfWeek,
@@ -166,7 +164,7 @@ export async function GET(
         court: {
           centerId,
         },
-        status: 'confirmed',
+        status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
         startTime: {
           gte: startOfMonth,
           lte: endOfMonth,
@@ -176,8 +174,9 @@ export async function GET(
     
     // Calcular estadísticas por deporte
     const sportStats = center.courts.reduce((stats, court) => {
-      if (!stats[court.sport]) {
-        stats[court.sport] = {
+      const sportKey = (court as any).sportType || 'UNKNOWN';
+      if (!stats[sportKey]) {
+        stats[sportKey] = {
           totalCourts: 0,
           activeCourts: 0,
           activeReservations: 0,
@@ -186,18 +185,19 @@ export async function GET(
         };
       }
       
-      stats[court.sport].totalCourts++;
+      stats[sportKey].totalCourts++;
       if (court.isActive) {
-        stats[court.sport].activeCourts++;
+        stats[sportKey].activeCourts++;
       }
-      stats[court.sport].activeReservations += court._count.reservations;
-      stats[court.sport].waitingListEntries += court._count.waitingLists;
+      stats[sportKey].activeReservations += (court as any)._count.reservations;
+      stats[sportKey].waitingListEntries += (court as any)._count.waitingLists;
       
-      if (court.hourlyRate < stats[court.sport].priceRange.min) {
-        stats[court.sport].priceRange.min = court.hourlyRate;
+      const rate = Number((court as any).basePricePerHour || 0);
+      if (rate < stats[sportKey].priceRange.min) {
+        stats[sportKey].priceRange.min = rate;
       }
-      if (court.hourlyRate > stats[court.sport].priceRange.max) {
-        stats[court.sport].priceRange.max = court.hourlyRate;
+      if (rate > stats[sportKey].priceRange.max) {
+        stats[sportKey].priceRange.max = rate;
       }
       
       return stats;
@@ -218,18 +218,10 @@ export async function GET(
       id: center.id,
       name: center.name,
       address: center.address,
-      city: center.city,
-      postalCode: center.postalCode,
       phone: center.phone,
       email: center.email,
-      website: center.website,
-      description: center.description,
-      amenities: center.amenities,
-      images: center.images,
       // Exponer settings completos, incluyendo operatingHours/slot/exceptions si existen
       settings: center.settings,
-      coordinates: center.coordinates,
-      isActive: center.isActive,
       stats: {
         totalCourts: center._count.courts,
         activeCourts: center.courts.filter(court => court.isActive).length,
@@ -246,39 +238,32 @@ export async function GET(
         sportsOffered: Object.keys(sportStats),
         sportStats,
         overallPriceRange: center.courts.length > 0 ? {
-          min: Math.min(...center.courts.map(court => court.hourlyRate)),
-          max: Math.max(...center.courts.map(court => court.hourlyRate)),
+          min: Math.min(...center.courts.map(court => Number((court as any).basePricePerHour || 0))),
+          max: Math.max(...center.courts.map(court => Number((court as any).basePricePerHour || 0))),
         } : { min: 0, max: 0 },
       },
       courts: center.courts.map(court => ({
         id: court.id,
         name: court.name,
-        sport: court.sport,
-        surface: court.surface,
-        isIndoor: court.isIndoor,
-        hasLighting: court.hasLighting,
-        maxPlayers: court.maxPlayers,
-        hourlyRate: court.hourlyRate,
+        sportType: (court as any).sportType,
+        capacity: (court as any).capacity ?? 0,
+        hourlyRate: Number((court as any).basePricePerHour || 0),
         isActive: court.isActive,
-        description: court.description,
-        amenities: court.amenities,
-        images: court.images,
-        specifications: court.specifications,
-        upcomingReservations: court.reservations,
-        maintenanceSchedules: court.maintenanceSchedules,
-        pricingRules: court.pricingRules,
+        upcomingReservations: (court as any).reservations,
+        maintenanceSchedules: (court as any).maintenanceSchedules,
+        pricingRules: (court as any).pricingRules,
         stats: {
-          activeReservations: court._count.reservations,
-          waitingListEntries: court._count.waitingLists,
+          activeReservations: (court as any)._count.reservations,
+          waitingListEntries: (court as any)._count.waitingLists,
         },
         availability: {
-          isCurrentlyAvailable: !court.reservations.some(reservation => {
+          isCurrentlyAvailable: !((court as any).reservations as any[]).some((reservation: any) => {
             const start = new Date(reservation.startTime);
             const end = new Date(reservation.endTime);
             return now >= start && now <= end;
           }),
-          nextAvailableSlot: court.reservations.length > 0 
-            ? court.reservations[0].endTime 
+          nextAvailableSlot: ((court as any).reservations as any[]).length > 0 
+            ? (court as any).reservations[0].endTime 
             : null,
         },
       })),

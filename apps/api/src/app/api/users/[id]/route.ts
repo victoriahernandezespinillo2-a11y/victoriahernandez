@@ -17,12 +17,12 @@ const userService = new UserService();
  * Obtener usuario por ID
  * Los usuarios pueden ver su propio perfil, STAFF/ADMIN pueden ver cualquier usuario
  */
-export const GET = withAuthMiddleware(async (
-  req: NextRequest,
-  { params, user }: AuthenticatedContext & { params: { id: string } }
-) => {
+export async function GET(req: NextRequest) {
+  return withAuthMiddleware(async (request: NextRequest, context: AuthenticatedContext) => {
   try {
-    const userId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const userId = pathname.split('/').pop() as string;
+    const { user } = context as any;
     
     // Verificar permisos: usuarios solo pueden ver su propio perfil
     if (user.role === 'USER' && user.id !== userId) {
@@ -44,26 +44,27 @@ export const GET = withAuthMiddleware(async (
       500
     );
   }
-});
+  })(req);
+}
 
 /**
  * PUT /api/users/[id]
  * Actualizar usuario
  * Los usuarios pueden actualizar su propio perfil, ADMIN puede actualizar cualquier usuario
  */
-export const PUT = withAuthMiddleware(async (
-  req: NextRequest,
-  { params, user }: AuthenticatedContext & { params: { id: string } }
-) => {
+export async function PUT(req: NextRequest) {
+  return withAuthMiddleware(async (request: NextRequest, context: AuthenticatedContext) => {
   try {
-    const userId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const userId = pathname.split('/').pop() as string;
+    const { user } = context as any;
     
     // Verificar permisos: usuarios solo pueden actualizar su propio perfil
     if (user.role === 'USER' && user.id !== userId) {
       return ApiResponse.forbidden('Solo puedes actualizar tu propio perfil');
     }
     
-    const body = await req.json();
+    const body = await request.json();
     
     const updatedUser = await userService.updateUser(userId, body);
     
@@ -89,19 +90,19 @@ export const PUT = withAuthMiddleware(async (
       500
     );
   }
-});
+  })(req);
+}
 
 /**
  * DELETE /api/users/[id]
  * Eliminar usuario (soft delete)
  * Solo ADMIN puede eliminar usuarios
  */
-export const DELETE = withAdminMiddleware(async (
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) => {
+export async function DELETE(req: NextRequest) {
+  return withAdminMiddleware(async (request: NextRequest) => {
   try {
-    const userId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const userId = pathname.split('/').pop() as string;
     
     const result = await userService.deleteUser(userId);
     
@@ -123,7 +124,8 @@ export const DELETE = withAdminMiddleware(async (
       500
     );
   }
-});
+  })(req);
+}
 
 /**
  * OPTIONS /api/users/[id]

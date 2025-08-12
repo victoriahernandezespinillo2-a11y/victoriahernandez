@@ -7,11 +7,11 @@
 
 import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
-import { PrismaClient } from '@prisma/client';
+import { db } from '@repo/db';
 import { z } from 'zod';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '@repo/auth';
 
-const prisma = new PrismaClient();
+// Usar cliente compartido
 
 const UpdateUserSchema = z.object({
   firstName: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').optional(),
@@ -52,36 +52,27 @@ const UpdateUserSchema = z.object({
  * Obtener detalles completos de un usuario específico
  * Acceso: ADMIN únicamente
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest) {
   return withAdminMiddleware(async (req) => {
     try {
-      const userId = params.id;
+      const pathname = req.nextUrl.pathname;
+      const userId = pathname.split('/').pop() as string;
       
-      const user = await prisma.user.findUnique({
+      const user = await db.user.findUnique({
         where: { id: userId },
         include: {
-          center: {
-            select: {
-              id: true,
-              name: true,
-              address: true
-            }
-          },
           reservations: {
             select: {
               id: true,
               startTime: true,
               endTime: true,
               status: true,
-              totalAmount: true,
+              totalPrice: true,
               court: {
                 select: {
                   id: true,
                   name: true,
-                  sport: true
+                  sportType: true
                 }
               }
             },
@@ -95,8 +86,8 @@ export async function GET(
               id: true,
               type: true,
               status: true,
-              startDate: true,
-              endDate: true,
+              validFrom: true,
+              validUntil: true,
               price: true
             },
             orderBy: {
@@ -104,24 +95,11 @@ export async function GET(
             },
             take: 5
           },
-          payments: {
-            select: {
-              id: true,
-              amount: true,
-              status: true,
-              method: true,
-              createdAt: true
-            },
-            orderBy: {
-              createdAt: 'desc'
-            },
-            take: 10
-          },
+          // payments relation no existe en esquema actual
           _count: {
             select: {
               reservations: true,
-              memberships: true,
-              payments: true
+              memberships: true
             }
           }
         }
@@ -133,29 +111,21 @@ export async function GET(
       
       // Calcular estadísticas adicionales
       const [totalSpent, activeReservations, activeMemberships] = await Promise.all([
-        prisma.payment.aggregate({
+        Promise.resolve({ _sum: { amount: 0 } }),
+        db.reservation.count({
           where: {
             userId: userId,
-            status: 'COMPLETED'
-          },
-          _sum: {
-            amount: true
-          }
-        }),
-        prisma.reservation.count({
-          where: {
-            userId: userId,
-            status: 'CONFIRMED',
+          status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
             startTime: {
               gte: new Date()
             }
           }
         }),
-        prisma.membership.count({
+        db.membership.count({
           where: {
             userId: userId,
             status: 'ACTIVE',
-            endDate: {
+            validUntil: {
               gte: new Date()
             }
           }
@@ -166,10 +136,10 @@ export async function GET(
         ...user,
         password: undefined, // No incluir la contraseña
         stats: {
-          totalSpent: totalSpent._sum.amount || 0,
+               totalSpent: 0,
           totalReservations: user._count.reservations,
           totalMemberships: user._count.memberships,
-          totalPayments: user._count.payments,
+           totalPayments: 0,
           activeReservations,
           activeMemberships
         }
@@ -188,18 +158,17 @@ export async function GET(
  * Actualizar un usuario específico
  * Acceso: ADMIN únicamente
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  return withAdminMiddleware(async (req, { user: adminUser }) => {
+export async function PUT(request: NextRequest) {
+  return withAdminMiddleware(async (req, context) => {
     try {
-      const userId = params.id;
+      const adminUser = (context as any)?.user;
+      const pathname = req.nextUrl.pathname;
+      const userId = pathname.split('/').pop() as string;
       const body = await req.json();
       const userData = UpdateUserSchema.parse(body);
       
       // Verificar que el usuario existe
-      const existingUser = await prisma.user.findUnique({
+      const existingUser = await db.user.findUnique({
         where: { id: userId }
       });
       
@@ -209,7 +178,7 @@ export async function PUT(
       
       // Verificar email único si se está actualizando
       if (userData.email && userData.email !== existingUser.email) {
-        const emailExists = await prisma.user.findUnique({
+        const emailExists = await db.user.findUnique({
           where: { email: userData.email }
         });
         
@@ -220,7 +189,7 @@ export async function PUT(
       
       // Verificar que el centro existe si se está asignando
       if (userData.centerId) {
-        const centerExists = await prisma.center.findUnique({
+        const centerExists = await db.center.findUnique({
           where: { id: userData.centerId }
         });
         
@@ -236,11 +205,11 @@ export async function PUT(
       
       // Hashear contraseña si se proporciona
       if (userData.password) {
-        updateData.password = await bcrypt.hash(userData.password, 12);
+        updateData.password = await hashPassword(userData.password);
       }
       
       // Actualizar usuario
-      const updatedUser = await prisma.user.update({
+      const updatedUser = await db.user.update({
         where: { id: userId },
         data: updateData,
         select: {
@@ -250,45 +219,14 @@ export async function PUT(
           email: true,
           phone: true,
           role: true,
-          status: true,
-          centerId: true,
-          preferences: true,
-          profile: true,
           createdAt: true,
           updatedAt: true,
-          center: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
         }
       });
       
-      // Registrar en log de auditoría
-      await prisma.auditLog.create({
-        data: {
-          action: 'UPDATE_USER',
-          entityType: 'USER',
-          entityId: userId,
-          userId: adminUser.id,
-          details: {
-            updatedFields: Object.keys(userData),
-            previousData: {
-              email: existingUser.email,
-              role: existingUser.role,
-              status: existingUser.status
-            },
-            newData: {
-              email: updatedUser.email,
-              role: updatedUser.role,
-              status: updatedUser.status
-            }
-          }
-        }
-      });
+      // Registro de auditoría omitido (modelo no disponible en el esquema actual)
       
-      return ApiResponse.success(updatedUser, 'Usuario actualizado exitosamente');
+      return ApiResponse.success(updatedUser);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(
@@ -310,21 +248,20 @@ export async function PUT(
  * Eliminar un usuario específico (soft delete)
  * Acceso: ADMIN únicamente
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  return withAdminMiddleware(async (req, { user: adminUser }) => {
+export async function DELETE(request: NextRequest) {
+  return withAdminMiddleware(async (req, context) => {
     try {
-      const userId = params.id;
+      const adminUser = (context as any)?.user;
+      const pathname = req.nextUrl.pathname;
+      const userId = pathname.split('/').pop() as string;
       
       // Verificar que el usuario existe
-      const existingUser = await prisma.user.findUnique({
+      const existingUser = await db.user.findUnique({
         where: { id: userId },
         include: {
           reservations: {
             where: {
-              status: 'CONFIRMED',
+              status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
               startTime: {
                 gte: new Date()
               }
@@ -333,7 +270,7 @@ export async function DELETE(
           memberships: {
             where: {
               status: 'ACTIVE',
-              endDate: {
+              validUntil: {
                 gte: new Date()
               }
             }
@@ -346,7 +283,7 @@ export async function DELETE(
       }
       
       // Verificar que no sea el mismo admin
-      if (userId === adminUser.id) {
+      if (userId === adminUser?.id) {
         return ApiResponse.badRequest('No puedes eliminar tu propia cuenta');
       }
       
@@ -358,41 +295,24 @@ export async function DELETE(
       }
       
       // Realizar soft delete
-      const deletedUser = await prisma.user.update({
+      const deletedUser = await db.user.update({
         where: { id: userId },
         data: {
-          status: 'INACTIVE',
-          email: `deleted_${Date.now()}_${existingUser.email}`,
-          deletedAt: new Date()
+          isActive: false,
+          email: `deleted_${Date.now()}_${existingUser.email}`
         },
         select: {
           id: true,
           firstName: true,
           lastName: true,
           email: true,
-          status: true,
-          deletedAt: true
+          isActive: true
         }
       });
       
-      // Registrar en log de auditoría
-      await prisma.auditLog.create({
-        data: {
-          action: 'DELETE_USER',
-          entityType: 'USER',
-          entityId: userId,
-          userId: adminUser.id,
-          details: {
-            deletedUser: {
-              name: `${existingUser.firstName} ${existingUser.lastName}`,
-              email: existingUser.email,
-              role: existingUser.role
-            }
-          }
-        }
-      });
+      // Registro de auditoría omitido (modelo no disponible en el esquema actual)
       
-      return ApiResponse.success(deletedUser, 'Usuario eliminado exitosamente');
+      return ApiResponse.success(deletedUser);
     } catch (error) {
       console.error('Error eliminando usuario:', error);
       return ApiResponse.internalError('Error interno del servidor');

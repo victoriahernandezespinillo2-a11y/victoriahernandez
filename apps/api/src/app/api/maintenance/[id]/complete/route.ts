@@ -16,12 +16,13 @@ const maintenanceService = new MaintenanceService();
  * Acceso: STAFF o superior
  */
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
-  return withStaffMiddleware(async (req, { user }) => {
+  return withStaffMiddleware(async (req, context) => {
     try {
-      const { id } = params;
+      const user = (context as any)?.user;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').slice(-2, -1)[0] as string;
       
       if (!id) {
         return ApiResponse.badRequest('ID de mantenimiento requerido');
@@ -31,7 +32,7 @@ export async function POST(
       
       const maintenance = await maintenanceService.completeMaintenance(id, body);
       
-      return ApiResponse.success(maintenance, 'Mantenimiento completado exitosamente');
+      return ApiResponse.success(maintenance);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.badRequest('Datos de completado inválidos');

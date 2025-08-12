@@ -17,12 +17,12 @@ const paymentService = new PaymentService();
  * Acceso: Usuario autenticado (propietario del pago o STAFF+)
  */
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
   return withAuthMiddleware(async (req, { user }) => {
     try {
-      const { id } = params;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').pop() as string;
       
       if (!id) {
         return ApiResponse.badRequest('ID de pago requerido');
@@ -55,12 +55,12 @@ export async function GET(
  * Acceso: Usuario autenticado (propietario del pago)
  */
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
   return withAuthMiddleware(async (req, { user }) => {
     try {
-      const { id } = params;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').pop() as string;
       const body = await req.json();
       
       if (!id) {

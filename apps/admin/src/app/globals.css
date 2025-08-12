@@ -22,9 +22,28 @@
 
 body {
   color: rgb(var(--foreground-rgb));
-  /* Evitar doble scroll: el scroll irá en main */
-  overflow: hidden;
+  /* Permitir scroll en body por si el main no cubre toda la altura */
+  overflow: auto;
   background: #f8fafc;
+}
+
+/* Asegurar texto negro constante en inputs y fondo blanco */
+input, textarea, select {
+  color: #000000;
+  background-color: #ffffff;
+}
+input::placeholder, textarea::placeholder {
+  color: #6b7280; /* gray-500 */
+}
+@media (prefers-color-scheme: dark) {
+  input, textarea, select {
+    color: #000000; /* mantener negro también en dark */
+    background-color: #ffffff; /* fondo blanco para contraste */
+    border-color: #d1d5db; /* gray-300 */
+  }
+  input::placeholder, textarea::placeholder {
+    color: #6b7280; /* gray-500 */
+  }
 }
 
 /* Estilos específicos para el panel de administración */

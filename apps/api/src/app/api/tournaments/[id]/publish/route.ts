@@ -15,12 +15,12 @@ const tournamentService = new TournamentService();
  * Acceso: ADMIN
  */
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
   return withAdminMiddleware(async (req, { user }) => {
     try {
-      const { id } = params;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').slice(-2, -1)[0] as string;
       
       if (!id) {
         return ApiResponse.badRequest('ID de torneo requerido');

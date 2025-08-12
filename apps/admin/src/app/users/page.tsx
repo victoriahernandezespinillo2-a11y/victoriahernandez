@@ -41,7 +41,10 @@ const statusColors: Record<string, string> = {
 };
 
 export default function UsersPage() {
-  const { users, loading, error, updateUser, deleteUser } = useAdminUsers();
+  const { users, loading, error, updateUser, deleteUser, getUsers, pagination } = useAdminUsers();
+  useEffect(() => {
+    getUsers({ page: 1, limit: 20, sortBy: 'createdAt', sortOrder: 'desc' }).catch(() => {});
+  }, [getUsers]);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -81,7 +84,8 @@ export default function UsersPage() {
   }
 
   // Filtrar usuarios
-  const filteredUsers = users?.filter(user => {
+  const safeUsers = Array.isArray(users) ? users : [];
+  const filteredUsers = safeUsers.filter(user => {
     const matchesSearch = 
       user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -94,9 +98,10 @@ export default function UsersPage() {
   }) || [];
 
   // Paginación
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedUsers = filteredUsers.slice(startIndex, startIndex + itemsPerPage);
+  const serverTotalPages = pagination?.pages || 1;
+  const serverPage = pagination?.page || 1;
+  const serverLimit = pagination?.limit || 20;
+  const paginatedUsers = filteredUsers;
 
   const handleDeleteUser = async (userId: string) => {
     if (confirm('¿Estás seguro de que quieres eliminar este usuario?')) {
@@ -123,7 +128,10 @@ export default function UsersPage() {
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
-          <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+          <button
+            onClick={() => { window.location.href = '/users/new'; }}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
             <PlusIcon className="h-4 w-4 mr-2" />
             Nuevo Usuario
           </button>
@@ -328,19 +336,28 @@ export default function UsersPage() {
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
+        {(pagination?.pages || 1) > 1 && (
           <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
             <div className="flex-1 flex justify-between sm:hidden">
               <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
+                onClick={() => {
+                  const next = Math.max(1, (pagination?.page || 1) - 1);
+                  setCurrentPage(next);
+                  getUsers({ page: next, limit: pagination?.limit || 20, sortBy: 'createdAt', sortOrder: 'desc', search: searchTerm || undefined, role: roleFilter !== 'ALL' ? roleFilter : undefined, status: statusFilter !== 'ALL' ? statusFilter : undefined }).catch(() => {});
+                }}
+                disabled={(pagination?.page || 1) === 1}
                 className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Anterior
               </button>
               <button
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
+                onClick={() => {
+                  const pages = pagination?.pages || 1;
+                  const next = Math.min(pages, (pagination?.page || 1) + 1);
+                  setCurrentPage(next);
+                  getUsers({ page: next, limit: pagination?.limit || 20, sortBy: 'createdAt', sortOrder: 'desc', search: searchTerm || undefined, role: roleFilter !== 'ALL' ? roleFilter : undefined, status: statusFilter !== 'ALL' ? statusFilter : undefined }).catch(() => {});
+                }}
+                disabled={(pagination?.page || 1) === (pagination?.pages || 1)}
                 className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Siguiente
@@ -348,22 +365,19 @@ export default function UsersPage() {
             </div>
             <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm text-gray-700">
-                  Mostrando <span className="font-medium">{startIndex + 1}</span> a{' '}
-                  <span className="font-medium">
-                    {Math.min(startIndex + itemsPerPage, filteredUsers.length)}
-                  </span>{' '}
-                  de <span className="font-medium">{filteredUsers.length}</span> resultados
-                </p>
+                <p className="text-sm text-gray-700">Página <span className="font-medium">{pagination?.page || 1}</span> de <span className="font-medium">{pagination?.pages || 1}</span></p>
               </div>
               <div>
                 <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  {Array.from({ length: pagination?.pages || 1 }, (_, i) => i + 1).map((page) => (
                     <button
                       key={page}
-                      onClick={() => setCurrentPage(page)}
+                      onClick={() => {
+                        setCurrentPage(page);
+                        getUsers({ page, limit: pagination?.limit || 20, sortBy: 'createdAt', sortOrder: 'desc', search: searchTerm || undefined, role: roleFilter !== 'ALL' ? roleFilter : undefined, status: statusFilter !== 'ALL' ? statusFilter : undefined }).catch(() => {});
+                      }}
                       className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                        page === currentPage
+                        page === (pagination?.page || 1)
                           ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
                           : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
                       }`}

@@ -14,8 +14,7 @@ interface RouteParams {
  * Obtener detalles de una cancha específica
  */
 export async function GET(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -26,7 +25,8 @@ export async function GET(
       );
     }
 
-    const courtId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const courtId = pathname.split('/').pop() as string;
     
     if (!courtId) {
       return NextResponse.json(
@@ -44,16 +44,8 @@ export async function GET(
             id: true,
             name: true,
             address: true,
-            city: true,
-            postalCode: true,
             phone: true,
             email: true,
-            website: true,
-            openingHours: true,
-            amenities: true,
-            description: true,
-            images: true,
-            coordinates: true,
           },
         },
         reservations: {
@@ -62,7 +54,7 @@ export async function GET(
               gte: new Date(),
             },
             status: {
-              in: ['confirmed', 'pending'],
+              in: ['PAID', 'IN_PROGRESS', 'PENDING'],
             },
           },
           select: {
@@ -84,20 +76,19 @@ export async function GET(
         },
         maintenanceSchedules: {
           where: {
-            startTime: {
-              gte: new Date(),
-            },
+            status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
           },
           select: {
             id: true,
-            startTime: true,
-            endTime: true,
+            status: true,
+            scheduledAt: true,
+            startedAt: true,
+            completedAt: true,
             type: true,
             description: true,
-            isRecurring: true,
           },
           orderBy: {
-            startTime: 'asc',
+            scheduledAt: 'asc',
           },
           take: 5, // Próximos 5 mantenimientos
         },
@@ -108,13 +99,8 @@ export async function GET(
           select: {
             id: true,
             name: true,
-            basePrice: true,
-            timeSlots: true,
-            daysOfWeek: true,
-            validFrom: true,
-            validTo: true,
-            membershipDiscount: true,
-            description: true,
+            isActive: true,
+            priority: true,
           },
           orderBy: {
             priority: 'desc',
@@ -124,7 +110,7 @@ export async function GET(
           select: {
             reservations: {
               where: {
-                status: 'confirmed',
+                status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
                 startTime: {
                   gte: new Date(),
                 },
@@ -161,7 +147,7 @@ export async function GET(
     const weeklyReservations = await db.reservation.count({
       where: {
         courtId,
-        status: 'confirmed',
+        status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
         startTime: {
           gte: startOfWeek,
           lte: endOfWeek,
@@ -177,17 +163,10 @@ export async function GET(
     const formattedCourt = {
       id: court.id,
       name: court.name,
-      sport: court.sport,
-      surface: court.surface,
-      isIndoor: court.isIndoor,
-      hasLighting: court.hasLighting,
-      maxPlayers: court.maxPlayers,
-      hourlyRate: court.hourlyRate,
+      sportType: (court as any).sportType,
+      capacity: (court as any).capacity ?? 0,
+      hourlyRate: Number((court as any).basePricePerHour || 0),
       isActive: court.isActive,
-      description: court.description,
-      amenities: court.amenities,
-      images: court.images,
-      specifications: court.specifications,
       center: court.center,
       upcomingReservations: court.reservations,
       maintenanceSchedules: court.maintenanceSchedules,

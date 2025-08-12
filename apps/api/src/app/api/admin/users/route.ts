@@ -6,23 +6,22 @@
 
 import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
-import { PrismaClient } from '@prisma/client';
+import { db } from '@repo/db';
 import { z } from 'zod';
-import bcrypt from 'bcrypt';
+import { hashPassword } from '@repo/auth';
 
-const prisma = new PrismaClient();
+// Usar cliente compartido
 
 const GetUsersQuerySchema = z.object({
-  page: z.string().transform(Number).optional().default(1),
-  limit: z.string().transform(Number).optional().default(20),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),
   role: z.enum(['USER', 'STAFF', 'ADMIN']).optional(),
-  status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']).optional(),
-  centerId: z.string().optional(),
-  sortBy: z.enum(['name', 'email', 'createdAt', 'lastLogin']).optional().default('createdAt'),
+  status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+  sortBy: z.enum(['name', 'email', 'createdAt', 'lastLoginAt']).optional().default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
-  hasReservations: z.string().transform(Boolean).optional(),
-  hasMemberships: z.string().transform(Boolean).optional()
+  hasReservations: z.coerce.boolean().optional(),
+  hasMemberships: z.coerce.boolean().optional()
 });
 
 const CreateUserSchema = z.object({
@@ -65,11 +64,7 @@ export async function GET(request: NextRequest) {
       }
       
       if (params.status) {
-        where.status = params.status;
-      }
-      
-      if (params.centerId) {
-        where.centerId = params.centerId;
+        where.isActive = params.status === 'ACTIVE';
       }
       
       if (params.hasReservations !== undefined) {
@@ -94,7 +89,7 @@ export async function GET(request: NextRequest) {
       
       // Obtener usuarios y total
       const [users, total] = await Promise.all([
-        prisma.user.findMany({
+        db.user.findMany({
           where,
           skip,
           take: params.limit,
@@ -105,52 +100,46 @@ export async function GET(request: NextRequest) {
             name: true,
             phone: true,
             role: true,
-            status: true,
+            isActive: true,
             emailVerified: true,
+            emailVerifiedAt: true,
             createdAt: true,
             updatedAt: true,
-            lastLogin: true,
-            center: {
-              select: {
-                id: true,
-                name: true
-              }
-            },
+            lastLoginAt: true,
             _count: {
               select: {
                 reservations: true,
-                memberships: true,
-                payments: true
+                memberships: true
               }
             }
           }
         }),
-        prisma.user.count({ where })
+        db.user.count({ where })
       ]);
       
       // Calcular estadísticas adicionales para cada usuario
       const usersWithStats = await Promise.all(
         users.map(async (user) => {
           const [totalSpent, activeReservations, activeMemberships] = await Promise.all([
-            prisma.payment.aggregate({
+            db.reservation.aggregate({
               where: {
                 userId: user.id,
-                status: 'COMPLETED'
+                status: 'PAID'
               },
               _sum: {
-                amount: true
+                totalPrice: true
               }
             }),
-            prisma.reservation.count({
+            db.reservation.count({
               where: {
                 userId: user.id,
-                status: { in: ['CONFIRMED', 'PENDING'] }
+                status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] }
               }
             }),
-            prisma.membership.count({
+            db.membership.count({
               where: {
                 userId: user.id,
-                status: 'ACTIVE'
+                status: 'active'
               }
             })
           ]);
@@ -158,12 +147,11 @@ export async function GET(request: NextRequest) {
           return {
             ...user,
             stats: {
-              totalSpent: totalSpent._sum.amount || 0,
+              totalSpent: Number((totalSpent as any)._sum.totalPrice || 0),
               activeReservations,
               activeMemberships,
               totalReservations: user._count.reservations,
-              totalMemberships: user._count.memberships,
-              totalPayments: user._count.payments
+              totalMemberships: user._count.memberships
             }
           };
         })
@@ -181,7 +169,6 @@ export async function GET(request: NextRequest) {
           search: params.search,
           role: params.role,
           status: params.status,
-          centerId: params.centerId,
           hasReservations: params.hasReservations,
           hasMemberships: params.hasMemberships
         },
@@ -205,7 +192,7 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo usuarios:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request);
+  })(request, {} as any);
 }
 
 /**
@@ -214,13 +201,14 @@ export async function GET(request: NextRequest) {
  * Acceso: ADMIN únicamente
  */
 export async function POST(request: NextRequest) {
-  return withAdminMiddleware(async (req, { user: adminUser }) => {
+  return withAdminMiddleware(async (req, context) => {
     try {
+      const adminUser = (context as any)?.user;
       const body = await req.json();
       const userData = CreateUserSchema.parse(body);
       
       // Verificar que el email no esté en uso
-      const existingUser = await prisma.user.findUnique({
+      const existingUser = await db.user.findUnique({
         where: { email: userData.email }
       });
       
@@ -228,32 +216,21 @@ export async function POST(request: NextRequest) {
         return ApiResponse.conflict('El email ya está registrado');
       }
       
-      // Verificar que el centro existe si se especifica
-      if (userData.centerId) {
-        const center = await prisma.center.findUnique({
-          where: { id: userData.centerId }
-        });
-        
-        if (!center) {
-          return ApiResponse.notFound('Centro no encontrado');
-        }
-      }
-      
       // Hashear contraseña
-      const hashedPassword = await bcrypt.hash(userData.password, 12);
+      const hashedPassword = await hashPassword(userData.password);
       
       // Crear usuario
-      const newUser = await prisma.user.create({
+      const newUser = await db.user.create({
         data: {
           email: userData.email,
           password: hashedPassword,
           name: userData.name,
           phone: userData.phone,
           role: userData.role,
-          status: userData.status,
-          centerId: userData.centerId,
-          emailVerified: new Date(), // Los usuarios creados por admin se consideran verificados
-          createdBy: adminUser.id
+          isActive: userData.status === 'ACTIVE',
+          emailVerified: true,
+          emailVerifiedAt: new Date(),
+          // createdBy: adminUser?.id // si existe en el modelo
         },
         select: {
           id: true,
@@ -261,15 +238,11 @@ export async function POST(request: NextRequest) {
           name: true,
           phone: true,
           role: true,
-          status: true,
+          isActive: true,
           emailVerified: true,
+          emailVerifiedAt: true,
           createdAt: true,
-          center: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
+          updatedAt: true
         }
       });
       
@@ -293,7 +266,7 @@ export async function POST(request: NextRequest) {
       console.error('Error creando usuario:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request);
+  })(request, {} as any);
 }
 
 /**

@@ -15,12 +15,12 @@ const tournamentService = new TournamentService();
  * Acceso: Usuario autenticado (solo su propia inscripción) / ADMIN (cualquier inscripción)
  */
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
   return withAuthMiddleware(async (req, context) => {
     try {
-      const { id: tournamentId } = params;
+      const pathname = req.nextUrl.pathname;
+      const tournamentId = pathname.split('/').slice(-2, -1)[0] as string;
       
       if (!tournamentId) {
         return ApiResponse.badRequest('ID de torneo requerido');
@@ -50,7 +50,7 @@ export async function DELETE(
       console.error('Error cancelando inscripción:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, { params });
+  })(request);
 }
 
 /**

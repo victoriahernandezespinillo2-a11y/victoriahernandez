@@ -15,25 +15,25 @@ const notificationService = new NotificationService();
  * Acceso: STAFF o superior
  */
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
-  return withStaffMiddleware(async (req, { user }) => {
+  return withStaffMiddleware(async (req) => {
     try {
-      const { id } = params;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').slice(-2, -1)[0] as string;
       
       if (!id) {
         return ApiResponse.badRequest('ID de notificación requerido');
       }
       
       // Verificar que la notificación existe
-      const notifications = await notificationService.getNotifications({ id });
-      
-      if (!notifications.data.length) {
+      const list = await notificationService.getNotifications({ id, page: 1, limit: 1, sortBy: 'createdAt', sortOrder: 'desc' } as any);
+      const items = Array.isArray((list as any).notifications) ? (list as any).notifications : [];
+      if (!items.length) {
         return ApiResponse.notFound('Notificación no encontrada');
       }
       
-      const notification = notifications.data[0];
+      const notification = items[0];
       
       if (notification.status === 'SENT') {
         return ApiResponse.badRequest('La notificación ya ha sido enviada');
@@ -45,9 +45,7 @@ export async function POST(
       
       const result = await notificationService.sendNotification(id);
       
-      return ApiResponse.success(result, 
-        result.success ? 'Notificación enviada exitosamente' : 'Error enviando la notificación'
-      );
+      return ApiResponse.success(result);
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('no encontrada')) {

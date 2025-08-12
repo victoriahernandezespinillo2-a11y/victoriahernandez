@@ -7,7 +7,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { MembershipService, CreateMembershipSchema, GetMembershipsSchema } from '../../../lib/services/membership.service';
-import { withAuthMiddleware, withStaffMiddleware, withAdminMiddleware, ApiResponse, AuthenticatedContext } from '../../../lib/middleware';
+import { withAuthMiddleware, withStaffMiddleware, withAdminMiddleware, ApiResponse } from '../../../lib/middleware';
 
 const membershipService = new MembershipService();
 
@@ -16,13 +16,12 @@ const membershipService = new MembershipService();
  * Obtener lista de membresías con filtros y paginación
  * Los usuarios pueden ver solo sus membresías, STAFF/ADMIN pueden ver todas
  */
-export const GET = withAuthMiddleware(async (
-  req: NextRequest,
-  { user }: AuthenticatedContext
-) => {
+export async function GET(req: NextRequest) {
+  return withAuthMiddleware(async (request: NextRequest, context) => {
   try {
-    const { searchParams } = req.nextUrl;
-    const params = Object.fromEntries(searchParams.entries());
+    const { user } = (context as any) || {};
+    const { searchParams } = request.nextUrl;
+    const params = GetMembershipsSchema.parse(Object.fromEntries(searchParams.entries()));
     
     // Si es usuario normal, solo puede ver sus propias membresías
     if (user.role === 'USER') {
@@ -49,19 +48,19 @@ export const GET = withAuthMiddleware(async (
       500
     );
   }
-});
+  })(req);
+}
 
 /**
  * POST /api/memberships
  * Crear una nueva membresía
  * Los usuarios pueden crear sus propias membresías, ADMIN puede crear para cualquier usuario
  */
-export const POST = withAuthMiddleware(async (
-  req: NextRequest,
-  { user }: AuthenticatedContext
-) => {
+export async function POST(req: NextRequest) {
+  return withAuthMiddleware(async (request: NextRequest, context) => {
   try {
-    const body = await req.json();
+    const { user } = (context as any) || {};
+    const body = await request.json();
     
     // Si es usuario normal, solo puede crear membresías para sí mismo
     if (user.role === 'USER') {
@@ -105,7 +104,8 @@ export const POST = withAuthMiddleware(async (
       500
     );
   }
-});
+  })(req);
+}
 
 /**
  * OPTIONS /api/memberships

@@ -90,16 +90,14 @@ export default function AdminHomePage() {
   };
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin');
-    } else if (status === 'authenticated') {
+    if (status === 'authenticated') {
       console.log('Ejecutando getDashboardStats...');
       getDashboardStats().catch(err => {
         console.error('Error en getDashboardStats:', err);
       });
       fetchRecentActivity();
     }
-  }, [status, getDashboardStats, router]);
+  }, [status, getDashboardStats]);
 
   const handleSignOut = async () => {
     await signOut({ callbackUrl: '/auth/signin' });
@@ -113,9 +111,7 @@ export default function AdminHomePage() {
     );
   }
 
-  if (status === 'unauthenticated') {
-    return null; // El useEffect redirigirá
-  }
+  // No redirigimos en cliente. El middleware protege las rutas.
 
   // Datos del dashboard con crecimiento real
   const stats = [
@@ -242,22 +238,7 @@ export default function AdminHomePage() {
               <h1 className="text-3xl font-bold text-gray-900">Panel de Administración</h1>
               <p className="mt-2 text-gray-600">Polideportivo Oroquieta - Dashboard Ejecutivo</p>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">
-                  {session?.user?.name || session?.user?.email}
-                </p>
-                <p className="text-sm text-gray-500">
-                  {session?.user?.role || 'Administrador'}
-                </p>
-              </div>
-              <button
-                onClick={handleSignOut}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-              >
-                Cerrar Sesión
-              </button>
-            </div>
+            {/* Menú de usuario y cerrar sesión se gestiona en Header */}
           </div>
         </div>
 

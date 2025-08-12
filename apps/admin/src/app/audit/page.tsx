@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { adminApi } from '@/lib/api';
 import {
   DocumentTextIcon,
   MagnifyingGlassIcon,
@@ -13,101 +14,54 @@ import {
   InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 
-interface AuditLog {
+type AuditLog = {
   id: string;
   timestamp: string;
-  userId: string;
+  userId: string | null;
   userName: string;
   action: string;
-  resource: string;
-  resourceId: string;
+  resource: string | null;
+  resourceId: string | null;
   details: string;
-  ipAddress: string;
-  userAgent: string;
-  status: 'success' | 'warning' | 'error';
-}
+  ipAddress: string | null;
+  userAgent: string | null;
+  status: 'success' | 'warning' | 'error' | 'info';
+};
 
 export default function AuditPage() {
-  const [auditLogs] = useState<AuditLog[]>([
-    {
-      id: '1',
-      timestamp: '2024-01-15T14:30:00Z',
-      userId: 'admin-1',
-      userName: 'Carlos Administrador',
-      action: 'CREATE',
-      resource: 'USER',
-      resourceId: 'user-123',
-      details: 'Creó nuevo usuario: Juan Pérez',
-      ipAddress: '192.168.1.100',
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      status: 'success'
-    },
-    {
-      id: '2',
-      timestamp: '2024-01-15T14:25:00Z',
-      userId: 'staff-2',
-      userName: 'María Staff',
-      action: 'UPDATE',
-      resource: 'RESERVATION',
-      resourceId: 'res-456',
-      details: 'Modificó reserva de cancha de tenis',
-      ipAddress: '192.168.1.101',
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-      status: 'success'
-    },
-    {
-      id: '3',
-      timestamp: '2024-01-15T14:20:00Z',
-      userId: 'user-3',
-      userName: 'Ana Usuario',
-      action: 'LOGIN_FAILED',
-      resource: 'AUTH',
-      resourceId: 'auth-789',
-      details: 'Intento de login fallido - contraseña incorrecta',
-      ipAddress: '192.168.1.102',
-      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X)',
-      status: 'warning'
-    },
-    {
-      id: '4',
-      timestamp: '2024-01-15T14:15:00Z',
-      userId: 'admin-1',
-      userName: 'Carlos Administrador',
-      action: 'DELETE',
-      resource: 'COURT',
-      resourceId: 'court-321',
-      details: 'Eliminó cancha de baloncesto #3',
-      ipAddress: '192.168.1.100',
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      status: 'success'
-    },
-    {
-      id: '5',
-      timestamp: '2024-01-15T14:10:00Z',
-      userId: 'system',
-      userName: 'Sistema',
-      action: 'BACKUP_FAILED',
-      resource: 'DATABASE',
-      resourceId: 'db-backup-001',
-      details: 'Error en respaldo automático de base de datos',
-      ipAddress: '127.0.0.1',
-      userAgent: 'System/1.0',
-      status: 'error'
-    },
-    {
-      id: '6',
-      timestamp: '2024-01-15T14:05:00Z',
-      userId: 'staff-2',
-      userName: 'María Staff',
-      action: 'VIEW',
-      resource: 'REPORT',
-      resourceId: 'report-monthly',
-      details: 'Consultó reporte mensual de ingresos',
-      ipAddress: '192.168.1.101',
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-      status: 'success'
-    }
-  ]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch('/api/admin/audit?limit=200', { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        const list = Array.isArray(json?.data?.auditLogs) ? json.data.auditLogs : Array.isArray(json?.auditLogs) ? json.auditLogs : [];
+        const mapped: AuditLog[] = list.map((e: any) => ({
+          id: e.id,
+          timestamp: e.createdAt || e.timestamp,
+          userId: e.user?.id || null,
+          userName: e.user?.name || 'Sistema',
+          action: e.action || e.eventType || 'EVENT',
+          resource: e.entityType || null,
+          resourceId: e.entityId || null,
+          details: typeof e.details === 'string' ? e.details : JSON.stringify(e.details),
+          ipAddress: e.ipAddress || null,
+          userAgent: e.userAgent || null,
+          status: 'success',
+        }));
+        setAuditLogs(mapped);
+      } catch (e: any) {
+        setError(e?.message || 'Error cargando auditoría');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'warning' | 'error'>('all');
@@ -171,12 +125,12 @@ export default function AuditPage() {
 
   const uniqueActions = [...new Set(auditLogs.map(log => log.action))];
 
-  const stats = {
+  const stats = useMemo(() => ({
     total: auditLogs.length,
     success: auditLogs.filter(log => log.status === 'success').length,
     warning: auditLogs.filter(log => log.status === 'warning').length,
     error: auditLogs.filter(log => log.status === 'error').length
-  };
+  }), [auditLogs]);
 
   return (
     <div className="space-y-6">

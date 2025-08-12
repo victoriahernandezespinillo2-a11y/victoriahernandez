@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useAdminPayments } from '@/lib/hooks';
 import {
   MagnifyingGlassIcon as Search,
   FunnelIcon as Filter,
@@ -14,69 +15,16 @@ import {
   ClockIcon as Clock,
 } from '@heroicons/react/24/outline';
 
-interface Payment {
+type PaymentRow = {
   id: string;
   user: string;
   reservation: string;
   amount: number;
-  method: 'credit_card' | 'debit_card' | 'transfer' | 'cash';
-  status: 'completed' | 'pending' | 'failed' | 'refunded';
+  method: string;
+  status: string;
   date: string;
   transactionId: string;
-}
-
-const mockPayments: Payment[] = [
-  {
-    id: '1',
-    user: 'Juan Pérez',
-    reservation: 'RES-001',
-    amount: 25000,
-    method: 'credit_card',
-    status: 'completed',
-    date: '2024-01-15T10:30:00',
-    transactionId: 'TXN-123456'
-  },
-  {
-    id: '2',
-    user: 'María García',
-    reservation: 'RES-002',
-    amount: 30000,
-    method: 'transfer',
-    status: 'pending',
-    date: '2024-01-15T11:00:00',
-    transactionId: 'TXN-123457'
-  },
-  {
-    id: '3',
-    user: 'Carlos López',
-    reservation: 'RES-003',
-    amount: 20000,
-    method: 'debit_card',
-    status: 'failed',
-    date: '2024-01-15T12:15:00',
-    transactionId: 'TXN-123458'
-  },
-  {
-    id: '4',
-    user: 'Ana Martínez',
-    reservation: 'RES-004',
-    amount: 35000,
-    method: 'credit_card',
-    status: 'completed',
-    date: '2024-01-15T14:30:00',
-    transactionId: 'TXN-123459'
-  },
-  {
-    id: '5',
-    user: 'Luis Rodríguez',
-    reservation: 'RES-005',
-    amount: 15000,
-    method: 'cash',
-    status: 'refunded',
-    date: '2024-01-15T16:00:00',
-    transactionId: 'TXN-123460'
-  }
-];
+};
 
 const getStatusIcon = (status: Payment['status']) => {
   switch (status) {
@@ -124,13 +72,32 @@ const getMethodName = (method: Payment['method']) => {
 };
 
 export default function PaymentsPage() {
+  const { payments, loading, error, getPayments } = useAdminPayments();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [methodFilter, setMethodFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  const filteredPayments = mockPayments.filter(payment => {
+  useEffect(() => {
+    getPayments({ page: 1, limit: 100 }).catch(() => {});
+  }, [getPayments]);
+
+  const rows: PaymentRow[] = useMemo(() => {
+    const list = Array.isArray(payments) ? payments : [];
+    return list.map((p: any) => ({
+      id: p.id,
+      user: p.user?.name || p.userName || p.userId || '—',
+      reservation: p.reservationId || p.reservation?.id || '—',
+      amount: Number(p.totalPrice || p.amount || 0),
+      method: (p.paymentMethod || p.method || 'UNKNOWN').toLowerCase(),
+      status: (p.status || 'PENDING').toLowerCase(),
+      date: p.createdAt || p.paidAt || new Date().toISOString(),
+      transactionId: p.transactionId || p.externalId || p.id,
+    }));
+  }, [payments]);
+
+  const filteredPayments = rows.filter(payment => {
     const matchesSearch = payment.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          payment.reservation.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          payment.transactionId.toLowerCase().includes(searchTerm.toLowerCase());
@@ -140,16 +107,16 @@ export default function PaymentsPage() {
     return matchesSearch && matchesStatus && matchesMethod;
   });
 
-  const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredPayments.length / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedPayments = filteredPayments.slice(startIndex, startIndex + itemsPerPage);
 
-  const totalAmount = mockPayments.reduce((sum, payment) => 
-    payment.status === 'completed' ? sum + payment.amount : sum, 0
+  const totalAmount = rows.reduce((sum, payment) => 
+    payment.status === 'completed' ? sum + (payment.amount || 0) : sum, 0
   );
-  const completedPayments = mockPayments.filter(p => p.status === 'completed').length;
-  const pendingPayments = mockPayments.filter(p => p.status === 'pending').length;
-  const failedPayments = mockPayments.filter(p => p.status === 'failed').length;
+  const completedPayments = rows.filter(p => p.status === 'completed').length;
+  const pendingPayments = rows.filter(p => p.status === 'pending').length;
+  const failedPayments = rows.filter(p => p.status === 'failed').length;
 
   return (
     <div className="p-6">

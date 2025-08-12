@@ -56,13 +56,12 @@ const UpdateCenterSchema = z.object({
  * Obtener detalles completos de un centro específico
  * Acceso: ADMIN únicamente
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  return withAdminMiddleware(async (req, { params: middlewareParams }) => {
+export async function GET(request: NextRequest) {
+  return withAdminMiddleware(async (req) => {
     try {
-      const centerId = params.id;
+      // Extraer id desde la URL
+      const pathname = req.nextUrl.pathname;
+      const centerId = pathname.split('/').pop() as string;
       
       const center = await db.center.findUnique({
         where: { id: centerId },
@@ -71,41 +70,18 @@ export async function GET(
             select: {
               id: true,
               name: true,
-              sport: true,
-              status: true,
+              sportType: true,
+              isActive: true,
               capacity: true,
-              hourlyRate: true,
               _count: {
                 select: {
-                  reservations: {
-                    where: {
-                      status: 'CONFIRMED',
-                      startTime: {
-                        gte: new Date()
-                      }
-                    }
-                  }
+                  reservations: true
                 }
               }
             },
             orderBy: {
               name: 'asc'
             }
-          },
-          users: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              role: true,
-              status: true,
-              createdAt: true
-            },
-            orderBy: {
-              createdAt: 'desc'
-            },
-            take: 10
           },
           _count: {
             select: {
@@ -122,7 +98,7 @@ export async function GET(
       // Estadísticas simplificadas - modelos de payment no disponibles
       const revenueStats = { _sum: { amount: 0 }, _count: { id: 0 } };
       const occupancyStats = { _count: { id: 0 } };
-      const recentActivity = [];
+      const recentActivity: any[] = [];
       
       // Estadísticas simplificadas
       const centerDetails = {
@@ -143,7 +119,7 @@ export async function GET(
       console.error('Error obteniendo detalles del centro:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request);
+  })(request, {} as any);
 }
 
 /**
@@ -151,13 +127,11 @@ export async function GET(
  * Actualizar un centro específico
  * Acceso: ADMIN únicamente
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  return withAdminMiddleware(async (req, { params: middlewareParams }) => {
+export async function PUT(request: NextRequest) {
+  return withAdminMiddleware(async (req) => {
     try {
-      const centerId = params.id;
+      const pathname = req.nextUrl.pathname;
+      const centerId = pathname.split('/').pop() as string;
       const body = await req.json();
       const centerData = UpdateCenterSchema.parse(body);
       
@@ -196,15 +170,16 @@ export async function PUT(
 
       // Merge settings previos con nuevos metadatos
       const current = await db.center.findUnique({ where: { id: centerId }, select: { settings: true } });
-      const mergedSettings = {
-        ...(current?.settings || {}),
+      const currentSettings = (current?.settings as any) || {};
+      const mergedSettings: Record<string, any> = {
+        ...currentSettings,
         ...(centerData.description ? { description: centerData.description } : {}),
         ...(centerData.website ? { website: centerData.website } : {}),
         ...(centerData.operatingHours ? { operatingHours: centerData.operatingHours } : {}),
         ...(centerData.amenities ? { amenities: centerData.amenities } : {}),
         ...(centerData.policies ? { policies: centerData.policies } : {}),
         ...(centerData.location ? { location: centerData.location } : {}),
-        ...(centerData.settings ? centerData.settings : {}),
+        ...(centerData.settings ? (centerData.settings as any) : {}),
       };
       updateData.settings = mergedSettings;
 
@@ -236,7 +211,7 @@ export async function PUT(
       console.error('Error actualizando centro:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request);
+  })(request, {} as any);
 }
 
 /**
@@ -244,13 +219,11 @@ export async function PUT(
  * Eliminar un centro específico
  * Acceso: ADMIN únicamente
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  return withAdminMiddleware(async (req, { params: middlewareParams }) => {
+export async function DELETE(request: NextRequest) {
+  return withAdminMiddleware(async (req) => {
     try {
-      const centerId = params.id;
+      const pathname = req.nextUrl.pathname;
+      const centerId = pathname.split('/').pop() as string;
       
       // Verificar que el centro existe
       const existingCenter = await db.center.findUnique({
@@ -260,7 +233,7 @@ export async function DELETE(
             include: {
               reservations: {
                 where: {
-                  status: 'CONFIRMED',
+                  status: { in: ['PAID', 'IN_PROGRESS'] },
                   startTime: {
                     gte: new Date()
                   }
@@ -295,32 +268,14 @@ export async function DELETE(
         where: { id: centerId }
       });
       
-      // Registrar en log de auditoría
-      await db.auditLog.create({
-        data: {
-          action: 'DELETE_CENTER',
-          entityType: 'CENTER',
-          entityId: centerId,
-          userId: adminUser.id,
-          details: {
-            deletedCenter: {
-              name: existingCenter.name,
-              address: existingCenter.address,
-              totalCourts: existingCenter.courts.length
-            }
-          }
-        }
-      });
+      // Log de auditoría omitido (modelo no disponible en el esquema actual)
       
-      return ApiResponse.success(
-        { id: centerId, name: existingCenter.name },
-        'Centro eliminado exitosamente'
-      );
+      return ApiResponse.success({ id: centerId, name: existingCenter.name });
     } catch (error) {
       console.error('Error eliminando centro:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request);
+  })(request, {} as any);
 }
 
 /**

@@ -24,19 +24,19 @@ const GetUserReservationsSchema = z.object({
  * Obtener reservas del usuario con filtros y paginación
  * Los usuarios pueden ver sus propias reservas, STAFF/ADMIN pueden ver cualquier usuario
  */
-export const GET = withAuthMiddleware(async (
-  req: NextRequest,
-  { params, user }: AuthenticatedContext & { params: { id: string } }
-) => {
+export async function GET(req: NextRequest) {
+  return withAuthMiddleware(async (request: NextRequest, context: AuthenticatedContext) => {
   try {
-    const userId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const userId = pathname.split('/').pop() as string;
+    const { user } = context as any;
     
     // Verificar permisos: usuarios solo pueden ver sus propias reservas
     if (user.role === 'USER' && user.id !== userId) {
       return ApiResponse.forbidden('Solo puedes ver tus propias reservas');
     }
     
-    const { searchParams } = req.nextUrl;
+    const { searchParams } = request.nextUrl;
     const queryParams = Object.fromEntries(searchParams.entries());
     
     // Validar parámetros de consulta
@@ -66,7 +66,8 @@ export const GET = withAuthMiddleware(async (
       500
     );
   }
-});
+  })(req);
+}
 
 /**
  * OPTIONS /api/users/[id]/reservations

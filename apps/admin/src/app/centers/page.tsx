@@ -67,6 +67,17 @@ export default function CentersPage() {
     },
     exceptions: [] as Array<{ date: string; closed?: boolean; start?: string; end?: string }>,
   });
+  const [receiptForm, setReceiptForm] = useState<{ 
+    legalName?: string;
+    taxId?: string;
+    fiscalAddress?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+    footerNotes?: string;
+    showStripeReferences?: boolean;
+  }>({});
+  const [creditsForm, setCreditsForm] = useState<{ euroPerCredit?: string }>({});
+  const [taxesForm, setTaxesForm] = useState<{ rate?: string; included?: boolean }>({});
   const [form, setForm] = useState({
     name: '',
     address: '',
@@ -312,6 +323,20 @@ export default function CentersPage() {
                           },
                           exceptions,
                         });
+                        const rc = settings?.receipt || {};
+                        setReceiptForm({
+                          legalName: rc.legalName || settings.legalName || '',
+                          taxId: rc.taxId || settings.taxId || '',
+                          fiscalAddress: rc.fiscalAddress || settings.fiscalAddress || '',
+                          contactEmail: rc.contactEmail || settings.contactEmail || center.email || '',
+                          contactPhone: rc.contactPhone || settings.contactPhone || center.phone || '',
+                          footerNotes: rc.footerNotes || '',
+                          showStripeReferences: !!rc.showStripeReferences,
+                        });
+                        const cr = settings?.credits || {};
+                        setCreditsForm({ euroPerCredit: cr?.euroPerCredit != null ? String(cr.euroPerCredit) : '' });
+                        const tx = settings?.taxes || {};
+                        setTaxesForm({ rate: tx?.rate != null ? String(tx.rate) : '', included: !!tx.included });
                         setShowEdit(true);
                       } catch (e) {
                         alert('No se pudieron cargar los detalles del centro');
@@ -468,7 +493,7 @@ export default function CentersPage() {
               <h3 className="text-lg font-semibold">Configurar Horarios y Slots</h3>
               <button onClick={() => setShowEdit(false)} className="text-gray-500 hover:text-gray-700">✕</button>
             </div>
-            <div className="p-4 space-y-6 max-h-[70vh] overflow-y-auto">
+              <div className="p-4 space-y-6 max-h-[70vh] overflow-y-auto">
               {/* Slot size */}
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Tamaño de slot (minutos)</label>
@@ -481,6 +506,121 @@ export default function CentersPage() {
                   className="w-32 border rounded px-3 py-2"
                 />
               </div>
+                {/* Datos fiscales y recibos */}
+                <div className="border rounded p-4 space-y-3">
+                  <h4 className="text-md font-semibold">Datos fiscales y recibos</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm text-gray-700 mb-1">Nombre fiscal (legalName)</label>
+                      <input
+                        value={receiptForm.legalName || ''}
+                        onChange={(e) => setReceiptForm({ ...receiptForm, legalName: e.target.value })}
+                        className="w-full border rounded px-3 py-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-700 mb-1">CIF/NIF (taxId)</label>
+                      <input
+                        value={receiptForm.taxId || ''}
+                        onChange={(e) => setReceiptForm({ ...receiptForm, taxId: e.target.value })}
+                        className="w-full border rounded px-3 py-2"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm text-gray-700 mb-1">Dirección fiscal (fiscalAddress)</label>
+                      <textarea
+                        value={receiptForm.fiscalAddress || ''}
+                        onChange={(e) => setReceiptForm({ ...receiptForm, fiscalAddress: e.target.value })}
+                        className="w-full border rounded px-3 py-2"
+                        rows={2}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-700 mb-1">Email de contacto</label>
+                      <input
+                        type="email"
+                        value={receiptForm.contactEmail || ''}
+                        onChange={(e) => setReceiptForm({ ...receiptForm, contactEmail: e.target.value })}
+                        className="w-full border rounded px-3 py-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-700 mb-1">Teléfono de contacto</label>
+                      <input
+                        value={receiptForm.contactPhone || ''}
+                        onChange={(e) => setReceiptForm({ ...receiptForm, contactPhone: e.target.value })}
+                        className="w-full border rounded px-3 py-2"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm text-gray-700 mb-1">Notas de pie de página (footerNotes)</label>
+                      <textarea
+                        value={receiptForm.footerNotes || ''}
+                        onChange={(e) => setReceiptForm({ ...receiptForm, footerNotes: e.target.value })}
+                        className="w-full border rounded px-3 py-2"
+                        rows={2}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="inline-flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={!!receiptForm.showStripeReferences}
+                          onChange={(e) => setReceiptForm({ ...receiptForm, showStripeReferences: e.target.checked })}
+                        />
+                        Mostrar referencias de Stripe (PaymentIntent/Refund) en recibo
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                {/* Créditos */}
+                <div className="border rounded p-4 space-y-3">
+                  <h4 className="text-md font-semibold">Créditos</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm text-gray-700 mb-1">Euros por crédito (euroPerCredit)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={creditsForm.euroPerCredit || ''}
+                        onChange={(e) => setCreditsForm({ euroPerCredit: e.target.value })}
+                        className="w-full border rounded px-3 py-2"
+                        placeholder="Ej: 1.00"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Se usarán créditos en reservas con método "Créditos". Debe ser mayor que 0.</p>
+                    </div>
+                  </div>
+                </div>
+                {/* Impuestos (IVA/IGIC) */}
+                <div className="border rounded p-4 space-y-3">
+                  <h4 className="text-md font-semibold">Impuestos</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm text-gray-700 mb-1">Tasa (%)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={taxesForm.rate || ''}
+                        onChange={(e) => setTaxesForm({ ...taxesForm, rate: e.target.value })}
+                        className="w-full border rounded px-3 py-2"
+                        placeholder="Ej: 21.00"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <label className="inline-flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={!!taxesForm.included}
+                          onChange={(e) => setTaxesForm({ ...taxesForm, included: e.target.checked })}
+                        />
+                        Impuestos incluidos en el precio
+                      </label>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">Si marcas “incluidos”, el precio calculado ya incorpora impuestos; el recibo mostrará el componente impositivo.</p>
+                </div>
               {/* Operating hours per day */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
@@ -640,6 +780,24 @@ export default function CentersPage() {
                             ? { date: ex.date, closed: true }
                             : { date: ex.date, ranges: [{ start: ex.start, end: ex.end }] }
                         ),
+                        receipt: {
+                          legalName: (receiptForm.legalName || '').trim() || undefined,
+                          taxId: (receiptForm.taxId || '').trim() || undefined,
+                          fiscalAddress: (receiptForm.fiscalAddress || '').trim() || undefined,
+                          contactEmail: (receiptForm.contactEmail || '').trim() || undefined,
+                          contactPhone: (receiptForm.contactPhone || '').trim() || undefined,
+                          footerNotes: (receiptForm.footerNotes || '').trim() || undefined,
+                          showStripeReferences: !!receiptForm.showStripeReferences,
+                        },
+                        credits: {
+                          euroPerCredit: creditsForm.euroPerCredit && Number(creditsForm.euroPerCredit) > 0
+                            ? Number(creditsForm.euroPerCredit)
+                            : undefined,
+                        },
+                        taxes: {
+                          rate: taxesForm.rate && Number(taxesForm.rate) >= 0 ? Number(taxesForm.rate) : undefined,
+                          included: !!taxesForm.included,
+                        },
                       },
                     };
                     await updateCenter(editingCenterId, payload as any);

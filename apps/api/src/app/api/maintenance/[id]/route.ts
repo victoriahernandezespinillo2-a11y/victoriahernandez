@@ -18,12 +18,13 @@ const maintenanceService = new MaintenanceService();
  * Acceso: STAFF o superior
  */
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
-  return withStaffMiddleware(async (req, { user }) => {
+  return withStaffMiddleware(async (req, context) => {
     try {
-      const { id } = params;
+      const user = (context as any)?.user;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').pop() as string;
       
       if (!id) {
         return ApiResponse.badRequest('ID de mantenimiento requerido');
@@ -49,12 +50,13 @@ export async function GET(
  * Acceso: ADMIN
  */
 export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
-  return withAdminMiddleware(async (req, { user }) => {
+  return withAdminMiddleware(async (req, context) => {
     try {
-      const { id } = params;
+      const user = (context as any)?.user;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').pop() as string;
       
       if (!id) {
         return ApiResponse.badRequest('ID de mantenimiento requerido');
@@ -64,7 +66,7 @@ export async function PUT(
       
       const maintenance = await maintenanceService.updateMaintenance(id, body);
       
-      return ApiResponse.success(maintenance, 'Mantenimiento actualizado exitosamente');
+      return ApiResponse.success(maintenance);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.badRequest('Datos de mantenimiento inválidos');
@@ -94,12 +96,13 @@ export async function PUT(
  * Acceso: ADMIN
  */
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
-  return withAdminMiddleware(async (req, { user }) => {
+  return withAdminMiddleware(async (req, context) => {
     try {
-      const { id } = params;
+      const user = (context as any)?.user;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').pop() as string;
       
       if (!id) {
         return ApiResponse.badRequest('ID de mantenimiento requerido');
@@ -110,7 +113,7 @@ export async function DELETE(
       
       const maintenance = await maintenanceService.cancelMaintenance(id, reason);
       
-      return ApiResponse.success(maintenance, 'Mantenimiento cancelado exitosamente');
+      return ApiResponse.success(maintenance);
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('no encontrado')) {

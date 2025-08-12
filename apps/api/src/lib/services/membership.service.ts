@@ -42,14 +42,19 @@ export const UpdateMembershipSchema = z.object({
   }).optional(),
 });
 
+import { MembershipType } from '@prisma/client';
+
 export const GetMembershipsSchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
   userId: z.string().uuid().optional(),
+  // centerId no existe en el modelo Membership; se ignora si llega
   centerId: z.string().uuid().optional(),
-  type: z.enum(['BASIC', 'PREMIUM', 'VIP']).optional(),
-  status: z.enum(['ACTIVE', 'EXPIRED', 'SUSPENDED', 'CANCELLED']).optional(),
-  sortBy: z.enum(['createdAt', 'startDate', 'endDate', 'type']).default('createdAt'),
+  type: z.nativeEnum(MembershipType).optional(),
+  // Mapearemos estos estados a los campos reales (status string + validUntil)
+  status: z.enum(['ACTIVE', 'EXPIRED', 'CANCELLED']).optional(),
+  // createdAt | validFrom | validUntil | type
+  sortBy: z.enum(['createdAt', 'validFrom', 'validUntil', 'type']).default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });
 
@@ -243,9 +248,7 @@ export class MembershipService {
       where.userId = userId;
     }
 
-    if (centerId) {
-      where.centerId = centerId;
-    }
+    // centerId no existe en Membership. Si llega, se ignora para evitar 500.
 
     if (type) {
       where.type = type;
@@ -254,18 +257,15 @@ export class MembershipService {
     if (status) {
       switch (status) {
         case 'ACTIVE':
-          where.active = true;
-          where.endDate = { gte: now };
+          // status guardado como 'active' y vigencia futura
+          where.status = 'active';
+          where.validUntil = { gte: now };
           break;
         case 'EXPIRED':
-          where.endDate = { lt: now };
-          break;
-        case 'SUSPENDED':
-          where.active = false;
-          where.endDate = { gte: now };
+          where.validUntil = { lt: now };
           break;
         case 'CANCELLED':
-          where.active = false;
+          where.status = 'cancelled';
           break;
       }
     }
@@ -276,7 +276,7 @@ export class MembershipService {
         where,
         skip,
         take: limit,
-        orderBy: { [sortBy]: sortOrder },
+        orderBy: { [sortBy]: sortOrder } as any,
         include: {
           user: {
             select: {
@@ -286,34 +286,25 @@ export class MembershipService {
               lastName: true,
             },
           },
-          center: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
         },
       }),
       db.membership.count({ where }),
     ]);
 
     // Calcular estado actual de cada membresía
-    const membershipsWithStatus = memberships.map(membership => {
-      let currentStatus: 'ACTIVE' | 'EXPIRED' | 'SUSPENDED' | 'CANCELLED';
-      
-      if (!membership.active) {
-        currentStatus = membership.endDate < now ? 'EXPIRED' : 'CANCELLED';
-      } else if (membership.endDate < now) {
-        currentStatus = 'EXPIRED';
-      } else {
-        currentStatus = 'ACTIVE';
-      }
+    const membershipsWithStatus = memberships.map((membership: any) => {
+      const validUntil: Date = membership.validUntil;
+      const statusStr: string = membership.status || 'active';
+      let currentStatus: 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+      if (statusStr === 'cancelled') currentStatus = 'CANCELLED';
+      else if (validUntil < now) currentStatus = 'EXPIRED';
+      else currentStatus = 'ACTIVE';
 
       return {
         ...membership,
         currentStatus,
-        daysRemaining: membership.endDate > now 
-          ? Math.ceil((membership.endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        daysRemaining: validUntil > now
+          ? Math.ceil((validUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
           : 0,
       };
     });

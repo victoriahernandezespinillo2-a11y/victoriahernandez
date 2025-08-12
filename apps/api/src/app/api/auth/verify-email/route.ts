@@ -34,10 +34,7 @@ export async function POST(request: NextRequest) {
       
       await authService.verifyEmail(token);
       
-      return ApiResponse.success(
-        null, 
-        'Email verificado exitosamente. Tu cuenta está ahora completamente activada'
-      );
+      return ApiResponse.success({ ok: true });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(
@@ -73,10 +70,7 @@ export async function PUT(request: NextRequest) {
       
       await authService.resendVerificationEmail(email);
       
-      return ApiResponse.success(
-        null, 
-        'Email de verificación enviado. Revisa tu bandeja de entrada'
-      );
+      return ApiResponse.success({ ok: true });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(

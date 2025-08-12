@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { adminApi } from '@/lib/api';
 import {
   MagnifyingGlassIcon as Search,
   FunnelIcon as Filter,
@@ -17,76 +18,21 @@ import {
   ShieldCheckIcon as Shield,
 } from '@heroicons/react/24/outline';
 
-interface Membership {
+type UiMembership = {
   id: string;
   name: string;
   type: 'basic' | 'premium' | 'vip';
   price: number;
-  duration: number; // en meses
+  duration: number;
   benefits: string[];
   maxReservations: number;
   discountPercentage: number;
   status: 'active' | 'inactive';
   subscribersCount: number;
   createdAt: string;
-}
+};
 
-const mockMemberships: Membership[] = [
-  {
-    id: '1',
-    name: 'Membresía Básica',
-    type: 'basic',
-    price: 50000,
-    duration: 1,
-    benefits: ['Acceso a canchas básicas', 'Reservas con 24h de anticipación', 'Soporte por email'],
-    maxReservations: 4,
-    discountPercentage: 0,
-    status: 'active',
-    subscribersCount: 150,
-    createdAt: '2024-01-01T00:00:00'
-  },
-  {
-    id: '2',
-    name: 'Membresía Premium',
-    type: 'premium',
-    price: 120000,
-    duration: 3,
-    benefits: ['Acceso a todas las canchas', 'Reservas con 48h de anticipación', '10% descuento en reservas', 'Soporte prioritario', 'Acceso a torneos'],
-    maxReservations: 12,
-    discountPercentage: 10,
-    status: 'active',
-    subscribersCount: 89,
-    createdAt: '2024-01-01T00:00:00'
-  },
-  {
-    id: '3',
-    name: 'Membresía VIP',
-    type: 'vip',
-    price: 300000,
-    duration: 6,
-    benefits: ['Acceso ilimitado a todas las canchas', 'Reservas sin restricciones', '20% descuento en reservas', 'Soporte 24/7', 'Acceso VIP a eventos', 'Entrenador personal incluido'],
-    maxReservations: -1, // ilimitado
-    discountPercentage: 20,
-    status: 'active',
-    subscribersCount: 25,
-    createdAt: '2024-01-01T00:00:00'
-  },
-  {
-    id: '4',
-    name: 'Membresía Estudiante',
-    type: 'basic',
-    price: 30000,
-    duration: 1,
-    benefits: ['Acceso a canchas básicas', 'Horarios específicos', 'Descuento estudiantil'],
-    maxReservations: 2,
-    discountPercentage: 5,
-    status: 'inactive',
-    subscribersCount: 45,
-    createdAt: '2024-01-01T00:00:00'
-  }
-];
-
-const getTypeIcon = (type: Membership['type']) => {
+const getTypeIcon = (type: UiMembership['type']) => {
   switch (type) {
     case 'basic':
       return <Shield className="w-5 h-5 text-blue-500" />;
@@ -99,7 +45,7 @@ const getTypeIcon = (type: Membership['type']) => {
   }
 };
 
-const getTypeColor = (type: Membership['type']) => {
+const getTypeColor = (type: UiMembership['type']) => {
   switch (type) {
     case 'basic':
       return 'bg-blue-100 text-blue-800';
@@ -112,7 +58,7 @@ const getTypeColor = (type: Membership['type']) => {
   }
 };
 
-const getStatusColor = (status: Membership['status']) => {
+const getStatusColor = (status: UiMembership['status']) => {
   return status === 'active' 
     ? 'bg-green-100 text-green-800' 
     : 'bg-red-100 text-red-800';
@@ -133,8 +79,41 @@ export default function MembershipsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [memberships, setMemberships] = useState<UiMembership[]>([]);
 
-  const filteredMemberships = mockMemberships.filter(membership => {
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await adminApi.memberships?.getAll?.({ page: 1, limit: 200 });
+        const list = Array.isArray(res?.memberships)
+          ? res.memberships
+          : Array.isArray(res?.data?.memberships)
+            ? res.data.memberships
+            : Array.isArray(res)
+              ? res
+              : [];
+        const mapped: UiMembership[] = list.map((m: any) => ({
+          id: m.id,
+          name: m.name || m.type || 'Membresía',
+          type: (m.type || 'basic').toLowerCase(),
+          price: Number(m.price || m.monthlyPrice || 0),
+          duration: Number(m.durationMonths || m.duration || 1),
+          benefits: Array.isArray(m.benefits) ? m.benefits : [],
+          maxReservations: Number(m.maxReservations ?? -1),
+          discountPercentage: Number(m.discountPercentage ?? 0),
+          status: (m.isActive ? 'active' : 'inactive') as 'active' | 'inactive',
+          subscribersCount: Number(m.subscribersCount ?? 0),
+          createdAt: m.createdAt || new Date().toISOString(),
+        }));
+        setMemberships(mapped);
+      } catch {
+        setMemberships([]);
+      }
+    };
+    load();
+  }, []);
+
+  const filteredMemberships = memberships.filter(membership => {
     const matchesSearch = membership.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = typeFilter === 'all' || membership.type === typeFilter;
     const matchesStatus = statusFilter === 'all' || membership.status === statusFilter;
@@ -142,16 +121,16 @@ export default function MembershipsPage() {
     return matchesSearch && matchesType && matchesStatus;
   });
 
-  const totalPages = Math.ceil(filteredMemberships.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredMemberships.length / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedMemberships = filteredMemberships.slice(startIndex, startIndex + itemsPerPage);
 
-  const totalSubscribers = mockMemberships.reduce((sum, membership) => sum + membership.subscribersCount, 0);
-  const totalRevenue = mockMemberships.reduce((sum, membership) => 
+  const totalSubscribers = memberships.reduce((sum, membership) => sum + membership.subscribersCount, 0);
+  const totalRevenue = memberships.reduce((sum, membership) => 
     membership.status === 'active' ? sum + (membership.price * membership.subscribersCount) : sum, 0
   );
-  const activeMemberships = mockMemberships.filter(m => m.status === 'active').length;
-  const averagePrice = mockMemberships.reduce((sum, membership) => sum + membership.price, 0) / mockMemberships.length;
+  const activeMemberships = memberships.filter(m => m.status === 'active').length;
+  const averagePrice = memberships.length > 0 ? (memberships.reduce((sum, m) => sum + m.price, 0) / memberships.length) : 0;
 
   return (
     <div className="p-6">

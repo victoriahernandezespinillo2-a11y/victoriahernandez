@@ -16,9 +16,10 @@ const userService = new UserService();
  * Obtener lista de usuarios con filtros y paginación
  * Requiere rol STAFF o superior
  */
-export const GET = withStaffMiddleware(async (req: NextRequest) => {
+export async function GET(req: NextRequest) {
+  return withStaffMiddleware(async (request: NextRequest) => {
   try {
-    const { searchParams } = req.nextUrl;
+    const { searchParams } = request.nextUrl;
     const params = Object.fromEntries(searchParams.entries());
     
     const result = await userService.getUsers(params);
@@ -41,16 +42,18 @@ export const GET = withStaffMiddleware(async (req: NextRequest) => {
       500
     );
   }
-});
+  })(req);
+}
 
 /**
  * POST /api/users
  * Crear un nuevo usuario
  * Requiere rol ADMIN
  */
-export const POST = withAdminMiddleware(async (req: NextRequest) => {
+export async function POST(req: NextRequest) {
+  return withAdminMiddleware(async (request: NextRequest) => {
   try {
-    const body = await req.json();
+    const body = await request.json();
     
     const user = await userService.createUser(body);
     
@@ -78,7 +81,8 @@ export const POST = withAdminMiddleware(async (req: NextRequest) => {
       500
     );
   }
-});
+  })(req);
+}
 
 /**
  * OPTIONS /api/users

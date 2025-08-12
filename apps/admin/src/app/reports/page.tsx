@@ -154,23 +154,23 @@ export default function ReportsPage() {
 
       // Cargar datos de ingresos
       const revenueResult = await getGeneralReport({ ...params, type: 'revenue' });
-      if (revenueResult) setRevenueData(revenueResult.data);
+      if (revenueResult) setRevenueData(revenueResult);
 
       // Cargar datos de uso
       const usageResult = await getGeneralReport({ ...params, type: 'usage' });
-      if (usageResult) setUsageData(usageResult.data);
+      if (usageResult) setUsageData(usageResult);
 
       // Cargar datos de usuarios
       const usersResult = await getGeneralReport({ ...params, type: 'users' });
-      if (usersResult) setUsersData(usersResult.data);
+      if (usersResult) setUsersData(usersResult);
 
       // Calcular métricas combinadas
       if (revenueResult && usageResult && usersResult) {
         setMetrics({
-          totalRevenue: revenueResult.data?.summary?.totalRevenue || 0,
-          totalReservations: usageResult.data?.summary?.totalReservations || 0,
-          totalUsers: usersResult.data?.summary?.totalUsers || 0,
-          occupancyRate: calculateOccupancyRate(usageResult.data)
+          totalRevenue: (revenueResult as any)?.summary?.totalRevenue || 0,
+          totalReservations: (usageResult as any)?.summary?.totalReservations || 0,
+          totalUsers: (usersResult as any)?.summary?.totalUsers || 0,
+          occupancyRate: calculateOccupancyRate(usageResult as any)
         });
       }
     } catch (error) {
@@ -441,8 +441,8 @@ export default function ReportsPage() {
             <BarChart3 className="w-5 h-5 text-gray-400" />
           </div>
           <div className="space-y-3">
-            {revenueData?.byPeriod ? revenueData.byPeriod.map((item, index) => {
-              const maxRevenue = Math.max(...revenueData.byPeriod.map(r => r._sum.amount || 0));
+            {Array.isArray(revenueData?.byPeriod) && revenueData.byPeriod.length > 0 ? revenueData.byPeriod.map((item, index) => {
+              const maxRevenue = Math.max(...(revenueData?.byPeriod || []).map(r => r?._sum?.amount || 0));
               const percentage = maxRevenue > 0 ? ((item._sum.amount || 0) / maxRevenue) * 100 : 0;
               const date = new Date(item.createdAt);
               const monthName = date.toLocaleDateString('es-ES', { month: 'short' });
@@ -475,9 +475,9 @@ export default function ReportsPage() {
             <PieChart className="w-5 h-5 text-gray-400" />
           </div>
           <div className="space-y-3">
-            {usageData?.byStatus ? usageData.byStatus.map((item, index) => {
-              const maxCount = Math.max(...usageData.byStatus.map(r => r._count.id));
-              const percentage = maxCount > 0 ? (item._count.id / maxCount) * 100 : 0;
+            {Array.isArray(usageData?.byStatus) && usageData.byStatus.length > 0 ? usageData.byStatus.map((item, index) => {
+              const maxCount = Math.max(...(usageData?.byStatus || []).map(r => r?._count?.id || 0));
+              const percentage = maxCount > 0 ? ((item?._count?.id || 0) / maxCount) * 100 : 0;
               return (
                 <div key={index} className="flex items-center gap-3">
                   <span className="text-sm font-medium text-gray-600 w-16">{item.status}</span>
@@ -488,7 +488,7 @@ export default function ReportsPage() {
                     ></div>
                   </div>
                   <span className="text-sm font-medium text-gray-900 w-12 text-right">
-                    {item._count.id}
+                    {item?._count?.id ?? 0}
                   </span>
                 </div>
               );
@@ -505,9 +505,9 @@ export default function ReportsPage() {
       <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Canchas Más Populares</h3>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {usageData?.bySport ? usageData.bySport.slice(0, 5).map((court, index) => (
+          {Array.isArray(usageData?.bySport) && usageData.bySport.length > 0 ? usageData.bySport.slice(0, 5).map((court, index) => (
             <div key={index} className="text-center p-4 bg-gray-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600 mb-1">{court._count.id}</div>
+              <div className="text-2xl font-bold text-blue-600 mb-1">{court?._count?.id ?? 0}</div>
               <div className="text-sm text-gray-600">{court.court}</div>
               <div className="text-xs text-gray-500 mt-1">reservas</div>
             </div>

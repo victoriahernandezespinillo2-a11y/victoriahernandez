@@ -40,11 +40,9 @@ export async function POST(request: NextRequest) {
     logs.push('Paso 3: Importando base de datos...');
     
     let db: any;
-    let UserRole: any;
     try {
       const dbModule = await import('@repo/db');
       db = dbModule.db;
-      UserRole = dbModule.UserRole;
       logs.push('✅ Base de datos importada correctamente');
     } catch (error) {
       logs.push(`❌ Error importando base de datos: ${error}`);
@@ -110,7 +108,7 @@ export async function POST(request: NextRequest) {
           email: `test-${Date.now()}@example.com`,
           name: 'Usuario de Prueba',
           password: 'test123',
-          role: UserRole.user,
+          role: 'USER',
           isActive: true,
           creditsBalance: 0,
         },

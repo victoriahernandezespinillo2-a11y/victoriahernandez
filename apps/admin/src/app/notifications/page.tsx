@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BellIcon,
   CheckCircleIcon,
@@ -11,75 +11,17 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline';
 
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  read: boolean;
-  createdAt: string;
-  actionUrl?: string;
-}
+import { useAdminNotifications } from '@/lib/hooks';
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      title: 'Nueva reserva confirmada',
-      message: 'Juan Pérez ha confirmado su reserva para la cancha de fútbol #1 el 20 de enero a las 15:00',
-      type: 'success',
-      read: false,
-      createdAt: '2024-01-15T10:30:00Z',
-      actionUrl: '/reservations/1'
-    },
-    {
-      id: '2',
-      title: 'Mantenimiento programado',
-      message: 'La cancha de tenis #2 estará en mantenimiento mañana de 8:00 a 12:00',
-      type: 'warning',
-      read: false,
-      createdAt: '2024-01-15T09:15:00Z',
-      actionUrl: '/maintenance'
-    },
-    {
-      id: '3',
-      title: 'Pago recibido',
-      message: 'Se ha recibido el pago de la membresía mensual de María García por $50.00',
-      type: 'success',
-      read: true,
-      createdAt: '2024-01-15T08:45:00Z',
-      actionUrl: '/payments/3'
-    },
-    {
-      id: '4',
-      title: 'Error en el sistema',
-      message: 'Se detectó un error en el sistema de reservas. Se recomienda revisar las configuraciones.',
-      type: 'error',
-      read: false,
-      createdAt: '2024-01-15T07:20:00Z',
-      actionUrl: '/settings'
-    },
-    {
-      id: '5',
-      title: 'Nuevo usuario registrado',
-      message: 'Carlos Mendoza se ha registrado en el sistema y requiere aprobación',
-      type: 'info',
-      read: true,
-      createdAt: '2024-01-14T16:30:00Z',
-      actionUrl: '/users/5'
-    },
-    {
-      id: '6',
-      title: 'Cancelación de reserva',
-      message: 'Ana López ha cancelado su reserva para la piscina olímpica',
-      type: 'warning',
-      read: true,
-      createdAt: '2024-01-14T14:15:00Z',
-      actionUrl: '/reservations/6'
-    }
-  ]);
-
+  const { notifications, getNotifications, markAsRead, markAllAsRead } = useAdminNotifications();
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
+
+  useEffect(() => {
+    getNotifications({ limit: 100 }).catch(() => {});
+  }, [getNotifications]);
+
+  const typedNotifications = useMemo(() => (notifications || []) as any[], [notifications]);
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -101,27 +43,16 @@ export default function NotificationsPage() {
     }
   };
 
-  const markAsRead = (id: string) => {
-    setNotifications(notifications.map(notif => 
-      notif.id === id ? { ...notif, read: true } : notif
-    ));
-  };
+  const unreadCount = typedNotifications.filter(n => !n.readAt).length;
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(notif => ({ ...notif, read: true })));
-  };
+  // Eliminar está deshabilitado hasta exponer endpoint y hook correspondiente
+  const deleteNotification = (_id: string) => {};
 
-  const deleteNotification = (id: string) => {
-    setNotifications(notifications.filter(notif => notif.id !== id));
-  };
-
-  const filteredNotifications = notifications.filter(notif => {
-    if (filter === 'unread') return !notif.read;
-    if (filter === 'read') return notif.read;
+  const filteredNotifications = typedNotifications.filter(notif => {
+    if (filter === 'unread') return !notif.readAt;
+    if (filter === 'read') return !!notif.readAt;
     return true;
   });
-
-  const unreadCount = notifications.filter(notif => !notif.read).length;
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -249,7 +180,7 @@ export default function NotificationsPage() {
               <div 
                 key={notification.id} 
                 className={`p-6 hover:bg-gray-50 transition-colors ${
-                  !notification.read ? 'bg-blue-50/30' : ''
+                  !notification.readAt ? 'bg-blue-50/30' : ''
                 }`}
               >
                 <div className="flex items-start space-x-4">
@@ -260,10 +191,10 @@ export default function NotificationsPage() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <h3 className={`text-sm font-medium ${
-                          !notification.read ? 'text-gray-900' : 'text-gray-700'
+                          !notification.readAt ? 'text-gray-900' : 'text-gray-700'
                         }`}>
                           {notification.title}
-                          {!notification.read && (
+                          {!notification.readAt && (
                             <span className="ml-2 inline-block w-2 h-2 bg-blue-600 rounded-full"></span>
                           )}
                         </h3>
@@ -271,11 +202,11 @@ export default function NotificationsPage() {
                           {notification.message}
                         </p>
                         <p className="mt-2 text-xs text-gray-500">
-                          {formatDate(notification.createdAt)}
+                           {formatDate(notification.createdAt)}
                         </p>
                       </div>
                       <div className="flex items-center space-x-2 ml-4">
-                        {!notification.read && (
+                        {!notification.readAt && (
                           <button
                             onClick={() => markAsRead(notification.id)}
                             className="p-1 text-gray-400 hover:text-blue-600 transition-colors"

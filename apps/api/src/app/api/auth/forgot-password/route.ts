@@ -23,10 +23,7 @@ export async function POST(request: NextRequest) {
       await authService.forgotPassword(body);
       
       // Por seguridad, siempre devolver el mismo mensaje
-      return ApiResponse.success(
-        null, 
-        'Si el email existe en nuestro sistema, recibirás un enlace para restablecer tu contraseña'
-      );
+      return ApiResponse.success({ ok: true });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(
@@ -40,10 +37,7 @@ export async function POST(request: NextRequest) {
       console.error('Error en solicitud de restablecimiento:', error);
       
       // Por seguridad, no revelar errores específicos
-      return ApiResponse.success(
-        null, 
-        'Si el email existe en nuestro sistema, recibirás un enlace para restablecer tu contraseña'
-      );
+      return ApiResponse.success({ ok: true });
     }
   })(request);
 }

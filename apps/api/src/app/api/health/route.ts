@@ -357,7 +357,7 @@ async function checkReservationService() {
     const [activeReservations, recentReservations] = await Promise.all([
       db.reservation.count({
       where: {
-        status: 'CONFIRMED',
+        status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
         startTime: { gte: new Date() }
       }
     }),

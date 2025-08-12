@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       
       const result = await authService.signIn(body);
       
-      return ApiResponse.success(result, 'Inicio de sesión exitoso');
+      return ApiResponse.success(result);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(

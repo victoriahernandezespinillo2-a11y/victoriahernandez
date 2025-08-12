@@ -18,12 +18,12 @@ const tournamentService = new TournamentService();
  * Acceso: Público (solo torneos públicos) / STAFF+ (todos)
  */
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
   return withPublicMiddleware(async (req, context) => {
     try {
-      const { id } = params;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').pop() as string;
       
       if (!id) {
         return ApiResponse.badRequest('ID de torneo requerido');
@@ -45,7 +45,7 @@ export async function GET(
       console.error('Error obteniendo torneo:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, { params });
+  })(request);
 }
 
 /**
@@ -54,12 +54,12 @@ export async function GET(
  * Acceso: ADMIN
  */
 export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
   return withAdminMiddleware(async (req, context) => {
     try {
-      const { id } = params;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').pop() as string;
       
       if (!id) {
         return ApiResponse.badRequest('ID de torneo requerido');
@@ -101,7 +101,7 @@ export async function PUT(
       console.error('Error actualizando torneo:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, { params });
+  })(request);
 }
 
 /**
@@ -110,12 +110,12 @@ export async function PUT(
  * Acceso: ADMIN
  */
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
   return withAdminMiddleware(async (req, context) => {
     try {
-      const { id } = params;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').pop() as string;
       
       if (!id) {
         return ApiResponse.badRequest('ID de torneo requerido');
@@ -140,7 +140,7 @@ export async function DELETE(
       console.error('Error cancelando torneo:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, { params });
+  })(request);
 }
 
 /**

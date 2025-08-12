@@ -16,12 +16,12 @@ const paymentService = new PaymentService();
  * Acceso: STAFF o superior
  */
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
   return withStaffMiddleware(async (req, { user }) => {
     try {
-      const { id } = params;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').slice(-2, -1)[0] as string;
       const body = await req.json();
       
       if (!id) {

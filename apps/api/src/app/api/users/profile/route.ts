@@ -15,10 +15,8 @@ const userService = new UserService();
  * GET /api/users/profile
  * Obtener perfil del usuario autenticado
  */
-export const GET = withAuthMiddleware(async (
-  req: NextRequest,
-  { user }: AuthenticatedContext
-) => {
+export async function GET(req: NextRequest) {
+  return withAuthMiddleware(async (_request: NextRequest, { user }: AuthenticatedContext) => {
   try {
     const userData = await userService.getUserById(user.id);
     
@@ -35,18 +33,17 @@ export const GET = withAuthMiddleware(async (
       500
     );
   }
-});
+  })(req);
+}
 
 /**
  * PUT /api/users/profile
  * Actualizar perfil del usuario autenticado
  */
-export const PUT = withAuthMiddleware(async (
-  req: NextRequest,
-  { user }: AuthenticatedContext
-) => {
+export async function PUT(req: NextRequest) {
+  return withAuthMiddleware(async (request: NextRequest, { user }: AuthenticatedContext) => {
   try {
-    const body = await req.json();
+    const body = await request.json();
     
     const updatedUser = await userService.updateUser(user.id, body);
     
@@ -72,7 +69,8 @@ export const PUT = withAuthMiddleware(async (
       500
     );
   }
-});
+  })(req);
+}
 
 /**
  * OPTIONS /api/users/profile

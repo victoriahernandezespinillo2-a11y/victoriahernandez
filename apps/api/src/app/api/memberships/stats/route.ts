@@ -14,9 +14,10 @@ const membershipService = new MembershipService();
  * Obtener estadísticas de membresías
  * Requiere rol STAFF o superior
  */
-export const GET = withStaffMiddleware(async (req: NextRequest) => {
+export async function GET(req: NextRequest) {
+  return withStaffMiddleware(async (request: NextRequest) => {
   try {
-    const { searchParams } = req.nextUrl;
+    const { searchParams } = request.nextUrl;
     const centerId = searchParams.get('centerId') || undefined;
     
     const stats = await membershipService.getMembershipStats(centerId);
@@ -30,7 +31,8 @@ export const GET = withStaffMiddleware(async (req: NextRequest) => {
       500
     );
   }
-});
+  })(req);
+}
 
 /**
  * OPTIONS /api/memberships/stats

@@ -14,34 +14,34 @@ const membershipService = new MembershipService();
  * Reactivar membresía suspendida
  * Solo ADMIN puede reactivar membresías
  */
-export const POST = withAdminMiddleware(async (
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) => {
-  try {
-    const membershipId = params.id;
-    
-    const reactivatedMembership = await membershipService.reactivateMembership(membershipId);
-    
-    return ApiResponse.success(reactivatedMembership);
-  } catch (error) {
-    console.error('Error reactivando membresía:', error);
-    
-    if (error instanceof Error) {
-      if (error.message === 'Membresía no encontrada') {
-        return ApiResponse.notFound('Membresía');
+export async function POST(req: NextRequest) {
+  return withAdminMiddleware(async (request: NextRequest) => {
+    try {
+      const pathname = request.nextUrl.pathname;
+      const membershipId = pathname.split('/').slice(-2, -1)[0] as string;
+      
+      const reactivatedMembership = await membershipService.reactivateMembership(membershipId);
+      
+      return ApiResponse.success(reactivatedMembership);
+    } catch (error) {
+      console.error('Error reactivando membresía:', error);
+      
+      if (error instanceof Error) {
+        if (error.message === 'Membresía no encontrada') {
+          return ApiResponse.notFound('Membresía');
+        }
+        if (error.message.includes('expirada')) {
+          return ApiResponse.error(error.message, 409);
+        }
       }
-      if (error.message.includes('expirada')) {
-        return ApiResponse.error(error.message, 409);
-      }
+      
+      return ApiResponse.error(
+        error instanceof Error ? error.message : 'Error interno del servidor',
+        500
+      );
     }
-    
-    return ApiResponse.error(
-      error instanceof Error ? error.message : 'Error interno del servidor',
-      500
-    );
-  }
-});
+  })(req);
+}
 
 /**
  * OPTIONS /api/memberships/[id]/reactivate

@@ -4,39 +4,60 @@ import { getToken } from 'next-auth/jwt';
 export default async function middleware(req: NextRequest) {
   const url = new URL(req.url);
 
-  // Permitir rutas públicas de auth
-  if (url.pathname.startsWith('/auth/')) {
-    return NextResponse.next();
-  }
+  // Permitimos la mayoría de rutas de auth, pero si ya está autenticado y visita /auth/signin, redirigimos a inicio
+  const isSignIn = url.pathname === '/auth/signin';
 
-  const cookieName = process.env.NEXTAUTH_COOKIE_NAME
-    || (process.env.PORT ? `next-auth.session-token-${process.env.PORT}` : 'next-auth.session-token');
+  const cookieName = process.env.NEXTAUTH_COOKIE_NAME || 'next-auth.session-token-admin';
 
-  // Intentar decodificar el token (si falla pero hay cookie, dejaremos pasar como fallback)
-  const token = await getToken({
+  // Intentar decodificar el token probando múltiples nombres de cookie (robusto en dev)
+  const candidateCookieNames = [
+    cookieName,
+    process.env.PORT ? `next-auth.session-token-${process.env.PORT}` : undefined,
+    'next-auth.session-token-admin',
+    'next-auth.session-token',
+    '__Secure-next-auth.session-token',
+  ].filter(Boolean) as string[];
+
+  let token = null as Awaited<ReturnType<typeof getToken>> | null;
+  // 1) Intento genérico (deja que Auth.js detecte el nombre)
+  token = await getToken({
     req,
     secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-secret-change-in-prod',
     secureCookie: process.env.NODE_ENV === 'production',
-    cookieName,
   });
+  // 2) Intentos específicos por nombre
+  if (!token) {
+    for (const name of candidateCookieNames) {
+      const t = await getToken({
+        req,
+        secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-secret-change-in-prod',
+        secureCookie: process.env.NODE_ENV === 'production',
+        cookieName: name,
+      });
+      if (t) { token = t; break; }
+    }
+  }
 
-  // Fallback: si no se pudo decodificar pero existe cookie de sesión, permitir paso
-  const hasSessionCookie = !!(
-    req.cookies.get(cookieName) ||
-    req.cookies.get('next-auth.session-token') ||
-    req.cookies.get('__Secure-next-auth.session-token')
-  );
-
+  // Requerir token válido, pero tolerar cookie de sesión presente en dev
+  const hasSessionCookie = !!(req.cookies.get(cookieName)?.value
+    || req.cookies.get('next-auth.session-token-admin')?.value
+    || req.cookies.get('next-auth.session-token')?.value
+    || req.cookies.get('__Secure-next-auth.session-token')?.value);
   if (!token && !hasSessionCookie) {
     return NextResponse.redirect(new URL('/auth/signin', req.url));
   }
 
-  // Si hay token, validar rol; si no hay token pero sí cookie, permitir (fallback en dev)
-  if (token) {
-    const role = (token as any).role;
-    if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
-      return NextResponse.redirect(new URL('/auth/unauthorized', req.url));
-    }
+  // Validar rol permitido (normalizado en minúsculas)
+  const rawRole = (token as any)?.role;
+  const role = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
+  const allowedRoles = new Set(['admin','super_admin']);
+  if (token && !allowedRoles.has(role)) {
+    return NextResponse.redirect(new URL('/auth/unauthorized', req.url));
+  }
+
+  // Si ya está autenticado e intenta ir a /auth/signin, enviarlo a inicio
+  if (isSignIn) {
+    return NextResponse.redirect(new URL('/', req.url));
   }
 
   return NextResponse.next();

@@ -22,10 +22,7 @@ export async function POST(request: NextRequest) {
       
       await authService.resetPassword(body);
       
-      return ApiResponse.success(
-        null, 
-        'Contraseña restablecida exitosamente. Ya puedes iniciar sesión con tu nueva contraseña'
-      );
+      return ApiResponse.success({ ok: true });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(

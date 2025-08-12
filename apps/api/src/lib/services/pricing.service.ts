@@ -33,6 +33,8 @@ export interface PriceCalculation {
   subtotal: number;
   discount: number;
   total: number;
+  taxRate?: number;
+  taxAmount?: number;
   appliedRules: string[];
   breakdown: {
     description: string;
@@ -51,6 +53,7 @@ export class PricingService {
     const court = await db.court.findUnique({
       where: { id: validatedInput.courtId },
       include: {
+        center: { select: { settings: true } },
         pricingRules: {
           where: { isActive: true },
           orderBy: [ { name: 'asc' as any } ],
@@ -139,7 +142,27 @@ export class PricingService {
     // Calcular precios
     const subtotal = basePrice * finalMultiplier;
     const discount = subtotal * memberDiscount;
-    const total = subtotal - discount;
+    let total = subtotal - discount;
+    // Impuestos (IVA/IGIC) desde configuración del centro
+    const centerSettings: any = (court as any).center?.settings || {};
+    const taxesCfg: any = centerSettings.taxes || {};
+    const taxRatePct: number = Number(taxesCfg.rate ?? 0);
+    const taxIncluded: boolean = !!taxesCfg.included; // si true, el precio ya incluye impuestos
+    let taxAmount = 0;
+    if (taxRatePct > 0) {
+      const rate = taxRatePct / 100;
+      if (taxIncluded) {
+        // total ya incluye impuestos → informar componente impositivo
+        const net = total / (1 + rate);
+        taxAmount = total - net;
+        breakdown.push({ description: `Impuestos incluidos (${taxRatePct}%)`, amount: taxAmount });
+      } else {
+        // agregar impuestos sobre el total
+        taxAmount = total * rate;
+        breakdown.push({ description: `Impuestos (${taxRatePct}%)`, amount: taxAmount });
+        total += taxAmount;
+      }
+    }
     
     // Agregar breakdown del precio base
     breakdown.unshift({
@@ -162,6 +185,8 @@ export class PricingService {
       subtotal,
       discount,
       total,
+      taxRate: taxRatePct || undefined,
+      taxAmount: taxAmount || undefined,
       appliedRules,
       breakdown,
     };
@@ -510,14 +535,19 @@ export class PricingService {
     if (filters.courtId) where.courtId = filters.courtId;
     if (typeof filters.isActive === 'boolean') where.isActive = filters.isActive;
     if (filters.centerId || filters.sport) {
-      where.court = {};
-      if (filters.centerId) where.court.centerId = filters.centerId;
-      if (filters.sport) where.court.sportType = filters.sport;
+      where.court = { is: {} };
+      if (filters.centerId) where.court.is.centerId = filters.centerId;
+      if (filters.sport) where.court.is.sportType = filters.sport;
     }
-    return await db.pricingRule.findMany({
-      where,
-      orderBy: [{ isActive: 'desc' }, { priority: 'desc' }, { name: 'asc' }],
-    });
+    try {
+      return await db.pricingRule.findMany({
+        where,
+        orderBy: [{ isActive: 'desc' }, { priority: 'desc' }, { name: 'asc' }],
+      });
+    } catch (error) {
+      console.warn('PricingService.getPricingRules fallback (no table or columns mismatch):', error);
+      return [];
+    }
   }
 
   /**

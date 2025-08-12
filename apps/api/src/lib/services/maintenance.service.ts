@@ -3,7 +3,7 @@
  * Maneja programación, seguimiento y completado de tareas de mantenimiento
  */
 
-import { db, MaintenanceSchedule } from '@repo/db';
+import { db } from '@repo/db';
 import { z } from 'zod';
 import { NotificationService } from '@repo/notifications';
 
@@ -66,15 +66,14 @@ export const CompleteMaintenanceSchema = z.object({
 export const GetMaintenanceSchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
-  courtId: z.string().uuid().optional(),
-  centerId: z.string().uuid().optional(),
-  type: z.enum(['PREVENTIVE', 'CORRECTIVE', 'EMERGENCY']).optional(),
+  courtId: z.string().optional(),
+  centerId: z.string().optional(),
+  type: z.enum(['CLEANING', 'REPAIR', 'INSPECTION', 'RENOVATION']).optional(),
   status: z.enum(['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
-  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
-  assignedTo: z.string().uuid().optional(),
+  assignedTo: z.string().optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
-  sortBy: z.enum(['scheduledDate', 'priority', 'createdAt', 'type']).default('scheduledDate'),
+  sortBy: z.enum(['scheduledAt', 'createdAt', 'type', 'status']).default('scheduledAt'),
   sortOrder: z.enum(['asc', 'desc']).default('asc'),
 });
 
@@ -123,12 +122,12 @@ export class MaintenanceService {
     }
 
     // Verificar conflictos de horario
-    const scheduledDate = new Date(validatedData.scheduledDate);
-    const endDate = new Date(scheduledDate.getTime() + validatedData.estimatedDuration * 60000);
+    const scheduledAt = new Date(validatedData.scheduledDate);
+    const endDate = new Date(scheduledAt.getTime() + validatedData.estimatedDuration * 60000);
 
     const conflicts = await this.checkMaintenanceConflicts(
       validatedData.courtId,
-      scheduledDate,
+      scheduledAt,
       endDate
     );
 
@@ -155,8 +154,8 @@ export class MaintenanceService {
         court: {
           select: {
             id: true,
-            name: true,
-            sport: true,
+          name: true,
+          sportType: true,
             center: {
               select: {
                 id: true,
@@ -177,18 +176,18 @@ export class MaintenanceService {
     });
 
     // Enviar notificación al técnico asignado
-    if (maintenance.assignedUser) {
+      if (maintenance.assignedTo) {
       try {
         await this.notificationService.sendEmail({
-          to: maintenance.assignedUser.email,
+            to: 'staff@polideportivo.com',
           template: 'maintenance_assigned',
           data: {
-            technicianName: maintenance.assignedUser.firstName,
+              technicianName: 'Técnico',
             maintenanceTitle: maintenance.title,
             courtName: maintenance.court.name,
             centerName: maintenance.court.center.name,
-            scheduledDate: scheduledDate.toLocaleDateString('es-ES'),
-            scheduledTime: scheduledDate.toLocaleTimeString('es-ES'),
+              scheduledDate: scheduledAt.toLocaleDateString('es-ES'),
+              scheduledTime: scheduledAt.toLocaleTimeString('es-ES'),
             priority: maintenance.priority,
           },
         });
@@ -242,18 +241,14 @@ export class MaintenanceService {
       where.status = status;
     }
 
-    if (priority) {
-      where.priority = priority;
-    }
-
     if (assignedTo) {
       where.assignedTo = assignedTo;
     }
 
     if (startDate || endDate) {
-      where.scheduledDate = {};
-      if (startDate) where.scheduledDate.gte = new Date(startDate);
-      if (endDate) where.scheduledDate.lte = new Date(endDate);
+      where.scheduledAt = {} as any;
+      if (startDate) (where.scheduledAt as any).gte = new Date(startDate);
+      if (endDate) (where.scheduledAt as any).lte = new Date(endDate);
     }
 
     // Obtener mantenimientos y total
@@ -268,21 +263,13 @@ export class MaintenanceService {
             select: {
               id: true,
               name: true,
-              sport: true,
+              sportType: true,
               center: {
                 select: {
                   id: true,
                   name: true,
                 },
               },
-            },
-          },
-          assignedUser: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
             },
           },
         },

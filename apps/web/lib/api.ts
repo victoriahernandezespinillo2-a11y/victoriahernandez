@@ -36,9 +36,15 @@ async function apiRequest<T>(
     
     if (!response.ok) {
       let message = '';
+      let code = '';
+      let traceId = response.headers.get('x-request-id') || '';
+      let details: any = undefined;
       try {
         const asJson = await response.json();
         message = asJson?.error || JSON.stringify(asJson);
+        code = asJson?.code || '';
+        details = asJson?.details;
+        traceId = asJson?.traceId || traceId;
       } catch {
         try {
           message = await response.text();
@@ -46,7 +52,11 @@ async function apiRequest<T>(
           message = '';
         }
       }
-      throw new Error(message || `HTTP ${response.status}`);
+      const err = new Error(message || `HTTP ${response.status}`) as any;
+      if (code) err.code = code;
+      if (traceId) err.traceId = traceId;
+      if (details) err.details = details;
+      throw err;
     }
 
     try {

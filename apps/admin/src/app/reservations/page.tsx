@@ -15,6 +15,9 @@ import {
   XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { useAdminReservations } from '@/lib/hooks';
+import { adminApi } from '@/lib/api';
+import { useToast } from '@/components/ToastProvider';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 interface Reservation {
   id: string;
@@ -67,13 +70,23 @@ const paymentStatusLabels: Record<string, string> = {
 };
 
 export default function ReservationsPage() {
-  const { reservations, loading, error, updateReservation, cancelReservation } = useAdminReservations();
+  const { reservations, loading, error, updateReservation, cancelReservation, getReservations } = useAdminReservations();
+  const { showToast } = useToast();
+  useEffect(() => {
+    getReservations({ page: 1, limit: 200 }).catch(() => {});
+  }, [getReservations]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [paymentFilter, setPaymentFilter] = useState<string>('ALL');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('ALL');
+  const [overrideFilter, setOverrideFilter] = useState<string>('ALL');
   const [dateFilter, setDateFilter] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [confirmState, setConfirmState] = useState<{ open: boolean; id?: string }>(() => ({ open: false }));
+  const [refundState, setRefundState] = useState<{ open: boolean; id?: string; amount?: string; reason: string }>(() => ({ open: false, reason: '' }));
+  const [resendState, setResendState] = useState<{ open: boolean; id?: string; type: 'CONFIRMATION'|'PAYMENT_LINK' }>({ open: false, type: 'CONFIRMATION' });
+  const [auditState, setAuditState] = useState<{ open: boolean; id?: string; loading: boolean; events: Array<{ id: string; type: string; summary: string; createdAt: string }> }>({ open: false, loading: false, events: [] });
 
   const itemsPerPage = 10;
 
@@ -117,9 +130,12 @@ export default function ReservationsPage() {
     
     const matchesStatus = statusFilter === 'ALL' || reservation.status === statusFilter;
     const matchesPayment = paymentFilter === 'ALL' || reservation.paymentStatus === paymentFilter;
+    const matchesPaymentMethod = paymentMethodFilter === 'ALL' || ((reservation as any).paymentMethod || '-') === paymentMethodFilter;
     const matchesDate = !dateFilter || reservation.date === dateFilter;
+    const hasOverride = !!(reservation as any).override;
+    const matchesOverride = overrideFilter === 'ALL' || (overrideFilter === 'WITH' ? hasOverride : !hasOverride);
     
-    return matchesSearch && matchesStatus && matchesPayment && matchesDate;
+    return matchesSearch && matchesStatus && matchesPayment && matchesPaymentMethod && matchesOverride && matchesDate;
   }) || [];
 
   // Paginación
@@ -128,13 +144,59 @@ export default function ReservationsPage() {
   const paginatedReservations = filteredReservations.slice(startIndex, startIndex + itemsPerPage);
 
   const handleDeleteReservation = async (reservationId: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar esta reserva?')) {
-      try {
-        await cancelReservation(reservationId);
-      } catch (error) {
-        console.error('Error al eliminar reserva:', error);
-        alert('Error al eliminar la reserva. Por favor, inténtalo de nuevo.');
+    setConfirmState({ open: true, id: reservationId });
+  };
+
+  const handleGenerateLink = async (reservationId: string) => {
+    try {
+      const { url } = await adminApi.reservations.generatePaymentLink(reservationId);
+      if (url) {
+        showToast({ variant: 'success', title: 'Enlace de pago', message: 'Enlace generado y enviado al cliente.' });
+        window.open(url, '_blank');
+      } else {
+        showToast({ variant: 'warning', title: 'Sin enlace', message: 'No se pudo generar el enlace.' });
       }
+    } catch (e) {
+      showToast({ variant: 'error', title: 'Error', message: 'No se pudo generar el enlace de pago.' });
+    }
+  };
+
+  const confirmDeletion = async () => {
+    const id = confirmState.id as string;
+    setConfirmState({ open: false, id: undefined });
+    try {
+      await cancelReservation(id);
+    } catch (error) {
+      console.error('Error al eliminar reserva:', error);
+    }
+  };
+
+  const confirmRefund = async () => {
+    const id = refundState.id as string;
+    const amountNum = refundState.amount ? Number(refundState.amount) : undefined;
+    const reason = refundState.reason?.trim();
+    setRefundState({ open: false, id: undefined, amount: undefined, reason: '' });
+    if (!reason) {
+      showToast({ variant: 'warning', title: 'Razón requerida', message: 'Indica la razón del reembolso.' });
+      return;
+    }
+    try {
+      await adminApi.reservations.refund(id, { amount: amountNum, reason });
+      showToast({ variant: 'success', title: 'Reembolso solicitado', message: 'El reembolso ha sido procesado.' });
+      await getReservations({ page: 1, limit: 200 });
+    } catch (e) {
+      showToast({ variant: 'error', title: 'Error', message: 'No se pudo procesar el reembolso.' });
+    }
+  };
+
+  const handleResend = async () => {
+    const id = resendState.id as string;
+    setResendState({ ...resendState, open: false, id: undefined });
+    try {
+      await adminApi.reservations.resendNotification(id, { type: resendState.type, channel: 'EMAIL' });
+      showToast({ variant: 'success', title: 'Enviado', message: resendState.type === 'CONFIRMATION' ? 'Confirmación reenviada.' : 'Enlace de pago reenviado.' });
+    } catch {
+      showToast({ variant: 'error', title: 'Error', message: 'No se pudo reenviar.' });
     }
   };
 
@@ -276,6 +338,38 @@ export default function ReservationsPage() {
               <option value="REFUNDED">Reembolsado</option>
             </select>
           </div>
+
+          {/* Payment Method Filter */}
+          <div>
+            <select
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              value={paymentMethodFilter}
+              onChange={(e) => setPaymentMethodFilter(e.target.value)}
+            >
+              <option value="ALL">Todos los métodos</option>
+              <option value="CASH">Efectivo</option>
+              <option value="TPV">TPV</option>
+              <option value="TRANSFER">Transferencia</option>
+              <option value="CREDITS">Créditos</option>
+              <option value="COURTESY">Cortesía</option>
+              <option value="LINK">Enlace (Stripe)</option>
+              <option value="stripe">Stripe</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
+
+          {/* Override Filter */}
+          <div>
+            <select
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              value={overrideFilter}
+              onChange={(e) => setOverrideFilter(e.target.value)}
+            >
+              <option value="ALL">Todas (con y sin ajuste)</option>
+              <option value="WITH">Con ajuste</option>
+              <option value="WITHOUT">Sin ajuste</option>
+            </select>
+          </div>
           
           {/* Date Filter */}
           <div>
@@ -309,6 +403,9 @@ export default function ReservationsPage() {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Pago
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Método
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total
@@ -352,6 +449,11 @@ export default function ReservationsPage() {
                     <div className="text-xs text-gray-400">
                       {reservation.duration}h
                     </div>
+                    {(reservation as any).override && (
+                      <div className="mt-1 text-xs inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-800" title={(reservation as any).override?.reason || ''}>
+                        Ajuste: €{Number((reservation as any).override?.delta || 0).toFixed(2)}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <select
@@ -378,13 +480,120 @@ export default function ReservationsPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                    €{reservation.totalAmount.toFixed(2)}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    {(reservation as any).paymentMethod || '-'}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900">
+                      {/* Generar enlace de pago (LINK) */}
+                      <button title="Generar enlace de pago" className="text-blue-600 hover:text-blue-900" onClick={() => handleGenerateLink(reservation.id)}>
                         <EyeIcon className="h-4 w-4" />
                       </button>
+                       {/* Descargar recibo */}
+                      {reservation.paymentStatus === 'PAID' && (
+                        <a
+                          href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/admin/reservations/${reservation.id}/receipt`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-gray-700 hover:text-gray-900"
+                          title="Descargar recibo"
+                        >
+                          PDF
+                        </a>
+                      )}
+                      {/* Check-in si en ventana y no iniciado */}
+                      {reservation.status !== 'IN_PROGRESS' && reservation.status !== 'COMPLETED' && (
+                        <button
+                          className="text-emerald-600 hover:text-emerald-900"
+                          title="Check-in"
+                          onClick={async () => {
+                            try {
+                              await adminApi.reservations.checkIn(reservation.id);
+                              showToast({ variant: 'success', title: 'Check-in', message: 'Reserva en curso.' });
+                              await getReservations({ page: 1, limit: 200 });
+                            } catch {
+                              showToast({ variant: 'error', title: 'Error', message: 'No se pudo hacer check-in.' });
+                            }
+                          }}
+                        >
+                          ▶
+                        </button>
+                      )}
+                      {/* Check-out si en curso */}
+                      {reservation.status === 'IN_PROGRESS' && (
+                        <button
+                          className="text-orange-600 hover:text-orange-900"
+                          title="Check-out"
+                          onClick={async () => {
+                            try {
+                              await adminApi.reservations.checkOut(reservation.id);
+                              showToast({ variant: 'success', title: 'Check-out', message: 'Reserva completada.' });
+                              await getReservations({ page: 1, limit: 200 });
+                            } catch {
+                              showToast({ variant: 'error', title: 'Error', message: 'No se pudo hacer check-out.' });
+                            }
+                          }}
+                        >
+                          ■
+                        </button>
+                      )}
+                      {/* Reenviar confirmación */}
+                      <button
+                        className="text-gray-600 hover:text-gray-900"
+                        title="Reenviar confirmación"
+                        onClick={() => setResendState({ open: true, id: reservation.id, type: 'CONFIRMATION' })}
+                      >
+                        @
+                      </button>
+                      {/* Reenviar enlace de pago si pendiente */}
+                      {reservation.paymentStatus === 'PENDING' && (
+                        <button
+                          className="text-indigo-600 hover:text-indigo-900"
+                          title="Reenviar enlace de pago"
+                          onClick={() => setResendState({ open: true, id: reservation.id, type: 'PAYMENT_LINK' })}
+                        >
+                          ↗
+                        </button>
+                      )}
+                      {/* Descargar paquete PDF + Auditoría */}
+                      <a
+                        className="text-gray-700 hover:text-gray-900"
+                        title="Descargar PDF + Auditoría"
+                        href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/admin/reservations/${reservation.id}/audit/zip`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        ⤓
+                      </a>
+                      {/* Reembolsar pago (solo si pagado) */}
+                      {reservation.paymentStatus === 'PAID' && (
+                        <button
+                          className="text-amber-600 hover:text-amber-800"
+                          title="Reembolsar"
+                          onClick={() => setRefundState({ open: true, id: reservation.id, amount: String(reservation.totalAmount), reason: '' })}
+                        >
+                          €
+                        </button>
+                      )}
                       <button className="text-green-600 hover:text-green-900">
                         <PencilIcon className="h-4 w-4" />
+                      </button>
+                      {/* Auditoría */}
+                      <button
+                        className="text-gray-600 hover:text-gray-900"
+                        title="Ver auditoría"
+                        onClick={async () => {
+                          try {
+                            setAuditState({ open: true, id: reservation.id, loading: true, events: [] });
+                            const data: any = await adminApi.reservations.getAudit(reservation.id);
+                            const events: any[] = Array.isArray(data?.events) ? data.events : [];
+                            setAuditState({ open: true, id: reservation.id, loading: false, events: events.map((e: any) => ({ id: e.id, type: e.type, summary: e.summary, createdAt: e.createdAt })) });
+                          } catch {
+                            setAuditState({ open: true, id: reservation.id, loading: false, events: [] });
+                          }
+                        }}
+                      >
+                        🛈
                       </button>
                       <button 
                         className="text-red-600 hover:text-red-900"
@@ -461,6 +670,109 @@ export default function ReservationsPage() {
           </p>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmState.open}
+        title="Eliminar reserva"
+        description="¿Estás seguro de que quieres cancelar esta reserva? Esta acción no se puede deshacer."
+        confirmText="Cancelar reserva"
+        variant="danger"
+        onConfirm={confirmDeletion}
+        onCancel={() => setConfirmState({ open: false })}
+      />
+
+      <ConfirmDialog
+        open={resendState.open}
+        title={resendState.type === 'CONFIRMATION' ? 'Reenviar confirmación' : 'Reenviar enlace de pago'}
+        description={resendState.type === 'CONFIRMATION' ? 'Se enviará nuevamente el correo de confirmación al cliente.' : 'Se generará y enviará un nuevo enlace de pago al cliente.'}
+        confirmText="Reenviar"
+        variant="info"
+        onConfirm={handleResend}
+        onCancel={() => setResendState({ ...resendState, open: false })}
+      />
+
+      {/* Modal Auditoría */}
+      {auditState.open && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-xl">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Auditoría de reserva</h3>
+              <button onClick={() => setAuditState({ open: false, id: undefined, loading: false, events: [] })} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+              {auditState.loading ? (
+                <div className="text-sm text-gray-500">Cargando...</div>
+              ) : auditState.events.length === 0 ? (
+                <div className="text-sm text-gray-500">Sin eventos de auditoría.</div>
+              ) : (
+                <ul className="space-y-2">
+                  {auditState.events.map((e) => (
+                    <li key={e.id} className="text-sm">
+                      <div className="font-medium text-gray-900">{new Date(e.createdAt).toLocaleString()}</div>
+                      <div className="text-gray-700">{e.summary}</div>
+                      <div className="text-xs text-gray-400">{e.type}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="p-3 border-t flex justify-end">
+              {auditState.id && (
+                <div className="flex gap-2">
+                  <a
+                    className="text-sm px-3 py-1.5 border rounded hover:bg-gray-50"
+                    href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/admin/reservations/${auditState.id}/audit/csv`}
+                  >
+                    Exportar CSV
+                  </a>
+                  <a
+                    className="text-sm px-3 py-1.5 border rounded hover:bg-gray-50"
+                    href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/admin/reservations/${auditState.id}/audit/zip`}
+                  >
+                    PDF + Auditoría
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={refundState.open}
+        title="Reembolsar pago"
+        description={
+          <div className="space-y-3">
+            <p>Indica el monto (opcional para reembolso parcial) y la razón del reembolso.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Monto (€)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={refundState.amount || ''}
+                  onChange={(e) => setRefundState((s) => ({ ...s, amount: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs text-gray-500 mb-1">Razón</label>
+                <input
+                  type="text"
+                  value={refundState.reason}
+                  onChange={(e) => setRefundState((s) => ({ ...s, reason: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Ej: Solicitud del cliente"
+                />
+              </div>
+            </div>
+          </div> as any
+        }
+        confirmText="Reembolsar"
+        variant="warning"
+        onConfirm={confirmRefund}
+        onCancel={() => setRefundState({ open: false, id: undefined, amount: undefined, reason: '' })}
+      />
     </div>
   );
 }

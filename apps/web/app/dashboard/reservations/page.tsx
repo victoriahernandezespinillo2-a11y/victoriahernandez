@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useReservations } from '@/lib/hooks';
+import { useState } from 'react';
 
 interface Reservation {
   id: string;
@@ -57,8 +58,15 @@ const statusConfig = {
   }
 };
 
+const paymentConfig: Record<Reservation['paymentStatus'], { label: string; color: string }> = {
+  paid: { label: 'Pagado', color: 'bg-green-100 text-green-800' },
+  pending: { label: 'Pendiente de pago', color: 'bg-yellow-100 text-yellow-800' },
+  refunded: { label: 'Reembolsado', color: 'bg-blue-100 text-blue-800' },
+};
+
 export default function ReservationsPage() {
   const { reservations, loading, error, cancelReservation } = useReservations();
+  const [linkLoadingId, setLinkLoadingId] = useState<string | null>(null);
   const [filteredReservations, setFilteredReservations] = useState<Reservation[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -311,6 +319,35 @@ export default function ReservationsPage() {
                             <StatusIcon className="h-3 w-3 mr-1" />
                             {statusConfig[reservation.status].label}
                           </span>
+                          {reservation.paymentStatus === 'pending' && (
+                            <button
+                              disabled={linkLoadingId === reservation.id}
+                              onClick={async () => {
+                                try {
+                                  setLinkLoadingId(reservation.id);
+                                  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+                                  const res = await fetch(`${API_BASE_URL}/api/reservations/${reservation.id}/payment-link`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    credentials: 'include',
+                                  });
+                                  const data = await res.json();
+                                  if (res.ok && data?.url) {
+                                    window.open(data.url, '_blank');
+                                  } else {
+                                    alert('No se pudo generar el enlace de pago');
+                                  }
+                                } catch (e) {
+                                  alert('Error generando enlace de pago');
+                                } finally {
+                                  setLinkLoadingId(null);
+                                }
+                              }}
+                              className="text-xs px-2 py-0.5 border rounded hover:bg-gray-50"
+                            >
+                              {linkLoadingId === reservation.id ? 'Abriendo…' : 'Pagar ahora'}
+                            </button>
+                          )}
                         </div>
                         <div className="flex items-center space-x-4 text-sm text-gray-500">
                           <span className="flex items-center">
@@ -340,6 +377,17 @@ export default function ReservationsPage() {
                         <Eye className="h-4 w-4 mr-1" />
                         Ver
                       </button>
+                      {/* Descargar recibo si está pagado */}
+                      {reservation.paymentStatus === 'paid' && (
+                        <a
+                          href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/reservations/${reservation.id}/receipt`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          Descargar recibo
+                        </a>
+                      )}
                       {(reservation.status === 'confirmed' || reservation.status === 'pending') && (
                         <button
                           onClick={() => handleCancelReservation(reservation.id)}
@@ -350,6 +398,12 @@ export default function ReservationsPage() {
                         </button>
                       )}
                     </div>
+                  </div>
+                  {/* Estado de pago */}
+                  <div className="mt-2">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${paymentConfig[reservation.paymentStatus].color}`}>
+                      {paymentConfig[reservation.paymentStatus].label}
+                    </span>
                   </div>
                 </div>
               );

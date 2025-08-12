@@ -1,15 +1,10 @@
 "use client";
 
-import { useState } from 'react';
-import {
-  BellIcon,
-  MagnifyingGlassIcon,
-  UserCircleIcon,
-  ChevronDownIcon,
-  Cog6ToothIcon,
-  ArrowRightOnRectangleIcon,
-  Bars3Icon,
-} from '@heroicons/react/24/outline';
+import { useEffect, useMemo, useState } from 'react';
+import { BellIcon, MagnifyingGlassIcon, UserCircleIcon, ChevronDownIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon, Bars3Icon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
+import { useAdminNotifications } from '@/lib/hooks';
+import { useSession, signOut } from 'next-auth/react';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -19,32 +14,21 @@ interface HeaderProps {
 export default function Header({ onToggleSidebar, isSidebarCollapsed }: HeaderProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const { notifications, getNotifications, markAsRead } = useAdminNotifications();
+  const { data: session } = useSession();
+  const userName = session?.user?.name || session?.user?.email || 'Usuario';
+  const userEmail = session?.user?.email || '';
+  const userRole = (session?.user?.role || 'Administrador');
 
-  const notifications = [
-    {
-      id: 1,
-      title: 'Nueva reserva',
-      message: 'Juan Pérez reservó la cancha de fútbol',
-      time: '5 min',
-      unread: true,
-    },
-    {
-      id: 2,
-      title: 'Mantenimiento programado',
-      message: 'Cancha de tenis requiere mantenimiento',
-      time: '1 hora',
-      unread: true,
-    },
-    {
-      id: 3,
-      title: 'Pago recibido',
-      message: 'Membresía mensual de María García',
-      time: '2 horas',
-      unread: false,
-    },
-  ];
+  useEffect(() => {
+    getNotifications({ limit: 10, read: false }).catch(() => {});
+    const i = setInterval(() => {
+      getNotifications({ limit: 10, read: false }).catch(() => {});
+    }, 30000);
+    return () => clearInterval(i);
+  }, [getNotifications]);
 
-  const unreadCount = notifications.filter(n => n.unread).length;
+  const unreadCount = useMemo(() => (notifications || []).filter((n: any) => !n.readAt).length, [notifications]);
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4 sticky top-0 z-40">
@@ -96,42 +80,38 @@ export default function Header({ onToggleSidebar, isSidebarCollapsed }: HeaderPr
             </button>
 
             {/* Notifications dropdown */}
-            {isNotificationsOpen && (
+              {isNotificationsOpen && (
               <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                 <div className="p-4 border-b border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900">Notificaciones</h3>
                 </div>
                 <div className="max-h-96 overflow-y-auto">
-                  {notifications.map((notification) => (
-                    <div
-                      key={notification.id}
-                      className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
-                        notification.unread ? 'bg-blue-50' : ''
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <h4 className="text-sm font-medium text-gray-900">
-                            {notification.title}
-                          </h4>
-                          <p className="text-sm text-gray-600 mt-1">
-                            {notification.message}
-                          </p>
+                    {(notifications || []).length === 0 && (
+                      <div className="p-4 text-sm text-gray-500">No hay notificaciones</div>
+                    )}
+                    {(notifications || []).map((n: any) => (
+                      <button
+                        key={n.id}
+                        onClick={async () => { await markAsRead(n.id); if (n.actionUrl) location.href = n.actionUrl; }}
+                        className={`w-full text-left p-4 border-b border-gray-100 hover:bg-gray-50 ${!n.readAt ? 'bg-blue-50' : ''}`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h4 className="text-sm font-medium text-gray-900">{n.title}</h4>
+                            <p className="text-sm text-gray-600 mt-1">{n.message}</p>
+                          </div>
+                          <span className="text-xs text-gray-500 ml-2">
+                            {new Date(n.createdAt).toLocaleString('es-ES')}
+                          </span>
                         </div>
-                        <span className="text-xs text-gray-500 ml-2">
-                          {notification.time}
-                        </span>
-                      </div>
-                      {notification.unread && (
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                      )}
-                    </div>
-                  ))}
+                        {!n.readAt && <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>}
+                      </button>
+                    ))}
                 </div>
                 <div className="p-4 border-t border-gray-200">
-                  <button className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-                    Ver todas las notificaciones
-                  </button>
+                    <Link href="/notifications" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                      Ver todas las notificaciones
+                    </Link>
                 </div>
               </div>
             )}
@@ -146,8 +126,8 @@ export default function Header({ onToggleSidebar, isSidebarCollapsed }: HeaderPr
               <div className="flex items-center space-x-2">
                 <UserCircleIcon className="h-8 w-8 text-gray-600" />
                 <div className="hidden sm:block text-left">
-                  <p className="text-sm font-medium text-gray-900">Admin User</p>
-                  <p className="text-xs text-gray-500">Administrador</p>
+                  <p className="text-sm font-medium text-gray-900">{userName}</p>
+                  <p className="text-xs text-gray-500">{userRole}</p>
                 </div>
               </div>
               <ChevronDownIcon className="h-4 w-4 text-gray-600" />
@@ -155,23 +135,23 @@ export default function Header({ onToggleSidebar, isSidebarCollapsed }: HeaderPr
 
             {/* Profile dropdown */}
             {isProfileOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                 <div className="p-4 border-b border-gray-200">
-                  <p className="text-sm font-medium text-gray-900">Admin User</p>
-                  <p className="text-xs text-gray-500">admin@polideportivo.com</p>
+                  <p className="text-sm font-medium text-gray-900">{userName}</p>
+                  <p className="text-xs text-gray-500">{userEmail}</p>
                 </div>
                 <div className="py-2">
-                  <button className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                  <Link href="/profile" onClick={() => setIsProfileOpen(false)} className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                     <UserCircleIcon className="h-4 w-4" />
                     <span>Mi Perfil</span>
-                  </button>
-                  <button className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                  </Link>
+                  <Link href="/settings" onClick={() => setIsProfileOpen(false)} className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                     <Cog6ToothIcon className="h-4 w-4" />
                     <span>Configuración</span>
-                  </button>
+                  </Link>
                 </div>
                 <div className="border-t border-gray-200 py-2">
-                  <button className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                  <button onClick={() => signOut({ callbackUrl: '/auth/signin' })} className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50">
                     <ArrowRightOnRectangleIcon className="h-4 w-4" />
                     <span>Cerrar Sesión</span>
                   </button>

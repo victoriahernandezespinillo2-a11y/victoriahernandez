@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { SessionWrapper } from '../components/SessionWrapper'
+import { ToastProvider } from '../components/ToastProvider'
 import ConditionalLayout from '../components/ConditionalLayout'
 
 export const metadata: Metadata = {
@@ -17,9 +18,9 @@ export default function RootLayout({
     <html lang="es">
       <body className="antialiased h-full" suppressHydrationWarning>
         <SessionWrapper>
-          <div className="flex min-h-screen bg-gray-50">
+          <ToastProvider>
             <ConditionalLayout>{children}</ConditionalLayout>
-          </div>
+          </ToastProvider>
         </SessionWrapper>
       </body>
     </html>

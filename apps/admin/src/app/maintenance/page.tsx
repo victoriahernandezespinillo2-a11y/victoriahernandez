@@ -220,7 +220,7 @@ export default function MaintenancePage() {
                     <div className="text-sm text-gray-900">{record.assignedUser ? `${record.assignedUser.firstName || ''} ${record.assignedUser.lastName || ''}`.trim() || record.assignedUser.email : '—'}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{formatDate(record.scheduledDate)}</div>
+                    <div className="text-sm text-gray-900">{formatDate((record as any).scheduledAt || (record as any).scheduledDate)}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{formatDuration(record.estimatedDuration)}</div>

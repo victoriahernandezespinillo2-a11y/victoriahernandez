@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { PricingService } from './pricing.service';
 import { NotificationService } from '@repo/notifications';
 import { PaymentService } from '@repo/payments';
+import QRCode from 'qrcode';
 
 // Esquemas de validación
 export const CreateReservationSchema = z.object({
@@ -65,6 +66,13 @@ export class ReservationService {
         endTime: new Date(new Date(validatedInput.startTime).getTime() + validatedInput.duration * 60000),
       });
 
+      // 1b) Verificar conflicto para el mismo usuario en ventana de tiempo
+      await this.checkUserConflict(tx, {
+        userId: validatedInput.userId,
+        startTime: new Date(validatedInput.startTime),
+        endTime: new Date(new Date(validatedInput.startTime).getTime() + validatedInput.duration * 60000),
+      });
+
       // 2) Crear reserva principal
       const created = await tx.reservation.create({
         data: {
@@ -106,6 +114,49 @@ export class ReservationService {
       // Log y continuar; no bloquear la creación por el outbox
       // eslint-disable-next-line no-console
       console.warn('No se pudo registrar outbox RESERVATION_CREATED:', e);
+    }
+
+    // 5) Enviar confirmación (email/SMS) usando notificador real; tolerar fallos sin romper flujo
+    try {
+      const user = await db.user.findUnique({ where: { id: reservation.userId } });
+      const court = await db.court.findUnique({ where: { id: reservation.courtId } });
+      if (user && (user.email || user.phone) && court) {
+        // Generar QR con token firmado para check-in
+        const tokenPayload = { reservationId: reservation.id };
+        const jwtToken = (await import('jsonwebtoken')).default.sign(
+          tokenPayload,
+          process.env.JWT_SECRET || 'your-secret-key',
+          { expiresIn: '3h' }
+        );
+        const qrDataUrl = await QRCode.toDataURL(jwtToken, { width: 256 });
+
+        // Generar ICS
+        const dtStart = reservation.startTime.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        const dtEnd = reservation.endTime.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        const ics = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Polideportivo//EN\nBEGIN:VEVENT\nUID:${reservation.id}\nDTSTAMP:${dtStart}\nDTSTART:${dtStart}\nDTEND:${dtEnd}\nSUMMARY:Reserva ${court.name}\nEND:VEVENT\nEND:VCALENDAR`;
+
+        const variables = {
+          userName: user.name || 'Usuario',
+          courtName: court.name,
+          date: reservation.startTime.toLocaleDateString('es-ES'),
+          startTime: reservation.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+          endTime: reservation.endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+          duration: String(Math.round((reservation.endTime.getTime() - reservation.startTime.getTime()) / 60000)),
+          price: String(Number(reservation.totalPrice || 0)),
+          reservationCode: reservation.id.slice(0, 8).toUpperCase(),
+        } as Record<string, string>;
+        const email = await (await import('@repo/notifications')).emailService.sendEmail({
+          to: user.email!,
+          subject: `Confirmación de reserva - ${court.name}`,
+          html: (await (await import('@repo/notifications')).emailService.getTemplate('reservationConfirmation', variables))!.html,
+          attachments: [
+            { filename: 'reserva.ics', content: ics, contentType: 'text/calendar' },
+            { filename: 'qr.png', content: Buffer.from(qrDataUrl.split(',')[1], 'base64'), contentType: 'image/png' },
+          ],
+        });
+      }
+    } catch (e) {
+      console.warn('No se pudo enviar confirmación de reserva:', e);
     }
 
     return reservation;
@@ -159,6 +210,28 @@ export class ReservationService {
     
     if (maintenanceSchedules.length > 0) {
       throw new Error('Cancha en mantenimiento durante el horario solicitado');
+    }
+  }
+
+  /**
+   * Verificar que el usuario no tenga otra reserva solapada en el mismo rango
+   */
+  private async checkUserConflict(
+    tx: any,
+    { userId, startTime, endTime }: { userId: string; startTime: Date; endTime: Date }
+  ): Promise<void> {
+    const conflicts = await tx.reservation.findMany({
+      where: {
+        userId,
+        status: { in: ['PENDING', 'PAID', 'IN_PROGRESS'] },
+        OR: [
+          { startTime: { lt: endTime }, endTime: { gt: startTime } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (conflicts.length > 0) {
+      throw new Error('El usuario ya tiene una reserva en ese horario');
     }
   }
 

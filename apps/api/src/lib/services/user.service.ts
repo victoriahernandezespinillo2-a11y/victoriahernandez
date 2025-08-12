@@ -4,9 +4,9 @@
  */
 
 import { db, User, Membership, Reservation } from '@repo/db';
-import { hashPassword } from '@polideportivo/auth';
+import { hashPassword } from '@repo/auth';
 import { z } from 'zod';
-import { NotificationService } from '@polideportivo/notifications';
+import { NotificationService } from '@repo/notifications';
 
 // Esquemas de validación
 export const CreateUserSchema = z.object({
@@ -507,7 +507,7 @@ export class UserService {
       include: {
         reservations: {
           where: {
-            status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+            status: { in: ['PAID', 'IN_PROGRESS'] },
             date: { gte: new Date() },
           },
         },

@@ -32,8 +32,7 @@ interface RouteParams {
  * Obtener detalles de una regla de precios específica
  */
 export async function GET(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -53,7 +52,8 @@ export async function GET(
       );
     }
 
-    const ruleId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const ruleId = pathname.split('/').slice(-1)[0] as string;
     
     if (!ruleId) {
       return NextResponse.json(
@@ -86,8 +86,7 @@ export async function GET(
  * Actualizar una regla de precios específica
  */
 export async function PUT(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -107,7 +106,8 @@ export async function PUT(
       );
     }
 
-    const ruleId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const ruleId = pathname.split('/').slice(-1)[0] as string;
     
     if (!ruleId) {
       return NextResponse.json(
@@ -183,8 +183,7 @@ export async function PUT(
  * Eliminar una regla de precios específica
  */
 export async function DELETE(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -204,7 +203,8 @@ export async function DELETE(
       );
     }
 
-    const ruleId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const ruleId = pathname.split('/').slice(-1)[0] as string;
     
     if (!ruleId) {
       return NextResponse.json(
@@ -254,8 +254,7 @@ export async function DELETE(
  * Probar una regla de precios con datos específicos
  */
 export async function POST(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -275,7 +274,8 @@ export async function POST(
       );
     }
 
-    const ruleId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const ruleId = pathname.split('/').slice(-2, -1)[0] as string;
     
     if (!ruleId) {
       return NextResponse.json(

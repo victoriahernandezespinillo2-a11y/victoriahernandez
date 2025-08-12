@@ -17,8 +17,9 @@ const authService = new AuthService();
  * Acceso: Usuario autenticado
  */
 export async function GET(request: NextRequest) {
-  return withAuthMiddleware(async (req, { user }) => {
+  return withAuthMiddleware(async (req, context) => {
     try {
+      const user = (context as any)?.user;
       return ApiResponse.success({
         user,
         isAuthenticated: true

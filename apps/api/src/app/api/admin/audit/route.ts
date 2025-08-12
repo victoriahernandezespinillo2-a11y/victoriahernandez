@@ -5,7 +5,7 @@
 
 import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '../../../../lib/middleware';
-import { db } from '../../../../../../../packages/db/src';
+import { db } from '@repo/db';
 import { z } from 'zod';
 
 const GetAuditLogsQuerySchema = z.object({
@@ -27,8 +27,8 @@ const GetAuditLogsQuerySchema = z.object({
  * Obtener logs de auditoría del sistema usando OutboxEvent como fuente
  * Acceso: ADMIN únicamente
  */
-export async function GET(request: NextRequest, { params }: { params?: Record<string, string> }) {
-  return withAdminMiddleware(async (req, context) => {
+export async function GET(request: NextRequest) {
+  return withAdminMiddleware(async (req) => {
     try {
       const { searchParams } = req.nextUrl;
       const queryParams = GetAuditLogsQuerySchema.parse(Object.fromEntries(searchParams.entries()));
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest, { params }: { params?: Record<st
       console.error('Error obteniendo logs de auditoría:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, { params });
+  })(request, {} as any);
 }
 
 /**

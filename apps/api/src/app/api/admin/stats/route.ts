@@ -5,10 +5,10 @@
 
 import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
-import { PrismaClient } from '@prisma/client';
+import { db } from '@repo/db';
 import { z } from 'zod';
 
-const prisma = new PrismaClient();
+const prisma = db;
 
 const StatsQuerySchema = z.object({
   type: z.enum(['overview', 'revenue', 'usage', 'users', 'performance']).optional().default('overview'),
@@ -113,9 +113,9 @@ async function getOverviewStats(startDate: Date, endDate: Date, centerId?: strin
     prisma.user.count({ where: { createdAt: { gte: startDate, lte: endDate } } }),
     prisma.reservation.count({ where: baseFilter }),
     prisma.membership.count({ where: baseFilter }),
-    prisma.payment.aggregate({
-      where: { ...baseFilter, status: 'COMPLETED' },
-      _sum: { amount: true },
+    prisma.reservation.aggregate({
+      where: { ...baseFilter, status: 'PAID' },
+      _sum: { totalPrice: true },
       _count: { id: true }
     }),
     prisma.center.count(),
@@ -128,46 +128,40 @@ async function getOverviewStats(startDate: Date, endDate: Date, centerId?: strin
       reservations,
       memberships,
       payments: payments._count.id,
-      revenue: payments._sum.amount || 0,
+      revenue: Number(payments._sum.totalPrice || 0),
       centers,
       courts
     }
   };
 }
 
-async function getRevenueStats(startDate: Date, endDate: Date, centerId?: string, groupBy: string) {
+async function getRevenueStats(startDate: Date, endDate: Date, centerId?: string, groupBy: string = 'day') {
   const baseFilter = {
     createdAt: { gte: startDate, lte: endDate },
-    status: 'COMPLETED' as const,
     ...(centerId && { centerId })
-  };
+  } as const;
   
   // Obtener ingresos por período
-  const revenueByPeriod = await prisma.payment.groupBy({
+  const revenueByPeriod = await prisma.reservation.groupBy({
     by: ['createdAt'],
-    where: baseFilter,
-    _sum: { amount: true },
+    where: { ...baseFilter, status: 'PAID' },
+    _sum: { totalPrice: true },
     _count: { id: true }
   });
   
   // Obtener ingresos por tipo de servicio
-  const revenueByType = await prisma.payment.groupBy({
-    by: ['type'],
-    where: baseFilter,
-    _sum: { amount: true },
-    _count: { id: true }
-  });
+  const revenueByType = [] as Array<{ type: string; _sum: { totalPrice: number }; _count: { id: number } }>;
   
   return {
     revenue: {
-      byPeriod: revenueByPeriod,
+      byPeriod: revenueByPeriod.map(r => ({ ...r, _sum: { totalPrice: Number(r._sum.totalPrice || 0) } })),
       byType: revenueByType,
-      total: revenueByPeriod.reduce((sum, item) => sum + (item._sum.amount || 0), 0)
+      total: revenueByPeriod.reduce((sum, item) => sum + Number(item._sum.totalPrice || 0), 0)
     }
   };
 }
 
-async function getUsageStats(startDate: Date, endDate: Date, centerId?: string, groupBy: string) {
+async function getUsageStats(startDate: Date, endDate: Date, centerId?: string, groupBy: string = 'day') {
   const baseFilter = {
     createdAt: { gte: startDate, lte: endDate },
     ...(centerId && { centerId })
@@ -175,20 +169,21 @@ async function getUsageStats(startDate: Date, endDate: Date, centerId?: string, 
   
   // Reservas por deporte
   const reservationsBySport = await prisma.reservation.groupBy({
-    by: ['court'],
+    by: ['courtId'],
     where: baseFilter,
     _count: { id: true }
   });
   
   // Obtener información de deportes
   const courts = await prisma.court.findMany({
-    select: { id: true, sport: true }
+    select: { id: true, sportType: true }
   });
   
   const sportStats = reservationsBySport.reduce((acc, item) => {
-    const court = courts.find(c => c.id === item.court);
+    const court = courts.find(c => c.id === (item as any).courtId);
     if (court) {
-      acc[court.sport] = (acc[court.sport] || 0) + item._count.id;
+      const sportKey = (court as any).sportType || 'UNKNOWN';
+      acc[sportKey] = (acc[sportKey] || 0) + item._count.id;
     }
     return acc;
   }, {} as Record<string, number>);
@@ -260,7 +255,7 @@ async function getPerformanceStats(startDate: Date, endDate: Date, centerId?: st
           reservations: {
             where: {
               createdAt: { gte: startDate, lte: endDate },
-              status: { in: ['CONFIRMED', 'COMPLETED'] }
+              status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] }
             }
           }
         }

@@ -28,8 +28,7 @@ interface RouteParams {
  * Obtener detalles de una entrada específica de lista de espera
  */
 export async function GET(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -40,7 +39,8 @@ export async function GET(
       );
     }
 
-    const waitingListId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const waitingListId = pathname.split('/').pop() as string;
     
     if (!waitingListId) {
       return NextResponse.json(
@@ -78,8 +78,7 @@ export async function GET(
  * Actualizar una entrada específica de lista de espera
  */
 export async function PUT(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -90,7 +89,8 @@ export async function PUT(
       );
     }
 
-    const waitingListId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const waitingListId = pathname.split('/').pop() as string;
     
     if (!waitingListId) {
       return NextResponse.json(
@@ -190,8 +190,7 @@ export async function PUT(
  * Cancelar una entrada específica de lista de espera
  */
 export async function DELETE(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -202,7 +201,8 @@ export async function DELETE(
       );
     }
 
-    const waitingListId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const waitingListId = pathname.split('/').pop() as string;
     
     if (!waitingListId) {
       return NextResponse.json(
@@ -263,8 +263,7 @@ export async function DELETE(
  * Reclamar un slot disponible desde la lista de espera
  */
 export async function POST(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -275,7 +274,8 @@ export async function POST(
       );
     }
 
-    const waitingListId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const waitingListId = pathname.split('/').pop() as string;
     
     if (!waitingListId) {
       return NextResponse.json(

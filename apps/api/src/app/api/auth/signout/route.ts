@@ -16,8 +16,9 @@ const authService = new AuthService();
  * Acceso: Usuario autenticado
  */
 export async function POST(request: NextRequest) {
-  return withAuthMiddleware(async (req, { user }) => {
+  return withAuthMiddleware(async (req, context) => {
     try {
+      const user = (context as any)?.user;
       const body = await req.json();
       
       // Validar que se proporcione el refresh token

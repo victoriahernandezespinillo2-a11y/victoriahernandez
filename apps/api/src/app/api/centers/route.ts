@@ -46,15 +46,13 @@ export async function GET(request: NextRequest) {
       };
     }
     
-    if (validatedParams.isActive !== undefined) {
-      where.isActive = validatedParams.isActive;
-    }
+    // isActive a nivel Center puede no existir en el esquema actual; omitimos este filtro
     
     // Filtro por deporte (buscar en las canchas del centro)
     if (validatedParams.sport) {
       where.courts = {
         some: {
-          sport: {
+          sportType: {
             contains: validatedParams.sport,
             mode: 'insensitive',
           },
@@ -101,16 +99,13 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             name: true,
-            sport: true,
-            surface: true,
-            isIndoor: true,
-            hasLighting: true,
-            hourlyRate: true,
+            sportType: true,
+            basePricePerHour: true,
             _count: {
               select: {
                 reservations: {
                   where: {
-                    status: 'confirmed',
+                    status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
                     startTime: {
                       gte: new Date(),
                     },
@@ -133,7 +128,6 @@ export async function GET(request: NextRequest) {
       skip,
       take: limit,
       orderBy: [
-        { isActive: 'desc' },
         { name: 'asc' },
       ],
     });
@@ -145,28 +139,19 @@ export async function GET(request: NextRequest) {
         0
       );
       
-      const sportsOffered = [...new Set(center.courts.map(court => court.sport))];
+      const sportsOffered = [...new Set(center.courts.map(court => (court as any).sportType))];
       
       const priceRange = center.courts.length > 0 ? {
-        min: Math.min(...center.courts.map(court => court.hourlyRate)),
-        max: Math.max(...center.courts.map(court => court.hourlyRate)),
+        min: Math.min(...center.courts.map(court => Number((court as any).basePricePerHour || 0))),
+        max: Math.max(...center.courts.map(court => Number((court as any).basePricePerHour || 0))),
       } : null;
       
       return {
         id: center.id,
         name: center.name,
         address: center.address,
-        city: center.city,
-        postalCode: center.postalCode,
         phone: center.phone,
         email: center.email,
-        website: center.website,
-        description: center.description,
-        amenities: center.amenities,
-        images: center.images,
-        openingHours: center.openingHours,
-        coordinates: center.coordinates,
-        isActive: center.isActive,
         stats: {
           totalCourts: center._count.courts,
           activeReservations: totalReservations,
@@ -176,11 +161,8 @@ export async function GET(request: NextRequest) {
         courts: center.courts.map(court => ({
           id: court.id,
           name: court.name,
-          sport: court.sport,
-          surface: court.surface,
-          isIndoor: court.isIndoor,
-          hasLighting: court.hasLighting,
-          hourlyRate: court.hourlyRate,
+          sportType: (court as any).sportType,
+          hourlyRate: Number((court as any).basePricePerHour || 0),
           activeReservations: court._count.reservations,
         })),
         createdAt: center.createdAt,

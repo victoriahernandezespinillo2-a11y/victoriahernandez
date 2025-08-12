@@ -23,8 +23,7 @@ interface RouteParams {
  * Obtener disponibilidad de una cancha específica
  */
 export async function GET(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -35,7 +34,8 @@ export async function GET(
       );
     }
 
-    const courtId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const courtId = pathname.split('/').slice(-2, -1)[0] || pathname.split('/').pop() as string;
     
     if (!courtId) {
       return NextResponse.json(
@@ -189,8 +189,7 @@ export async function GET(
  * Verificar disponibilidad para una reserva específica
  */
 export async function POST(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -201,7 +200,8 @@ export async function POST(
       );
     }
 
-    const courtId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const courtId = pathname.split('/').slice(-2, -1)[0] || pathname.split('/').pop() as string;
     
     if (!courtId) {
       return NextResponse.json(
@@ -220,12 +220,31 @@ export async function POST(
     
     const validatedData = CheckAvailabilitySchema.parse(body);
     
-    const isAvailable = await reservationService.checkAvailability(
-      courtId,
-      new Date(validatedData.startTime),
-      validatedData.duration,
-      validatedData.excludeReservationId
-    );
+    // Calcular disponibilidad usando la API pública de slots
+    const reqStart = new Date(validatedData.startTime);
+    const day = new Date(reqStart.getFullYear(), reqStart.getMonth(), reqStart.getDate());
+    const { slots } = await reservationService.getCourtAvailability(courtId, day);
+
+    // Inferir step y verificar secuencia continua de slots que cubra la duración
+    let stepMinutes = 30;
+    try {
+      const sorted = [...slots].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+      if (sorted.length >= 2) {
+        const diffMs = new Date(sorted[1].start).getTime() - new Date(sorted[0].start).getTime();
+        const inferred = Math.max(1, Math.round(diffMs / 60000));
+        if (Number.isFinite(inferred)) stepMinutes = inferred;
+      }
+    } catch {}
+
+    const endReq = new Date(reqStart.getTime() + validatedData.duration * 60000);
+    let ok = true;
+    let probe = new Date(reqStart);
+    while (probe < endReq) {
+      const sub = slots.find(s => new Date(s.start).getTime() === probe.getTime());
+      if (!sub || !sub.available) { ok = false; break; }
+      probe = new Date(probe.getTime() + stepMinutes * 60000);
+    }
+    const isAvailable = ok;
     
     const endTime = new Date(
       new Date(validatedData.startTime).getTime() + 

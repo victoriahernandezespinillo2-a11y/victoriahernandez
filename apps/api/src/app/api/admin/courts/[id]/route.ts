@@ -55,13 +55,11 @@ const UpdateCourtSchema = z.object({
  * Obtener detalles completos de una cancha específica
  * Acceso: ADMIN únicamente
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  return withAdminMiddleware(async (req, context) => {
+export async function GET(request: NextRequest) {
+  return withAdminMiddleware(async (req) => {
     try {
-      const courtId = params.id;
+      const pathname = req.nextUrl.pathname;
+      const courtId = pathname.split('/').pop() as string;
       
       const court = await db.court.findUnique({
         where: { id: courtId },
@@ -80,7 +78,6 @@ export async function GET(
               startTime: true,
               endTime: true,
               status: true,
-              totalAmount: true,
               user: {
                 select: {
                   id: true,
@@ -95,29 +92,7 @@ export async function GET(
             },
             take: 20
           },
-          maintenances: {
-            select: {
-              id: true,
-              type: true,
-              status: true,
-              description: true,
-              scheduledDate: true,
-              completedDate: true,
-              estimatedDuration: true,
-              actualDuration: true,
-              cost: true,
-              assignedTo: {
-                select: {
-                  firstName: true,
-                  lastName: true
-                }
-              }
-            },
-            orderBy: {
-              scheduledDate: 'desc'
-            },
-            take: 10
-          },
+          // maintenances relation no existe en el esquema actual
           _count: {
             select: {
               reservations: true
@@ -136,13 +111,13 @@ export async function GET(
         db.reservation.aggregate({
           where: {
             courtId: courtId,
-            status: 'CONFIRMED',
+            status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
             createdAt: {
               gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
             }
           },
           _sum: {
-            totalAmount: true
+            totalPrice: true
           },
           _count: {
             id: true
@@ -153,7 +128,7 @@ export async function GET(
         db.reservation.count({
           where: {
             courtId: courtId,
-            status: 'CONFIRMED',
+            status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
             startTime: {
               gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
               lte: new Date()
@@ -162,25 +137,18 @@ export async function GET(
         }),
         
         // Próximas reservas
-        prisma.reservation.count({
+        db.reservation.count({
           where: {
             courtId: courtId,
-            status: 'CONFIRMED',
+            status: { in: ['PAID', 'IN_PROGRESS'] },
             startTime: {
               gte: new Date()
             }
           }
         }),
         
-        // Mantenimientos activos
-        db.maintenance.count({
-          where: {
-            courtId: courtId,
-            status: {
-              in: ['SCHEDULED', 'IN_PROGRESS']
-            }
-          }
-        })
+        // Mantenimientos activos (no disponible en esquema actual)
+        Promise.resolve(0)
       ]);
       
       // Calcular tasa de ocupación
@@ -193,7 +161,7 @@ export async function GET(
         by: ['startTime'],
         where: {
           courtId: courtId,
-          status: 'CONFIRMED',
+          status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
           startTime: {
             gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
           }
@@ -213,14 +181,14 @@ export async function GET(
         ...court,
         stats: {
           totalReservations: court._count.reservations,
-          totalMaintenances: court._count.maintenances,
-          revenue30Days: revenueStats._sum.totalAmount || 0,
+          totalMaintenances: 0,
+          revenue30Days: (revenueStats as any)._sum.totalPrice || 0,
           reservations30Days: revenueStats._count.id,
           occupancyRate: Math.round(occupancyRate * 100) / 100,
           upcomingReservations,
           activeMaintenances,
           averageReservationValue: revenueStats._count.id > 0 ? 
-            (revenueStats._sum.totalAmount || 0) / revenueStats._count.id : 0
+            ((revenueStats as any)._sum.totalPrice || 0) / revenueStats._count.id : 0
         },
         popularTimes: popularTimes.map(time => ({
           hour: new Date(time.startTime).getHours(),
@@ -233,7 +201,7 @@ export async function GET(
       console.error('Error obteniendo detalles de la cancha:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, { params });
+  })(request, {} as any);
 }
 
 /**
@@ -241,13 +209,11 @@ export async function GET(
  * Actualizar una cancha específica
  * Acceso: ADMIN únicamente
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  return withAdminMiddleware(async (req, context) => {
+export async function PUT(request: NextRequest) {
+  return withAdminMiddleware(async (req) => {
     try {
-      const courtId = params.id;
+      const pathname = req.nextUrl.pathname;
+      const courtId = pathname.split('/').pop() as string;
       const body = await req.json();
       const courtData = UpdateCourtSchema.parse(body);
       
@@ -304,8 +270,7 @@ export async function PUT(
           },
           _count: {
             select: {
-              reservations: true,
-              maintenances: true
+              reservations: true
             }
           }
         }
@@ -327,7 +292,7 @@ export async function PUT(
       console.error('Error actualizando cancha:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, { params });
+  })(request, {} as any);
 }
 
 /**
@@ -335,13 +300,11 @@ export async function PUT(
  * Eliminar una cancha específica
  * Acceso: ADMIN únicamente
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  return withAdminMiddleware(async (req, context) => {
+export async function DELETE(request: NextRequest) {
+  return withAdminMiddleware(async (req) => {
     try {
-      const courtId = params.id;
+      const pathname = req.nextUrl.pathname;
+      const courtId = pathname.split('/').pop() as string;
       
       // Verificar que la cancha existe
       const existingCourt = await db.court.findUnique({
@@ -354,19 +317,13 @@ export async function DELETE(
           },
           reservations: {
             where: {
-              status: 'CONFIRMED',
+              status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
               startTime: {
                 gte: new Date()
               }
             }
           },
-          maintenances: {
-            where: {
-              status: {
-                in: ['SCHEDULED', 'IN_PROGRESS']
-              }
-            }
-          }
+          // maintenances relation no existe en el esquema actual
         }
       });
       
@@ -381,35 +338,14 @@ export async function DELETE(
         );
       }
       
-      // Verificar si tiene mantenimientos activos
-      if (existingCourt.maintenances.length > 0) {
-        return ApiResponse.badRequest(
-          'No se puede eliminar la cancha porque tiene mantenimientos programados o en progreso'
-        );
-      }
+      // Verificación de mantenimientos activos omitida: relación no disponible en el esquema actual
       
       // Eliminar cancha
       await db.court.delete({
         where: { id: courtId }
       });
       
-      // Registrar en log de auditoría
-      await db.auditLog.create({
-        data: {
-          action: 'DELETE_COURT',
-          entityType: 'COURT',
-          entityId: courtId,
-          userId: adminUser.id,
-          details: {
-            deletedCourt: {
-              name: existingCourt.name,
-              sport: existingCourt.sport,
-              center: existingCourt.center.name,
-              hourlyRate: existingCourt.hourlyRate
-            }
-          }
-        }
-      });
+      // Log de auditoría omitido (modelo no disponible)
       
       return ApiResponse.success(
         { 
@@ -422,7 +358,7 @@ export async function DELETE(
       console.error('Error eliminando cancha:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, { params });
+  })(request, {} as any);
 }
 
 /**

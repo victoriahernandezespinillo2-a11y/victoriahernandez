@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@headlessui/react": "^2.2.0",
     "@repo/auth": "workspace:*",
     "@repo/ui": "workspace:*",
     "next": "^15.4.2",

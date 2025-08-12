@@ -21,6 +21,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   Bars3Icon,
+  QrCodeIcon,
 } from '@heroicons/react/24/outline';
 
 interface MenuItem {
@@ -85,6 +86,11 @@ const menuItems: MenuItem[] = [
     name: 'Auditoría',
     href: '/audit',
     icon: DocumentTextIcon,
+  },
+  {
+    name: 'Control de acceso',
+    href: '/access-control',
+    icon: QrCodeIcon,
   },
 ];
 

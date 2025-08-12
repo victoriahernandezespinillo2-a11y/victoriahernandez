@@ -17,25 +17,25 @@ const notificationService = new NotificationService();
  * Acceso: Usuario autenticado (propietario de la notificación o STAFF+)
  */
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
-  return withAuthMiddleware(async (req, { user }) => {
+  return withAuthMiddleware(async (req, context) => {
+    const user = (context as any)?.user as { id: string; role: 'USER'|'STAFF'|'ADMIN' };
     try {
-      const { id } = params;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').pop() as string;
       
       if (!id) {
         return ApiResponse.badRequest('ID de notificación requerido');
       }
       
-      // Obtener la notificación
-      const notifications = await notificationService.getNotifications({ id });
-      
-      if (!notifications.data.length) {
+      // Obtener la notificación (respetando schema: page/limit/sort)
+      const list = await notificationService.getNotifications({ id, page: 1, limit: 1, sortBy: 'createdAt', sortOrder: 'desc' } as any);
+      const items = Array.isArray((list as any).notifications) ? (list as any).notifications : [];
+      if (!items.length) {
         return ApiResponse.notFound('Notificación no encontrada');
       }
-      
-      const notification = notifications.data[0];
+      const notification = items[0];
       
       // Verificar permisos: solo el destinatario o STAFF+ pueden ver la notificación
       if (user.role === 'USER' && notification.userId !== user.id) {
@@ -56,33 +56,33 @@ export async function GET(
  * Acceso: Usuario autenticado (propietario de la notificación)
  */
 export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
-  return withAuthMiddleware(async (req, { user }) => {
+  return withAuthMiddleware(async (req, context) => {
+    const user = (context as any)?.user as { id: string; role: 'USER'|'STAFF'|'ADMIN' };
     try {
-      const { id } = params;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').pop() as string;
       
       if (!id) {
         return ApiResponse.badRequest('ID de notificación requerido');
       }
       
-      // Verificar que la notificación existe y pertenece al usuario
-      const notifications = await notificationService.getNotifications({ id });
-      
-      if (!notifications.data.length) {
-        return ApiResponse.notFound('Notificación no encontrada');
+      // Si existe tabla de notificaciones, validar ownership cuando el rol sea USER
+      try {
+        const details = await notificationService.getNotifications({ id, page: 1, limit: 1, sortBy: 'createdAt', sortOrder: 'desc' } as any);
+        const exists = Array.isArray((details as any)?.notifications) ? (details as any).notifications[0] : undefined;
+        if (exists) {
+          if (user.role === 'USER' && exists.userId && exists.userId !== user.id) {
+            return ApiResponse.forbidden('No tienes permisos para modificar esta notificación');
+          }
+        }
+      } catch {
+        // Si falla la consulta de detalles, continuamos y delegamos al servicio markAsRead que es tolerante
       }
       
-      const notification = notifications.data[0];
-      
-      if (user.role === 'USER' && notification.userId !== user.id) {
-        return ApiResponse.forbidden('No tienes permisos para modificar esta notificación');
-      }
-      
-      const result = await notificationService.markAsRead(id);
-      
-      return ApiResponse.success(result, 'Notificación marcada como leída');
+      const result = await notificationService.markAsRead(id, user.role === 'USER' ? user.id : undefined);
+      return ApiResponse.success(result);
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('no encontrada')) {
@@ -105,20 +105,19 @@ export async function PUT(
  * Acceso: STAFF o superior
  */
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
   return withStaffMiddleware(async (req) => {
     try {
-      const { id } = params;
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').pop() as string;
       
       if (!id) {
         return ApiResponse.badRequest('ID de notificación requerido');
       }
       
       const result = await notificationService.cancelNotification(id);
-      
-      return ApiResponse.success(result, 'Notificación cancelada exitosamente');
+      return ApiResponse.success(result);
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('no encontrada')) {

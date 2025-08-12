@@ -15,7 +15,7 @@ const prisma = new PrismaClient();
  * Acceso: ADMIN únicamente
  */
 export async function GET(request: NextRequest) {
-  return withAdminMiddleware(async (req, { user }) => {
+  return withAdminMiddleware(async (req, context) => {
     try {
       // Obtener estadísticas generales del sistema
       const [userCount, centerCount, courtCount, reservationCount, membershipCount] = await Promise.all([
@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo información de administración:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request);
+  })(request, {} as any);
 }
 
 /**

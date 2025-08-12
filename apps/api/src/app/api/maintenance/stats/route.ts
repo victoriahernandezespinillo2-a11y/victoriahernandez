@@ -15,8 +15,9 @@ const maintenanceService = new MaintenanceService();
  * Acceso: STAFF o superior
  */
 export async function GET(request: NextRequest) {
-  return withStaffMiddleware(async (req, { user }) => {
+  return withStaffMiddleware(async (req, context) => {
     try {
+      const user = (context as any)?.user;
       const { searchParams } = new URL(req.url);
       const centerId = searchParams.get('centerId') || undefined;
       

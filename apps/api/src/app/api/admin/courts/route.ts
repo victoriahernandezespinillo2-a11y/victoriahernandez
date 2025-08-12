@@ -175,7 +175,7 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo canchas:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request);
+  })(request, {} as any);
 }
 
 /**
@@ -184,7 +184,7 @@ export async function GET(request: NextRequest) {
  * Acceso: ADMIN únicamente
  */
 export async function POST(request: NextRequest) {
-  return withAdminMiddleware(async (req, { user }) => {
+  return withAdminMiddleware(async (req) => {
     try {
       const body = await req.json();
       const courtData = CreateCourtSchema.parse(body);
@@ -274,7 +274,7 @@ export async function POST(request: NextRequest) {
       console.error('Error creando cancha:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request);
+  })(request, {} as any);
 }
 
 // Función auxiliar para calcular tasa de ocupación de una cancha
@@ -295,7 +295,7 @@ async function getCourtOccupancyRate(courtId: string): Promise<number> {
         createdAt: {
           gte: thirtyDaysAgo
         },
-        status: { in: ['CONFIRMED', 'COMPLETED'] }
+        status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] }
       }
     });
     

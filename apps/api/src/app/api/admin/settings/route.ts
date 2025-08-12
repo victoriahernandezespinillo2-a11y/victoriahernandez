@@ -6,10 +6,10 @@
 
 import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
-import { PrismaClient } from '@prisma/client';
+import { db } from '@repo/db';
 import { z } from 'zod';
 
-const prisma = new PrismaClient();
+const prisma = db;
 
 const UpdateSettingsSchema = z.object({
   general: z.object({
@@ -102,52 +102,35 @@ const UpdateSettingsSchema = z.object({
 export async function GET(request: NextRequest) {
   return withAdminMiddleware(async (req) => {
     try {
-      // Obtener todas las configuraciones del sistema
-      const settings = await prisma.systemSetting.findMany({
-        select: {
-          key: true,
-          value: true,
-          category: true,
-          description: true,
-          type: true,
-          updatedAt: true
+      const { searchParams } = req.nextUrl;
+      const centerId = searchParams.get('centerId') || undefined;
+
+      // Preferir configuración asociada a un centro (settings JSON)
+      let centerSettings: any = null;
+      if (centerId) {
+        const center = await prisma.center.findUnique({
+          where: { id: centerId },
+          select: { settings: true }
+        });
+        centerSettings = (center?.settings as any) || null;
+      }
+
+      // Fallback: derivar configuración básica desde variables de entorno
+      const envSettings = {
+        general: {
+          siteName: process.env.NEXT_PUBLIC_SITE_NAME || 'Polideportivo',
+          language: (process.env.NEXT_PUBLIC_DEFAULT_LANG as 'es' | 'en') || 'es',
+          currency: (process.env.NEXT_PUBLIC_CURRENCY as 'EUR' | 'USD' | 'COP') || 'EUR',
+          timezone: process.env.TZ || 'Europe/Madrid',
         },
-        orderBy: {
-          category: 'asc'
-        }
-      });
-      
-      // Organizar configuraciones por categoría
-      const organizedSettings = settings.reduce((acc, setting) => {
-        if (!acc[setting.category]) {
-          acc[setting.category] = {};
-        }
-        
-        // Parsear el valor según el tipo
-        let parsedValue = setting.value;
-        try {
-          if (setting.type === 'json') {
-            parsedValue = JSON.parse(setting.value);
-          } else if (setting.type === 'boolean') {
-            parsedValue = setting.value === 'true';
-          } else if (setting.type === 'number') {
-            parsedValue = parseFloat(setting.value);
-          }
-        } catch (error) {
-          console.warn(`Error parsing setting ${setting.key}:`, error);
-        }
-        
-        acc[setting.category][setting.key] = {
-          value: parsedValue,
-          description: setting.description,
-          type: setting.type,
-          updatedAt: setting.updatedAt
-        };
-        
-        return acc;
-      }, {} as any);
-      
-      return ApiResponse.success(organizedSettings);
+        payments: {
+          stripePublicKey: process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY || '',
+          paymentMethods: ['card'] as Array<'card' | 'transfer' | 'cash'>,
+        },
+      };
+
+      const result = centerSettings ? centerSettings : envSettings;
+      return ApiResponse.success(result);
     } catch (error) {
       console.error('Error obteniendo configuración:', error);
       return ApiResponse.internalError('Error interno del servidor');
@@ -161,80 +144,29 @@ export async function GET(request: NextRequest) {
  * Acceso: ADMIN únicamente
  */
 export async function PUT(request: NextRequest) {
-  return withAdminMiddleware(async (req, { user }) => {
+  return withAdminMiddleware(async (req, context) => {
     try {
       const body = await req.json();
       const settingsData = UpdateSettingsSchema.parse(body);
-      
-      const updatePromises: Promise<any>[] = [];
-      
-      // Procesar cada categoría de configuración
-      for (const [category, settings] of Object.entries(settingsData)) {
-        if (settings && typeof settings === 'object') {
-          for (const [key, value] of Object.entries(settings)) {
-            if (value !== undefined) {
-              // Determinar el tipo de dato
-              let type = 'string';
-              let stringValue = String(value);
-              
-              if (typeof value === 'boolean') {
-                type = 'boolean';
-                stringValue = value.toString();
-              } else if (typeof value === 'number') {
-                type = 'number';
-                stringValue = value.toString();
-              } else if (typeof value === 'object') {
-                type = 'json';
-                stringValue = JSON.stringify(value);
-              }
-              
-              updatePromises.push(
-                prisma.systemSetting.upsert({
-                  where: {
-                    key: key
-                  },
-                  update: {
-                    value: stringValue,
-                    type: type,
-                    updatedBy: user.id
-                  },
-                  create: {
-                    key: key,
-                    value: stringValue,
-                    category: category,
-                    type: type,
-                    description: getSettingDescription(category, key),
-                    createdBy: user.id,
-                    updatedBy: user.id
-                  }
-                })
-              );
-            }
-          }
-        }
+      const { searchParams } = req.nextUrl;
+      const centerId = searchParams.get('centerId');
+
+      if (!centerId) {
+        return ApiResponse.badRequest('centerId es requerido para guardar configuración');
       }
-      
-      // Ejecutar todas las actualizaciones
-      await Promise.all(updatePromises);
-      
-      // Registrar el cambio en el log de auditoría
-      await prisma.auditLog.create({
-        data: {
-          action: 'UPDATE_SETTINGS',
-          entityType: 'SYSTEM_SETTINGS',
-          entityId: 'system',
-          userId: user.id,
-          details: {
-            updatedCategories: Object.keys(settingsData),
-            timestamp: new Date().toISOString()
-          }
-        }
+
+      // Merge settings previos con los nuevos datos a nivel de Center.settings
+      const current = await prisma.center.findUnique({ where: { id: centerId }, select: { settings: true } });
+      const currentSettings = (current?.settings as any) || {};
+      const merged: Record<string, any> = { ...currentSettings, ...settingsData };
+
+      const updatedCenter = await prisma.center.update({
+        where: { id: centerId },
+        data: { settings: merged },
+        select: { id: true, settings: true }
       });
-      
-      return ApiResponse.success(
-        { updated: updatePromises.length },
-        'Configuración actualizada exitosamente'
-      );
+
+      return ApiResponse.success({ id: updatedCenter.id, settings: updatedCenter.settings });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(

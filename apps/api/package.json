@@ -21,6 +21,8 @@
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "next": "^15.4.2",
+    "pdfkit": "^0.15.0",
+    "qrcode": "^1.5.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "zod": "^3.23.8"
@@ -29,10 +31,11 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
+    "@types/pdfkit": "^0.17.2",
     "@types/react": "19.1.0",
     "@types/react-dom": "19.1.1",
-    "eslint": "^9.31.0",
     "dotenv-cli": "^7.4.2",
+    "eslint": "^9.31.0",
     "typescript": "5.8.2"
   }
 }

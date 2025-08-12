@@ -14,7 +14,8 @@ const membershipService = new MembershipService();
  * Obtener tipos de membresía disponibles
  * Ruta pública
  */
-export const GET = withPublicMiddleware(async (req: NextRequest) => {
+export async function GET(req: NextRequest) {
+  return withPublicMiddleware(async () => {
   try {
     const types = membershipService.getMembershipTypes();
     
@@ -27,7 +28,8 @@ export const GET = withPublicMiddleware(async (req: NextRequest) => {
       500
     );
   }
-});
+  })(req);
+}
 
 /**
  * OPTIONS /api/memberships/types

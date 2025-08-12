@@ -92,6 +92,49 @@ export class StripeService {
     return paymentIntent;
   }
 
+  // Crear Checkout Session (enlace de pago hospedado por Stripe)
+  async createCheckoutSession({
+    amount,
+    currency = 'eur',
+    successUrl,
+    cancelUrl,
+    metadata,
+    customerId,
+    description,
+  }: {
+    amount: number;
+    currency?: string;
+    successUrl: string;
+    cancelUrl: string;
+    metadata?: Record<string, string>;
+    customerId?: string;
+    description?: string;
+  }): Promise<Stripe.Checkout.Session> {
+    const session = await this.stripe.checkout.sessions.create({
+      mode: 'payment',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      customer: customerId,
+      payment_intent_data: {
+        metadata: metadata || {},
+        description,
+      },
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency,
+            unit_amount: Math.round(amount * 100),
+            product_data: {
+              name: description || 'Reserva',
+            },
+          },
+        },
+      ],
+    });
+    return session;
+  }
+
   // Crear cliente en Stripe
   async createCustomer(data: CustomerData): Promise<Stripe.Customer> {
     const validatedData = createCustomerSchema.parse(data);

@@ -22,8 +22,7 @@ interface RouteParams {
  * Obtener detalles de una reserva específica
  */
 export async function GET(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -34,7 +33,8 @@ export async function GET(
       );
     }
 
-    const reservationId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const reservationId = pathname.split('/').pop() as string;
     
     if (!reservationId) {
       return NextResponse.json(
@@ -72,8 +72,7 @@ export async function GET(
  * Actualizar una reserva específica
  */
 export async function PUT(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -84,7 +83,8 @@ export async function PUT(
       );
     }
 
-    const reservationId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const reservationId = pathname.split('/').pop() as string;
     
     if (!reservationId) {
       return NextResponse.json(
@@ -160,8 +160,7 @@ export async function PUT(
  * Cancelar una reserva específica
  */
 export async function DELETE(
-  request: NextRequest,
-  { params }: RouteParams
+  request: NextRequest
 ) {
   try {
     const session = await auth();
@@ -172,7 +171,8 @@ export async function DELETE(
       );
     }
 
-    const reservationId = params.id;
+    const pathname = request.nextUrl.pathname;
+    const reservationId = pathname.split('/').pop() as string;
     
     if (!reservationId) {
       return NextResponse.json(

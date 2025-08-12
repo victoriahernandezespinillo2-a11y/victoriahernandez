@@ -17,15 +17,13 @@ class ApiClient {
     this.baseURL = baseURL;
   }
 
-  private async getHeaders(): Promise<HeadersInit> {
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-
-    // NextAuth maneja la autenticación a través de cookies
-    // No necesitamos agregar Authorization header manualmente
-    // Las cookies de sesión se incluyen automáticamente con credentials: 'include'
-
+  private async getHeaders(method: string): Promise<HeadersInit> {
+    // Evitar 'Content-Type: application/json' en GET para no forzar preflight CORS innecesario
+    const isGet = method.toUpperCase() === 'GET';
+    const headers: HeadersInit = {};
+    if (!isGet) {
+      (headers as any)['Content-Type'] = 'application/json';
+    }
     return headers;
   }
 
@@ -33,8 +31,10 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseURL}${endpoint}`;
-    const headers = await this.getHeaders();
+    const method = (options.method || 'GET').toString().toUpperCase();
+    const headers = await this.getHeaders(method);
+    const absoluteUrl = `${this.baseURL}${endpoint}`;
+    const relativeUrl = `${endpoint}`;
 
     const config: RequestInit = {
       ...options,
@@ -45,55 +45,79 @@ class ApiClient {
       credentials: 'include',
     };
 
-    const method = (config.method || 'GET').toString().toUpperCase();
-
     const doRequest = async (): Promise<T> => {
       try {
-        const response = await fetch(url, { ...config, credentials: 'include' });
+        let response: Response | null = null;
+        // Preferir relativo para evitar CORS; si falla, probar absoluto si hay baseURL
+        try {
+          response = await fetch(relativeUrl, { ...config, credentials: 'include' });
+          // Si recibimos 404 y existe baseURL, intentar absoluto (algunos endpoints solo viven en API)
+          if (response.status === 404 && this.baseURL) {
+            response = await fetch(absoluteUrl, { ...config, credentials: 'include' });
+          }
+        } catch (networkErr) {
+          const looksLikeNetworkError = networkErr instanceof TypeError;
+          if (this.baseURL && looksLikeNetworkError) {
+            response = await fetch(absoluteUrl, { ...config, credentials: 'include' });
+          } else {
+            throw networkErr;
+          }
+        }
 
         if (!response.ok) {
           let message = '';
+          let code = '';
+          let traceId = response.headers.get('x-request-id') || '';
+          let details: any = undefined;
           try {
             const asJson = await response.json();
             message = asJson?.error || JSON.stringify(asJson);
+            code = asJson?.code || '';
+            details = asJson?.details;
+            traceId = asJson?.traceId || traceId;
           } catch {
-            try {
-              message = await response.text();
-            } catch {
-              message = '';
-            }
+            try { message = await response.text(); } catch { message = ''; }
           }
-          throw new Error(`HTTP ${response.status}: ${message || 'Unknown error'}`);
+          if (response.status >= 400 && response.status < 500) {
+            console.warn('API 4xx', { method, endpoint, status: response.status, code, traceId, details, body: options.body });
+          }
+          let detailMsg = '';
+          if (Array.isArray(details) && details.length > 0) {
+            const d = details[0];
+            const field = (d?.field || d?.path || '').toString();
+            const dm = (d?.message || '').toString();
+            if (field || dm) detailMsg = ` (${[field, dm].filter(Boolean).join(': ')})`;
+          }
+          const err = new Error(`HTTP ${response.status} ${method} ${endpoint}: ${message || 'Unknown error'}${detailMsg}`) as any;
+          if (code) err.code = code;
+          if (traceId) err.traceId = traceId;
+          if (details) err.details = details;
+          throw err;
         }
 
-        // Intentar JSON; si no, retornar texto para diagnóstico
         try {
           const data = await response.json();
-          return (data as any).data || data;
+          return (data as any).data || data as T;
         } catch {
           const text = await response.text();
           return text as unknown as T;
         }
       } catch (error) {
-        console.error(`API Error [${endpoint}]:`, error);
+        console.error(`API Error [${method} ${endpoint}]:`, error);
         throw error;
       }
     };
 
-    // Deduplicación de peticiones GET concurrentes al mismo recurso
     if (method === 'GET') {
-      const key = url;
+      // Usar URL absoluta como clave, porque relativa y absoluta resuelven mismo recurso
+      const key = absoluteUrl || relativeUrl;
       const existing = this.inFlight.get(key);
       if (existing) {
         return existing as Promise<T>;
       }
       const promise = doRequest();
       this.inFlight.set(key, promise);
-      try {
-        return await promise;
-      } finally {
-        this.inFlight.delete(key);
-      }
+      try { return await promise; } finally { this.inFlight.delete(key); }
     }
 
     return doRequest();
@@ -130,6 +154,76 @@ export const adminApi = {
       const query = searchParams.toString();
       return apiClient.request(`/api/admin/activity${query ? `?${query}` : ''}`);
     },
+
+    getAllWithMeta: (params?: {
+      search?: string;
+      role?: string;
+      status?: string;
+      hasReservations?: boolean;
+      hasMemberships?: boolean;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+      page?: number;
+      limit?: number;
+    }) => {
+      const sp = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([k, v]) => {
+          if (v === undefined || v === null || v === '') return;
+          sp.append(k, String(v));
+        });
+      }
+      const q = sp.toString();
+      const doMap = (payload: any) => {
+        const raw = payload?.data || payload;
+        const arr = Array.isArray(raw?.data)
+          ? raw.data
+          : Array.isArray(raw?.users)
+            ? raw.users
+            : Array.isArray(raw)
+              ? raw
+              : [];
+        const pagination = raw?.pagination || {
+          page: params?.page || 1,
+          limit: params?.limit || arr.length,
+          total: arr.length,
+          pages: Math.max(1, Math.ceil(arr.length / (params?.limit || arr.length || 1)))
+        };
+        const mapped = arr.map((u: any) => {
+          const fullName: string = u.name || '';
+          const [firstName, ...rest] = fullName.split(' ');
+          const lastName = rest.join(' ');
+          const status = u.isActive === false ? 'INACTIVE' : 'ACTIVE';
+          return {
+            id: u.id,
+            email: u.email,
+            firstName: u.firstName || firstName || u.givenName || '',
+            lastName: u.lastName || lastName || u.familyName || '',
+            role: u.role,
+            membershipType: u.membershipType || null,
+            status,
+            createdAt: u.createdAt,
+            lastLogin: u.lastLoginAt || u.lastLogin || null,
+            phone: u.phone || '',
+          };
+        });
+        return { items: mapped, pagination };
+      };
+
+      const base = `/api/admin/users${q ? `?${q}` : ''}`;
+      return fetch(base, { credentials: 'include', headers: { 'Content-Type': 'application/json' } })
+        .then(async (resp) => {
+          if (resp.ok) return doMap(await resp.json());
+          // Fallback para roles no ADMIN: intentar /api/users (STAFF)
+          if (resp.status === 401 || resp.status === 403 || resp.status === 404) {
+            const alt = `/api/users${q ? `?${q}` : ''}`;
+            const r2 = await fetch(alt, { credentials: 'include', headers: { 'Content-Type': 'application/json' } });
+            if (r2.ok) return doMap(await r2.json());
+          }
+          const text = await resp.text().catch(() => '');
+          throw new Error(`HTTP ${resp.status}: ${text}`);
+        });
+    },
   },
 
   // Gestión de usuarios
@@ -150,7 +244,39 @@ export const adminApi = {
         });
       }
       const query = searchParams.toString();
-      return apiClient.request(`/api/admin/users${query ? `?${query}` : ''}`);
+      return apiClient
+        .request(`/api/admin/users${query ? `?${query}` : ''}`)
+        .then((res: any) => {
+          const list = Array.isArray(res)
+            ? res
+            : Array.isArray(res?.users)
+              ? res.users
+              : Array.isArray(res?.data?.users)
+                ? res.data.users
+                : Array.isArray(res?.data)
+                  ? res.data
+                  : Array.isArray(res?.items)
+                    ? res.items
+                    : [];
+          // Mapear a forma esperada por UI (firstName/lastName/status/lastLogin)
+          return list.map((u: any) => {
+            const name: string = u.name || '';
+            const [firstName, ...rest] = name.split(' ');
+            const lastName = rest.join(' ');
+            const status = u.isActive === false ? 'INACTIVE' : 'ACTIVE';
+            return {
+              id: u.id,
+              email: u.email,
+              firstName: u.firstName || firstName || u.givenName || '',
+              lastName: u.lastName || lastName || u.familyName || '',
+              role: u.role,
+              membershipType: u.membershipType || null,
+              status,
+              createdAt: u.createdAt,
+              lastLogin: u.lastLoginAt || u.lastLogin || null,
+            };
+          });
+        });
     },
     
     create: (data: {
@@ -159,11 +285,20 @@ export const adminApi = {
       lastName: string;
       role: string;
       phone?: string;
-    }) => 
-      apiClient.request('/api/admin/users', {
+    }) => {
+      // Backend espera 'name' y 'isActive' en CreateUserSchema
+      const payload = {
+        email: data.email,
+        name: `${data.firstName || ''} ${data.lastName || ''}`.trim(),
+        role: data.role,
+        phone: data.phone,
+        isActive: true,
+      };
+      return apiClient.request('/api/admin/users', {
         method: 'POST',
-        body: JSON.stringify(data),
-      }),
+        body: JSON.stringify(payload),
+      });
+    },
     
     getById: (id: string) => 
       apiClient.request(`/api/admin/users/${id}`),
@@ -304,6 +439,9 @@ export const adminApi = {
     
     getById: (id: string) => 
       apiClient.request(`/api/admin/courts/${id}`),
+
+    getAvailability: (id: string, date: string) =>
+      apiClient.request(`/api/admin/courts/${id}/availability?date=${encodeURIComponent(date)}`),
     
     update: (id: string, data: Partial<{
       name: string;
@@ -347,11 +485,17 @@ export const adminApi = {
         });
       }
       const query = searchParams.toString();
-      return apiClient.request(`/api/reservations${query ? `?${query}` : ''}`);
+      // Usar endpoint administrativo para listar todas las reservas
+      return apiClient.request(`/api/admin/reservations${query ? `?${query}` : ''}`)
+        .then((payload: any) => {
+          const raw = payload?.data || payload;
+          const arr = Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw) ? raw : []);
+          return arr as any;
+        });
     },
     
     getById: (id: string) => 
-      apiClient.request(`/api/reservations/${id}`),
+      apiClient.request(`/api/admin/reservations/${id}`),
     
     update: (id: string, data: Partial<{
       status: string;
@@ -359,15 +503,46 @@ export const adminApi = {
       endTime: string;
       notes: string;
     }>) => 
-      apiClient.request(`/api/reservations/${id}`, {
+      apiClient.request(`/api/admin/reservations/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       }),
     
     cancel: (id: string) => 
-      apiClient.request(`/api/reservations/${id}`, {
+      apiClient.request(`/api/admin/reservations/${id}`, {
         method: 'DELETE',
       }),
+
+    generatePaymentLink: async (reservationId: string): Promise<{ url: string }> => {
+      return await apiClient.request(`/api/admin/reservations/payments/link`, {
+        method: 'POST',
+        body: JSON.stringify({ reservationId }),
+      });
+    },
+
+    refund: (reservationId: string, data: { amount?: number; reason: string }) =>
+      apiClient.request(`/api/admin/reservations/${reservationId}/refund`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    resendNotification: (reservationId: string, data: { type: 'CONFIRMATION'|'PAYMENT_LINK'; channel?: 'EMAIL'|'SMS' }) =>
+      apiClient.request(`/api/admin/reservations/${reservationId}/notifications/resend`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    checkIn: (reservationId: string) =>
+      apiClient.request(`/api/admin/reservations/${reservationId}/check-in`, { method: 'POST' }),
+
+    checkOut: (reservationId: string) =>
+      apiClient.request(`/api/admin/reservations/${reservationId}/check-out`, { method: 'POST' }),
+
+    getAudit: (reservationId: string) =>
+      apiClient.request(`/api/admin/reservations/${reservationId}/audit`),
+
+    exportAuditCsv: (reservationId: string) =>
+      apiClient.request(`/api/admin/reservations/${reservationId}/audit/csv`),
   },
 
   // Gestión de torneos
@@ -390,7 +565,15 @@ export const adminApi = {
         });
       }
       const query = searchParams.toString();
-      return apiClient.request(`/api/tournaments${query ? `?${query}` : ''}`);
+      return apiClient
+        .request(`/api/tournaments${query ? `?${query}` : ''}`)
+        .then((res: any) => {
+          // Normalizar a array para el hook: res puede ser { tournaments, pagination }
+          if (Array.isArray(res)) return res;
+          if (Array.isArray(res?.tournaments)) return res.tournaments;
+          if (Array.isArray(res?.data?.tournaments)) return res.data.tournaments;
+          return [];
+        });
     },
     
     create: (data: {
@@ -437,19 +620,27 @@ export const adminApi = {
   payments: {
     getAll: (params?: {
       userId?: string;
-      status?: string;
-      method?: string;
-      startDate?: string;
-      endDate?: string;
+      status?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'REFUNDED';
+      provider?: 'STRIPE' | 'REDSYS' | 'MANUAL';
+      dateFrom?: string; // ISO
+      dateTo?: string;   // ISO
       page?: number;
       limit?: number;
     }) => {
       const searchParams = new URLSearchParams();
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) {
-            searchParams.append(key, String(value));
+          if (value === undefined || value === null) return;
+          // Mapear antiguos nombres a los esperados por la API
+          if (key === 'method') return; // no soportado por schema
+          if (key === 'startDate') { searchParams.append('dateFrom', String(value)); return; }
+          if (key === 'endDate') { searchParams.append('dateTo', String(value)); return; }
+          // Enviar en mayúsculas los enums
+          if (key === 'status' || key === 'provider') {
+            searchParams.append(key, String(value).toUpperCase());
+            return;
           }
+          searchParams.append(key, String(value));
         });
       }
       const query = searchParams.toString();
@@ -596,7 +787,14 @@ export const adminApi = {
         });
       }
       const query = searchParams.toString();
-      return apiClient.request(`/api/maintenance${query ? `?${query}` : ''}`);
+      return apiClient
+        .request(`/api/maintenance${query ? `?${query}` : ''}`)
+        .then((res: any) => {
+          if (Array.isArray(res)) return res;
+          if (Array.isArray(res?.maintenances)) return res.maintenances;
+          if (Array.isArray(res?.data?.maintenances)) return res.data.maintenances;
+          return [];
+        });
     },
     
     create: (data: {
@@ -644,6 +842,114 @@ export const adminApi = {
     
     delete: (id: string) => 
       apiClient.request(`/api/maintenance/${id}`, {
+        method: 'DELETE',
+      }),
+  },
+
+  // Notificaciones
+  notifications: {
+    getAll: (params?: {
+      userId?: string;
+      type?: 'EMAIL' | 'SMS' | 'PUSH' | 'IN_APP';
+      category?: string;
+      status?: string;
+      read?: boolean;
+      page?: number;
+      limit?: number;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+    }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            searchParams.append(key, String(value));
+          }
+        });
+      }
+      const query = searchParams.toString();
+      return apiClient
+        .request(`/api/notifications${query ? `?${query}` : ''}`)
+        .then((res: any) => {
+          if (Array.isArray(res)) return res;
+          if (Array.isArray(res?.notifications)) return res.notifications;
+          if (Array.isArray(res?.data?.notifications)) return res.data.notifications;
+          return [];
+        });
+    },
+
+    markAsRead: (id: string) =>
+      apiClient.request(`/api/notifications/${id}`, {
+        method: 'PUT',
+      }),
+
+    markAllAsRead: () =>
+      apiClient.request('/api/notifications/read-all', {
+        method: 'POST',
+      }),
+
+    stats: (params?: { userId?: string }) => {
+      const sp = new URLSearchParams();
+      if (params?.userId) sp.append('userId', params.userId);
+      const q = sp.toString();
+      return apiClient.request(`/api/notifications/stats${q ? `?${q}` : ''}`);
+    },
+  },
+
+  // Membresías
+  memberships: {
+    getAll: (params?: {
+      page?: number;
+      limit?: number;
+      status?: string;
+      type?: string;
+      userId?: string;
+      centerId?: string;
+    }) => {
+      const sp = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([k, v]) => {
+          if (v === undefined || v === null) return;
+          if (k === 'limit') {
+            const n = Math.min(100, Math.max(1, Number(v)));
+            sp.append('limit', String(Number.isFinite(n) ? n : 20));
+            return;
+          }
+          if (k === 'page') {
+            const n = Math.max(1, Number(v));
+            sp.append('page', String(Number.isFinite(n) ? n : 1));
+            return;
+          }
+          sp.append(k, String(v));
+        });
+      }
+      const q = sp.toString();
+      return apiClient
+        .request(`/api/memberships${q ? `?${q}` : ''}`)
+        .then((res: any) => {
+          if (Array.isArray(res)) return res;
+          if (Array.isArray(res?.memberships)) return res.memberships;
+          if (Array.isArray(res?.data?.memberships)) return res.data.memberships;
+          return [];
+        });
+    },
+
+    create: (data: any) =>
+      apiClient.request('/api/memberships', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getById: (id: string) => apiClient.request(`/api/memberships/${id}`),
+
+    update: (id: string, data: any) =>
+      apiClient.request(`/api/memberships/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
+    delete: (id: string) =>
+      apiClient.request(`/api/memberships/${id}`, {
         method: 'DELETE',
       }),
   },

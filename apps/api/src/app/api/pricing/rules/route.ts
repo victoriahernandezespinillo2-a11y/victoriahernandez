@@ -1,7 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth, withRole } from '@repo/auth';
-import { pricingService } from '../../../../lib/services/pricing.service';
+// Forzar runtime Node.js (Prisma)
+export const runtime = 'nodejs';
+
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { pricingService } from '../../../../lib/services/pricing.service';
+import { withAdminMiddleware, ApiResponse as API } from '@/lib/middleware';
 
 // Esquema para crear regla de precio
 const CreatePricingRuleSchema = z.object({
@@ -26,84 +29,91 @@ const CreatePricingRuleSchema = z.object({
 
 // Esquema para filtros de búsqueda
 const GetPricingRulesSchema = z.object({
-  courtId: z.string().cuid().optional(),
-  centerId: z.string().cuid().optional(),
+  courtId: z.string().optional(),
+  centerId: z.string().optional(),
   sport: z.string().optional(),
-  isActive: z.string().transform(val => val === 'true').optional(),
-  page: z.string().transform(Number).optional().default('1'),
-  limit: z.string().transform(Number).optional().default('20'),
+  isActive: z.coerce.boolean().optional(),
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(20),
 });
+
+/**
+ * OPTIONS /api/pricing/rules - Preflight CORS
+ */
+export async function OPTIONS(request: NextRequest) {
+  const origin = request.headers.get('origin');
+  const allowedOrigins = process.env.NODE_ENV === 'production'
+    ? ['https://polideportivo.com', 'https://admin.polideportivo.com']
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
+
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
+  };
+  if (origin && allowedOrigins.includes(origin)) headers['Access-Control-Allow-Origin'] = origin;
+  return new Response(null, { status: 200, headers });
+}
 
 /**
  * GET /api/pricing/rules
  * Obtener reglas de precios (solo para administradores y staff)
  */
 export async function GET(request: NextRequest) {
-  try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 401 }
-      );
-    }
-
-    // Verificar permisos de administrador o staff
-    const hasPermission = await withRole(['ADMIN', 'STAFF'])(session);
-    if (!hasPermission) {
-      return NextResponse.json(
-        { error: 'Permisos insuficientes' },
-        { status: 403 }
-      );
-    }
-
-    const { searchParams } = new URL(request.url);
-    const params = Object.fromEntries(searchParams.entries());
-    
-    const validatedParams = GetPricingRulesSchema.parse(params);
-    
-    const filters: any = {
-      courtId: validatedParams.courtId,
-      centerId: validatedParams.centerId,
-      sport: validatedParams.sport,
-      isActive: validatedParams.isActive,
-    };
-    
-    const pricingRules = await pricingService.getPricingRules(filters);
-    
-    // Paginación
-    const page = validatedParams.page;
-    const limit = validatedParams.limit;
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    
-    const paginatedRules = pricingRules.slice(startIndex, endIndex);
-    
-    return NextResponse.json({
-      pricingRules: paginatedRules,
-      pagination: {
-        page,
-        limit,
-        total: pricingRules.length,
-        totalPages: Math.ceil(pricingRules.length / limit),
-      },
-      filters,
-    });
-  } catch (error) {
-    console.error('Error obteniendo reglas de precios:', error);
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Parámetros inválidos', details: error.errors },
-        { status: 400 }
-      );
-    }
-    
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+  const origin = request.headers.get('origin');
+  const allowedOrigins = process.env.NODE_ENV === 'production'
+    ? ['https://polideportivo.com', 'https://admin.polideportivo.com']
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
+  const corsHeaders: Record<string, string> = { Vary: 'Origin' };
+  if (origin && allowedOrigins.includes(origin)) {
+    corsHeaders['Access-Control-Allow-Origin'] = origin;
+    corsHeaders['Access-Control-Allow-Credentials'] = 'true';
   }
+
+  return withAdminMiddleware(async (req) => {
+    try {
+      const params = Object.fromEntries(req.nextUrl.searchParams.entries());
+      const validatedParams = GetPricingRulesSchema.parse(params);
+
+      const filters: any = {
+        courtId: validatedParams.courtId,
+        centerId: validatedParams.centerId,
+        sport: validatedParams.sport,
+        isActive: validatedParams.isActive,
+      };
+
+      const pricingRules = await pricingService.getPricingRules(filters);
+
+      const page = validatedParams.page;
+      const limit = validatedParams.limit;
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedRules = pricingRules.slice(startIndex, endIndex);
+
+      const res = API.success({
+        pricingRules: paginatedRules,
+        pagination: {
+          page,
+          limit,
+          total: pricingRules.length,
+          totalPages: Math.ceil(Math.max(1, pricingRules.length) / Math.max(1, limit)),
+        },
+        filters,
+      });
+      Object.entries(corsHeaders).forEach(([k, v]) => res.headers.set(k, v));
+      return res;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const res = API.validation(error.errors.map(e => ({ field: e.path.join('.'), message: e.message })));
+        Object.entries(corsHeaders).forEach(([k, v]) => res.headers.set(k, v));
+        return res;
+      }
+      console.error('Error obteniendo reglas de precios:', error);
+      const res = API.success({ pricingRules: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 }, filters: {} });
+      Object.entries(corsHeaders).forEach(([k, v]) => res.headers.set(k, v));
+      return res;
+    }
+  })(request, {} as any);
 }
 
 /**
