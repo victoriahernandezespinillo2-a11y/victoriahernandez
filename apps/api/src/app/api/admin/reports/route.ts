@@ -294,7 +294,7 @@ async function generateUsageReport(startDate: Date, endDate: Date, centerId?: st
       totalReservations
     },
     bySport: reservationsBySport.map((r: any) => ({
-      sportType: courts.find(c => c.id === r.courtId)?.sportType || 'UNKNOWN',
+      sportType: courts.find((c: any) => c.id === r.courtId)?.sportType || 'UNKNOWN',
       count: r._count.id
     })),
     byStatus: reservationsByStatus
