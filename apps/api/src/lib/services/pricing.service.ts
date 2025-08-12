@@ -697,6 +697,83 @@ export class PricingService {
       priceDistribution,
     };
   }
+
+  /**
+   * Calcular proyección de ingresos para un rango de fechas y conjunto de canchas
+   * Estrategia simple: estimar horas reservadas = horas_totales * ocupación.
+   * Ingreso proyectado por cancha = horas_reservadas * tarifa_base_por_hora.
+   * Si se proporcionan escenarios, se calculan totales por escenario variando ocupación y multiplicador.
+   */
+  async calculateRevenueProjection(input: {
+    centerId?: string;
+    courtIds?: string[];
+    startDate: Date;
+    endDate: Date;
+    occupancyRate: number; // 0-100
+    scenarios?: Array<{ name: string; occupancyRate: number; priceMultiplier?: number }>;
+  }): Promise<{
+    totalProjected: number;
+    byCourt: Array<{ courtId: string; projected: number }>;
+    scenarios?: Array<{ name: string; totalProjected: number }>;
+    period: { startDate: string; endDate: string };
+    assumptions: { occupancyRate: number; avgDurationMinutes: number };
+  }> {
+    const { centerId, courtIds: inputCourtIds, startDate, endDate, occupancyRate, scenarios } = input;
+
+    // Obtener canchas involucradas
+    let courts: Array<{ id: string; basePricePerHour: number | null }>; 
+    if (inputCourtIds && inputCourtIds.length > 0) {
+      courts = await db.court.findMany({
+        where: { id: { in: inputCourtIds } },
+        select: { id: true, basePricePerHour: true },
+      });
+    } else if (centerId) {
+      courts = await db.court.findMany({
+        where: { centerId },
+        select: { id: true, basePricePerHour: true },
+      });
+    } else {
+      courts = [];
+    }
+
+    const msInHour = 1000 * 60 * 60;
+    const totalHours = Math.max(0, (endDate.getTime() - startDate.getTime()) / msInHour);
+    const occupancy = Math.min(Math.max(occupancyRate, 0), 100) / 100; // clamp 0..1
+    const avgDurationMinutes = 60; // suposición conservadora 1h por reserva
+
+    // Proyección base por cancha usando tarifa base por hora
+    const byCourt = courts.map((c) => {
+      const hourlyRate = Number(c.basePricePerHour || 0);
+      const bookedHours = totalHours * occupancy;
+      const projected = bookedHours * hourlyRate;
+      return { courtId: c.id, projected };
+    });
+
+    const totalProjected = byCourt.reduce((sum, x) => sum + x.projected, 0);
+
+    // Escenarios opcionales
+    let scenarioResults: Array<{ name: string; totalProjected: number }> | undefined;
+    if (Array.isArray(scenarios) && scenarios.length > 0) {
+      scenarioResults = scenarios.map((s) => {
+        const occ = Math.min(Math.max(s.occupancyRate, 0), 100) / 100;
+        const multiplier = typeof s.priceMultiplier === 'number' ? s.priceMultiplier : 1;
+        const scenarioTotal = courts.reduce((sum, c) => {
+          const hourlyRate = Number(c.basePricePerHour || 0) * multiplier;
+          const booked = totalHours * occ * hourlyRate;
+          return sum + booked;
+        }, 0);
+        return { name: s.name, totalProjected: scenarioTotal };
+      });
+    }
+
+    return {
+      totalProjected,
+      byCourt,
+      scenarios: scenarioResults,
+      period: { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
+      assumptions: { occupancyRate, avgDurationMinutes },
+    };
+  }
 }
 
 export const pricingService = new PricingService();
