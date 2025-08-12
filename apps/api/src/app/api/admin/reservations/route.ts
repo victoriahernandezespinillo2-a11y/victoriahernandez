@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
       ]);
 
       // Detectar reembolsos recientes por reservationId a partir de outbox
-      const idsSet = new Set(items.map((r) => r.id));
+      const idsSet = new Set(items.map((r: any) => r.id));
       const refundedEvents = await db.outboxEvent.findMany({
         where: { eventType: 'RESERVATION_REFUNDED' },
         select: { eventData: true },
