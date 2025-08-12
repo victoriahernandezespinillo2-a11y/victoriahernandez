@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
-import { ReservationStatus } from '@prisma/client';
+// Evitar importar enums de Prisma; usar literales compatibles
 import { z } from 'zod';
 
 // Usar cliente compartido para respetar configuración de conexión (Supabase, SSL, PgBouncer)
@@ -220,7 +220,7 @@ async function generateRevenueReport(startDate: Date, endDate: Date, centerId?: 
     ...(centerId && { centerId })
   } as const;
 
-  const paidWhere = { ...baseFilter, status: ReservationStatus.PAID } as const;
+  const paidWhere = { ...baseFilter, status: 'PAID' as any } as const;
 
   const [reservationRevenue, revenueByMethod, revenueByPeriod] = await Promise.all([
     prisma.reservation.aggregate({
@@ -453,7 +453,7 @@ async function generatePaymentsReport(startDate: Date, endDate: Date, centerId?:
 
   const [paidAgg, byStatus, byMethod] = await Promise.all([
     prisma.reservation.aggregate({
-      where: { ...baseFilter, status: ReservationStatus.PAID },
+      where: { ...baseFilter, status: 'PAID' as any },
       _sum: { totalPrice: true },
       _count: { id: true },
     }),
