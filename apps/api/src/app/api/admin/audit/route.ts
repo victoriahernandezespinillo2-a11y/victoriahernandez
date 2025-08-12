@@ -154,7 +154,7 @@ async function getAuditStats(baseWhere: any) {
     ]);
     
     return {
-      byAction: actionStats.map(stat => ({
+      byAction: actionStats.map((stat: any) => ({
         action: stat.eventType,
         count: stat._count.eventType
       })),
