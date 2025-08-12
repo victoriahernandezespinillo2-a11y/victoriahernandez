@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      const mapped = items.map((r) => ({
+      const mapped = items.map((r: any) => ({
         id: r.id,
         userId: r.userId,
         userName: r.user?.name || 'Usuario',
