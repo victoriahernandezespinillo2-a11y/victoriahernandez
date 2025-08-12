@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
         db.court.count({ where })
       ]);
 
-      const mapped = courts.map((c) => {
+      const mapped = courts.map((c: any) => {
         const hourlyRate = Number((c as any).basePricePerHour) || 0;
         const inMaintenance = c.maintenanceStatus && c.maintenanceStatus !== 'operational';
         const status = inMaintenance ? 'MAINTENANCE' : (c.isActive ? 'AVAILABLE' : 'INACTIVE');
