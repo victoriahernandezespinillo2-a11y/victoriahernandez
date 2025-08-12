@@ -9,7 +9,7 @@ import { NextRequest } from 'next/server';
 export const runtime = 'nodejs';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
-import { ReservationStatus } from '@prisma/client';
+// Evitar import de enums de Prisma en build; usar literales compatibles
 import { z } from 'zod';
 
 // Usar el cliente compartido para respetar DATABASE_URL/DIRECT_DATABASE_URL
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
       
       // Ejecutar consultas con tolerancia a fallos
       const [curRevRes, curResRes, curUsrRes, curMemRes] = await Promise.allSettled([
-        prisma.reservation.aggregate({ where: { ...baseFilter, status: ReservationStatus.PAID }, _sum: { totalPrice: true } }),
+        prisma.reservation.aggregate({ where: { ...baseFilter, status: 'PAID' as any }, _sum: { totalPrice: true } }),
         prisma.reservation.count({ where: baseFilter }),
         prisma.user.count({ where: { createdAt: { gte: startDate, lte: now } } }),
         prisma.membership.count({ where: baseFilter }),
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
       const previousFilter = { createdAt: { gte: previousStartDate, lte: previousEndDate }, ...(params.centerId && { centerId: params.centerId }) } as any;
 
       const [prevRevRes, prevResRes, prevUsrRes, prevMemRes] = await Promise.allSettled([
-        prisma.reservation.aggregate({ where: { ...previousFilter, status: ReservationStatus.PAID }, _sum: { totalPrice: true } }),
+        prisma.reservation.aggregate({ where: { ...previousFilter, status: 'PAID' as any }, _sum: { totalPrice: true } }),
         prisma.reservation.count({ where: previousFilter }),
         prisma.user.count({ where: { createdAt: { gte: previousStartDate, lte: previousEndDate } } }),
         prisma.membership.count({ where: previousFilter }),
@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
 
       const [resByDate, paidRevenueByDate, usersByDate, membershipsByDate] = await Promise.all([
         safeGroupCount(() => prisma.reservation.groupBy({ by: ['createdAt'], where: baseFilter, _count: { id: true } } as any)),
-        safeGroupCount(() => prisma.reservation.groupBy({ by: ['createdAt'], where: { ...baseFilter, status: ReservationStatus.PAID }, _sum: { totalPrice: true } } as any)),
+        safeGroupCount(() => prisma.reservation.groupBy({ by: ['createdAt'], where: { ...baseFilter, status: 'PAID' as any }, _sum: { totalPrice: true } } as any)),
         safeGroupCount(() => prisma.user.groupBy({ by: ['createdAt'], where: { createdAt: { gte: startDate, lte: now } }, _count: { id: true } } as any)),
         safeGroupCount(() => prisma.membership.groupBy({ by: ['createdAt'], where: baseFilter, _count: { id: true } } as any)),
       ]);
