@@ -121,80 +121,34 @@ export async function GET(request: NextRequest) {
  * Crear nueva regla de precios (solo para administradores)
  */
 export async function POST(request: NextRequest) {
-  try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 401 }
-      );
-    }
+  return withAdminMiddleware(async (req) => {
+    try {
+      const body = await req.json();
+      const validatedData = CreatePricingRuleSchema.parse(body);
 
-    // Verificar permisos de administrador
-    const hasPermission = await withRole(['ADMIN'])(session);
-    if (!hasPermission) {
-      return NextResponse.json(
-        { error: 'Solo los administradores pueden crear reglas de precios' },
-        { status: 403 }
-      );
-    }
-
-    const body = await request.json();
-    const validatedData = CreatePricingRuleSchema.parse(body);
-    
-    // Validar que se especifique al menos courtId, centerId o sport
-    if (!validatedData.courtId && !validatedData.centerId && !validatedData.sport) {
-      return NextResponse.json(
-        { error: 'Debe especificar al menos courtId, centerId o sport' },
-        { status: 400 }
-      );
-    }
-    
-    // Convertir fechas si se proporcionan
-    const ruleData: any = {
-      ...validatedData,
-    };
-    
-    if (validatedData.validFrom) {
-      ruleData.validFrom = new Date(validatedData.validFrom);
-    }
-    
-    if (validatedData.validTo) {
-      ruleData.validTo = new Date(validatedData.validTo);
-    }
-    
-    const pricingRule = await pricingService.createPricingRule(ruleData);
-    
-    return NextResponse.json(
-      {
-        message: 'Regla de precios creada exitosamente',
-        pricingRule,
-      },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error('Error creando regla de precios:', error);
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      );
-    }
-    
-    if (error instanceof Error) {
-      if (error.message.includes('conflicto') || 
-          error.message.includes('duplicado')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 409 }
-        );
+      // Validar que se especifique al menos courtId, centerId o sport
+      if (!validatedData.courtId && !validatedData.centerId && !validatedData.sport) {
+        return API.badRequest('Debe especificar al menos courtId, centerId o sport');
       }
+
+      // Convertir fechas si se proporcionan
+      const ruleData: any = { ...validatedData };
+      if (validatedData.validFrom) ruleData.validFrom = new Date(validatedData.validFrom);
+      if (validatedData.validTo) ruleData.validTo = new Date(validatedData.validTo);
+
+      const pricingRule = await pricingService.createPricingRule(ruleData);
+      return API.success({ message: 'Regla de precios creada exitosamente', pricingRule }, 201);
+    } catch (error) {
+      console.error('Error creando regla de precios:', error);
+      if (error instanceof z.ZodError) {
+        return API.validation(error.errors.map(e => ({ field: e.path.join('.'), message: e.message })));
+      }
+      if (error instanceof Error) {
+        if (error.message.includes('conflicto') || error.message.includes('duplicado')) {
+          return API.conflict(error.message);
+        }
+      }
+      return API.internalError('Error interno del servidor');
     }
-    
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
+  })(request, {} as any);
 }
