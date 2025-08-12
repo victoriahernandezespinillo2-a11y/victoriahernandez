@@ -173,7 +173,7 @@ export async function GET(
     });
     
     // Calcular estadísticas por deporte
-    const sportStats = center.courts.reduce((stats, court) => {
+    const sportStats = center.courts.reduce((stats: any, court: any) => {
       const sportKey = (court as any).sportType || 'UNKNOWN';
       if (!stats[sportKey]) {
         stats[sportKey] = {
