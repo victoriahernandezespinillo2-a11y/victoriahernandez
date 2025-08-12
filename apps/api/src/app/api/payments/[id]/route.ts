@@ -19,8 +19,9 @@ const paymentService = new PaymentService();
 export async function GET(
   request: NextRequest
 ) {
-  return withAuthMiddleware(async (req, { user }) => {
+  return withAuthMiddleware(async (req, context: any) => {
     try {
+      const user = (context as any)?.user;
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').pop() as string;
       
@@ -57,8 +58,9 @@ export async function GET(
 export async function POST(
   request: NextRequest
 ) {
-  return withAuthMiddleware(async (req, { user }) => {
+  return withAuthMiddleware(async (req, context: any) => {
     try {
+      const user = (context as any)?.user;
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').pop() as string;
       const body = await req.json();
@@ -80,11 +82,9 @@ export async function POST(
         paymentIntentId: payment.externalId || id
       };
       
-      const result = await paymentService.processPayment(processData);
+      const result = await paymentService.processPayment(processData as any);
       
-      return ApiResponse.success(result, 
-        result.success ? 'Pago procesado exitosamente' : 'Error procesando el pago'
-      );
+      return ApiResponse.success(result);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(
