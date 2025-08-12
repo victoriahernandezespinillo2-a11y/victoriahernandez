@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth, withRole } from '@repo/auth';
+import { withAdminMiddleware, withStaffMiddleware, ApiResponse as API } from '@/lib/middleware';
 import { pricingService } from '../../../../lib/services/pricing.service';
 import { z } from 'zod';
 
@@ -19,94 +19,71 @@ const PricingStatsSchema = z.object({
  * Obtener estadísticas de precios (solo para administradores y staff)
  */
 export async function GET(request: NextRequest) {
-  try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 401 }
-      );
-    }
+  return withStaffMiddleware(async (req) => {
+    try {
+      const { searchParams } = new URL(req.url);
+      const params = Object.fromEntries(searchParams.entries());
 
-    // Verificar permisos de administrador o staff
-    const hasPermission = await withRole(['ADMIN', 'STAFF'])(session);
-    if (!hasPermission) {
-      return NextResponse.json(
-        { error: 'Permisos insuficientes' },
-        { status: 403 }
-      );
-    }
+      const validatedParams = PricingStatsSchema.parse(params);
 
-    const { searchParams } = new URL(request.url);
-    const params = Object.fromEntries(searchParams.entries());
-    
-    const validatedParams = PricingStatsSchema.parse(params);
-    
-    // Calcular fechas por defecto si no se proporcionan
-    const now = new Date();
-    let startDate: Date;
-    let endDate = validatedParams.endDate ? new Date(validatedParams.endDate) : now;
-    
-    if (validatedParams.startDate) {
-      startDate = new Date(validatedParams.startDate);
-    } else {
-      // Calcular fecha de inicio basada en el período
-      startDate = new Date(now);
-      switch (validatedParams.period) {
-        case 'day':
-          startDate.setDate(now.getDate() - 1);
-          break;
-        case 'week':
-          startDate.setDate(now.getDate() - 7);
-          break;
-        case 'month':
-          startDate.setMonth(now.getMonth() - 1);
-          break;
-        case 'quarter':
-          startDate.setMonth(now.getMonth() - 3);
-          break;
-        case 'year':
-          startDate.setFullYear(now.getFullYear() - 1);
-          break;
+      // Calcular fechas por defecto si no se proporcionan
+      const now = new Date();
+      let startDate: Date;
+      let endDate = validatedParams.endDate ? new Date(validatedParams.endDate) : now;
+
+      if (validatedParams.startDate) {
+        startDate = new Date(validatedParams.startDate);
+      } else {
+        // Calcular fecha de inicio basada en el período
+        startDate = new Date(now);
+        switch (validatedParams.period) {
+          case 'day':
+            startDate.setDate(now.getDate() - 1);
+            break;
+          case 'week':
+            startDate.setDate(now.getDate() - 7);
+            break;
+          case 'month':
+            startDate.setMonth(now.getMonth() - 1);
+            break;
+          case 'quarter':
+            startDate.setMonth(now.getMonth() - 3);
+            break;
+          case 'year':
+            startDate.setFullYear(now.getFullYear() - 1);
+            break;
+        }
       }
+
+      const filters = {
+        centerId: validatedParams.centerId,
+        courtId: validatedParams.courtId,
+        sport: validatedParams.sport,
+        startDate,
+        endDate,
+        period: validatedParams.period,
+        groupBy: validatedParams.groupBy,
+      };
+
+      const stats = await pricingService.getPricingStats(filters);
+
+      return API.success({
+        stats,
+        filters: {
+          ...validatedParams,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+        },
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Error obteniendo estadísticas de precios:', error);
+      if (error instanceof z.ZodError) {
+        return API.validation(error.errors.map(e => ({ field: e.path.join('.'), message: e.message })));
+      }
+      return API.internalError();
     }
-    
-    const filters = {
-      centerId: validatedParams.centerId,
-      courtId: validatedParams.courtId,
-      sport: validatedParams.sport,
-      startDate,
-      endDate,
-      period: validatedParams.period,
-      groupBy: validatedParams.groupBy,
-    };
-    
-    const stats = await pricingService.getPricingStats(filters);
-    
-    return NextResponse.json({
-      stats,
-      filters: {
-        ...validatedParams,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-      },
-      generatedAt: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error('Error obteniendo estadísticas de precios:', error);
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Parámetros inválidos', details: error.errors },
-        { status: 400 }
-      );
-    }
-    
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
+  })(request);
 }
 
 /**
@@ -114,94 +91,71 @@ export async function GET(request: NextRequest) {
  * Calcular proyección de ingresos basada en precios actuales
  */
 export async function POST(request: NextRequest) {
-  try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 401 }
-      );
-    }
+  return withAdminMiddleware(async (req) => {
+    try {
+      const body = await req.json();
 
-    // Verificar permisos de administrador
-    const hasPermission = await withRole(['ADMIN'])(session);
-    if (!hasPermission) {
-      return NextResponse.json(
-        { error: 'Solo los administradores pueden acceder a proyecciones de ingresos' },
-        { status: 403 }
-      );
-    }
+      const RevenueProjectionSchema = z.object({
+        centerId: z.string().cuid().optional(),
+        courtIds: z.array(z.string().cuid()).optional(),
+        projectionPeriod: z.enum(['week', 'month', 'quarter', 'year']).default('month'),
+        occupancyRate: z.number().min(0).max(100).optional().default(70),
+        startDate: z.string().datetime().optional(),
+        scenarios: z.array(z.object({
+          name: z.string(),
+          occupancyRate: z.number().min(0).max(100),
+          priceMultiplier: z.number().min(0).max(5).optional().default(1),
+        })).optional(),
+      });
 
-    const body = await request.json();
-    
-    const RevenueProjectionSchema = z.object({
-      centerId: z.string().cuid().optional(),
-      courtIds: z.array(z.string().cuid()).optional(),
-      projectionPeriod: z.enum(['week', 'month', 'quarter', 'year']).default('month'),
-      occupancyRate: z.number().min(0).max(100).optional().default(70), // % de ocupación esperada
-      startDate: z.string().datetime().optional(),
-      scenarios: z.array(z.object({
-        name: z.string(),
-        occupancyRate: z.number().min(0).max(100),
-        priceMultiplier: z.number().min(0).max(5).optional().default(1),
-      })).optional(),
-    });
-    
-    const validatedData = RevenueProjectionSchema.parse(body);
-    
-    // Calcular fecha de inicio si no se proporciona
-    const startDate = validatedData.startDate 
-      ? new Date(validatedData.startDate)
-      : new Date();
-    
-    // Calcular fecha de fin basada en el período
-    const endDate = new Date(startDate);
-    switch (validatedData.projectionPeriod) {
-      case 'week':
-        endDate.setDate(startDate.getDate() + 7);
-        break;
-      case 'month':
-        endDate.setMonth(startDate.getMonth() + 1);
-        break;
-      case 'quarter':
-        endDate.setMonth(startDate.getMonth() + 3);
-        break;
-      case 'year':
-        endDate.setFullYear(startDate.getFullYear() + 1);
-        break;
+      const validatedData = RevenueProjectionSchema.parse(body);
+
+      // Calcular fecha de inicio si no se proporciona
+      const startDate = validatedData.startDate
+        ? new Date(validatedData.startDate)
+        : new Date();
+
+      // Calcular fecha de fin basada en el período
+      const endDate = new Date(startDate);
+      switch (validatedData.projectionPeriod) {
+        case 'week':
+          endDate.setDate(startDate.getDate() + 7);
+          break;
+        case 'month':
+          endDate.setMonth(startDate.getMonth() + 1);
+          break;
+        case 'quarter':
+          endDate.setMonth(startDate.getMonth() + 3);
+          break;
+        case 'year':
+          endDate.setFullYear(startDate.getFullYear() + 1);
+          break;
+      }
+
+      const revenueProjection = await pricingService.calculateRevenueProjection({
+        centerId: validatedData.centerId,
+        courtIds: validatedData.courtIds,
+        startDate,
+        endDate,
+        occupancyRate: validatedData.occupancyRate,
+        scenarios: validatedData.scenarios,
+      });
+
+      return API.success({
+        revenueProjection,
+        parameters: {
+          ...validatedData,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+        },
+        calculatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Error calculando proyección de ingresos:', error);
+      if (error instanceof z.ZodError) {
+        return API.validation(error.errors.map(e => ({ field: e.path.join('.'), message: e.message })));
+      }
+      return API.internalError();
     }
-    
-    const revenueProjection = await pricingService.calculateRevenueProjection({
-      centerId: validatedData.centerId,
-      courtIds: validatedData.courtIds,
-      startDate,
-      endDate,
-      occupancyRate: validatedData.occupancyRate,
-      scenarios: validatedData.scenarios,
-    });
-    
-    return NextResponse.json({
-      revenueProjection,
-      parameters: {
-        ...validatedData,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-      },
-      calculatedAt: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error('Error calculando proyección de ingresos:', error);
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      );
-    }
-    
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
+  })(request);
 }
