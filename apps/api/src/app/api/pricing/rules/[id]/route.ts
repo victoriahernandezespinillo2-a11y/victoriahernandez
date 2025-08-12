@@ -44,7 +44,7 @@ export async function GET(
     }
 
     // Verificar permisos de administrador o staff
-    const hasPermission = await withRole(['ADMIN', 'STAFF'])(session);
+    const hasPermission = await withRole(['admin', 'staff'])(session);
     if (!hasPermission) {
       return NextResponse.json(
         { error: 'Permisos insuficientes' },
@@ -98,7 +98,7 @@ export async function PUT(
     }
 
     // Verificar permisos de administrador
-    const hasPermission = await withRole(['ADMIN'])(session);
+    const hasPermission = await withRole(['admin'])(session);
     if (!hasPermission) {
       return NextResponse.json(
         { error: 'Solo los administradores pueden modificar reglas de precios' },
@@ -266,7 +266,7 @@ export async function POST(
     }
 
     // Verificar permisos de administrador o staff
-    const hasPermission = await withRole(['ADMIN', 'STAFF'])(session);
+    const hasPermission = await withRole(['admin', 'staff'])(session);
     if (!hasPermission) {
       return NextResponse.json(
         { error: 'Permisos insuficientes' },
@@ -314,7 +314,6 @@ export async function POST(
         startTime: new Date(validatedData.startTime),
         duration: validatedData.duration,
         userId: validatedData.userId || session.user.id,
-        membershipId: validatedData.membershipId,
       }
     );
     
@@ -326,7 +325,7 @@ export async function POST(
         startTime: validatedData.startTime,
         duration: validatedData.duration,
         userId: validatedData.userId || session.user.id,
-        membershipId: validatedData.membershipId,
+        // membershipId ignorado por el servicio base
       },
       testedAt: new Date().toISOString(),
     });
