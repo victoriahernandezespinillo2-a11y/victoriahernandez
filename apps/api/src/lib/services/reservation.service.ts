@@ -123,7 +123,8 @@ export class ReservationService {
       if (user && (user.email || user.phone) && court) {
         // Generar QR con token firmado para check-in
         const tokenPayload = { reservationId: reservation.id };
-        const jwtToken = (await import('jsonwebtoken')).default.sign(
+        const jwtMod = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
+        const jwtToken = jwtMod.sign(
           tokenPayload,
           process.env.JWT_SECRET || 'your-secret-key',
           { expiresIn: '3h' }

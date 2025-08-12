@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   const { createRequire } = await import('module');
   const require = createRequire(import.meta.url);
   const PDFDocument = require('pdfkit');
-  const jwt = (await import('jsonwebtoken')).default as typeof import('jsonwebtoken').default;
+  const jwt = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
   const QRCode = (await import('qrcode')).default as typeof import('qrcode').default;
 
   // 4) Construir token de acceso (expira poco después del fin de la reserva)
