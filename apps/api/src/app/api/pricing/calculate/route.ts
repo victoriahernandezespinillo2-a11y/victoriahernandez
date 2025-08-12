@@ -73,12 +73,12 @@ export async function POST(request: NextRequest) {
       }
       
       const totalRecurringPrice = recurringPrices.reduce(
-        (sum, price) => sum + price.finalPrice,
+        (sum, price: any) => sum + Number(price.total || 0),
         0
       );
       
       const totalRecurringDiscount = recurringPrices.reduce(
-        (sum, price) => sum + price.totalDiscount,
+        (sum, price: any) => sum + Number(price.discount || 0),
         0
       );
       
