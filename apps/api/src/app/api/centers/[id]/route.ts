@@ -230,7 +230,7 @@ export async function GET(
           0
         ),
         totalWaitingListEntries: center.courts.reduce(
-          (sum, court) => sum + court._count.waitingLists,
+          (sum: number, court: any) => sum + court._count.waitingLists,
           0
         ),
         weeklyReservations,
