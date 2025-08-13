@@ -6,10 +6,10 @@
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
-import { PrismaClient, User, UserRole } from '@prisma/client';
+import { db } from '@repo/db';
 import { NotificationService } from './notification.service';
 
-const prisma = new PrismaClient();
+const prisma = db;
 const notificationService = new NotificationService();
 
 // Schemas de validación
@@ -76,7 +76,7 @@ export interface AuthUser {
   email: string;
   firstName: string;
   lastName: string;
-  role: UserRole;
+  role: 'USER' | 'STAFF' | 'ADMIN';
   isActive: boolean;
   emailVerified: boolean;
   phone?: string;
@@ -436,7 +436,7 @@ export class AuthService {
   /**
    * Generar tokens de acceso y refresh
    */
-  private async generateTokens(user: User, rememberMe = false): Promise<AuthTokens> {
+  private async generateTokens(user: any, rememberMe = false): Promise<AuthTokens> {
     const payload = {
       userId: user.id,
       email: user.email,
@@ -494,7 +494,7 @@ export class AuthService {
   /**
    * Formatear usuario para respuesta
    */
-  private formatUser(user: User): AuthUser {
+  private formatUser(user: any): AuthUser {
     return {
       id: user.id,
       email: user.email,
@@ -512,7 +512,7 @@ export class AuthService {
   /**
    * Enviar email de verificación
    */
-  private async sendVerificationEmail(user: User): Promise<void> {
+  private async sendVerificationEmail(user: any): Promise<void> {
     const verificationToken = jwt.sign({ userId: user.id }, this.JWT_SECRET as jwt.Secret, { expiresIn: '24h' });
 
     const verificationUrl = `${process.env.FRONTEND_URL}/auth/verify-email?token=${verificationToken}`;
@@ -531,7 +531,7 @@ export class AuthService {
   /**
    * Enviar email de restablecimiento de contraseña
    */
-  private async sendPasswordResetEmail(user: User, resetToken: string): Promise<void> {
+  private async sendPasswordResetEmail(user: any, resetToken: string): Promise<void> {
     const resetUrl = `${process.env.FRONTEND_URL}/auth/reset-password?token=${resetToken}`;
 
     await notificationService.sendEmail({
@@ -548,7 +548,7 @@ export class AuthService {
   /**
    * Enviar notificación de cambio de contraseña
    */
-  private async sendPasswordChangedNotification(user: User): Promise<void> {
+  private async sendPasswordChangedNotification(user: any): Promise<void> {
     await notificationService.sendEmail({
       to: user.email,
       subject: 'Contraseña cambiada - Polideportivo Victoria Hernández',
