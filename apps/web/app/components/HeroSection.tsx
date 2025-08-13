@@ -41,7 +41,10 @@ export function HeroSection() {
     return () => clearInterval(interval);
   }, [heroSlides.length]);
 
-  const currentHero = heroSlides[currentSlide] ?? heroSlides[0];
+  if (heroSlides.length === 0) {
+    return null;
+  }
+  const currentHero = heroSlides[currentSlide % heroSlides.length];
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
