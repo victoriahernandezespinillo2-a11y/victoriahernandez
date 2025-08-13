@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
+    "postinstall": "prisma generate",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
@@ -17,6 +18,9 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "prisma": {
+    "schema": "packages/db/prisma/schema.prisma"
   },
   "packageManager": "pnpm@9.0.0",
   "workspaces": [
