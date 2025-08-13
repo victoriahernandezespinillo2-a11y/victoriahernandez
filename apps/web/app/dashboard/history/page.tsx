@@ -56,7 +56,7 @@ const transformReservationToHistoryItem = (reservation: any): HistoryItem => {
     type: 'reservation', // Por ahora solo manejamos reservas
     sport: reservation.court?.sport || 'Desconocido',
     court: reservation.court?.name || 'Cancha desconocida',
-    date: startTime.toISOString().split('T')[0],
+    date: startTime.toISOString().substring(0, 10),
     startTime: startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
     endTime: endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
     duration,

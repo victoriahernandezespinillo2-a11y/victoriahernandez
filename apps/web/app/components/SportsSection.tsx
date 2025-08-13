@@ -160,6 +160,9 @@ export function SportsSection() {
   }, []);
 
   const currentCategory = sportsCategories[activeTab] ?? sportsCategories[0];
+  if (!currentCategory) {
+    return null;
+  }
   const currentSports = sportsData[currentCategory.id as keyof typeof sportsData] ?? [];
 
   return (
@@ -225,7 +228,7 @@ export function SportsSection() {
               {/* Image */}
               <div className="relative h-48 bg-gradient-to-br from-gray-200 to-gray-300 overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center">
-                  <i className={`${sportsCategories[activeTab].icon} text-6xl text-white opacity-50`}></i>
+                  <i className={`${currentCategory.icon} text-6xl text-white opacity-50`}></i>
                 </div>
                 
                 {/* Availability Badge */}
@@ -246,7 +249,7 @@ export function SportsSection() {
                 </div>
 
                 {/* Hover Overlay */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${sportsCategories[activeTab].color} opacity-0 group-hover:opacity-80 transition-opacity duration-300 flex items-center justify-center`}>
+                <div className={`absolute inset-0 bg-gradient-to-br ${currentCategory.color} opacity-0 group-hover:opacity-80 transition-opacity duration-300 flex items-center justify-center`}>
                   <button className="bg-white text-gray-900 px-6 py-3 rounded-xl font-semibold transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
                     Ver Detalles
                   </button>
@@ -257,7 +260,7 @@ export function SportsSection() {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-xl font-bold text-gray-900">{sport.name}</h3>
-                  <div className={`text-lg font-bold bg-gradient-to-r ${sportsCategories[activeTab].color} bg-clip-text text-transparent`}>
+                  <div className={`text-lg font-bold bg-gradient-to-r ${currentCategory.color} bg-clip-text text-transparent`}>
                     {sport.price}
                   </div>
                 </div>
@@ -270,7 +273,7 @@ export function SportsSection() {
                 <div className="space-y-2 mb-6">
                   {sport.features.slice(0, 3).map((feature, featureIndex) => (
                     <div key={featureIndex} className="flex items-center space-x-2 text-sm text-gray-700">
-                      <div className={`w-2 h-2 bg-gradient-to-r ${sportsCategories[activeTab].color} rounded-full`}></div>
+                      <div className={`w-2 h-2 bg-gradient-to-r ${currentCategory.color} rounded-full`}></div>
                       <span>{feature}</span>
                     </div>
                   ))}
@@ -285,7 +288,7 @@ export function SportsSection() {
                 <div className="flex space-x-3">
                   <button 
                     onClick={handleReserveNow}
-                    className={`flex-1 bg-gradient-to-r ${sportsCategories[activeTab].color} text-white py-3 rounded-xl font-semibold text-sm hover:shadow-lg transition-all duration-300 hover:scale-105`}
+                    className={`flex-1 bg-gradient-to-r ${currentCategory.color} text-white py-3 rounded-xl font-semibold text-sm hover:shadow-lg transition-all duration-300 hover:scale-105`}
                   >
                     Reservar Ahora
                   </button>

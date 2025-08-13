@@ -30,8 +30,10 @@ export default function DashboardPage() {
     memberSince: '',
     totalHoursPlayed: 0,
   });
-  const [upcomingReservations, setUpcomingReservations] = useState([]);
-  const [recentActivity, setRecentActivity] = useState([]);
+  type UpcomingItem = { id: string; courtName: string; date: string; time: string; sport: string; status: string };
+  type ActivityItem = { id: string; type: 'reservation' | 'payment' | 'other'; description: string; date: string; time: string };
+  const [upcomingReservations, setUpcomingReservations] = useState<UpcomingItem[]>([]);
+  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
 
   // Calcular estadísticas del usuario
   useEffect(() => {
@@ -70,12 +72,12 @@ export default function DashboardPage() {
       );
 
       // Actividad reciente (últimas 3 reservas)
-      const recent = reservations
+      const recent: ActivityItem[] = reservations
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 3)
         .map(r => ({
           id: r.id,
-          type: 'reservation',
+          type: 'reservation' as const,
           description: `Reserva ${r.status === 'confirmed' ? 'confirmada' : r.status} para ${r.courtName}`,
           date: new Date(r.createdAt).toLocaleDateString(),
           time: new Date(r.createdAt).toLocaleTimeString(),
@@ -124,7 +126,7 @@ export default function DashboardPage() {
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 text-white">
         <h1 className="text-2xl font-bold mb-2">
-          ¡Bienvenido de vuelta, {user.name || 'Usuario'}!
+          ¡Bienvenido de vuelta, {user?.name ?? 'Usuario'}!
         </h1>
         <p className="text-blue-100">
           Aquí tienes un resumen de tu actividad en el polideportivo.

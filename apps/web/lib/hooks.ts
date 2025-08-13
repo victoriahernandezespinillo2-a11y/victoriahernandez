@@ -80,19 +80,19 @@ export function useCenters() {
   const { data, loading, error, execute, reset } = useApiState<any[]>([]);
 
   const getCenters = useCallback((params?: any) => {
-    return execute(() => api.centers.getAll(params));
+    return execute(() => api.centers.getAll(params) as Promise<any[]>);
   }, [execute]);
 
   const getCenter = useCallback((id: string) => {
-    return execute(() => api.centers.getById(id));
+    return execute(() => api.centers.getById(id) as Promise<any>);
   }, [execute]);
 
   const getCenterCourts = useCallback((id: string) => {
-    return execute(() => api.centers.getCourts(id));
+    return execute(() => api.centers.getCourts(id) as Promise<any[]>);
   }, [execute]);
 
   const getCenterStats = useCallback((id: string) => {
-    return execute(() => api.centers.getStats(id));
+    return execute(() => api.centers.getStats(id) as Promise<any>);
   }, [execute]);
 
   return {
@@ -114,19 +114,19 @@ export function useCourts() {
   const { data, loading, error, execute, reset } = useApiState<any[]>([]);
 
   const getCourts = useCallback((params?: any) => {
-    return execute(() => api.courts.getAll(params));
+    return execute(() => api.courts.getAll(params) as Promise<any[]>);
   }, [execute]);
 
   const getCourt = useCallback((id: string) => {
-    return execute(() => api.courts.getById(id));
+    return execute(() => api.courts.getById(id) as Promise<any>);
   }, [execute]);
 
   const getCourtAvailability = useCallback((id: string, params?: any) => {
-    return execute(() => api.courts.getAvailability(id, params));
+    return execute(() => api.courts.getAvailability(id, params) as Promise<any[]>);
   }, [execute]);
 
   const getCourtReservations = useCallback((id: string) => {
-    return execute(() => api.courts.getReservations(id));
+    return execute(() => api.courts.getReservations(id) as Promise<any[]>);
   }, [execute]);
 
   return {
@@ -148,7 +148,7 @@ export function useReservations() {
   const { data, loading, error, execute, reset, setData } = useApiState<any[]>([]);
 
   const getReservations = useCallback((params?: any) => {
-    return execute(() => api.reservations.getAll(params));
+    return execute(() => api.reservations.getAll(params) as Promise<any[]>);
   }, [execute]);
 
   const createReservation = useCallback(async (reservationData: any) => {
@@ -162,7 +162,7 @@ export function useReservations() {
   }, [setData]);
 
   const getReservation = useCallback((id: string) => {
-    return execute(() => api.reservations.getById(id));
+    return execute(() => api.reservations.getById(id) as Promise<any>);
   }, [execute]);
 
   const updateReservation = useCallback(async (id: string, updateData: any) => {
@@ -232,23 +232,23 @@ export function useUserProfile() {
   const { data, loading, error, execute, reset } = useApiState<any>(null);
 
   const getProfile = useCallback(() => {
-    return execute(() => api.users.getProfile());
+    return execute(() => api.users.getProfile() as Promise<any>);
   }, [execute]);
 
   const updateProfile = useCallback(async (profileData: any) => {
-    return execute(() => api.users.updateProfile(profileData));
+    return execute(() => api.users.updateProfile(profileData) as Promise<any>);
   }, [execute]);
 
   const getUserMemberships = useCallback(() => {
-    return execute(() => api.users.getMemberships());
+    return execute(() => api.users.getMemberships() as Promise<any[]>);
   }, [execute]);
 
   const getUserReservations = useCallback(() => {
-    return execute(() => api.users.getReservations());
+    return execute(() => api.users.getReservations() as Promise<any[]>);
   }, [execute]);
 
   const getUserWaitingList = useCallback(() => {
-    return execute(() => api.users.getWaitingList());
+    return execute(() => api.users.getWaitingList() as Promise<any[]>);
   }, [execute]);
 
   return {
@@ -271,7 +271,7 @@ export function useWaitingList() {
   const { data, loading, error, execute, reset, setData } = useApiState<any[]>([]);
 
   const getWaitingList = useCallback((params?: any) => {
-    return execute(() => api.waitingList.getAll(params));
+    return execute(() => api.waitingList.getAll(params) as Promise<any[]>);
   }, [execute]);
 
   const addToWaitingList = useCallback(async (waitingData: any) => {
@@ -312,7 +312,7 @@ export function usePricing() {
   const { data, loading, error, execute, reset } = useApiState<any>(null);
 
   const calculatePrice = useCallback((pricingData: any) => {
-    return execute(() => api.pricing.calculate(pricingData));
+    return execute(() => api.pricing.calculate(pricingData) as Promise<any>);
   }, [execute]);
 
   return {
@@ -331,11 +331,11 @@ export function useTournaments() {
   const { data, loading, error, execute, reset, setData } = useApiState<any[]>([]);
 
   const getTournaments = useCallback((params?: any) => {
-    return execute(() => api.tournaments.getAll(params));
+    return execute(() => api.tournaments.getAll(params) as Promise<any[]>);
   }, [execute]);
 
   const getTournament = useCallback((id: string) => {
-    return execute(() => api.tournaments.getById(id));
+    return execute(() => api.tournaments.getById(id) as Promise<any>);
   }, [execute]);
 
   const joinTournament = useCallback(async (id: string) => {
@@ -359,7 +359,7 @@ export function useTournaments() {
   }, []);
 
   const getTournamentMatches = useCallback((id: string) => {
-    return execute(() => api.tournaments.getMatches(id));
+    return execute(() => api.tournaments.getMatches(id) as Promise<any[]>);
   }, [execute]);
 
   return {
@@ -382,7 +382,7 @@ export function useNotifications() {
   const { data, loading, error, execute, reset, setData } = useApiState<any[]>([]);
 
   const getNotifications = useCallback((params?: any) => {
-    return execute(() => api.notifications.getAll(params));
+    return execute(() => api.notifications.getAll(params) as Promise<any[]>);
   }, [execute]);
 
   const markAsRead = useCallback(async (id: string) => {
@@ -429,7 +429,7 @@ export function useUserHistory() {
     }
     
     const url = `/api/users/${userId}/reservations${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
-    return execute(() => apiRequest(url));
+    return execute(() => apiRequest<any[]>(url));
   }, [execute]);
 
   return {

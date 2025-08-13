@@ -74,7 +74,7 @@ export default function ReservationsPage() {
 
   // Filtrar reservas
   const applyFilters = () => {
-    let filtered = reservations;
+    let filtered = reservations || [];
 
     // Filtro por búsqueda
     if (searchTerm) {
@@ -264,7 +264,7 @@ export default function ReservationsPage() {
                 setSearchTerm('');
                 setStatusFilter('all');
                 setDateFilter('all');
-                setFilteredReservations(reservations);
+                setFilteredReservations(reservations || []);
               }}
               className="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >

@@ -21,6 +21,7 @@ type ApiMembershipType = {
   name: string;
   monthlyPrice: number;
   benefits: Record<string, any>;
+  popular?: boolean;
 };
 
 type ApiMembership = {

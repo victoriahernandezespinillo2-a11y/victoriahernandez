@@ -32,8 +32,11 @@ interface Tournament {
   endDate: string;
   registrationStartDate?: string;
   registrationEndDate?: string;
+  registrationDeadline?: string;
   maxParticipants: number;
+  currentParticipants?: number;
   registrationFee: number;
+  entryFee?: number;
   prizePool?: number;
   type: 'SINGLE_ELIMINATION' | 'DOUBLE_ELIMINATION' | 'ROUND_ROBIN' | 'SWISS';
   format: 'INDIVIDUAL' | 'DOUBLES' | 'TEAM';
@@ -42,14 +45,20 @@ interface Tournament {
   organizer?: string;
   contactEmail?: string;
   contactPhone?: string;
-  rules?: string;
+  rules?: string[] | string;
   requirements?: string[];
-  prizes?: Array<{
+  prizes?: {
+    first?: number;
+    second?: number;
+    third?: number;
+  } | Array<{
     position: number;
     description: string;
     value?: number;
   }>;
   isPublic?: boolean;
+  center?: { name?: string };
+  location?: string;
   createdAt: string;
   updatedAt: string;
   _count?: {
@@ -92,9 +101,10 @@ export default function TournamentsPage() {
   // Hook para gestión de torneos
   const { tournaments: tournamentsData, loading, error, getTournaments, joinTournament, leaveTournament } = useTournaments();
   
-  // Extraer los torneos del objeto de respuesta de la API
-  const tournaments = tournamentsData?.tournaments || [];
-  const pagination = tournamentsData?.pagination;
+  // Normalizar respuesta: aceptar arreglo directo o objeto con { tournaments, pagination }
+  const data: any = tournamentsData ?? [];
+  const tournaments: Tournament[] = Array.isArray(data) ? (data as Tournament[]) : ((data.tournaments ?? []) as Tournament[]);
+  const pagination = Array.isArray(data) ? undefined : data.pagination;
 
   // Cargar torneos al montar el componente y cuando cambien los filtros
   useEffect(() => {
@@ -123,7 +133,8 @@ export default function TournamentsPage() {
     }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('es-ES', {
       weekday: 'long',
       year: 'numeric',
@@ -204,6 +215,17 @@ export default function TournamentsPage() {
     }
   };
 
+  // Obtener premios de forma segura (soporta objeto {first,second,third} o arreglo de {position,value})
+  const getPrizeValue = (pos: 'first' | 'second' | 'third', prizes?: Tournament['prizes']): number => {
+    if (!prizes) return 0;
+    if (Array.isArray(prizes)) {
+      const targetPosition = pos === 'first' ? 1 : pos === 'second' ? 2 : 3;
+      const match = prizes.find((p) => p.position === targetPosition);
+      return match?.value ?? 0;
+    }
+    return prizes[pos] ?? 0;
+  };
+
   // Funciones duplicadas eliminadas - usando las versiones de la API
 
   // Función para manejar la inscripción a torneos
@@ -222,14 +244,14 @@ export default function TournamentsPage() {
   };
 
   // Filtrar torneos basado en la búsqueda
-  const filteredTournaments = tournaments.filter(tournament => {
+  const filteredTournaments = tournaments.filter((tournament: Tournament) => {
     const matchesSearch = tournament.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          tournament.sport.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
   });
 
   // Obtener deportes únicos para el filtro
-  const sports = [...new Set(tournaments.map(t => t.sport))];
+  const sports = [...new Set(tournaments.map((t: Tournament) => t.sport))];
 
   const renderAvailableTournaments = () => (
     <div className="space-y-6">
@@ -587,7 +609,7 @@ export default function TournamentsPage() {
                         <div 
                           className="bg-blue-600 h-2 rounded-full" 
                           style={{ 
-                            width: `${(selectedTournament.currentParticipants / selectedTournament.maxParticipants) * 100}%` 
+                            width: `${((selectedTournament.currentParticipants ?? 0) / (selectedTournament.maxParticipants || 1)) * 100}%` 
                           }}
                         ></div>
                       </div>
@@ -595,7 +617,7 @@ export default function TournamentsPage() {
                     <div>
                       <div className="text-sm text-gray-500 mb-1">Costo de Inscripción</div>
                       <div className="text-lg font-semibold text-blue-600">
-                        {formatCurrency(selectedTournament.entryFee)}
+                        {formatCurrency(selectedTournament.entryFee ?? 0)}
                       </div>
                     </div>
                   </div>
@@ -607,21 +629,21 @@ export default function TournamentsPage() {
                         <Crown className="h-6 w-6 text-yellow-500 mx-auto mb-1" />
                         <div className="text-xs text-gray-500">1er Lugar</div>
                         <div className="font-semibold text-yellow-600">
-                          {formatCurrency(selectedTournament.prizes.first)}
+                          {formatCurrency(getPrizeValue('first', selectedTournament.prizes))}
                         </div>
                       </div>
                       <div className="text-center">
                         <Medal className="h-6 w-6 text-gray-400 mx-auto mb-1" />
                         <div className="text-xs text-gray-500">2do Lugar</div>
                         <div className="font-semibold text-gray-600">
-                          {formatCurrency(selectedTournament.prizes.second)}
+                          {formatCurrency(getPrizeValue('second', selectedTournament.prizes))}
                         </div>
                       </div>
                       <div className="text-center">
                         <Award className="h-6 w-6 text-orange-500 mx-auto mb-1" />
                         <div className="text-xs text-gray-500">3er Lugar</div>
                         <div className="font-semibold text-orange-600">
-                          {formatCurrency(selectedTournament.prizes.third)}
+                          {formatCurrency(getPrizeValue('third', selectedTournament.prizes))}
                         </div>
                       </div>
                     </div>
@@ -631,7 +653,9 @@ export default function TournamentsPage() {
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-3">Reglas del Torneo</h3>
                   <ul className="space-y-1 text-sm text-gray-600">
-                    {selectedTournament.rules.map((rule, index) => (
+                    {(Array.isArray(selectedTournament.rules) 
+                      ? selectedTournament.rules 
+                      : (selectedTournament.rules ? [selectedTournament.rules] : [])).map((rule, index) => (
                       <li key={index} className="flex items-start">
                         <span className="text-blue-600 mr-2">•</span>
                         {rule}
@@ -649,7 +673,7 @@ export default function TournamentsPage() {
                   >
                     Cerrar
                   </button>
-                  {selectedTournament.status === 'registration-open' && !selectedTournament.isRegistered && (
+                  {selectedTournament.status === 'REGISTRATION_OPEN' && !selectedTournament.isRegistered && (
                     <button
                       onClick={() => setShowRegistrationModal(true)}
                       className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
@@ -679,7 +703,7 @@ export default function TournamentsPage() {
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Costo de inscripción:</span>
                   <span className="font-semibold text-lg">
-                    {formatCurrency(selectedTournament.entryFee)}
+                    {formatCurrency(selectedTournament.entryFee ?? 0)}
                   </span>
                 </div>
               </div>
@@ -693,13 +717,13 @@ export default function TournamentsPage() {
                 >
                   Cancelar
                 </button>
-                <button
-                  onClick={() => handleRegisterTournament(selectedTournament.id)}
-                  disabled={isLoading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {isLoading ? 'Inscribiendo...' : 'Confirmar Inscripción'}
-                </button>
+                  <button
+                    onClick={() => handleRegisterTournament(selectedTournament.id)}
+                    disabled={loading}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'Inscribiendo...' : 'Confirmar Inscripción'}
+                  </button>
               </div>
             </div>
           </div>

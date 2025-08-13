@@ -128,9 +128,9 @@ export default function NewReservationPage() {
 
     setIsLoading(true);
     try {
-      const [hour, minute] = selectedTime.split(':').map(Number);
+      const [hour, minute] = selectedTime.split(':').map((v) => Number(v || 0));
       const start = new Date(selectedDate + 'T00:00:00');
-      start.setHours(hour, minute, 0, 0);
+      start.setHours(hour ?? 0, minute ?? 0, 0, 0);
       await api.reservations.create({
         courtId: selectedCourt.id,
         startTime: start.toISOString(),
@@ -196,9 +196,9 @@ export default function NewReservationPage() {
     const run = async () => {
       try {
         if (!selectedCourt || !selectedDate || !selectedTime) return;
-        const [hour, minute] = selectedTime.split(':').map(Number);
+        const [hour, minute] = selectedTime.split(':').map((v) => Number(v || 0));
         const start = new Date(selectedDate + 'T00:00:00');
-        start.setHours(hour, minute, 0, 0);
+        start.setHours(hour ?? 0, minute ?? 0, 0, 0);
         await calculatePrice({ courtId: selectedCourt.id, startTime: start.toISOString(), duration });
       } catch {
         // noop
@@ -354,7 +354,7 @@ export default function NewReservationPage() {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    {court.amenities.map((amenity, index) => (
+                    {court.amenities.map((amenity: string, index: number) => (
                       <div key={index} className="text-sm text-gray-600 flex items-center">
                         <div className="w-1.5 h-1.5 bg-green-400 rounded-full mr-2"></div>
                         {amenity}

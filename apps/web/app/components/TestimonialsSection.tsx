@@ -91,8 +91,9 @@ export function TestimonialsSection() {
 
   useEffect(() => {
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting) {
           setIsVisible(true);
         }
       },
@@ -122,7 +123,11 @@ export function TestimonialsSection() {
     setCurrentTestimonial((prev) => (prev - 1 + testimonials.length) % testimonials.length);
   };
 
-  const currentTest = testimonials[currentTestimonial];
+  if (testimonials.length === 0) {
+    return null;
+  }
+  const safeIndex = currentTestimonial % testimonials.length;
+  const currentTest = testimonials[safeIndex]!;
 
   return (
     <section ref={sectionRef} className="py-24 bg-gradient-to-br from-gray-50 to-white relative overflow-hidden">
