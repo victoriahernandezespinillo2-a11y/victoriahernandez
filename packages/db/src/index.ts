@@ -23,22 +23,29 @@ import path from 'path';
     }
   }
 
-  // Normalizar URLs para Supabase (pooler y TLS)
+  // Normalizar URLs para Supabase (TLS y, opcionalmente, Pooler)
   try {
     if (process.env.DATABASE_URL?.includes('.supabase.co')) {
       const url = new URL(process.env.DATABASE_URL);
-      // Si no estamos apuntando al pooler, cambiar a 6543
-      if (url.port === '' || url.port === '5432') {
-        url.port = '6543';
-      }
-      // Agregar flags de pooler/TLS
       const params = url.searchParams;
-      if (!params.has('pgbouncer')) params.set('pgbouncer', 'true');
-      if (!params.has('connection_limit')) params.set('connection_limit', '1');
+      const usePooler = params.get('pgbouncer') === 'true' || process.env.SUPABASE_USE_POOLER === 'true';
+
+      if (usePooler) {
+        // Forzar Pooler 6543 solo si está indicado explícitamente
+        if (url.port === '' || url.port === '5432') url.port = '6543';
+        if (!params.has('pgbouncer')) params.set('pgbouncer', 'true');
+        if (!params.has('connection_limit')) params.set('connection_limit', '1');
+      } else {
+        // No usar pooler: quitar flags y normalizar a 5432 si fuese necesario
+        params.delete('pgbouncer');
+        params.delete('connection_limit');
+        if (url.port === '6543') url.port = '5432';
+      }
+
       if (!params.has('sslmode')) params.set('sslmode', 'require');
       process.env.DATABASE_URL = url.toString();
 
-      // Si no hay DIRECT_DATABASE_URL, derivarla a 5432 con TLS para migraciones
+      // Si no hay DIRECT_DATABASE_URL, derivarla a 5432 con TLS (sin pooler)
       if (!process.env.DIRECT_DATABASE_URL) {
         const direct = new URL(process.env.DATABASE_URL);
         direct.port = '5432';
