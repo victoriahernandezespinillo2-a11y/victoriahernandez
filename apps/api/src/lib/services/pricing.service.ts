@@ -668,7 +668,7 @@ export class PricingService {
       };
     }
     
-    const prices = reservations.map((r: any) => Number(r.totalPrice));
+    const prices: number[] = reservations.map((r: any) => Number(r.totalPrice));
     const totalRevenue = prices.reduce((sum: number, price: number) => sum + price, 0);
     const averagePrice = totalRevenue / prices.length;
     const minPrice = Math.min(...prices);
@@ -685,7 +685,7 @@ export class PricingService {
     
     const priceDistribution = ranges.map(range => ({
       range: range.label,
-      count: prices.filter(price => price >= range.min && price < range.max).length,
+      count: prices.filter((price: number) => price >= range.min && price < range.max).length,
     }));
     
     return {
