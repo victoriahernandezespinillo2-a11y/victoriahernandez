@@ -8,7 +8,7 @@ import type { RedsysPaymentData } from './redsys';
 export {
   StripeService,
   stripeService,
-  stripe,
+  getStripeClient,
   STRIPE_EVENTS,
   type StripeEventType,
   type PaymentIntentData,

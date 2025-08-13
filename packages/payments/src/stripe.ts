@@ -2,11 +2,18 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 import { db } from '@repo/db';
 
-// Configuración de Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-02-24.acacia',
-  typescript: true,
-});
+// Cliente Stripe inicializado de forma diferida para no fallar en build
+let stripeClient: Stripe | null = null;
+export const getStripeClient = (): Stripe | null => {
+  if (stripeClient) return stripeClient;
+  const apiKey = process.env.STRIPE_SECRET_KEY;
+  if (!apiKey) return null;
+  stripeClient = new Stripe(apiKey, {
+    apiVersion: '2025-02-24.acacia',
+    typescript: true,
+  });
+  return stripeClient;
+};
 
 // Esquemas de validación
 const createPaymentIntentSchema = z.object({
@@ -54,17 +61,23 @@ export interface SubscriptionData {
 
 // Funciones de Stripe
 export class StripeService {
-  private stripe: Stripe;
+  private get client(): Stripe {
+    const c = getStripeClient();
+    if (!c) {
+      throw new Error('Stripe no está configurado (STRIPE_SECRET_KEY ausente)');
+    }
+    return c;
+  }
 
   constructor() {
-    this.stripe = stripe;
+    // Inicialización diferida
   }
 
   // Crear Payment Intent para pagos únicos
   async createPaymentIntent(data: PaymentIntentData): Promise<Stripe.PaymentIntent> {
     const validatedData = createPaymentIntentSchema.parse(data);
     
-    const paymentIntent = await this.stripe.paymentIntents.create({
+    const paymentIntent = await this.client.paymentIntents.create({
       amount: Math.round(validatedData.amount * 100), // Convertir a centavos
       currency: validatedData.currency,
       metadata: validatedData.metadata || {},
@@ -110,7 +123,7 @@ export class StripeService {
     customerId?: string;
     description?: string;
   }): Promise<Stripe.Checkout.Session> {
-    const session = await this.stripe.checkout.sessions.create({
+    const session = await this.client.checkout.sessions.create({
       mode: 'payment',
       success_url: successUrl,
       cancel_url: cancelUrl,
@@ -139,7 +152,7 @@ export class StripeService {
   async createCustomer(data: CustomerData): Promise<Stripe.Customer> {
     const validatedData = createCustomerSchema.parse(data);
     
-    const customer = await this.stripe.customers.create({
+    const customer = await this.client.customers.create({
       email: validatedData.email,
       name: validatedData.name,
       phone: validatedData.phone,
@@ -153,7 +166,7 @@ export class StripeService {
   async createSubscription(data: SubscriptionData): Promise<Stripe.Subscription> {
     const validatedData = createSubscriptionSchema.parse(data);
     
-    const subscription = await this.stripe.subscriptions.create({
+    const subscription = await this.client.subscriptions.create({
       customer: validatedData.customerId,
       items: [{
         price: validatedData.priceId,
@@ -171,17 +184,17 @@ export class StripeService {
 
   // Obtener información de un pago
   async getPaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent> {
-    return await this.stripe.paymentIntents.retrieve(paymentIntentId);
+    return await this.client.paymentIntents.retrieve(paymentIntentId);
   }
 
   // Confirmar un pago
   async confirmPaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent> {
-    return await this.stripe.paymentIntents.confirm(paymentIntentId);
+    return await this.client.paymentIntents.confirm(paymentIntentId);
   }
 
   // Cancelar un pago
   async cancelPaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent> {
-    return await this.stripe.paymentIntents.cancel(paymentIntentId);
+    return await this.client.paymentIntents.cancel(paymentIntentId);
   }
 
   // Crear precio para suscripciones
@@ -198,7 +211,7 @@ export class StripeService {
     interval: 'month' | 'year';
     intervalCount?: number;
   }): Promise<Stripe.Price> {
-    return await this.stripe.prices.create({
+    return await this.client.prices.create({
       product: productId,
       unit_amount: Math.round(amount * 100),
       currency,
@@ -219,7 +232,7 @@ export class StripeService {
     description?: string;
     metadata?: Record<string, string>;
   }): Promise<Stripe.Product> {
-    return await this.stripe.products.create({
+    return await this.client.products.create({
       name,
       description,
       metadata: metadata || {},
@@ -231,7 +244,8 @@ export class StripeService {
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
     
     try {
-      const event = this.stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+      const stripe = this.client;
+      const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
       
       // Registrar evento en la base de datos
       await db.webhookEvent.create({
@@ -253,7 +267,7 @@ export class StripeService {
 
   // Obtener métodos de pago de un cliente
   async getCustomerPaymentMethods(customerId: string): Promise<Stripe.PaymentMethod[]> {
-    const paymentMethods = await this.stripe.paymentMethods.list({
+    const paymentMethods = await this.client.paymentMethods.list({
       customer: customerId,
       type: 'card',
     });
@@ -263,7 +277,7 @@ export class StripeService {
 
   // Crear Setup Intent para guardar método de pago
   async createSetupIntent(customerId: string): Promise<Stripe.SetupIntent> {
-    return await this.stripe.setupIntents.create({
+    return await this.client.setupIntents.create({
       customer: customerId,
       payment_method_types: ['card'],
       usage: 'off_session',
@@ -292,7 +306,7 @@ export class StripeService {
       refundData.reason = reason;
     }
 
-    return await this.stripe.refunds.create(refundData);
+    return await this.client.refunds.create(refundData);
   }
 }
 
@@ -300,7 +314,7 @@ export class StripeService {
 export const stripeService = new StripeService();
 
 // Exportar Stripe para uso directo si es necesario
-export { stripe };
+// Ya no exportamos instancia directa, usar getStripeClient()
 
 // Constantes útiles
 export const STRIPE_EVENTS = {
