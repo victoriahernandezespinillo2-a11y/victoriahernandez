@@ -438,7 +438,7 @@ export class WaitingListService {
     });
     
     const averageWaitTime = convertedEntries.length > 0
-      ? convertedEntries.reduce((sum, entry) => {
+      ? convertedEntries.reduce((sum: number, entry: any) => {
           const waitTime = (entry.updatedAt?.getTime() || entry.createdAt.getTime()) - entry.createdAt.getTime();
           return sum + waitTime;
         }, 0) / convertedEntries.length / (60 * 1000)
