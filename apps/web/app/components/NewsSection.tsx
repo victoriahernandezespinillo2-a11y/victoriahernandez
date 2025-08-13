@@ -108,9 +108,7 @@ export function NewsSection() {
     }
   ];
 
-  const filteredNews = activeCategory === 'all' 
-    ? newsItems 
-    : newsItems.filter(item => item.category === activeCategory);
+  // Nota: si se necesita filtrado dinámico en el futuro, reactivar la variable filtrada
 
   const featuredNews = newsItems.find(item => item.featured);
   const regularNews = newsItems.filter(item => !item.featured);
