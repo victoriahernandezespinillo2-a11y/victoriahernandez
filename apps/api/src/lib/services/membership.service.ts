@@ -11,7 +11,7 @@ import PaymentService from './payment.service';
 // Esquemas de validación
 export const CreateMembershipSchema = z.object({
   userId: z.string().uuid('ID de usuario inválido'),
-  type: z.nativeEnum(MembershipType, { errorMap: () => ({ message: 'Tipo de membresía inválido' }) }),
+  type: z.enum(['BASIC', 'PREMIUM', 'VIP'], { errorMap: () => ({ message: 'Tipo de membresía inválido' }) }),
   startDate: z.string().datetime('Fecha de inicio inválida').optional(),
   duration: z.number().min(1, 'La duración debe ser al menos 1 mes').max(24, 'La duración máxima es 24 meses').default(1),
   paymentMethod: z.enum(['STRIPE', 'REDSYS', 'CASH', 'TRANSFER']).default('STRIPE'),
@@ -20,11 +20,11 @@ export const CreateMembershipSchema = z.object({
 });
 
 export const UpdateMembershipSchema = z.object({
-  type: z.nativeEnum(MembershipType).optional(),
+  type: z.enum(['BASIC', 'PREMIUM', 'VIP']).optional(),
   autoRenew: z.boolean().optional(),
 });
 
-import { MembershipType } from '@prisma/client';
+// Sin tipos de Prisma; usamos literales de cadena para los tipos
 
 export const GetMembershipsSchema = z.object({
   page: z.coerce.number().min(1).default(1),
@@ -32,7 +32,7 @@ export const GetMembershipsSchema = z.object({
   userId: z.string().uuid().optional(),
   // centerId no existe en el modelo Membership; se ignora si llega
   centerId: z.string().uuid().optional(),
-  type: z.nativeEnum(MembershipType).optional(),
+  type: z.enum(['BASIC', 'PREMIUM', 'VIP']).optional(),
   // Mapearemos estos estados a los campos reales (status string + validUntil)
   status: z.enum(['ACTIVE', 'EXPIRED', 'CANCELLED']).optional(),
   // createdAt | validFrom | validUntil | type
@@ -135,7 +135,7 @@ export class MembershipService {
     const membership = await db.membership.create({
       data: {
         userId: validatedData.userId,
-        type: validatedData.type,
+        type: validatedData.type as any,
         validFrom: startDate,
         validUntil: endDate,
         price: totalPrice,
@@ -332,7 +332,7 @@ export class MembershipService {
     const updatedMembership = await db.membership.update({
       where: { id },
       data: {
-        type: validatedData.type,
+        type: (validatedData.type as any),
         // autoRenew no existe en el modelo actual
       },
       include: {
@@ -374,7 +374,7 @@ export class MembershipService {
       throw new Error('Membresía no encontrada');
     }
 
-    const membershipType = (validatedData.upgradeType as MembershipType | undefined) || membership.type;
+    const membershipType = (validatedData.upgradeType as any) || membership.type;
     const config = (MEMBERSHIP_CONFIG as any)[membershipType as any] ?? { name: String(membershipType), monthlyPrice: 0, benefits: {} };
     const totalPrice = config.monthlyPrice * validatedData.duration;
 
@@ -388,7 +388,7 @@ export class MembershipService {
     const renewedMembership = await db.membership.update({
       where: { id },
       data: {
-        type: membershipType,
+        type: (membershipType as any),
         validUntil: newEndDate,
         price: Number((membership as any).price ?? 0) + totalPrice,
         status: 'active',
