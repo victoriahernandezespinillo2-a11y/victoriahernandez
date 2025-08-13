@@ -121,9 +121,6 @@ export class PaymentService {
             userId: validatedData.userId,
             ...validatedData.metadata
           },
-          automatic_payment_methods: {
-            enabled: true
-          }
         });
 
         // Actualizar con el ID de Stripe
