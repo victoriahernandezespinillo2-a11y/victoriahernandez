@@ -40,13 +40,13 @@ export async function OPTIONS(request: Request) {
  * Acceso: Público (solo torneos públicos) / STAFF+ (todos)
  */
 export async function GET(request: NextRequest) {
-  return withPublicMiddleware(async (req, context) => {
+  return withPublicMiddleware(async (req, context: any) => {
     try {
       const { searchParams } = new URL(req.url);
       const rawParams = Object.fromEntries(searchParams.entries());
       
       // Si no hay usuario autenticado, solo mostrar torneos públicos
-      if (!context?.user) {
+      if (!(context as any)?.user) {
         rawParams.isPublic = 'true';
       }
       
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo torneos:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {});
+  })(request);
 }
 
 /**
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
  * Acceso: ADMIN
  */
 export async function POST(request: NextRequest) {
-  return withAdminMiddleware(async (req, context) => {
+  return withAdminMiddleware(async (req, context: any) => {
     try {
       const body = await req.json();
       
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
       console.error('Error creando torneo:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {});
+  })(request);
 }
 
 /**

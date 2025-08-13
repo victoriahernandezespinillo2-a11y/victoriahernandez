@@ -6,7 +6,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { UserService } from '../../../../../lib/services/user.service';
-import { withAuthMiddleware, ApiResponse, AuthenticatedContext } from '../../../../../lib/middleware';
+import { withAuthMiddleware, ApiResponse } from '../../../../../lib/middleware';
 
 const userService = new UserService();
 
@@ -25,11 +25,11 @@ const GetUserReservationsSchema = z.object({
  * Los usuarios pueden ver sus propias reservas, STAFF/ADMIN pueden ver cualquier usuario
  */
 export async function GET(req: NextRequest) {
-  return withAuthMiddleware(async (request: NextRequest, context: AuthenticatedContext) => {
+  return withAuthMiddleware(async (request: NextRequest, context: any) => {
   try {
     const pathname = request.nextUrl.pathname;
     const userId = pathname.split('/').pop() as string;
-    const { user } = context as any;
+    const { user } = (context as any);
     
     // Verificar permisos: usuarios solo pueden ver sus propias reservas
     if (user.role === 'USER' && user.id !== userId) {

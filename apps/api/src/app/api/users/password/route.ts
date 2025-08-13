@@ -6,7 +6,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { UserService, UpdatePasswordSchema } from '../../../../lib/services/user.service';
-import { withAuthMiddleware, ApiResponse, AuthenticatedContext } from '../../../../lib/middleware';
+import { withAuthMiddleware, ApiResponse } from '../../../../lib/middleware';
 
 const userService = new UserService();
 
@@ -15,9 +15,10 @@ const userService = new UserService();
  * Cambiar contraseña del usuario autenticado
  */
 export async function PUT(req: NextRequest) {
-  return withAuthMiddleware(async (request: NextRequest, { user }: AuthenticatedContext) => {
+  return withAuthMiddleware(async (request: NextRequest, context: any) => {
     try {
       const body = await request.json();
+      const user = (context as any).user;
       
       const result = await userService.updatePassword(user.id, body);
       

@@ -212,14 +212,14 @@ export async function DELETE(
     }
     
     // Verificar que la reserva se puede cancelar
-    if (existingReservation.status === 'cancelled') {
+    if (existingReservation.status === 'CANCELLED') {
       return NextResponse.json(
         { error: 'La reserva ya está cancelada' },
         { status: 400 }
       );
     }
     
-    if (existingReservation.status === 'completed') {
+    if (existingReservation.status === 'COMPLETED') {
       return NextResponse.json(
         { error: 'No se puede cancelar una reserva completada' },
         { status: 400 }

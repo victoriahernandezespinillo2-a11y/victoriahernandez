@@ -20,9 +20,9 @@ export async function GET(req: NextRequest) {
   return withStaffMiddleware(async (request: NextRequest) => {
   try {
     const { searchParams } = request.nextUrl;
-    const params = Object.fromEntries(searchParams.entries());
-    
-    const result = await userService.getUsers(params);
+    const raw = Object.fromEntries(searchParams.entries());
+    const params = GetUsersSchema.parse(raw);
+    const result = await userService.getUsers(params as any);
     
     return ApiResponse.success(result);
   } catch (error) {

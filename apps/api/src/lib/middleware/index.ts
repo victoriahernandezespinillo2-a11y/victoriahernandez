@@ -213,7 +213,7 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
 export const withRole = (requiredRole: 'USER' | 'STAFF' | 'ADMIN') => {
   return (handler: ApiHandler): ApiHandler => {
     return withAuth(async (req: NextRequest, context) => {
-      const user = (context as any).user;
+      const user = (context as any)?.user as { role: 'USER' | 'STAFF' | 'ADMIN' } | undefined;
       
       if (!user) {
         return NextResponse.json(
@@ -223,8 +223,9 @@ export const withRole = (requiredRole: 'USER' | 'STAFF' | 'ADMIN') => {
       }
 
       // Verificar jerarquía de roles
-      const roleHierarchy = { USER: 0, STAFF: 1, ADMIN: 2 };
-      const userLevel = roleHierarchy[user.role];
+      const roleHierarchy = { USER: 0, STAFF: 1, ADMIN: 2 } as const;
+      const userRole = (user.role as keyof typeof roleHierarchy);
+      const userLevel = roleHierarchy[userRole];
       const requiredLevel = roleHierarchy[requiredRole];
 
       if (userLevel < requiredLevel) {
@@ -303,7 +304,7 @@ export const withValidation = <T>(
             data = Object.fromEntries(req.nextUrl.searchParams.entries());
             break;
           case 'params':
-            data = context.params || {};
+            data = (context as any)?.params || {};
             break;
         }
 

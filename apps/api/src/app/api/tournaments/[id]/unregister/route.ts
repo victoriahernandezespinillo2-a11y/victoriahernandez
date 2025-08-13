@@ -17,7 +17,7 @@ const tournamentService = new TournamentService();
 export async function DELETE(
   request: NextRequest
 ) {
-  return withAuthMiddleware(async (req, context) => {
+  return withAuthMiddleware(async (req, context: any) => {
     try {
       const pathname = req.nextUrl.pathname;
       const tournamentId = pathname.split('/').slice(-2, -1)[0] as string;
@@ -27,10 +27,11 @@ export async function DELETE(
       }
       
       const { searchParams } = new URL(req.url);
-      const userId = searchParams.get('userId') || context.user!.id;
+      const currentUser = (context as any)?.user as { id: string; role: 'USER' | 'STAFF' | 'ADMIN' };
+      const userId = searchParams.get('userId') || currentUser.id;
       
       // Solo permitir que los usuarios cancelen su propia inscripción (excepto ADMIN)
-      if (userId !== context.user!.id && context.user!.role !== 'ADMIN') {
+      if (userId !== currentUser.id && currentUser.role !== 'ADMIN') {
         return ApiResponse.forbidden('Solo puedes cancelar tu propia inscripción');
       }
       

@@ -17,7 +17,7 @@ const tournamentService = new TournamentService();
 export async function POST(
   request: NextRequest
 ) {
-  return withAdminMiddleware(async (req, { user }) => {
+  return withAdminMiddleware(async (req, context: any) => {
     try {
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').slice(-2, -1)[0] as string;
@@ -28,7 +28,7 @@ export async function POST(
       
       const tournament = await tournamentService.publishTournament(id);
       
-      return ApiResponse.success(tournament, 'Torneo publicado exitosamente');
+      return ApiResponse.success(tournament);
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('no encontrado')) {

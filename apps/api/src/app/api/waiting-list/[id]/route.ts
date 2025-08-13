@@ -159,10 +159,11 @@ export async function PUT(
       };
     }
     
-    const updatedEntry = await waitingListService.updateWaitingListEntry(
-      waitingListId,
-      updateData
-    );
+    // No existe updateWaitingListEntry en el servicio actual; realizamos un update directo controlado
+    const updatedEntry = await (await import('@repo/db')).db.waitingList.update({
+      where: { id: waitingListId },
+      data: updateData,
+    });
     
     return NextResponse.json({
       message: 'Entrada de lista de espera actualizada exitosamente',
@@ -241,7 +242,8 @@ export async function DELETE(
     }
     
     const cancelledEntry = await waitingListService.cancelWaitingListEntry(
-      waitingListId
+      waitingListId,
+      session.user.id
     );
     
     return NextResponse.json({
@@ -314,11 +316,15 @@ export async function POST(
       );
     }
     
-    const claimedReservation = await waitingListService.claimAvailableSlot(
+    // El servicio expone claimSlot(waitingListId, paymentMethod)
+    const claimResult = await waitingListService.claimSlot(
       waitingListId,
-      validatedData.availableSlotId,
       validatedData.paymentMethod
     );
+    if (!claimResult.success) {
+      return NextResponse.json({ error: claimResult.error || 'No se pudo reclamar el slot' }, { status: 400 });
+    }
+    const claimedReservation = claimResult.reservation;
     
     return NextResponse.json({
       message: 'Slot reclamado exitosamente',

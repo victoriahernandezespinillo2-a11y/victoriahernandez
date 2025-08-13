@@ -45,15 +45,20 @@ export async function GET(request: NextRequest) {
     
     const validatedParams = GetWaitingListSchema.parse(params);
     
-    const filters: any = {
-      status: validatedParams.status,
-      courtId: validatedParams.courtId,
-    };
-    
-    const waitingListEntries = await waitingListService.getWaitingListByUser(
-      session.user.id,
-      filters
+    const waitingListEntriesAll = await waitingListService.getWaitingListByUser(
+      session.user.id
     );
+    
+    // Filtros opcionales en memoria, compatibles con el servicio actual
+    const waitingListEntries = waitingListEntriesAll.filter((e: any) => {
+      if (validatedParams.courtId && e.courtId !== validatedParams.courtId) return false;
+      if (validatedParams.status) {
+        const map: Record<string, string> = { active: 'waiting', notified: 'notified', expired: 'expired', claimed: 'converted' };
+        const target = map[validatedParams.status];
+        if (target && e.status !== target) return false;
+      }
+      return true;
+    });
     
     // Paginación
     const page = validatedParams.page;
@@ -131,15 +136,13 @@ export async function POST(request: NextRequest) {
       };
     }
     
+    const maxWaitMinutes = 60; // límite conservador (el servicio acepta 15..1440)
     const waitingListEntry = await waitingListService.addToWaitingList({
       userId: session.user.id,
       courtId: validatedData.courtId,
-      preferredDateTime,
+      requestedTime: preferredDateTime.toISOString(),
       duration: validatedData.duration,
-      flexibleTime: validatedData.flexibleTime,
-      timeRange,
-      maxWaitDays: validatedData.maxWaitDays,
-      notes: validatedData.notes,
+      maxWaitMinutes,
     });
     
     return NextResponse.json(

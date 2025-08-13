@@ -384,19 +384,19 @@ export class TournamentService {
       throw new Error('Torneo no encontrado');
     }
 
-    if (tournament.status !== 'draft') {
+    if (tournament.status !== 'DRAFT') {
       throw new Error('Solo se pueden publicar torneos en borrador');
     }
 
     const now = new Date();
-    if (tournament.startDate > now) {
+    if (tournament.startDate <= now) {
       throw new Error('No se puede publicar un torneo que ya ha comenzado');
     }
 
     const updatedTournament = await db.tournament.update({
       where: { id },
       data: {
-        status: 'active',
+        status: 'REGISTRATION_OPEN',
       },
     });
 

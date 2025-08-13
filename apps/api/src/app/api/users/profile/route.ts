@@ -7,7 +7,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { UserService, UpdateUserSchema } from '../../../../lib/services/user.service';
-import { withAuthMiddleware, ApiResponse, AuthenticatedContext } from '../../../../lib/middleware';
+import { withAuthMiddleware, ApiResponse } from '../../../../lib/middleware';
 
 const userService = new UserService();
 
@@ -16,8 +16,9 @@ const userService = new UserService();
  * Obtener perfil del usuario autenticado
  */
 export async function GET(req: NextRequest) {
-  return withAuthMiddleware(async (_request: NextRequest, { user }: AuthenticatedContext) => {
+  return withAuthMiddleware(async (_request: NextRequest, context: any) => {
   try {
+    const user = (context as any).user;
     const userData = await userService.getUserById(user.id);
     
     return ApiResponse.success(userData);
@@ -41,9 +42,10 @@ export async function GET(req: NextRequest) {
  * Actualizar perfil del usuario autenticado
  */
 export async function PUT(req: NextRequest) {
-  return withAuthMiddleware(async (request: NextRequest, { user }: AuthenticatedContext) => {
+  return withAuthMiddleware(async (request: NextRequest, context: any) => {
   try {
     const body = await request.json();
+    const user = (context as any).user;
     
     const updatedUser = await userService.updateUser(user.id, body);
     
