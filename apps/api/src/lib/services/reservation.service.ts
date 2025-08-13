@@ -632,7 +632,7 @@ export class ReservationService {
           );
 
           // Verificar conflictos de mantenimiento
-          const isInMaintenance = maintenanceSchedules.some((m) => {
+          const isInMaintenance = maintenanceSchedules.some((m: any) => {
             const maintStart = m.startedAt ?? m.scheduledAt ?? startOfDay;
             const maintEnd = m.completedAt ?? endOfDay;
             return slotStart < maintEnd && slotEnd > maintStart;
