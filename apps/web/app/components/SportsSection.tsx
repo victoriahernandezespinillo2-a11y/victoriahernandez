@@ -159,7 +159,8 @@ export function SportsSection() {
     return () => observer.disconnect();
   }, []);
 
-  const currentSports = sportsData[sportsCategories[activeTab].id as keyof typeof sportsData];
+  const currentCategory = sportsCategories[activeTab] ?? sportsCategories[0];
+  const currentSports = sportsData[currentCategory.id as keyof typeof sportsData] ?? [];
 
   return (
     <section ref={sectionRef} className="py-24 bg-white relative overflow-hidden">
