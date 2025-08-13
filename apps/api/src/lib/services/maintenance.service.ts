@@ -500,9 +500,9 @@ export class MaintenanceService {
       completed,
       overdue,
       monthlyCompleted,
-      byType: byType.map(item => ({
+      byType: byType.map((item: any) => ({
         type: item.type,
-        count: item._count.type,
+        count: (item._count as any).type,
       })),
       // No hay prioridad en el esquema actual
     };
