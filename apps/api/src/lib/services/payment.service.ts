@@ -421,7 +421,7 @@ export class PaymentService {
         prisma.reservation.count({ where: whereRes }),
       ]);
 
-      const payments = reservations.map((r) => ({
+      const payments = reservations.map((r: any) => ({
         id: r.id,
         amount: Number(r.totalPrice || 0),
         status: (r.status as any) || 'COMPLETED',
