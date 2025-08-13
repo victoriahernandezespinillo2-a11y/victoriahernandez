@@ -1,5 +1,4 @@
 import { NextAuthConfig } from 'next-auth';
-import { db } from '@repo/db';
 import { 
   providers, 
   SECURITY_CONFIG, 
@@ -10,8 +9,7 @@ import {
 } from './providers';
 
 export const authConfig: NextAuthConfig = {
-  // Usamos JWT strategy sin adapter ya que tenemos una clase DB personalizada
-  // adapter: PrismaAdapter(db), // Comentado porque db no es un cliente Prisma
+  // Usamos JWT strategy, sin adapter (delegamos a la API para credenciales)
   providers,
   trustHost: true,
   // Aceptar tanto AUTH_SECRET (v5) como NEXTAUTH_SECRET (compat) con fallback seguro en dev

@@ -1,6 +1,6 @@
 import Credentials from 'next-auth/providers/credentials';
 import Google from 'next-auth/providers/google';
-import { db, UserRole } from '@repo/db';
+import type { UserRole } from '@repo/db';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import type { Provider } from 'next-auth/providers';
@@ -67,59 +67,47 @@ providersList.push(
         const validatedCredentials = credentialsSchema.parse(credentials);
         console.log('✅ [AUTH] Credenciales validadas correctamente');
         
-        // Buscar usuario en la base de datos
-        console.log('🔍 [AUTH] Buscando usuario:', validatedCredentials.email);
-        const user = await db.user.findUnique({
-          where: { email: validatedCredentials.email }
+        // Delegar autenticación a la API central
+        const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || '';
+        const endpoint = `${base}/api/auth/signin`;
+        console.log('🌐 [AUTH] Delegando credenciales a API:', endpoint);
+
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: validatedCredentials.email,
+            password: validatedCredentials.password,
+          }),
+          cache: 'no-store',
         });
-        
-        if (!user) {
-          console.log('❌ [AUTH] Usuario no encontrado en la base de datos');
-          throw new Error('Usuario no encontrado');
+
+        if (!resp.ok) {
+          const info = await resp.text().catch(() => '');
+          console.log('❌ [AUTH] API rechazó credenciales:', resp.status, info);
+          return null;
         }
-        
-        console.log('✅ [AUTH] Usuario encontrado:', {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          isActive: user.isActive,
-          hasPassword: !!user.password,
-          passwordLength: user.password?.length || 0
-        });
-        
-        // Verificar contraseña
-        if (!user.password) {
-          console.log('❌ [AUTH] Usuario sin contraseña configurada');
-          throw new Error('Usuario sin contraseña configurada');
+
+        const payload: any = await resp.json().catch(() => ({}));
+        const data = payload?.data || payload;
+
+        if (!data || !data.user) {
+          console.log('❌ [AUTH] Respuesta de API inválida');
+          return null;
         }
-        
-        console.log('🔐 [AUTH] Verificando contraseña...');
-        const isValidPassword = await verifyPassword(validatedCredentials.password, user.password);
-        console.log('🔐 [AUTH] Resultado de verificación de contraseña:', isValidPassword);
-        
-        if (!isValidPassword) {
-          console.log('❌ [AUTH] Contraseña incorrecta');
-          throw new Error('Contraseña incorrecta');
-        }
-        
-        // Verificar si el usuario está activo
-        if (!user.isActive) {
-          console.log('❌ [AUTH] Usuario inactivo');
-          throw new Error('Usuario inactivo');
-        }
-        
-        console.log('✅ [AUTH] Autenticación exitosa');
-        
+
+        const u = data.user;
+        console.log('✅ [AUTH] API autenticó usuario:', { id: u.id, email: u.email, role: u.role });
+
         return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          membershipType: user.membershipType || 'basic',
-          creditsBalance: user.creditsBalance,
-          isActive: user.isActive,
-        };
+          id: u.id,
+          email: u.email,
+          name: u.name,
+          role: u.role || 'user',
+          membershipType: u.membershipType || 'basic',
+          creditsBalance: Number(u.creditsBalance || 0),
+          isActive: u.isActive !== false,
+        } as any;
       } catch (error) {
         console.error('❌ [AUTH] Error en autenticación:', {
           message: error instanceof Error ? error.message : String(error),
@@ -152,39 +140,62 @@ export const createUser = async (userData: {
   name?: string;
   phone?: string;
 }) => {
-  const hashedPassword = await hashPassword(userData.password);
-  
-  const user = await db.user.create({
-    data: {
+  const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || '';
+  const endpoint = `${base}/api/auth/signup`;
+  const resp = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      firstName: userData.name?.split(' ')[0] || userData.name || 'Usuario',
+      lastName: userData.name?.split(' ').slice(1).join(' ') || '',
       email: userData.email,
-      password: hashedPassword,
-      name: userData.name || null,
-      phone: userData.phone || null,
-      role: 'USER',
-      isActive: true,
-      emailVerified: true,
-      emailVerifiedAt: new Date(),
-    }
+      phone: userData.phone,
+      password: userData.password,
+      acceptTerms: true,
+    }),
+    cache: 'no-store',
   });
-  
-  return user;
+  if (!resp.ok) {
+    const info = await resp.text().catch(() => '');
+    throw new Error(`Signup failed: ${resp.status} ${info}`);
+  }
+  const payload: any = await resp.json().catch(() => ({}));
+  return payload?.data || payload;
 };
 
 // Función para validar si un email ya existe
 export const emailExists = async (email: string): Promise<boolean> => {
-  const user = await db.user.findUnique({
-    where: { email }
-  });
-  
-  return !!user;
+  const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || '';
+  const endpoint = `${base}/api/auth/verify-email`;
+  try {
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+      cache: 'no-store',
+    });
+    if (!resp.ok) return false;
+    const result: any = await resp.json().catch(() => ({}));
+    const data = result?.data || result;
+    return Boolean(data?.exists ?? data?.valid === false); // si endpoint devuelve exists
+  } catch {
+    return false;
+  }
 };
 
 // Función para actualizar la última actividad del usuario
 export const updateUserActivity = async (userId: string) => {
-  await db.user.update({
-    where: { id: userId },
-    data: { updatedAt: new Date(), lastLoginAt: new Date() }
-  });
+  const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || '';
+  try {
+    await fetch(`${base}/api/users/${userId}/activity`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'login' }),
+      cache: 'no-store',
+    });
+  } catch {
+    // no-op: telemetría best-effort
+  }
 };
 
 // Configuración de seguridad centralizada
@@ -251,16 +262,16 @@ export const requireRole = (allowedRoles: string[]) => {
 
 // Middleware para verificar membresía activa
 export const requireActiveMembership = async (userId: string): Promise<boolean> => {
-  const user = await db.user.findUnique({ where: { id: userId } });
-  
-  if (!user) {
+  const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || '';
+  try {
+    const resp = await fetch(`${base}/api/users/${userId}`, { cache: 'no-store' });
+    if (!resp.ok) return false;
+    const payload: any = await resp.json().catch(() => ({}));
+    const u = payload?.data || payload;
+    if (!u) return false;
+    const exp = u.membershipExpiresAt ? new Date(u.membershipExpiresAt) : null;
+    return Boolean(exp && exp > new Date());
+  } catch {
     return false;
   }
-  
-  // Verificar si tiene membresía activa basándose en membershipExpiresAt
-  if (user.membershipExpiresAt && user.membershipExpiresAt > new Date()) {
-    return true;
-  }
-  
-  return false;
 };
