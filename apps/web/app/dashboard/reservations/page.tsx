@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useReservations } from '@/lib/hooks';
-import { useState } from 'react';
 
 interface Reservation {
   id: string;
