@@ -669,7 +669,7 @@ export class PricingService {
     }
     
     const prices = reservations.map((r: any) => Number(r.totalPrice));
-    const totalRevenue = prices.reduce((sum, price) => sum + price, 0);
+    const totalRevenue = prices.reduce((sum: number, price: number) => sum + price, 0);
     const averagePrice = totalRevenue / prices.length;
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
