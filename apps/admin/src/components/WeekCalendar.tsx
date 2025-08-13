@@ -19,12 +19,12 @@ export default function WeekCalendar({ courtId, weekStartISO, slotMinutes = 60, 
   const [error, setError] = useState<string | null>(null);
 
   const days = useMemo(() => {
-    const start = new Date(weekStartISO + 'T00:00:00');
+    const start = new Date((weekStartISO || '') + 'T00:00:00');
     const arr: string[] = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
-      arr.push(d.toISOString().split('T')[0]);
+      arr.push(d.toISOString().split('T')[0] || '');
     }
     return arr;
   }, [weekStartISO]);

@@ -114,8 +114,8 @@ export default function AuditPage() {
     const matchesSearch = searchTerm === '' || 
       log.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.resource.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.details.toLowerCase().includes(searchTerm.toLowerCase());
+      (log.resource ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (log.details ?? '').toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = filterStatus === 'all' || log.status === filterStatus;
     const matchesAction = filterAction === 'all' || log.action === filterAction;

@@ -686,7 +686,7 @@ export default function ReservationsPage() {
         title={resendState.type === 'CONFIRMATION' ? 'Reenviar confirmación' : 'Reenviar enlace de pago'}
         description={resendState.type === 'CONFIRMATION' ? 'Se enviará nuevamente el correo de confirmación al cliente.' : 'Se generará y enviará un nuevo enlace de pago al cliente.'}
         confirmText="Reenviar"
-        variant="info"
+        variant="primary"
         onConfirm={handleResend}
         onCancel={() => setResendState({ ...resendState, open: false })}
       />
@@ -769,7 +769,7 @@ export default function ReservationsPage() {
           </div> as any
         }
         confirmText="Reembolsar"
-        variant="warning"
+        variant="danger"
         onConfirm={confirmRefund}
         onCancel={() => setRefundState({ open: false, id: undefined, amount: undefined, reason: '' })}
       />

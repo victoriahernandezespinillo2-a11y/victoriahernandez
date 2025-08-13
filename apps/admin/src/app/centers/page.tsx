@@ -643,8 +643,8 @@ export default function CentersPage() {
                             ...ohForm,
                             operatingHours: {
                               ...ohForm.operatingHours,
-                              [key]: {
-                                ...(ohForm.operatingHours as any)[key],
+                              [key as any]: {
+                                ...(((ohForm.operatingHours as any)?.[key as any]) || {}),
                                 closed: e.target.checked,
                               },
                             },
@@ -663,7 +663,7 @@ export default function CentersPage() {
                             ...ohForm,
                             operatingHours: {
                               ...ohForm.operatingHours,
-                              [key]: { ...(ohForm.operatingHours as any)[key], open: e.target.value },
+                              [key as any]: { ...(((ohForm.operatingHours as any)?.[key as any]) || {}), open: e.target.value },
                             },
                           })}
                           disabled={ohForm.operatingHours[key as any]?.closed}
@@ -679,7 +679,7 @@ export default function CentersPage() {
                             ...ohForm,
                             operatingHours: {
                               ...ohForm.operatingHours,
-                              [key]: { ...(ohForm.operatingHours as any)[key], close: e.target.value },
+                              [key as any]: { ...(((ohForm.operatingHours as any)?.[key as any]) || {}), close: e.target.value },
                             },
                           })}
                           disabled={ohForm.operatingHours[key as any]?.closed}

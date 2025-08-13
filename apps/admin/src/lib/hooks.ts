@@ -142,11 +142,11 @@ export function useAdminUsers() {
   const [pagination, setPagination] = useState<{ page: number; limit: number; total: number; pages: number } | null>(null as any);
 
   const getUsers = useCallback(async (params?: any) => {
-    // si el caller necesita meta, usar getAllWithMeta
-    const res = await adminApi.users.getAllWithMeta(params);
-    setData(res.items as any);
-    setPagination(res.pagination);
-    return res.items as any;
+    // Mapear a lista simple usando users.getAll; si en el futuro se requiere meta, se ampliará aquí
+    const list = await adminApi.users.getAll(params);
+    setData(list as any);
+    setPagination({ page: params?.page || 1, limit: params?.limit || list.length, total: list.length, pages: 1 } as any);
+    return list as any;
   }, [setData]);
 
   const createUser = useCallback(async (userData: {
@@ -565,8 +565,8 @@ export function useAdminNotifications() {
   }, [setData]);
 
   const getStats = useCallback((params?: any) => {
-    return execute(() => adminApi.notifications.stats(params));
-  }, [execute]);
+    return adminApi.notifications.stats(params) as Promise<any>;
+  }, []);
 
   return {
     notifications: data,

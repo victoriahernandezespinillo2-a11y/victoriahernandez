@@ -38,11 +38,12 @@ export default function AdminNewReservationPage() {
   const [overrideAmount, setOverrideAmount] = useState<string>('');
   const [overrideReason, setOverrideReason] = useState<string>('');
   const [confirmOverrideOpen, setConfirmOverrideOpen] = useState(false);
-  const [weekStart, setWeekStart] = useState(() => {
+  const [weekStart, setWeekStart] = useState<string>(() => {
     const d = new Date();
     const day = d.getDay() === 0 ? 7 : d.getDay();
     d.setDate(d.getDate() - (day - 1));
-    return d.toISOString().split('T')[0];
+    const s = d.toISOString().split('T')[0] || '';
+    return s;
   });
 
   useEffect(() => {
@@ -77,7 +78,7 @@ export default function AdminNewReservationPage() {
         if (!courtId || !date || !time) { setPrice({}); return; }
         const [hour, minute] = time.split(':').map(Number);
         const start = new Date(date + 'T00:00:00');
-        start.setHours(hour, minute, 0, 0);
+        start.setHours(hour || 0, minute || 0, 0, 0);
         const result: any = await adminApi.pricing.calculate({ courtId, startTime: start.toISOString(), duration, userId: userId || undefined });
         const p = result?.pricing || result;
         setPrice({ base: p?.basePrice, final: p?.finalPrice, breakdown: p?.breakdown || [] });
@@ -131,7 +132,7 @@ export default function AdminNewReservationPage() {
       if (overrideEnabled) { setConfirmOverrideOpen(true); return; }
       const [hour, minute] = time.split(':').map(Number);
       const start = new Date(date + 'T00:00:00');
-      start.setHours(hour, minute, 0, 0);
+      start.setHours(hour || 0, minute || 0, 0, 0);
 
       setIsSubmitting(true);
       const res = await fetch('/api/admin/reservations', {
@@ -189,7 +190,7 @@ export default function AdminNewReservationPage() {
       setIsSubmitting(true);
       const [hour, minute] = time.split(':').map(Number);
       const start = new Date(date + 'T00:00:00');
-      start.setHours(hour, minute, 0, 0);
+      start.setHours(hour || 0, minute || 0, 0, 0);
       const res = await fetch('/api/admin/reservations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -240,19 +241,22 @@ export default function AdminNewReservationPage() {
         // Intentar también siguiente día
         const nextDate = new Date(date + 'T00:00:00'); nextDate.setDate(nextDate.getDate() + 1);
         const nextISO = nextDate.toISOString().split('T')[0];
-        const avail2: any = await adminApi.courts.getAvailability(courtId, nextISO).catch(() => null);
+        const avail2: any = await adminApi.courts.getAvailability(courtId as string, nextISO as string).catch(() => null);
         const s2 = avail2?.slots || [];
-        await buildSuggestions(nextISO, s2);
+        await buildSuggestions(nextISO as string, s2);
         return;
       }
-      await buildSuggestions(date, slotsList);
+      await buildSuggestions(date as string, slotsList);
     } finally {
       setSuggestionsLoading(false);
     }
   };
 
   const buildSuggestions = async (dateISO: string, slotsList: Array<{ start: string; end: string; available: boolean }>) => {
-    const desiredMinutes = (() => { const [h, m] = time.split(':').map(Number); return h*60+m; })();
+    const desiredMinutes = (() => {
+      const [h, m] = (time || '00:00').split(':').map(Number);
+      return (h || 0) * 60 + (m || 0);
+    })();
     const availableStarts = slotsList.filter(s => s.available).map(s => new Date(s.start));
     // Ordenar por cercanía a la hora deseada (misma fecha)
     const sorted = availableStarts.sort((a, b) => {
@@ -410,12 +414,14 @@ export default function AdminNewReservationPage() {
               <button className="px-2 py-1 border rounded" onClick={() => {
                 const d = new Date(weekStart + 'T00:00:00');
                 d.setDate(d.getDate() - 7);
-                setWeekStart(d.toISOString().split('T')[0]);
+                const s = d.toISOString().split('T')[0] || '';
+                setWeekStart(s);
               }}>◀</button>
               <button className="px-2 py-1 border rounded" onClick={() => {
                 const d = new Date(weekStart + 'T00:00:00');
                 d.setDate(d.getDate() + 7);
-                setWeekStart(d.toISOString().split('T')[0]);
+                const s = d.toISOString().split('T')[0] || '';
+                setWeekStart(s);
               }}>▶</button>
             </div>
           </div>
@@ -447,7 +453,7 @@ export default function AdminNewReservationPage() {
           <h3 className="font-semibold mb-2">Resumen de precio</h3>
           {price?.final !== undefined ? (
             <div>
-              <div className="text-sm text-gray-600 mb-1">Base: €{(price.base || price.basePrice || 0).toFixed(2)}</div>
+              <div className="text-sm text-gray-600 mb-1">Base: €{(price.base ?? 0).toFixed(2)}</div>
               <ul className="text-xs text-gray-500 mb-2 list-disc pl-5">
                 {(price.breakdown || []).map((b, i) => (
                   <li key={i}>{b.description}: €{(b.amount || 0).toFixed(2)}</li>
@@ -612,7 +618,7 @@ export default function AdminNewReservationPage() {
           ) as any;
         })()}
         confirmText="Confirmar y crear"
-        variant="warning"
+        variant="danger"
         onConfirm={confirmCreateWithOverride}
         onCancel={() => setConfirmOverrideOpen(false)}
       />

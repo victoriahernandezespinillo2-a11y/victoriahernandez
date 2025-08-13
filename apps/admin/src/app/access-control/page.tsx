@@ -51,7 +51,6 @@ export default function AccessControlPage() {
 
   // BarcodeDetector availability check
   useEffect(() => {
-    // @ts-expect-error - BarcodeDetector is experimental
     const BD = (globalThis as any).BarcodeDetector;
     setHasBarcodeDetector(Boolean(BD));
   }, []);
@@ -93,7 +92,6 @@ export default function AccessControlPage() {
     let cancelled = false;
     let rafId = 0 as number | undefined as any;
 
-    // @ts-expect-error - experimental
     const detector = new (globalThis as any).BarcodeDetector({ formats: ["qr_code"] });
 
     const detect = async () => {

@@ -95,7 +95,7 @@ export default function NotificationsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-gray-900">{notifications.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{(notifications || []).length}</p>
             </div>
             <div className="p-3 bg-blue-50 rounded-lg">
               <BellIcon className="h-8 w-8 text-blue-600" />
@@ -117,7 +117,7 @@ export default function NotificationsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Leídas</p>
-              <p className="text-2xl font-bold text-gray-900">{notifications.length - unreadCount}</p>
+              <p className="text-2xl font-bold text-gray-900">{(notifications || []).length - unreadCount}</p>
             </div>
             <div className="p-3 bg-green-50 rounded-lg">
               <CheckCircleIcon className="h-8 w-8 text-green-600" />
@@ -139,7 +139,7 @@ export default function NotificationsPage() {
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              Todas ({notifications.length})
+              Todas ({(notifications || []).length})
             </button>
             <button
               onClick={() => setFilter('unread')}
@@ -159,7 +159,7 @@ export default function NotificationsPage() {
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              Leídas ({notifications.length - unreadCount})
+              Leídas ({(notifications || []).length - unreadCount})
             </button>
           </div>
         </div>

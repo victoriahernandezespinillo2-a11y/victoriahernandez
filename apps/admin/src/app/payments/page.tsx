@@ -26,7 +26,7 @@ type PaymentRow = {
   transactionId: string;
 };
 
-const getStatusIcon = (status: Payment['status']) => {
+const getStatusIcon = (status: string) => {
   switch (status) {
     case 'completed':
       return <CheckCircleIcon className="w-4 h-4 text-green-500" />;
@@ -41,7 +41,7 @@ const getStatusIcon = (status: Payment['status']) => {
   }
 };
 
-const getStatusColor = (status: Payment['status']) => {
+const getStatusColor = (status: string) => {
   switch (status) {
     case 'completed':
       return 'bg-green-100 text-green-800';
@@ -56,7 +56,7 @@ const getStatusColor = (status: Payment['status']) => {
   }
 };
 
-const getMethodName = (method: Payment['method']) => {
+const getMethodName = (method: string) => {
   switch (method) {
     case 'credit_card':
       return 'Tarjeta de Crédito';

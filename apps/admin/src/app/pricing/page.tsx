@@ -77,8 +77,8 @@ export default function PricingPage() {
         setLoading(true);
         setError(null);
         // Cargar reglas
-        const rulesResp = await adminApi.pricing.getRules({ page: 1, limit: 100 });
-        const list: ApiPricingRule[] = (rulesResp.pricingRules || rulesResp || []) as ApiPricingRule[];
+        const rulesResp: any = await adminApi.pricing.getRules({ page: 1, limit: 100 });
+        const list: ApiPricingRule[] = (rulesResp?.pricingRules || rulesResp || []) as ApiPricingRule[];
         setRules(list);
         // Cargar canchas (vía endpoint público para evitar depender de admin/*)
         const res = await fetch('/api/courts', { credentials: 'include' });
@@ -188,8 +188,8 @@ export default function PricingPage() {
         await adminApi.pricing.createRule(payload);
       }
       // Recargar
-      const rulesResp = await adminApi.pricing.getRules({ page: 1, limit: 100 });
-      const list: ApiPricingRule[] = (rulesResp.pricingRules || rulesResp || []) as ApiPricingRule[];
+      const rulesResp: any = await adminApi.pricing.getRules({ page: 1, limit: 100 });
+      const list: ApiPricingRule[] = (rulesResp?.pricingRules || rulesResp || []) as ApiPricingRule[];
       setRules(list);
       setShowCreateForm(false);
       resetForm();
