@@ -239,7 +239,7 @@ export class StripeService {
           provider: 'stripe',
           eventType: event.type,
           eventId: event.id,
-          eventData: event.data,
+          eventData: event.data as any,
           processed: false,
         },
       });
