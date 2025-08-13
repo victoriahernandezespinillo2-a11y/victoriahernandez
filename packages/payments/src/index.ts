@@ -1,6 +1,8 @@
 // Importar servicios para uso interno
 import { StripeService, stripeService } from './stripe';
 import { RedsysService, redsysService } from './redsys';
+import type { PaymentIntentData, CustomerData, SubscriptionData } from './stripe';
+import type { RedsysPaymentData } from './redsys';
 
 // Exportar servicios de Stripe
 export {
