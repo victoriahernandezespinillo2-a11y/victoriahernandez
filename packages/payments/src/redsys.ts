@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { z } from 'zod';
 import { db } from '@repo/db';
+import type { Prisma } from '@prisma/client';
 
 // Esquemas de validación para Redsys
 const redsysPaymentSchema = z.object({
@@ -285,7 +286,7 @@ export class RedsysService {
         provider: 'redsys',
         eventType: isSuccess ? 'payment_succeeded' : 'payment_failed',
         eventId: data.Ds_Order || '',
-        eventData: data,
+        eventData: data as unknown as Prisma.InputJsonValue,
         processed: false,
       },
     });
