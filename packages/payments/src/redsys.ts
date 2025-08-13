@@ -125,21 +125,25 @@ export class RedsysService {
 
   // Crear firma HMAC SHA256
   private createSignature(order: string, merchantParameters: string): string {
-    // Crear clave derivada
-    const key = Buffer.from(this.merchantKey, 'base64');
-    const cipher = crypto.createCipher('des-ede3-cbc', key);
-    cipher.setAutoPadding(false);
-    
-    // Padding manual para el número de pedido
+    // Crear clave derivada usando 3DES-CBC con IV en cero
+    const key = Buffer.from(this.merchantKey, 'base64'); // 24 bytes esperados
+    const iv = Buffer.alloc(8, 0);
+
+    // Padding manual para el número de pedido (PKCS#7 sobre bloque de 8)
     const paddedOrder = this.addPadding(order);
-    
-    let derivedKey = cipher.update(paddedOrder, 'utf8', 'binary');
-    derivedKey += cipher.final('binary');
-    
-    // Crear HMAC
-    const hmac = crypto.createHmac('sha256', Buffer.from(derivedKey, 'binary'));
+
+    const cipher = crypto.createCipheriv('des-ede3-cbc', key, iv);
+    cipher.setAutoPadding(false);
+
+    const derivedKey = Buffer.concat([
+      cipher.update(Buffer.from(paddedOrder, 'utf8')),
+      cipher.final(),
+    ]);
+
+    // Crear HMAC con la clave derivada
+    const hmac = crypto.createHmac('sha256', derivedKey);
     hmac.update(merchantParameters);
-    
+
     return hmac.digest('base64');
   }
 
