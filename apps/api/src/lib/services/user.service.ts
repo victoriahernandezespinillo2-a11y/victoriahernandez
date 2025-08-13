@@ -378,7 +378,7 @@ export class UserService {
     });
 
     const sportsWithDetails = await Promise.all(
-      sportStats.map(async (stat) => {
+      sportStats.map(async (stat: any) => {
         const court = await db.court.findUnique({
           where: { id: stat.courtId },
           select: { sportType: true },
