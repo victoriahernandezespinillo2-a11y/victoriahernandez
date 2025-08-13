@@ -377,7 +377,7 @@ export class ReservationService {
   async updateReservation(id: string, input: UpdateReservationInput): Promise<Reservation> {
     const validatedInput = UpdateReservationSchema.parse(input);
     
-    return await db.$transaction(async (tx) => {
+    return await db.$transaction(async (tx: any) => {
       const existingReservation = await tx.reservation.findUnique({
         where: { id },
       });
@@ -435,7 +435,7 @@ export class ReservationService {
    * Cancelar reserva
    */
   async cancelReservation(id: string, reason?: string): Promise<Reservation> {
-    return await db.$transaction(async (tx) => {
+    return await db.$transaction(async (tx: any) => {
       const reservation = await tx.reservation.findUnique({
         where: { id },
         include: {
