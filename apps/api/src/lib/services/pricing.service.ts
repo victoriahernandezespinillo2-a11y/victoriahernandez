@@ -1,5 +1,5 @@
 import { db, type PricingRule, type Court, type User } from '@repo/db';
-import { ReservationStatus } from '@prisma/client';
+// Evitar enums de Prisma en este entorno; usar literales
 import { z } from 'zod';
 
 // Esquemas de validación
@@ -650,7 +650,7 @@ export class PricingService {
           gte: startDate,
           lte: endDate,
         },
-        status: { in: [ReservationStatus.PAID, ReservationStatus.COMPLETED] },
+        status: { in: ['PAID', 'COMPLETED'] },
       },
       select: {
         totalPrice: true,
