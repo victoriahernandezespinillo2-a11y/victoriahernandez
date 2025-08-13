@@ -3,8 +3,8 @@
  * Maneja todas las llamadas HTTP a la API backend
  */
 
-// Usar rutas relativas y dejar que next.config.js haga proxy vía rewrites
-const API_BASE_URL = '';
+// Base de la API: usar variable pública si está definida, sin barra final
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
 
 /**
  * Configuración base para las peticiones fetch
