@@ -68,8 +68,11 @@ providersList.push(
         console.log('✅ [AUTH] Credenciales validadas correctamente');
         
         // Delegar autenticación a la API central
-        const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || '';
-        const endpoint = `${base}/api/auth/signin`;
+        // Estrategia robusta:
+        // - Si hay URL absoluta configurada (NEXT_PUBLIC_API_URL o API_BASE_URL), usarla.
+        // - Si no, usar prefijo local `/api/backend` y dejar que Next.js rewrites lo proxy a la API.
+        const base = (process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || '/api/backend').replace(/\/$/, '');
+        const endpoint = `${base}/auth/signin`;
         console.log('🌐 [AUTH] Delegando credenciales a API:', endpoint);
 
         const resp = await fetch(endpoint, {
