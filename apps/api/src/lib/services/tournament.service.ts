@@ -683,13 +683,13 @@ export class TournamentService {
       completed,
       upcoming,
       monthlyRegistrations,
-      bySport: bySport.map(item => ({
+      bySport: bySport.map((item: any) => ({
         sport: item.sport,
-        count: item._count.sport,
+        count: (item._count as any).sport,
       })),
-      byFormat: byFormat.map(item => ({
+      byFormat: byFormat.map((item: any) => ({
         format: item.format,
-        count: item._count.format,
+        count: (item._count as any).format,
       })),
     };
   }
