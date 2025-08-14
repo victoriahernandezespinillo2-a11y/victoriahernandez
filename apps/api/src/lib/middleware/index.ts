@@ -370,9 +370,21 @@ export const withCors = (handler: ApiHandler): ApiHandler => {
     if (req.method === 'OPTIONS') {
       const pre = new NextResponse(null, { status: 200 });
       const origin = req.headers.get('origin');
-      const allowedOrigins = process.env.NODE_ENV === 'production'
-        ? ['https://polideportivo.com', 'https://admin.polideportivo.com']
-        : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
+      // Orígenes permitidos configurables por entorno
+      const envAllowed = (process.env.ALLOWED_ORIGINS || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const defaultProd = [
+        'https://polideportivo.com',
+        'https://admin.polideportivo.com',
+        process.env.NEXT_PUBLIC_APP_URL || '',
+        process.env.FRONTEND_URL || '',
+      ].filter(Boolean) as string[];
+      const defaultDev = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
+      const allowedOrigins = envAllowed.length > 0
+        ? envAllowed
+        : (process.env.NODE_ENV === 'production' ? defaultProd : defaultDev);
       if (origin && allowedOrigins.includes(origin)) {
         pre.headers.set('Access-Control-Allow-Origin', origin);
       }
@@ -386,9 +398,20 @@ export const withCors = (handler: ApiHandler): ApiHandler => {
     
     // Configurar headers CORS
     const origin = req.headers.get('origin');
-    const allowedOrigins = process.env.NODE_ENV === 'production'
-      ? ['https://polideportivo.com', 'https://admin.polideportivo.com']
-      : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
+    const envAllowed = (process.env.ALLOWED_ORIGINS || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const defaultProd = [
+      'https://polideportivo.com',
+      'https://admin.polideportivo.com',
+      process.env.NEXT_PUBLIC_APP_URL || '',
+      process.env.FRONTEND_URL || '',
+    ].filter(Boolean) as string[];
+    const defaultDev = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
+    const allowedOrigins = envAllowed.length > 0
+      ? envAllowed
+      : (process.env.NODE_ENV === 'production' ? defaultProd : defaultDev);
 
     if (origin && allowedOrigins.includes(origin)) {
       response.headers.set('Access-Control-Allow-Origin', origin);
