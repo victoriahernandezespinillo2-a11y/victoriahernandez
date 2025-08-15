@@ -1,6 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 export function InfoSection() {
+  const router = useRouter();
   const infoCards = [
     {
       title: "Sobre Nosotros",
@@ -97,7 +100,10 @@ export function InfoSection() {
           </div>
 
           <div className="text-center mt-12">
-            <button className="bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-8 py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+            <button 
+              onClick={() => router.push('/contact')}
+              className="bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-8 py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+            >
               <i className="fas fa-comments mr-2"></i>
               ¿Tienes más preguntas?
             </button>

@@ -13,6 +13,16 @@ export function SportsSection() {
     router.push('/dashboard/reservations/new');
   };
 
+  const handleViewDetails = (sportId: string) => {
+    router.push(`/sports/${sportId}`);
+  };
+
+  const handleLikeSport = (sportId: string) => {
+    // Aquí iría la lógica para dar like a un deporte
+    console.log(`Like dado al deporte: ${sportId}`);
+    // Podrías implementar una llamada a API para guardar el like
+  };
+
   const sportsCategories = [
     {
       id: "canchas",
@@ -250,7 +260,10 @@ export function SportsSection() {
 
                 {/* Hover Overlay */}
                 <div className={`absolute inset-0 bg-gradient-to-br ${currentCategory.color} opacity-0 group-hover:opacity-80 transition-opacity duration-300 flex items-center justify-center`}>
-                  <button className="bg-white text-gray-900 px-6 py-3 rounded-xl font-semibold transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+                  <button 
+                    onClick={() => handleViewDetails(sport.name.toLowerCase().replace(/\s+/g, '-'))}
+                    className="bg-white text-gray-900 px-6 py-3 rounded-xl font-semibold transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300"
+                  >
                     Ver Detalles
                   </button>
                 </div>
@@ -292,7 +305,10 @@ export function SportsSection() {
                   >
                     Reservar Ahora
                   </button>
-                  <button className="px-4 py-3 border border-gray-200 rounded-xl text-gray-600 hover:text-gray-900 hover:border-gray-300 transition-colors duration-300">
+                  <button 
+                    onClick={() => handleLikeSport(sport.name.toLowerCase().replace(/\s+/g, '-'))}
+                    className="px-4 py-3 border border-gray-200 rounded-xl text-gray-600 hover:text-gray-900 hover:border-gray-300 transition-colors duration-300"
+                  >
                     <i className="fas fa-heart"></i>
                   </button>
                 </div>

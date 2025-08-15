@@ -8,6 +8,8 @@ export function Navigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
+  // Estado para controlar acordeones en móvil
+  const [mobileAccordions, setMobileAccordions] = useState<Record<string, boolean>>({});
   const router = useRouter();
 
   const handleSmoothScroll = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
@@ -23,6 +25,7 @@ export function Navigation() {
         });
         setIsMobileMenuOpen(false); // Close mobile menu after navigation
         setActiveDropdown(null); // Close dropdown
+        setMobileAccordions({}); // Reset mobile accordions
       } else {
         // Si no encuentra el elemento, navegar a la página principal
         router.push('/' + href);
@@ -32,7 +35,16 @@ export function Navigation() {
       router.push(href);
       setIsMobileMenuOpen(false);
       setActiveDropdown(null);
+      setMobileAccordions({}); // Reset mobile accordions
     }
+  };
+
+  // Función para manejar acordeones móviles
+  const toggleMobileAccordion = (label: string) => {
+    setMobileAccordions(prev => ({
+      ...prev,
+      [label]: !prev[label]
+    }));
   };
 
   const handleMouseEnter = (label: string) => {
@@ -225,38 +237,76 @@ export function Navigation() {
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
           <div className="lg:hidden bg-white border-t border-gray-200 shadow-xl">
-            <div className="px-4 py-6 space-y-4">
+            <div className="px-4 py-6 space-y-2">
               {navigationItems.map((item, index) => (
-                <div key={index}>
-                  <a
-                    href={item.href}
-                    onClick={(e) => handleSmoothScroll(e, item.href)}
-                    className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors duration-200"
-                  >
-                    <i className={`${item.icon} text-emerald-500 w-5`}></i>
-                    <span className="font-medium">{item.label}</span>
-                  </a>
+                <div key={index} className="border-b border-gray-100 last:border-b-0 pb-2 last:pb-0">
+                  {/* Elemento principal del menú */}
+                  {item.dropdown ? (
+                    <button
+                      onClick={() => toggleMobileAccordion(item.label)}
+                      className="w-full flex items-center justify-between px-4 py-3 text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all duration-200"
+                      aria-expanded={mobileAccordions[item.label] || false}
+                      aria-controls={`mobile-submenu-${index}`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <i className={`${item.icon} text-emerald-500 w-5`}></i>
+                        <span className="font-medium">{item.label}</span>
+                      </div>
+                      <i className={`fas fa-chevron-down text-sm transition-transform duration-200 ${
+                        mobileAccordions[item.label] ? 'rotate-180' : ''
+                      }`}></i>
+                    </button>
+                  ) : (
+                    <a
+                      href={item.href}
+                      onClick={(e) => handleSmoothScroll(e, item.href)}
+                      className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors duration-200"
+                    >
+                      <i className={`${item.icon} text-emerald-500 w-5`}></i>
+                      <span className="font-medium">{item.label}</span>
+                    </a>
+                  )}
+                  
+                  {/* Submenú acordeón */}
                   {item.dropdown && (
-                    <div className="ml-8 mt-2 space-y-2">
-                      {item.dropdown.map((dropdownItem, dropdownIndex) => (
-                        <a
-                          key={dropdownIndex}
-                          href={dropdownItem.href}
-                          onClick={(e) => handleSmoothScroll(e, dropdownItem.href)}
-                          className="flex items-center space-x-3 px-8 py-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 transition-colors duration-200"
-                        >
-                          <i className={`${dropdownItem.icon} text-emerald-400 w-4 text-sm`}></i>
-                          <span className="text-sm">{dropdownItem.label}</span>
-                        </a>
-                      ))}
+                    <div 
+                      id={`mobile-submenu-${index}`}
+                      className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                        mobileAccordions[item.label] 
+                          ? 'max-h-96 opacity-100 mt-2' 
+                          : 'max-h-0 opacity-0'
+                      }`}
+                      style={{
+                        transitionProperty: 'max-height, opacity, margin-top'
+                      }}
+                    >
+                      <div className="ml-8 space-y-1 bg-gray-50 rounded-lg p-2">
+                        {item.dropdown.map((dropdownItem, dropdownIndex) => (
+                          <a
+                            key={dropdownIndex}
+                            href={dropdownItem.href}
+                            onClick={(e) => handleSmoothScroll(e, dropdownItem.href)}
+                            className="flex items-center space-x-3 px-3 py-2 text-gray-600 hover:text-emerald-600 hover:bg-white rounded-md transition-all duration-200 text-sm"
+                          >
+                            <i className={`${dropdownItem.icon} text-emerald-400 w-4 text-xs`}></i>
+                            <span className="font-medium">{dropdownItem.label}</span>
+                          </a>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
               ))}
-              <div className="pt-4 border-t border-gray-200 space-y-3">
+              
+              {/* Botones de acción principales */}
+              <div className="pt-4 mt-4 border-t border-gray-200 space-y-3">
                 <button 
-                  onClick={() => router.push('/auth/signin')}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-3 text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors duration-200">
+                  onClick={() => {
+                    router.push('/auth/signin');
+                    setIsMobileMenuOpen(false);
+                    setMobileAccordions({});
+                  }}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-3 text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors duration-200 border border-gray-200 hover:border-emerald-200">
                   <i className="fas fa-user"></i>
                   <span className="font-medium">Iniciar Sesión</span>
                 </button>
@@ -264,8 +314,9 @@ export function Navigation() {
                   onClick={() => {
                     router.push('/dashboard/reservations/new');
                     setIsMobileMenuOpen(false);
+                    setMobileAccordions({});
                   }}
-                  className="w-full bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-4 py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300">
+                  className="w-full bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-4 py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:from-emerald-600 hover:to-blue-700">
                   <i className="fas fa-calendar-plus mr-2"></i>
                   Reservar Ahora
                 </button>

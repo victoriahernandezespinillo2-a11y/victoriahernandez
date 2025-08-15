@@ -98,7 +98,7 @@ export function StatsSection() {
           setIsVisible(true);
         }
       },
-      { threshold: 0.3 }
+      { threshold: 0.1 }
     );
 
     if (sectionRef.current) {
@@ -175,8 +175,8 @@ export function StatsSection() {
           {stats.map((stat, index) => (
             <div
               key={stat.id}
-              className={`group relative bg-white/10 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:bg-white/20 transition-all duration-500 hover:-translate-y-2 ${
-                isVisible ? 'animate-slide-up' : 'opacity-0'
+              className={`group relative bg-white/10 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:bg-white/20 transition-all duration-1000 hover:-translate-y-2 ${
+                isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
               }`}
               style={{ animationDelay: `${index * 150}ms` }}
             >
@@ -235,8 +235,8 @@ export function StatsSection() {
             {achievements.map((achievement, index) => (
               <div
                 key={index}
-                className={`group bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 hover:bg-white/10 transition-all duration-300 hover:-translate-y-1 ${
-                  isVisible ? 'animate-slide-up' : 'opacity-0'
+                className={`group bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 hover:bg-white/10 transition-all duration-1000 hover:-translate-y-1 ${
+                  isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
                 }`}
                 style={{ animationDelay: `${600 + index * 100}ms` }}
               >

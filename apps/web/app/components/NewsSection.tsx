@@ -1,11 +1,33 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 
 export function NewsSection() {
   const [isVisible, setIsVisible] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all');
+  const [email, setEmail] = useState('');
+  const [isSubscribing, setIsSubscribing] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
+  const router = useRouter();
+
+  // Función para manejar suscripción al newsletter
+  const handleNewsletterSubscription = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    
+    setIsSubscribing(true);
+    try {
+      // Aquí iría la lógica de suscripción al newsletter
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulación
+      alert('¡Suscripción exitosa! Recibirás nuestras noticias en tu email.');
+      setEmail('');
+    } catch (error) {
+      alert('Error al suscribirse. Por favor intenta nuevamente.');
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
 
   const categories = [
     { id: 'all', name: 'Todas', icon: 'fas fa-th-large', color: 'from-gray-500 to-gray-600' },
@@ -306,7 +328,10 @@ export function NewsSection() {
 
                 {/* Hover Overlay */}
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                  <button className="bg-white text-gray-900 px-4 py-2 rounded-lg font-semibold transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+                  <button 
+                    onClick={() => router.push(`/news/${article.id}`)}
+                    className="bg-white text-gray-900 px-4 py-2 rounded-lg font-semibold transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300"
+                  >
                     Leer Artículo
                   </button>
                 </div>
@@ -368,17 +393,33 @@ export function NewsSection() {
               Suscríbete a nuestro newsletter y recibe las últimas noticias directamente en tu email
             </p>
             
-            <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 max-w-md mx-auto">
+            <form onSubmit={handleNewsletterSubscription} className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 max-w-md mx-auto">
               <input 
                 type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="Tu email aquí..."
+                required
                 className="flex-1 px-4 py-3 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
               />
-              <button className="bg-white text-blue-600 px-6 py-3 rounded-xl font-bold hover:shadow-lg transition-all duration-300 hover:scale-105 flex items-center space-x-2">
-                <i className="fas fa-paper-plane"></i>
-                <span>Suscribirse</span>
+              <button 
+                type="submit"
+                disabled={isSubscribing}
+                className="bg-white text-blue-600 px-6 py-3 rounded-xl font-bold hover:shadow-lg transition-all duration-300 hover:scale-105 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubscribing ? (
+                  <>
+                    <i className="fas fa-spinner animate-spin"></i>
+                    <span>Suscribiendo...</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-paper-plane"></i>
+                    <span>Suscribirse</span>
+                  </>
+                )}
               </button>
-            </div>
+            </form>
           </div>
         </div>
       </div>

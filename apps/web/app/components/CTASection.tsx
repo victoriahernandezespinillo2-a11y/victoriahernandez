@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 
 export function CTASection() {
   const [isVisible, setIsVisible] = useState(false);
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
+  const router = useRouter();
 
   const benefits = [
     {
@@ -129,6 +131,24 @@ export function CTASection() {
     alert('¡Gracias! Te contactaremos pronto.');
   };
 
+  // Función para manejar selección de planes
+  const handlePlanSelection = (planName: string) => {
+    // Redirigir a la página de registro con el plan seleccionado
+    router.push(`/auth/signin?plan=${planName.toLowerCase()}`);
+  };
+
+  // Función para navegación suave
+  const handleSmoothScroll = (targetId: string) => {
+    const targetElement = document.getElementById(targetId.substring(1));
+    if (targetElement) {
+      const offsetTop = targetElement.offsetTop - 80;
+      window.scrollTo({
+        top: offsetTop,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   return (
     <section ref={sectionRef} className="py-24 bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 relative overflow-hidden">
       {/* Background Elements */}
@@ -243,8 +263,12 @@ export function CTASection() {
                   ))}
                 </ul>
 
-                <button className={`w-full bg-gradient-to-r ${plan.color} text-white py-4 rounded-2xl font-bold text-lg hover:shadow-2xl transition-all duration-300 hover:scale-105`}>
-                  {plan.popular ? 'Comenzar Ahora' : 'Seleccionar Plan'}
+                <button 
+                  onClick={() => handlePlanSelection(plan.name)}
+                  className={`w-full bg-gradient-to-r ${plan.color} text-white py-4 rounded-2xl font-bold text-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 flex items-center justify-center space-x-2`}
+                >
+                  <i className={`fas ${plan.popular ? 'fa-rocket' : 'fa-check'}`}></i>
+                  <span>{plan.popular ? 'Comenzar Ahora' : 'Seleccionar Plan'}</span>
                 </button>
               </div>
             ))}
@@ -384,12 +408,18 @@ export function CTASection() {
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
-              <button className="bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-10 py-5 rounded-2xl font-bold text-xl shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-105 flex items-center space-x-3">
+              <button 
+                onClick={() => router.push('/dashboard/reservations/new')}
+                className="bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-10 py-5 rounded-2xl font-bold text-xl shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-105 flex items-center space-x-3"
+              >
                 <i className="fas fa-rocket"></i>
                 <span>Reservar Ahora</span>
               </button>
               
-              <button className="border-2 border-white/50 text-white px-10 py-5 rounded-2xl font-semibold text-xl hover:bg-white/10 transition-all duration-300 flex items-center space-x-3">
+              <button 
+                onClick={() => handleSmoothScroll('#info')}
+                className="border-2 border-white/50 text-white px-10 py-5 rounded-2xl font-semibold text-xl hover:bg-white/10 transition-all duration-300 flex items-center space-x-3"
+              >
                 <i className="fas fa-calendar-alt"></i>
                 <span>Agendar Visita</span>
               </button>

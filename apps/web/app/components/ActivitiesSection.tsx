@@ -1,6 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 export function ActivitiesSection() {
+  const router = useRouter();
   const activities = [
     {
       title: "Clases Dirigidas",
@@ -57,7 +60,10 @@ export function ActivitiesSection() {
         </div>
 
         <div className="text-center mt-12">
-          <button className="bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-8 py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+          <button 
+            onClick={() => router.push('/dashboard/activities')}
+            className="bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-8 py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+          >
             <i className="fas fa-calendar-plus mr-2"></i>
             Ver Calendario Completo
           </button>

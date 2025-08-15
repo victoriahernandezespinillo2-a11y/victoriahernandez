@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export function HeroSection() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  const router = useRouter();
 
   const heroSlides = [
     {
@@ -13,7 +15,9 @@ export function HeroSection() {
       description: "Vive la pasión del deporte en nuestras instalaciones de clase mundial. Reserva, entrena y compite en el mejor ambiente deportivo de la región.",
       image: "bg-gradient-to-br from-emerald-600 via-blue-600 to-purple-700",
       cta: "Reservar Ahora",
-      secondaryCta: "Explorar Instalaciones"
+      secondaryCta: "Explorar Instalaciones",
+      primaryAction: () => router.push('/dashboard/reservations/new'),
+      secondaryAction: () => handleSmoothScroll('#instalaciones')
     },
     {
       title: "Instalaciones Modernas",
@@ -21,7 +25,9 @@ export function HeroSection() {
       description: "Canchas sintéticas, iluminación LED, sistemas de climatización y la mejor tecnología para una experiencia deportiva incomparable.",
       image: "bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700",
       cta: "Ver Instalaciones",
-      secondaryCta: "Conocer Más"
+      secondaryCta: "Conocer Más",
+      primaryAction: () => handleSmoothScroll('#instalaciones'),
+      secondaryAction: () => handleSmoothScroll('#info')
     },
     {
       title: "Comunidad Deportiva",
@@ -29,9 +35,23 @@ export function HeroSection() {
       description: "Más de 5,000 deportistas confían en nosotros. Torneos, clases dirigidas, entrenamiento personal y eventos que transforman vidas.",
       image: "bg-gradient-to-br from-orange-500 via-red-500 to-pink-600",
       cta: "Unirse Ahora",
-      secondaryCta: "Ver Eventos"
+      secondaryCta: "Ver Eventos",
+      primaryAction: () => router.push('/auth/signin'),
+      secondaryAction: () => handleSmoothScroll('#actividades')
     }
   ];
+
+  // Función para navegación suave
+  const handleSmoothScroll = (targetId: string) => {
+    const targetElement = document.getElementById(targetId.substring(1));
+    if (targetElement) {
+      const offsetTop = targetElement.offsetTop - 80; // Account for fixed navbar height
+      window.scrollTo({
+        top: offsetTop,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   useEffect(() => {
     setIsVisible(true);
@@ -92,14 +112,20 @@ export function HeroSection() {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 mb-16">
-            <button className="group bg-white text-gray-900 px-8 py-4 rounded-2xl font-bold text-lg shadow-2xl hover:shadow-glow transition-all duration-300 hover:scale-105 hover:-translate-y-1 flex items-center space-x-3">
-              <i className="fas fa-calendar-plus text-emerald-600 group-hover:scale-110 transition-transform duration-300"></i>
+            <button 
+              onClick={currentHero.primaryAction}
+              className="group bg-white text-gray-900 px-8 py-4 rounded-2xl font-bold text-lg shadow-2xl hover:shadow-glow transition-all duration-300 hover:scale-105 hover:-translate-y-1 flex items-center space-x-3"
+            >
+              <i className={`fas ${currentSlide === 0 ? 'fa-calendar-plus' : currentSlide === 1 ? 'fa-eye' : 'fa-user-plus'} text-emerald-600 group-hover:scale-110 transition-transform duration-300`}></i>
               <span>{currentHero.cta}</span>
               <i className="fas fa-arrow-right text-emerald-600 group-hover:translate-x-1 transition-transform duration-300"></i>
             </button>
             
-            <button className="group bg-transparent border-2 border-white/50 text-white px-8 py-4 rounded-2xl font-semibold text-lg hover:bg-white/10 hover:border-white transition-all duration-300 hover:scale-105 flex items-center space-x-3">
-              <i className="fas fa-play-circle group-hover:scale-110 transition-transform duration-300"></i>
+            <button 
+              onClick={currentHero.secondaryAction}
+              className="group bg-transparent border-2 border-white/50 text-white px-8 py-4 rounded-2xl font-semibold text-lg hover:bg-white/10 hover:border-white transition-all duration-300 hover:scale-105 flex items-center space-x-3"
+            >
+              <i className={`fas ${currentSlide === 0 ? 'fa-compass' : currentSlide === 1 ? 'fa-info-circle' : 'fa-calendar-alt'} group-hover:scale-110 transition-transform duration-300`}></i>
               <span>{currentHero.secondaryCta}</span>
             </button>
           </div>
