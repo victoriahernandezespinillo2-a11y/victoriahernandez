@@ -58,7 +58,7 @@ async function main() {
   const courtTypes = ['FUTBOL', 'BASQUET', 'TENIS', 'VOLEIBOL'];
   
   for (let i = 0; i < 8; i++) {
-    const courtType = courtTypes[i % courtTypes.length];
+    const courtType = courtTypes[i % courtTypes.length]!;
     const court = await db.court.create({
       data: {
         name: `Cancha ${courtType} ${Math.floor(i / courtTypes.length) + 1}`,
@@ -210,12 +210,12 @@ async function main() {
 
   await db.reservation.create({
     data: {
-      userId: users[1].id,
-      courtId: courts[0].id,
+      userId: users[1]!.id,
+      courtId: courts[0]!.id,
       startTime: tomorrow,
       endTime: endTime,
       status: 'IN_PROGRESS',
-      totalPrice: courts[0].basePricePerHour * 2,
+      totalPrice: Number(courts[0]!.basePricePerHour) * 2,
       notes: 'Reserva de ejemplo para demostración'
     }
   });
@@ -255,8 +255,8 @@ async function main() {
       data: {
         tournamentId: tournament.id,
         userId: user.id,
-        registrationDate: new Date(),
-        status: 'CONFIRMED'
+        registeredAt: new Date(),
+        status: 'registered'
       }
     });
   }
@@ -274,15 +274,13 @@ async function main() {
 
   await db.maintenanceSchedule.create({
     data: {
-      courtId: courts[0].id,
-      title: 'Mantenimiento de césped artificial',
+      courtId: courts[0]!.id,
+      type: 'CLEANING',
       description: 'Limpieza y revisión del césped artificial de la cancha',
-      startTime: maintenanceDate,
-      endTime: maintenanceEnd,
+      scheduledAt: maintenanceDate,
       status: 'SCHEDULED',
-      priority: 'MEDIUM',
       assignedTo: 'Equipo de Mantenimiento',
-      estimatedCost: 2000
+      cost: 2000
     }
   });
 

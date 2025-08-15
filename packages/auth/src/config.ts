@@ -28,7 +28,7 @@ export const authConfig: NextAuthConfig = {
       // Nombre consistente para compartir entre puertos en desarrollo
       name: process.env.NEXTAUTH_COOKIE_NAME || 'next-auth.session-token',
       options: {
-        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
+        domain: process.env.NODE_ENV === 'development' ? undefined : undefined,
         path: '/',
         httpOnly: true,
         sameSite: 'lax',
@@ -94,24 +94,28 @@ export const authConfig: NextAuthConfig = {
         
         // Validaciones específicas para OAuth
         if (account?.provider === 'google') {
-          // Verificar autorización basada en rol
+          // Determinar el rol basado en el email
           const expectedRole = determineUserRole(email);
           
-          if (user.role === 'admin' && !validateAdminEmail(email)) {
+          // Asignar el rol determinado al usuario
+          user.role = expectedRole;
+          
+          // Verificar autorización basada en rol determinado
+          if (expectedRole === 'admin' && !validateAdminEmail(email)) {
             logSecurityEvent({
               type: 'UNAUTHORIZED_ACCESS',
               email,
-              role: user.role,
+              role: expectedRole,
               provider: account.provider
             });
             return false;
           }
           
-          if (user.role === 'staff' && !validateStaffDomain(email) && !validateAdminEmail(email)) {
+          if (expectedRole === 'staff' && !validateStaffDomain(email) && !validateAdminEmail(email)) {
             logSecurityEvent({
               type: 'UNAUTHORIZED_ACCESS',
               email,
-              role: user.role,
+              role: expectedRole,
               provider: account.provider
             });
             return false;

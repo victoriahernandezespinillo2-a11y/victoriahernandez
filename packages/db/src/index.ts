@@ -90,23 +90,24 @@ export const db = globalForPrisma.prisma ??
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db;
 
-// Re-exportar tipos como any para evitar errores cuando el schema no provee tipos
-// Nota: estos alias mantienen la compatibilidad de importaciones sin depender de enums inexistentes
-export type User = any;
-export type Center = any;
-export type Court = any;
-export type Reservation = any;
-export type Tournament = any;
-export type TournamentUser = any;
-export type Membership = any;
-export type WaitingList = any;
-export type MaintenanceSchedule = any;
-export type PricingRule = any;
-export type UserRole = any;
-export type ReservationStatus = any;
-export type MembershipType = any;
-export type MaintenanceType = any;
-export type MaintenanceStatus = any;
+// Re-exportar tipos de Prisma para uso en otras partes de la aplicación
+export type { 
+  User, 
+  Center, 
+  Court, 
+  Reservation, 
+  Tournament, 
+  TournamentUser, 
+  Membership, 
+  WaitingList, 
+  MaintenanceSchedule, 
+  PricingRule,
+  UserRole,
+  ReservationStatus,
+  MembershipType,
+  MaintenanceType,
+  MaintenanceStatus
+} from '@prisma/client';
 
 // Exportar el cliente de Prisma como instancia por defecto
 export default db;
