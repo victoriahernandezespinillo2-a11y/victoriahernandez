@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { useForm } from 'react-hook-form';
@@ -8,6 +8,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
 import { Eye, EyeOff, Mail, Lock, User, Phone, AlertCircle, CheckCircle } from 'lucide-react';
+import { signUpWithFirebase, signInWithGoogleFirebase } from '../../../lib/firebase-provider';
+import { updateProfile } from 'firebase/auth';
 
 const signUpSchema = z.object({
   firstName: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
@@ -26,7 +28,7 @@ const signUpSchema = z.object({
 
 type SignUpFormData = z.infer<typeof signUpSchema>;
 
-export default function SignUpPage() {
+function SignUpContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,58 +49,104 @@ export default function SignUpPage() {
     setError(null);
 
     try {
-      // Registrar usuario
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          firstName: data.firstName,
-          lastName: data.lastName,
-          email: data.email,
-          phone: data.phone,
-          password: data.password,
-          acceptTerms: data.acceptTerms,
-        }),
+      // Registrar usuario en Firebase
+      const firebaseUser = await signUpWithFirebase(data.email, data.password);
+      
+      // Actualizar perfil de Firebase con nombre completo
+      if (firebaseUser.uid) {
+        await updateProfile(firebaseUser as any, {
+          displayName: `${data.firstName} ${data.lastName}`
+        });
+      }
+      
+      // Sincronizar con NextAuth y base de datos local
+      const result = await signIn('firebase-credentials', {
+        email: data.email,
+        password: data.password,
+        action: 'signup',
+        redirect: false,
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Error al registrar usuario');
+      if (result?.error) {
+        throw new Error('Error al crear la cuenta. Por favor, intenta nuevamente.');
       }
 
       setSuccess(true);
       
       // Auto-login después del registro exitoso
-      setTimeout(async () => {
-        const signInResult = await signIn('credentials', {
-          email: data.email,
-          password: data.password,
-          redirect: false,
-        });
-
-        if (signInResult?.ok) {
-          router.push('/dashboard');
-        } else {
-          router.push('/auth/signin?message=registered');
-        }
+      setTimeout(() => {
+        router.push('/dashboard');
       }, 2000);
 
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error de conexión');
+    } catch (err: any) {
+      // Fallback al método tradicional
+      try {
+        const response = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            firstName: data.firstName,
+            lastName: data.lastName,
+            email: data.email,
+            phone: data.phone,
+            password: data.password,
+            acceptTerms: data.acceptTerms,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Error al registrar usuario');
+        }
+
+        setSuccess(true);
+        
+        setTimeout(async () => {
+          const signInResult = await signIn('credentials', {
+            email: data.email,
+            password: data.password,
+            redirect: false,
+          });
+
+          if (signInResult?.ok) {
+            router.push('/dashboard');
+          } else {
+            router.push('/auth/signin?message=registered');
+          }
+        }, 2000);
+      } catch (fallbackErr) {
+        setError(err.message || 'Error de conexión. Por favor, intenta nuevamente.');
+      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
   const handleGoogleSignUp = async () => {
     setIsLoading(true);
+    setError(null);
+    
     try {
-      await signIn('google', { callbackUrl: '/dashboard' });
-    } catch (err) {
-      setError('Error al registrarse con Google.');
+      // Usar el proveedor estándar de Google de NextAuth
+      const result = await signIn('google', { 
+        callbackUrl: '/dashboard',
+        redirect: false 
+      });
+
+      if (result?.error) {
+        setError('Error al crear la cuenta con Google.');
+        setIsLoading(false);
+      } else if (result?.url) {
+        // NextAuth manejará la redirección
+        window.location.href = result.url;
+      } else {
+        router.push('/dashboard');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al registrarse con Google.');
       setIsLoading(false);
     }
   };
@@ -401,5 +449,13 @@ export default function SignUpPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignUpContent />
+    </Suspense>
   );
 }

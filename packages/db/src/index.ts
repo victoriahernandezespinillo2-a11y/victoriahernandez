@@ -2,6 +2,11 @@ import { config } from 'dotenv';
 import fs from 'fs';
 import { PrismaClient } from '@prisma/client';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Obtener __dirname equivalente para ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Cargar variables de entorno de forma robusta (monorepo / Next .next)
 (() => {

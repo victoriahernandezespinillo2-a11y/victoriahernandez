@@ -25,9 +25,8 @@ export const authConfig: NextAuthConfig = {
   },
   cookies: {
     sessionToken: {
-      // Nombre único por app/puerto para evitar colisiones entre 3001/3003
-      name: (process.env.NEXTAUTH_COOKIE_NAME
-        || (process.env.PORT ? `next-auth.session-token-${process.env.PORT}` : 'next-auth.session-token')),
+      // Nombre consistente para compartir entre puertos en desarrollo
+      name: process.env.NEXTAUTH_COOKIE_NAME || 'next-auth.session-token',
       options: {
         domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
         path: '/',

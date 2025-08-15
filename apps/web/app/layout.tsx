@@ -4,6 +4,7 @@ import "./globals.css";
 import { Navigation } from "./components/Navigation";
 import { Footer } from "./components/Footer";
 import { SessionWrapper } from "./components/SessionWrapper";
+import { FirebaseAuthProvider } from "../components/auth/FirebaseAuthProvider";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -48,13 +49,15 @@ export default function RootLayout({
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning={true}>
         <SessionWrapper>
-          <div className="min-h-screen flex flex-col">
-            <Navigation />
-            <main className="flex-1">
-              {children}
-            </main>
-            <Footer />
-          </div>
+          <FirebaseAuthProvider>
+            <div className="min-h-screen flex flex-col">
+              <Navigation />
+              <main className="flex-1">
+                {children}
+              </main>
+              <Footer />
+            </div>
+          </FirebaseAuthProvider>
         </SessionWrapper>
       </body>
     </html>

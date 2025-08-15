@@ -80,11 +80,50 @@ const rateLimitCache = new RateLimitCache();
 setInterval(() => rateLimitCache.cleanup(), 5 * 60 * 1000);
 
 /**
+ * Función auxiliar para añadir headers CORS
+ */
+const addCorsHeaders = (response: NextResponse, origin?: string | null): NextResponse => {
+  // Lista de orígenes permitidos
+  const allowedOrigins = [
+    'http://localhost:3001', // Web app
+    'http://localhost:3003', // Docs
+    'http://127.0.0.1:3001',
+    'http://127.0.0.1:3003',
+  ];
+  
+  // En producción, añadir dominios específicos
+  if (process.env.NODE_ENV === 'production') {
+    // Añadir aquí los dominios de producción
+    // allowedOrigins.push('https://tu-dominio.com');
+  }
+  
+  // Configurar headers CORS
+  if (origin && allowedOrigins.includes(origin)) {
+    response.headers.set('Access-Control-Allow-Origin', origin);
+  }
+  
+  response.headers.set('Access-Control-Allow-Credentials', 'true');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With');
+  response.headers.set('Access-Control-Expose-Headers', 'Set-Cookie');
+  
+  return response;
+};
+
+/**
  * Middleware de autenticación híbrido
  * Soporta tanto tokens JWT como cookies de NextAuth
  */
 export const withAuth = (handler: ApiHandler): ApiHandler => {
   return async (req: NextRequest, context) => {
+    const origin = req.headers.get('origin');
+    
+    // Manejar preflight requests
+    if (req.method === 'OPTIONS') {
+      const response = new NextResponse(null, { status: 200 });
+      return addCorsHeaders(response, origin);
+    }
+    
     try {
       let user = null;
       
@@ -140,32 +179,17 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
           console.log('🍪 [AUTH] Session token:', sessionToken ? 'Presente' : 'Ausente');
 
           if (sessionToken) {
-            // Para desarrollo, usar usuarios de prueba basados en el token
-            // En producción, esto debería validar el JWT token
-            const testUsers = [
-              {
-                id: '1',
-                email: 'admin@polideportivo.com',
-                firstName: 'Administrador',
-                lastName: 'Principal',
-                role: 'ADMIN' as const,
-                isActive: true,
-                emailVerified: true
-              },
-              {
-                id: '2',
-                email: 'superadmin@polideportivo.com',
-                firstName: 'Super',
-                lastName: 'Administrador',
-                role: 'ADMIN' as const,
-                isActive: true,
-                emailVerified: true
+            // Validar el token de NextAuth JWT
+            try {
+              user = await authService.getUserFromNextAuthToken(sessionToken);
+              if (user) {
+                console.log('✅ [AUTH] Usuario autenticado con NextAuth:', user.email, 'Rol:', user.role);
+              } else {
+                console.log('❌ [AUTH] Token de NextAuth inválido o usuario inactivo');
               }
-            ];
-
-            // Por simplicidad en desarrollo, usar el primer usuario admin
-            user = testUsers[0];
-            console.log('✅ [AUTH] Usuario de prueba asignado:', user.email, 'Rol:', user.role);
+            } catch (error) {
+              console.log('❌ [AUTH] Error validando token NextAuth:', error);
+            }
           }
         } catch (authError) {
           console.log('❌ [AUTH] Error NextAuth:', authError);
@@ -174,10 +198,11 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
       
       if (!user) {
         console.log('🚫 [AUTH] Autenticación fallida - No se encontró usuario válido');
-        return NextResponse.json(
+        const unauthorizedResponse = NextResponse.json(
           { error: 'No autorizado - Autenticación requerida' },
           { status: 401 }
         );
+        return addCorsHeaders(unauthorizedResponse, origin);
       }
       
       console.log('🎉 [AUTH] Autenticación exitosa para:', user.email);
@@ -196,13 +221,15 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
         },
       };
 
-      return handler(req, userContext);
+      const response = await handler(req, userContext);
+      return addCorsHeaders(response, origin);
     } catch (error) {
       console.error('Error en middleware de autenticación:', error);
-      return NextResponse.json(
+      const errorResponse = NextResponse.json(
         { error: 'Error interno del servidor' },
         { status: 500 }
       );
+      return addCorsHeaders(errorResponse, origin);
     }
   };
 };
@@ -516,9 +543,42 @@ export const withAdminMiddleware = compose(
 /**
  * Utilidades para respuestas HTTP
  */
+/**
+ * Serializador personalizado para tipos de Prisma
+ */
+const serializeData = (data: any): any => {
+  if (data === null || data === undefined) {
+    return data;
+  }
+  
+  if (data instanceof Date) {
+    return data.toISOString();
+  }
+  
+  // Manejar Prisma Decimal
+  if (data && typeof data === 'object' && 'toNumber' in data) {
+    return data.toNumber();
+  }
+  
+  if (Array.isArray(data)) {
+    return data.map(serializeData);
+  }
+  
+  if (typeof data === 'object') {
+    const serialized: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      serialized[key] = serializeData(value);
+    }
+    return serialized;
+  }
+  
+  return data;
+};
+
 export const ApiResponse = {
   success: <T>(data: T, status = 200) => {
-    return NextResponse.json({ success: true, data }, { status });
+    const serializedData = serializeData(data);
+    return NextResponse.json({ success: true, data: serializedData }, { status });
   },
   
   error: (message: string, status = 400, details?: any) => {

@@ -434,6 +434,37 @@ export class AuthService {
   }
 
   /**
+   * Validar token de NextAuth JWT
+   */
+  async getUserFromNextAuthToken(token: string): Promise<AuthUser | null> {
+    try {
+      // NextAuth usa el mismo secret que configuramos
+      const nextAuthSecret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-secret-change-in-prod';
+      const decoded = jwt.verify(token, nextAuthSecret) as any;
+      
+      // NextAuth almacena el ID del usuario en el campo 'sub'
+      const userId = decoded.sub || decoded.id;
+      
+      if (!userId) {
+        return null;
+      }
+      
+      const user = await prisma.user.findUnique({
+        where: { id: userId }
+      });
+
+      if (!user || !user.isActive) {
+        return null;
+      }
+
+      return this.formatUser(user);
+    } catch (error) {
+      console.log('Error validando token NextAuth:', error);
+      return null;
+    }
+  }
+
+  /**
    * Generar tokens de acceso y refresh
    */
   private async generateTokens(user: any, rememberMe = false): Promise<AuthTokens> {

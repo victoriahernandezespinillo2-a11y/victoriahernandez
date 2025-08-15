@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from 'lucide-react';
+import { signInWithFirebase, signInWithGoogleFirebase } from '../../../lib/firebase-provider';
 
 const signInSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -38,19 +39,39 @@ function SignInContent() {
     setError(null);
 
     try {
-      const result = await signIn('credentials', {
+      // Intentar autenticación con Firebase primero
+      await signInWithFirebase(data.email, data.password);
+      
+      // Si Firebase es exitoso, usar NextAuth con Firebase credentials
+      const result = await signIn('firebase-credentials', {
         email: data.email,
         password: data.password,
+        action: 'signin',
         redirect: false,
       });
 
       if (result?.error) {
-        setError('Credenciales inválidas. Por favor, verifica tu email y contraseña.');
+        setError('Error al sincronizar la sesión. Por favor, intenta nuevamente.');
       } else {
         router.push(callbackUrl);
       }
-    } catch (err) {
-      setError('Error de conexión. Por favor, intenta nuevamente.');
+    } catch (err: any) {
+      // Si Firebase falla, intentar con el método tradicional como fallback
+      try {
+        const fallbackResult = await signIn('credentials', {
+          email: data.email,
+          password: data.password,
+          redirect: false,
+        });
+
+        if (fallbackResult?.error) {
+          setError('Credenciales inválidas. Por favor, verifica tu email y contraseña.');
+        } else {
+          router.push(callbackUrl);
+        }
+      } catch (fallbackErr) {
+        setError(err.message || 'Error de conexión. Por favor, intenta nuevamente.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -58,10 +79,26 @@ function SignInContent() {
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
+    setError(null);
+    
     try {
-      await signIn('google', { callbackUrl });
-    } catch (err) {
-      setError('Error al iniciar sesión con Google.');
+      // Usar el proveedor estándar de Google de NextAuth
+      const result = await signIn('google', { 
+        callbackUrl,
+        redirect: false 
+      });
+
+      if (result?.error) {
+        setError('Error al iniciar sesión con Google.');
+        setIsLoading(false);
+      } else if (result?.url) {
+        // NextAuth manejará la redirección
+        window.location.href = result.url;
+      } else {
+        router.push(callbackUrl);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al iniciar sesión con Google.');
       setIsLoading(false);
     }
   };

@@ -14,7 +14,22 @@ const userService = new UserService();
 const GetUserReservationsSchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
-  status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'NO_SHOW', 'CHECKED_IN']).optional(),
+  status: z.preprocess((val) => {
+    if (val == null) return val as any;
+    const v = String(val).toLowerCase();
+    const map: Record<string, string> = {
+      confirmed: 'IN_PROGRESS',
+      check_in: 'IN_PROGRESS',
+      checked_in: 'IN_PROGRESS',
+      pending: 'PENDING',
+      paid: 'PAID',
+      in_progress: 'IN_PROGRESS',
+      cancelled: 'CANCELLED',
+      completed: 'COMPLETED',
+      no_show: 'NO_SHOW',
+    };
+    return (map[v] || v.toUpperCase()) as any;
+  }, z.enum(['PENDING', 'PAID', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW'])).optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
 });
@@ -28,7 +43,9 @@ export async function GET(req: NextRequest) {
   return withAuthMiddleware(async (request: NextRequest, context: any) => {
   try {
     const pathname = request.nextUrl.pathname;
-    const userId = pathname.split('/').pop() as string;
+    // Extract userId from path: /api/users/[id]/reservations -> get the [id] part
+    const pathParts = pathname.split('/');
+    const userId = pathParts[pathParts.length - 2]; // Get the ID before 'reservations'
     const { user } = (context as any);
     
     // Verificar permisos: usuarios solo pueden ver sus propias reservas

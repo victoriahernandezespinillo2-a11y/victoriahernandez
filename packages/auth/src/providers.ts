@@ -11,6 +11,13 @@ const credentialsSchema = z.object({
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
 });
 
+// Esquema de validación para Firebase
+const firebaseCredentialsSchema = z.object({
+  email: z.string().email('Email inválido'),
+  password: z.string().min(1, 'Password requerido'),
+  action: z.enum(['signin', 'signup']).optional(),
+});
+
 const providersList: Provider[] = [];
 
 // Incluir Google solo si hay credenciales configuradas
@@ -124,6 +131,98 @@ providersList.push(
   }) as unknown as Provider
 );
 
+// Proveedor de Firebase Credentials
+providersList.push(
+  Credentials({
+    id: 'firebase-credentials',
+    name: 'Firebase Credentials',
+    credentials: {
+      email: {
+        label: 'Email',
+        type: 'email',
+        placeholder: 'tu@email.com'
+      },
+      password: {
+        label: 'Contraseña',
+        type: 'password'
+      },
+      action: {
+        label: 'Action',
+        type: 'text'
+      }
+    },
+    async authorize(credentials) {
+      try {
+        console.log('🔥 [FIREBASE-AUTH] Iniciando proceso de autenticación Firebase...');
+        console.log('🔥 [FIREBASE-AUTH] Credenciales recibidas:', { 
+          email: credentials?.email, 
+          hasPassword: !!credentials?.password,
+          action: credentials?.action 
+        });
+        
+        // Validar credenciales
+        const validatedCredentials = firebaseCredentialsSchema.parse(credentials);
+        console.log('✅ [FIREBASE-AUTH] Credenciales validadas correctamente');
+        
+        // Sincronizar con la base de datos local a través del endpoint Firebase en la API
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || 'http://localhost:3002';
+        const endpoint = `${apiBase.replace(/\/$/, '')}/api/auth/firebase-sync`;
+        console.log('🌐 [FIREBASE-AUTH] Sincronizando con base de datos:', endpoint);
+
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: validatedCredentials.email,
+            firebaseUid: validatedCredentials.password, // El password es el UID de Firebase
+            action: validatedCredentials.action || 'signin',
+          }),
+          cache: 'no-store',
+        });
+
+        if (!resp.ok) {
+          const info = await resp.text().catch(() => '');
+          console.log('❌ [FIREBASE-AUTH] API rechazó sincronización:', resp.status, info);
+          return null;
+        }
+
+        const payload: any = await resp.json().catch(() => ({}));
+        const data = payload?.data || payload;
+
+        if (!data || !data.user) {
+          console.log('❌ [FIREBASE-AUTH] Respuesta de API inválida');
+          return null;
+        }
+
+        const u = data.user;
+        console.log('✅ [FIREBASE-AUTH] Usuario sincronizado:', { id: u.id, email: u.email, role: u.role });
+
+        return {
+          id: u.id,
+          email: u.email,
+          name: u.name,
+          role: u.role || 'user',
+          membershipType: u.membershipType || 'basic',
+          creditsBalance: Number(u.creditsBalance || 0),
+          isActive: u.isActive !== false,
+        } as any;
+      } catch (error) {
+        console.error('❌ [FIREBASE-AUTH] Error en autenticación Firebase:', {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          type: typeof error,
+          credentials: credentials ? { 
+            email: credentials.email, 
+            hasPassword: !!credentials.password,
+            action: credentials.action 
+          } : 'undefined'
+        });
+        return null;
+      }
+    },
+  }) as unknown as Provider
+);
+
 export const providers: Provider[] = providersList;
 
 // Funciones de utilidad para autenticación
@@ -209,7 +308,7 @@ export const SECURITY_CONFIG = {
     'gerente@polideportivo.com'
   ],
   staffDomains: ['@polideportivo.com'],
-  allowedProviders: ['google', 'credentials']
+  allowedProviders: ['google', 'credentials', 'firebase-credentials']
 };
 
 // Función para validar emails administrativos

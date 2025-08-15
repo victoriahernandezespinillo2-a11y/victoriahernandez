@@ -379,16 +379,22 @@ export default function ProfilePage() {
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">Premium</div>
+              <div className="text-2xl font-bold text-blue-600">
+                {userProfile?.membershipType || 'Básica'}
+              </div>
               <div className="text-sm text-gray-500">Tipo de Membresía</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">150</div>
+              <div className="text-2xl font-bold text-green-600">
+                {loading ? '...' : (userProfile?.creditsBalance || 0)}
+              </div>
               <div className="text-sm text-gray-500">Créditos Disponibles</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">24</div>
-              <div className="text-sm text-gray-500">Reservas Este Mes</div>
+              <div className="text-2xl font-bold text-purple-600">
+                {userProfile?._count?.reservations || 0}
+              </div>
+              <div className="text-sm text-gray-500">Reservas Totales</div>
             </div>
           </div>
           <div className="mt-6 text-center">

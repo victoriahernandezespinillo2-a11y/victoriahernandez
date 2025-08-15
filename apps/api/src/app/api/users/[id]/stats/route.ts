@@ -18,7 +18,9 @@ export async function GET(req: NextRequest) {
   return withAuthMiddleware(async (request: NextRequest, context: any) => {
   try {
     const pathname = request.nextUrl.pathname;
-    const userId = pathname.split('/').pop() as string;
+    // Extraer el userId como el segmento anterior a 'stats'
+    const parts = pathname.split('/');
+    const userId = parts[parts.length - 2];
     const { user } = (context as any);
     
     // Verificar permisos: usuarios solo pueden ver sus propias estadísticas

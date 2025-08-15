@@ -20,6 +20,7 @@ model User {
   lastName             String?   @map("last_name")
   phone                String?
   password             String?
+  firebaseUid          String?   @unique @map("firebase_uid")
   role                 UserRole  @default(USER)
   dateOfBirth          DateTime? @map("date_of_birth")
   membershipType       String?   @map("membership_type")

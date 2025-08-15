@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { DashboardSidebar } from './components/DashboardSidebar';
 import { DashboardHeader } from './components/DashboardHeader';
 
+
+
 // Configurar para usar Node.js Runtime en lugar de Edge Runtime
 export const runtime = 'nodejs';
 
@@ -22,15 +24,15 @@ export default async function DashboardLayout({
     redirect('/auth/signin');
   }
 
-  // Mock user data - En producción esto vendría de la API
+  // Los datos dinámicos como créditos se obtendrán del lado del cliente
   const user = {
     id: session.user.id || '1',
     email: session.user.email || '',
     name: session.user.name,
     image: session.user.image,
     role: session.user.role || 'user',
-    membershipType: 'premium',
-    creditsBalance: 150,
+    membershipType: session.user.membershipType || 'basic',
+    creditsBalance: session.user.creditsBalance || 0,
   };
 
   return (

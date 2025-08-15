@@ -4,7 +4,7 @@
  */
 
 // Base de la API: usar variable pública si está definida, sin barra final
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002').replace(/\/$/, '');
 
 /**
  * Configuración base para las peticiones fetch
@@ -247,6 +247,24 @@ export const api = {
     
     getReservations: () => 
       apiRequest('/api/users/reservations'),
+
+    getUserHistory: (userId: string, params?: {
+      startDate?: string;
+      endDate?: string;
+      status?: string;
+      page?: number;
+      limit?: number;
+    }) => {
+      const query = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined) {
+            query.append(key, String(value));
+          }
+        });
+      }
+      return apiRequest(`/api/users/${userId}/reservations${query.toString() ? `?${query.toString()}` : ''}`);
+    },
     
     getWaitingList: () => 
       apiRequest('/api/users/waiting-list'),

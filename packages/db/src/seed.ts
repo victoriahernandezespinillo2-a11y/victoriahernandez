@@ -62,19 +62,11 @@ async function main() {
     const court = await db.court.create({
       data: {
         name: `Cancha ${courtType} ${Math.floor(i / courtTypes.length) + 1}`,
-        type: courtType,
+        sportType: courtType,
         capacity: courtType === 'TENIS' ? 4 : courtType === 'VOLEIBOL' ? 12 : 22,
-        hourly_rate: courtType === 'TENIS' ? 800 : courtType === 'FUTBOL' ? 1200 : 1000,
-        is_active: true,
-        center_id: center.id,
-        features: {
-          lighting: true,
-          sound_system: i % 2 === 0,
-          air_conditioning: courtType === 'BASQUET',
-          parking: true,
-          lockers: true,
-          showers: true
-        }
+        basePricePerHour: courtType === 'TENIS' ? 800 : courtType === 'FUTBOL' ? 1200 : 1000,
+        isActive: true,
+        centerId: center.id
       }
     });
     courts.push(court);
@@ -94,17 +86,8 @@ async function main() {
       name: 'Administrador',
       phone: '+63 88 531 2345',
       role: 'ADMIN',
-      is_active: true,
-      email_verified: new Date(),
-      profile: {
-        birth_date: '1980-01-01',
-        emergency_contact: '+63 88 531 2346',
-        preferences: {
-          notifications: true,
-          newsletter: true,
-          language: 'es'
-        }
-      }
+      isActive: true,
+      emailVerifiedAt: new Date()
     }
   });
   users.push(adminUser);
@@ -136,15 +119,8 @@ async function main() {
         name: userData.name,
         phone: userData.phone,
         role: 'USER',
-        is_active: true,
-        email_verified: new Date(),
-        profile: {
-          preferences: {
-            notifications: true,
-            newsletter: false,
-            language: 'es'
-          }
-        }
+        isActive: true,
+        emailVerifiedAt: new Date()
       }
     });
     users.push(user);
@@ -157,17 +133,12 @@ async function main() {
   for (const user of users.slice(1)) { // Excluir admin
     await db.membership.create({
       data: {
-        user_id: user.id,
+        userId: user.id,
         type: 'MONTHLY',
-        status: 'ACTIVE',
-        start_date: new Date(),
-        end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 días
-        price: 1500,
-        benefits: {
-          discount_percentage: 10,
-          priority_booking: false,
-          free_hours: 2
-        }
+        status: 'active',
+        validFrom: new Date(),
+        validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 días
+        price: 1500
       }
     });
   }
@@ -177,19 +148,26 @@ async function main() {
   // Crear reglas de precios
   console.log('💰 Creando reglas de precios...');
   for (const court of courts) {
-    // Precio normal
+    // Precio diurno
     await db.pricingRule.create({
       data: {
-        court_id: court.id,
-        name: `Precio Normal - ${court.name}`,
-        base_price: court.hourly_rate,
-        day_of_week: null,
-        start_time: '06:00',
-        end_time: '18:00',
-        is_active: true,
+        courtId: court.id,
+        name: `Precio Diurno - ${court.name}`,
+        type: 'time_based',
+        timeStart: '06:00',
+        timeEnd: '18:00',
+        isActive: true,
+        priceMultiplier: 1.0,
+        daysOfWeek: [1, 2, 3, 4, 5, 6, 7],
+        validFrom: new Date(),
+        validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
         conditions: {
           min_duration: 60,
           max_duration: 180
+        },
+        adjustment: {
+          type: 'multiplier',
+          value: 1.0
         }
       }
     });
@@ -197,16 +175,23 @@ async function main() {
     // Precio nocturno
     await db.pricingRule.create({
       data: {
-        court_id: court.id,
+        courtId: court.id,
         name: `Precio Nocturno - ${court.name}`,
-        base_price: Math.round(court.hourly_rate * 1.2),
-        day_of_week: null,
-        start_time: '18:00',
-        end_time: '22:00',
-        is_active: true,
+        type: 'time_based',
+        timeStart: '18:00',
+        timeEnd: '22:00',
+        isActive: true,
+        priceMultiplier: 1.2,
+        daysOfWeek: [1, 2, 3, 4, 5, 6, 7],
+        validFrom: new Date(),
+        validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
         conditions: {
           min_duration: 60,
           max_duration: 180
+        },
+        adjustment: {
+          type: 'multiplier',
+          value: 1.2
         }
       }
     });
@@ -225,13 +210,12 @@ async function main() {
 
   await db.reservation.create({
     data: {
-      user_id: users[1].id,
-      court_id: courts[0].id,
-      start_time: tomorrow,
-      end_time: endTime,
-      status: 'CONFIRMED',
-      total_price: courts[0].hourly_rate * 2,
-      payment_status: 'PAID',
+      userId: users[1].id,
+      courtId: courts[0].id,
+      startTime: tomorrow,
+      endTime: endTime,
+      status: 'IN_PROGRESS',
+      totalPrice: courts[0].basePricePerHour * 2,
       notes: 'Reserva de ejemplo para demostración'
     }
   });
@@ -250,18 +234,18 @@ async function main() {
     data: {
       name: 'Torneo de Fútbol Oroquieta 2024',
       description: 'Torneo amistoso de fútbol para la comunidad',
-      start_date: tournamentStart,
-      end_date: tournamentEnd,
-      max_participants: 16,
-      entry_fee: 500,
-      prize_pool: 8000,
+      sport: 'FUTBOL',
+      centerId: center.id,
+      startDate: tournamentStart,
+      endDate: tournamentEnd,
+      maxParticipants: 16,
+      registrationFee: 500,
+      prizePool: 8000,
+      registrationStartDate: new Date(),
+      registrationEndDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
       status: 'OPEN',
-      rules: {
-        age_limit: { min: 16, max: 45 },
-        team_size: 11,
-        match_duration: 90,
-        registration_deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
-      }
+      organizer: 'Polideportivo Oroquieta',
+      contactEmail: 'admin@polideportivooroquieta.com'
     }
   });
 
@@ -269,11 +253,10 @@ async function main() {
   for (const user of users.slice(1, 3)) {
     await db.tournamentUser.create({
       data: {
-        tournament_id: tournament.id,
-        user_id: user.id,
-        registration_date: new Date(),
-        status: 'CONFIRMED',
-        payment_status: 'PAID'
+        tournamentId: tournament.id,
+        userId: user.id,
+        registrationDate: new Date(),
+        status: 'CONFIRMED'
       }
     });
   }
@@ -291,15 +274,15 @@ async function main() {
 
   await db.maintenanceSchedule.create({
     data: {
-      court_id: courts[0].id,
+      courtId: courts[0].id,
       title: 'Mantenimiento de césped artificial',
       description: 'Limpieza y revisión del césped artificial de la cancha',
-      start_time: maintenanceDate,
-      end_time: maintenanceEnd,
+      startTime: maintenanceDate,
+      endTime: maintenanceEnd,
       status: 'SCHEDULED',
       priority: 'MEDIUM',
-      assigned_to: 'Equipo de Mantenimiento',
-      estimated_cost: 2000
+      assignedTo: 'Equipo de Mantenimiento',
+      estimatedCost: 2000
     }
   });
 

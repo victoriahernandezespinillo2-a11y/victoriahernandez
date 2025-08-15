@@ -201,6 +201,9 @@ export class UserService {
         phone: true,
         dateOfBirth: true,
         role: true,
+        membershipType: true,
+        membershipExpiresAt: true,
+        creditsBalance: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
@@ -414,8 +417,24 @@ export class UserService {
 
     const where: any = { userId: id };
 
+    // Normalizar y validar estado para evitar errores Prisma por enums inválidos
     if (status) {
-      where.status = status;
+      const map: Record<string, string> = {
+        confirmed: 'IN_PROGRESS',
+        check_in: 'IN_PROGRESS',
+        checked_in: 'IN_PROGRESS',
+        pending: 'PENDING',
+        paid: 'PAID',
+        in_progress: 'IN_PROGRESS',
+        cancelled: 'CANCELLED',
+        completed: 'COMPLETED',
+        no_show: 'NO_SHOW',
+      };
+      const normalized = map[status.toLowerCase()] || status.toUpperCase();
+      const allowed = new Set(['PENDING', 'PAID', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW']);
+      if (allowed.has(normalized)) {
+        where.status = normalized;
+      }
     }
 
     if (startDate || endDate) {

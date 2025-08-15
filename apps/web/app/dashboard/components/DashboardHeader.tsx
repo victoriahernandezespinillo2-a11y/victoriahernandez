@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { signOut } from 'next-auth/react';
 import { Bell, Search, ChevronDown, LogOut, User, Settings } from 'lucide-react';
 import Link from 'next/link';
+import { useUserProfile } from '@/lib/hooks';
 
 interface DashboardHeaderProps {
   user: {
@@ -20,6 +21,12 @@ interface DashboardHeaderProps {
 export function DashboardHeader({ user }: DashboardHeaderProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const { profile, loading, getProfile } = useUserProfile();
+
+  // Obtener datos del perfil al cargar el componente
+  useEffect(() => {
+    getProfile();
+  }, [getProfile]);
 
   const handleSignOut = async () => {
     await signOut({ callbackUrl: '/' });
@@ -56,15 +63,15 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
             <div className="hidden sm:flex items-center space-x-2 bg-green-50 px-3 py-1 rounded-full">
               <div className="w-2 h-2 bg-green-400 rounded-full"></div>
               <span className="text-sm font-medium text-green-800">
-                {user.creditsBalance} créditos
+                {loading ? '...' : (profile?.creditsBalance ?? user.creditsBalance)} créditos
               </span>
             </div>
 
             {/* Membership Type */}
-            {user.membershipType && (
+            {(profile?.membershipType || user.membershipType) && (
               <div className="hidden sm:flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-full">
                 <span className="text-sm font-medium text-blue-800 capitalize">
-                  {user.membershipType}
+                  {profile?.membershipType || user.membershipType}
                 </span>
               </div>
             )}
