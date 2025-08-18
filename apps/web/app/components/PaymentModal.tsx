@@ -73,7 +73,11 @@ export default function PaymentModal(props: PaymentModalProps) {
     const digits = card.replace(/\s+/g, '');
     if (!/^\d{16}$/.test(digits)) return 'Número de tarjeta inválido (16 dígitos)';
     if (!/^\d{2}\/\d{2}$/.test(expiry)) return 'Fecha inválida (MM/YY)';
-    const [mm, yy] = expiry.split('/').map((x) => Number(x));
+    const match = expiry.match(/^(\d{2})\/(\d{2})$/);
+    if (!match) return 'Fecha inválida (MM/YY)';
+    const mm = Number(match[1]);
+    const yy = Number(match[2]);
+    if (!Number.isFinite(mm) || !Number.isFinite(yy)) return 'Fecha inválida (MM/YY)';
     if (mm < 1 || mm > 12) return 'Mes inválido';
     if (!/^\d{3,4}$/.test(cvc)) return 'CVC inválido';
     return null;
