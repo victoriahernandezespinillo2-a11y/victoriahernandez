@@ -7,8 +7,8 @@ import { PaymentService } from '@repo/payments';
 
 // Esquemas de validación
 export const CreateReservationSchema = z.object({
-  courtId: z.string().cuid(),
-  userId: z.string().cuid(),
+  courtId: z.string().min(1, 'courtId requerido'),
+  userId: z.string().min(1, 'userId requerido'),
   startTime: z.string().datetime(),
   duration: z.number().min(30).max(480), // 30 minutos a 8 horas
   isRecurring: z.boolean().optional().default(false),

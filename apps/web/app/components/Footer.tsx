@@ -102,21 +102,21 @@ export function Footer() {
   ];
 
   const contactInfo = {
-    address: "Calle Principal #123, Oroquieta, Andalucía, España",
+    address: "Calle Principal #123, Victoria Hernandez, Andalucía, España",
     phone: "+34 (123) 456-7890",
     whatsapp: "+34 123 456 7890",
-    email: "info@polideportivooroquieta.com",
+    email: "info@polideportivovictoriahernandez.com",
     hours: "Lunes a Domingo: 6:00 AM - 10:00 PM",
     emergency: "+34 (123) 456-7891"
   };
 
   const socialLinks = [
-    { icon: "fab fa-facebook-f", href: "https://facebook.com/polideportivooroquieta", label: "Facebook", color: "hover:text-blue-600", followers: "12.5K" },
-    { icon: "fab fa-instagram", href: "https://instagram.com/polideportivooroquieta", label: "Instagram", color: "hover:text-pink-600", followers: "8.2K" },
-    { icon: "fab fa-twitter", href: "https://twitter.com/polideportivooroquieta", label: "Twitter", color: "hover:text-blue-400", followers: "5.1K" },
-    { icon: "fab fa-youtube", href: "https://youtube.com/polideportivooroquieta", label: "YouTube", color: "hover:text-red-600", followers: "3.8K" },
-    { icon: "fab fa-tiktok", href: "https://tiktok.com/@polideportivooroquieta", label: "TikTok", color: "hover:text-gray-900", followers: "15.2K" },
-    { icon: "fab fa-linkedin-in", href: "https://linkedin.com/company/polideportivooroquieta", label: "LinkedIn", color: "hover:text-blue-700", followers: "2.1K" }
+    { icon: "fab fa-facebook-f", href: "https://facebook.com/polideportivovictoriahernandez", label: "Facebook", color: "hover:text-blue-600", followers: "12.5K" },
+    { icon: "fab fa-instagram", href: "https://instagram.com/polideportivovictoriahernandez", label: "Instagram", color: "hover:text-pink-600", followers: "8.2K" },
+    { icon: "fab fa-twitter", href: "https://twitter.com/polideportivovictoriahernandez", label: "Twitter", color: "hover:text-blue-400", followers: "5.1K" },
+    { icon: "fab fa-youtube", href: "https://youtube.com/polideportivovictoriahernandez", label: "YouTube", color: "hover:text-red-600", followers: "3.8K" },
+    { icon: "fab fa-tiktok", href: "https://tiktok.com/@polideportivovictoriahernandez", label: "TikTok", color: "hover:text-gray-900", followers: "15.2K" },
+    { icon: "fab fa-linkedin-in", href: "https://linkedin.com/company/polideportivovictoriahernandez", label: "LinkedIn", color: "hover:text-blue-700", followers: "2.1K" }
   ];
 
   const quickActions = [
@@ -175,7 +175,7 @@ export function Footer() {
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-white">
-                    Polideportivo Oroquieta
+                    Polideportivo Victoria Hernandez
                   </h2>
                     <div className="flex items-center space-x-2">
                     <p className="text-emerald-400 font-semibold">
@@ -192,7 +192,7 @@ export function Footer() {
               </div>
               
               <p className="text-gray-300 text-lg leading-relaxed mb-6">
-                El centro deportivo más moderno de Oroquieta. Ofrecemos instalaciones de primera clase, 
+                El centro deportivo más moderno de Victoria Hernandez. Ofrecemos instalaciones de primera clase, 
                 programas deportivos innovadores y una experiencia única para toda la familia.
               </p>
               
@@ -414,25 +414,25 @@ export function Footer() {
                 <div className="flex flex-col space-y-4">
                   <div className="flex items-center space-x-2">
                     <i className="fas fa-shield-alt text-emerald-400"></i>
-                    <p className="text-white font-medium">&copy; {currentYear} Polideportivo Oroquieta</p>
+                    <p className="text-white font-medium">© {currentYear} Polideportivo Victoria Hernandez</p>
                   </div>
                   <p className="text-gray-400 text-sm">
-                    Todos los derechos reservados. Centro deportivo líder en Oroquieta, Cesar.
+                    Todos los derechos reservados. Centro deportivo líder en Victoria Hernandez, Cesar.
                   </p>
                   <div className="flex flex-wrap items-center gap-4 text-sm">
-                    <a href="#privacidad" className="text-gray-400 hover:text-emerald-400 transition-colors duration-300 flex items-center space-x-1">
+                    <a href="/privacy" className="text-gray-400 hover:text-emerald-400 transition-colors duration-300 flex items-center space-x-1">
                       <i className="fas fa-lock text-xs"></i>
                       <span>Privacidad</span>
                     </a>
-                    <a href="#terminos" className="text-gray-400 hover:text-emerald-400 transition-colors duration-300 flex items-center space-x-1">
+                    <a href="/terms" className="text-gray-400 hover:text-emerald-400 transition-colors duration-300 flex items-center space-x-1">
                       <i className="fas fa-file-contract text-xs"></i>
                       <span>Términos</span>
                     </a>
-                    <a href="#cookies" className="text-gray-400 hover:text-emerald-400 transition-colors duration-300 flex items-center space-x-1">
+                    <a href="/cookies" className="text-gray-400 hover:text-emerald-400 transition-colors duration-300 flex items-center space-x-1">
                       <i className="fas fa-cookie-bite text-xs"></i>
                       <span>Cookies</span>
                     </a>
-                    <a href="#accesibilidad" className="text-gray-400 hover:text-emerald-400 transition-colors duration-300 flex items-center space-x-1">
+                    <a href="/accesibilidad" className="text-gray-400 hover:text-emerald-400 transition-colors duration-300 flex items-center space-x-1">
                       <i className="fas fa-universal-access text-xs"></i>
                       <span>Accesibilidad</span>
                     </a>

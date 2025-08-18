@@ -186,6 +186,22 @@ model Membership {
   @@map("memberships")
 }
 
+/// Métodos de pago guardados (solo metadatos, nunca se almacena PAN ni CVC)
+model PaymentMethod {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  brand      String
+  last4      String
+  expMonth   Int      @map("exp_month")
+  expYear    Int      @map("exp_year")
+  holderName String?  @map("holder_name")
+  isDefault  Boolean  @default(false) @map("is_default")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("payment_methods")
+}
+
 model WaitingList {
   id           String   @id @default(cuid())
   userId       String   @map("user_id")

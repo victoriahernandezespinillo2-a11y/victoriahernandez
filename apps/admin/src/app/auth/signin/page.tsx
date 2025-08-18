@@ -189,7 +189,7 @@ export default function SignInPage() {
 
         {/* Footer */}
         <p className="mt-8 text-center text-sm text-slate-600 dark:text-slate-400">
-          © {new Date().getFullYear()} Polideportivo Oroquieta. Todos los derechos reservados.
+          © {new Date().getFullYear()} Polideportivo Victoria Hernandez. Todos los derechos reservados.
         </p>
       </div>
     </div>

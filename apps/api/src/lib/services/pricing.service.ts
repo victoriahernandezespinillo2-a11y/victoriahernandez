@@ -4,10 +4,10 @@ import { z } from 'zod';
 
 // Esquemas de validación
 export const CalculatePriceSchema = z.object({
-  courtId: z.string().cuid(),
+  courtId: z.string().min(1, 'courtId requerido'),
   startTime: z.date(),
   duration: z.number().min(30).max(480), // 30 minutos a 8 horas
-  userId: z.string().cuid().optional(),
+  userId: z.string().min(1).optional(),
 });
 
 export const CreatePricingRuleSchema = z.object({

@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import { Navigation } from "./components/Navigation";
+import { ConditionalNavigation } from "./components/ConditionalNavigation";
 import { Footer } from "./components/Footer";
 import { SessionWrapper } from "./components/SessionWrapper";
+import CookieBanner from "./components/CookieBanner";
 import { FirebaseAuthProvider } from "../components/auth/FirebaseAuthProvider";
 
 const geistSans = localFont({
@@ -16,14 +17,14 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Polideportivo Oroquieta - Centro Deportivo Premium",
-  description: "El mejor centro deportivo de Oroquieta. Reserva canchas, participa en torneos y disfruta de instalaciones de primera clase.",
-  keywords: "polideportivo, deportes, Oroquieta, canchas, reservas, torneos, fútbol, básquet, tenis",
-  authors: [{ name: "Polideportivo Oroquieta" }],
+  title: "Polideportivo Victoria Hernandez - Centro Deportivo Premium",
+  description: "El mejor centro deportivo de Victoria Hernandez. Reserva canchas, participa en torneos y disfruta de instalaciones de primera clase.",
+  keywords: "polideportivo, deportes, Victoria Hernandez, canchas, reservas, torneos, fútbol, básquet, tenis",
+  authors: [{ name: "Polideportivo Victoria Hernandez" }],
   robots: "index, follow",
   openGraph: {
-    title: "Polideportivo Oroquieta - Centro Deportivo Premium",
-    description: "El mejor centro deportivo de Oroquieta con instalaciones modernas y servicios de calidad.",
+    title: "Polideportivo Victoria Hernandez - Centro Deportivo Premium",
+    description: "El mejor centro deportivo de Victoria Hernandez con instalaciones modernas y servicios de calidad.",
     type: "website",
     locale: "es_ES",
   },
@@ -51,11 +52,12 @@ export default function RootLayout({
         <SessionWrapper>
           <FirebaseAuthProvider>
             <div className="min-h-screen flex flex-col">
-              <Navigation />
+              <ConditionalNavigation />
               <main className="flex-1">
                 {children}
               </main>
               <Footer />
+              <CookieBanner />
             </div>
           </FirebaseAuthProvider>
         </SessionWrapper>

@@ -18,6 +18,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { useUserProfile, useUserHistory } from '@/lib/hooks';
+import { useEffect as useMountedEffect } from 'react';
 
 interface HistoryItem {
   id: string;
@@ -54,13 +55,13 @@ const transformReservationToHistoryItem = (reservation: any): HistoryItem => {
   return {
     id: reservation.id,
     type: 'reservation', // Por ahora solo manejamos reservas
-    sport: reservation.court?.sport || 'Desconocido',
+    sport: reservation.court?.sportType || 'Desconocido',
     court: reservation.court?.name || 'Cancha desconocida',
     date: startTime.toISOString().substring(0, 10),
     startTime: startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
     endTime: endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
     duration,
-    cost: reservation.totalAmount || 0,
+    cost: Number(reservation.totalPrice || 0),
     credits: 0, // Por ahora no manejamos créditos
     status: mapReservationStatus(reservation.status),
     rating: reservation.rating,
@@ -142,7 +143,7 @@ export default function HistoryPage() {
   const [viewMode, setViewMode] = useState<'list' | 'stats'>('list');
   
   // Hooks para obtener datos del usuario
-  const { profile } = useUserProfile();
+  const { profile, getProfile } = useUserProfile();
   const { historyData: apiData, loading, error, getUserHistory } = useUserHistory();
   
   // Estado para los datos transformados
@@ -158,6 +159,13 @@ export default function HistoryPage() {
       });
     }
   }, [profile?.id, getUserHistory]);
+
+  // Asegurar que el perfil esté cargado al montar
+  useMountedEffect(() => {
+    if (!profile?.id) {
+      getProfile().catch(() => {});
+    }
+  }, []);
   
   // Transformar datos cuando lleguen de la API
   useEffect(() => {

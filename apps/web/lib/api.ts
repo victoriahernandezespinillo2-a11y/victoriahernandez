@@ -9,8 +9,12 @@ const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'
 /**
  * Configuración base para las peticiones fetch
  */
-const defaultHeaders = {
-  'Content-Type': 'application/json',
+const buildHeaders = (method: string): Record<string, string> => {
+  const isGet = method.toUpperCase() === 'GET';
+  const headers: Record<string, string> = {};
+  // Evitar Content-Type en GET para no forzar preflight CORS
+  if (!isGet) headers['Content-Type'] = 'application/json';
+  return headers;
 };
 
 /**
@@ -20,19 +24,36 @@ async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
-  
-  const config: RequestInit = {
-    headers: {
-      ...defaultHeaders,
-      ...options.headers,
-    },
+  const absoluteUrl = `${API_BASE_URL}${endpoint}`;
+  const relativeUrl = `${endpoint}`;
+  const method = (options.method || 'GET').toString().toUpperCase();
+
+  const baseConfig: RequestInit = {
     ...options,
+    headers: {
+      ...buildHeaders(method),
+      ...(options.headers || {}),
+    },
     credentials: 'include',
   };
 
   try {
-    const response = await fetch(url, config);
+    let response: Response | null = null;
+    // 1) Intentar relativo para que pase por el proxy de Next (y lleve cookies de 3001)
+    try {
+      response = await fetch(relativeUrl, baseConfig);
+      // 2) Si 404 y hay base absoluta, intentar absoluto (algunos endpoints solo viven en API)
+      if (response.status === 404 && API_BASE_URL) {
+        response = await fetch(absoluteUrl, baseConfig);
+      }
+    } catch (networkErr) {
+      // Fallback a absoluto si el relativo falla por red
+      if (API_BASE_URL) {
+        response = await fetch(absoluteUrl, baseConfig);
+      } else {
+        throw networkErr;
+      }
+    }
     
     if (!response.ok) {
       let message = '';
@@ -61,7 +82,7 @@ async function apiRequest<T>(
 
     try {
       const data = await response.json();
-      return data.data || data;
+      return (data as any).data || (data as any);
     } catch {
       const text = await response.text();
       return text as unknown as T;
@@ -394,6 +415,14 @@ export const api = {
       apiRequest(`/api/notifications/${id}`, {
         method: 'PUT',
       }),
+  },
+
+  // Pagos
+  payments: {
+    getMethods: () => apiRequest('/api/payments/methods'),
+    addMethod: (data: { brand: string; last4: string; expMonth: number; expYear: number; holderName?: string; setDefault?: boolean; }) =>
+      apiRequest('/api/payments/methods', { method: 'POST', body: JSON.stringify(data) }),
+    deleteMethod: (id: string) => apiRequest(`/api/payments/methods?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
   },
 };
 

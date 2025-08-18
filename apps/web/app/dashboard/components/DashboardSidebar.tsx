@@ -82,7 +82,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
           </div>
           <div className="ml-3">
             <p className="text-white text-sm font-medium">Polideportivo</p>
-            <p className="text-blue-200 text-xs">Oroquieta</p>
+            <p className="text-blue-200 text-xs">Victoria Hernandez</p>
           </div>
         </Link>
       </div>

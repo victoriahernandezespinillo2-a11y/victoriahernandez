@@ -6,9 +6,9 @@
 import { z } from 'zod';
 import type Stripe from 'stripe';
 // El schema actual no define enums de pagos en Prisma; usamos strings
-import { db } from '@repo/db';
 import { PaymentService as PaymentServiceCore } from '@repo/payments';
 import { NotificationService } from '@repo/notifications';
+import { db } from '@repo/db';
 
 // Usar el cliente Prisma compartido del monorepo
 const prisma = db;
@@ -85,6 +85,49 @@ export interface RefundResult {
 
 export class PaymentService {
   /**
+   * Listar métodos de pago del usuario
+   */
+  async listPaymentMethods(userId: string) {
+    try {
+      const methods = await (db as any).paymentMethod.findMany({
+        where: { userId },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+      });
+      return methods;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /**
+   * Agregar método de pago (solo metadatos)
+   */
+  async addPaymentMethod(userId: string, data: { brand: string; last4: string; expMonth: number; expYear: number; holderName?: string; setDefault?: boolean; }) {
+    const created = await (db as any).paymentMethod.create({
+      data: {
+        userId,
+        brand: data.brand,
+        last4: data.last4,
+        expMonth: data.expMonth,
+        expYear: data.expYear,
+        holderName: data.holderName,
+        isDefault: !!data.setDefault,
+      },
+    });
+    if (data.setDefault) {
+      await (db as any).paymentMethod.updateMany({ where: { userId, id: { not: created.id } }, data: { isDefault: false } });
+    }
+    return created;
+  }
+
+  /**
+   * Eliminar método de pago
+   */
+  async deletePaymentMethod(userId: string, id: string) {
+    await (db as any).paymentMethod.delete({ where: { id } });
+    return { success: true };
+  }
+  /**
    * Crear intención de pago
    */
   async createPaymentIntent(data: CreatePaymentData): Promise<PaymentIntent> {
@@ -152,6 +195,67 @@ export class PaymentService {
     } catch (error) {
       console.error('Error creando intención de pago:', error);
       throw new Error('Error al crear la intención de pago');
+    }
+  }
+
+  /**
+   * Simular pago manual (demo): crea un pago COMPLETED y marca la reserva como PAID
+   */
+  async simulateManualPayment(data: {
+    amount: number;
+    currency?: string;
+    description: string;
+    reservationId?: string;
+    membershipId?: string;
+    tournamentId?: string;
+    userId: string;
+    paymentMethod?: 'CARD' | 'TRANSFER' | 'CASH';
+  }): Promise<PaymentResult> {
+    const amount = Number(data.amount || 0);
+    const currency = (data.currency || 'EUR').toUpperCase();
+    const method = data.paymentMethod || 'CARD';
+    try {
+      // Crear el pago ya como COMPLETED (si el modelo payment existe)
+      const payment = await (prisma as any).payment.create({
+        data: {
+          amount,
+          currency,
+          description: data.description,
+          status: 'COMPLETED',
+          method,
+          provider: 'MANUAL',
+          userId: data.userId,
+          reservationId: data.reservationId,
+          membershipId: data.membershipId,
+          tournamentId: data.tournamentId,
+          processedAt: new Date(),
+          metadata: { demo: true },
+        },
+      });
+
+      // Efectos colaterales de pago exitoso (marcar reserva como PAID, notificaciones)
+      await this.handleSuccessfulPayment(payment);
+
+      return {
+        success: true,
+        paymentId: payment.id,
+        status: 'COMPLETED',
+        message: 'Pago demo completado',
+      };
+    } catch (e) {
+      // Fallback: si no existe tabla payment, marcar directamente la reserva como pagada
+      if (data.reservationId) {
+        await prisma.reservation.update({
+          where: { id: data.reservationId },
+          data: { status: 'PAID' },
+        });
+      }
+      return {
+        success: true,
+        paymentId: data.reservationId || 'manual-demo',
+        status: 'COMPLETED',
+        message: 'Pago demo completado (fallback sin tabla payment)',
+      };
     }
   }
 

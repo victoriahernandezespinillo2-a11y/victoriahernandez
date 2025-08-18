@@ -10,6 +10,7 @@ import { AuthService } from '../services/auth.service';
 const authService = new AuthService();
 import { RouteUtils, RATE_LIMITS } from '../routes';
 import { z } from 'zod';
+import { getToken } from 'next-auth/jwt';
 
 /**
  * Interfaz para el contexto de middleware
@@ -144,55 +145,63 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
         }
       }
       
-      // Si no hay token JWT, intentar con cookies de NextAuth
+      // Si no hay token JWT, intentar con cookies de NextAuth (Auth.js v5 - JWE)
       if (!user) {
-        console.log('🍪 [AUTH] Intentando autenticación con NextAuth cookies');
+        console.log('🍪 [AUTH] Intentando autenticación con NextAuth (getToken)');
         try {
-          const cookies = req.cookies;
-          const configuredCookieName = process.env.NEXTAUTH_COOKIE_NAME;
+          const baseOpts = {
+            req,
+            secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-secret-change-in-prod',
+            secureCookie: process.env.NODE_ENV === 'production',
+          } as const;
 
-          // Construir lista de nombres candidatos
+          const configuredCookieName = process.env.NEXTAUTH_COOKIE_NAME;
           const candidateNames = [
             configuredCookieName,
+            'next-auth.session-token-admin',
             'next-auth.session-token',
             '__Secure-next-auth.session-token',
+            'authjs.session-token',
           ].filter(Boolean) as string[];
 
-          // Buscar cookie por nombres conocidos
-          let sessionToken: string | undefined;
-          for (const name of candidateNames) {
-            const val = cookies.get(name)?.value;
-            if (val) { sessionToken = val; break; }
-          }
-
-          // Si no se encontró, escanear cualquier cookie que empiece por next-auth.session-token
-          if (!sessionToken) {
-            const all = (cookies as any).getAll?.() || [];
-            for (const c of all) {
-              if (typeof c?.name === 'string' && (c.name.startsWith('next-auth.session-token') || c.name.startsWith('__Secure-next-auth.session-token'))) {
-                sessionToken = c.value;
-                break;
-              }
+          let token: any = await getToken(baseOpts as any);
+          if (!token) {
+            for (const name of candidateNames) {
+              token = await getToken({ ...(baseOpts as any), cookieName: name });
+              if (token) break;
             }
           }
 
-          console.log('🍪 [AUTH] Session token:', sessionToken ? 'Presente' : 'Ausente');
-
-          if (sessionToken) {
-            // Validar el token de NextAuth JWT
-            try {
-              user = await authService.getUserFromNextAuthToken(sessionToken);
-              if (user) {
-                console.log('✅ [AUTH] Usuario autenticado con NextAuth:', user.email, 'Rol:', user.role);
-              } else {
-                console.log('❌ [AUTH] Token de NextAuth inválido o usuario inactivo');
-              }
-            } catch (error) {
-              console.log('❌ [AUTH] Error validando token NextAuth:', error);
+          // Último recurso: detectar cualquier cookie next-auth.session-token-<puerto>
+          if (!token) {
+            const all = (req.cookies as any).getAll?.() || [];
+            const candidate = all.find((c: any) => typeof c?.name === 'string' && c.name.startsWith('next-auth.session-token'))?.name;
+            if (candidate) {
+              token = await getToken({ ...(baseOpts as any), cookieName: candidate });
             }
+          }
+
+          if (token) {
+            const userId = (token as any).sub || (token as any).id;
+            const email = (token as any).email;
+            const roleFromToken = (token as any).role || (token as any).user?.role;
+            if (userId) {
+              user = await authService.getUserById(userId);
+            }
+            // Fallback: si no hay userId o no existe, usar email del token y auto-provisionar
+            if (!user && email) {
+              user = await authService.ensureUserByEmail(email, (token as any).name, roleFromToken);
+            }
+            if (user) {
+              console.log('✅ [AUTH] Usuario autenticado con NextAuth (getToken):', user.email, 'Rol:', user.role);
+            } else {
+              console.log('❌ [AUTH] Usuario no encontrado/inactivo para token NextAuth');
+            }
+          } else {
+            console.log('❌ [AUTH] No se pudo decodificar token NextAuth con ningún nombre de cookie');
           }
         } catch (authError) {
-          console.log('❌ [AUTH] Error NextAuth:', authError);
+          console.log('❌ [AUTH] Error usando getToken de NextAuth:', authError);
         }
       }
       

@@ -101,7 +101,7 @@ export function FeaturesSection() {
           
           <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-6">
             ¿Por qué elegir
-            <span className="gradient-text block">Polideportivo Oroquieta?</span>
+            <span className="gradient-text block">Polideportivo Victoria Hernandez?</span>
           </h2>
           
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">

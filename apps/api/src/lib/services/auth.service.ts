@@ -434,34 +434,59 @@ export class AuthService {
   }
 
   /**
-   * Validar token de NextAuth JWT
+   * Obtener usuario por ID
    */
-  async getUserFromNextAuthToken(token: string): Promise<AuthUser | null> {
-    try {
-      // NextAuth usa el mismo secret que configuramos
-      const nextAuthSecret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-secret-change-in-prod';
-      const decoded = jwt.verify(token, nextAuthSecret) as any;
-      
-      // NextAuth almacena el ID del usuario en el campo 'sub'
-      const userId = decoded.sub || decoded.id;
-      
-      if (!userId) {
-        return null;
-      }
-      
-      const user = await prisma.user.findUnique({
-        where: { id: userId }
-      });
+  async getUserById(userId: string): Promise<AuthUser | null> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.isActive) return null;
+    return this.formatUser(user);
+  }
 
-      if (!user || !user.isActive) {
-        return null;
-      }
+  /**
+   * Obtener usuario por email
+   */
+  async getUserByEmail(email: string): Promise<AuthUser | null> {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || !user.isActive) return null;
+    return this.formatUser(user);
+  }
 
-      return this.formatUser(user);
-    } catch (error) {
-      console.log('Error validando token NextAuth:', error);
-      return null;
+  /**
+   * Asegurar existencia de usuario por email. Si no existe, lo crea como USER activo.
+   */
+  async ensureUserByEmail(email: string, name?: string, roleHint?: string): Promise<AuthUser> {
+    const existing = await prisma.user.findUnique({ where: { email } });
+    // Determinar rol sugerido de forma segura
+    const normalizedHint = typeof roleHint === 'string' ? roleHint.toUpperCase() : '';
+    const roleOrder = { USER: 0, STAFF: 1, ADMIN: 2 } as const;
+    const hintedRole = (normalizedHint === 'ADMIN' || normalizedHint === 'STAFF') ? (normalizedHint as any) : ('USER' as any);
+
+    if (existing && existing.isActive) {
+      // Sincronizar rol si el hint es superior (promoción automática segura)
+      const currentRole = (existing.role as any) || 'USER';
+      if (roleOrder[currentRole as keyof typeof roleOrder] < roleOrder[hintedRole as keyof typeof roleOrder]) {
+        const updated = await prisma.user.update({ where: { id: existing.id }, data: { role: hintedRole } });
+        return this.formatUser(updated);
+      }
+      return this.formatUser(existing);
     }
+    const [firstName, ...rest] = (name || '').split(' ');
+    const lastName = rest.join(' ') || null as any;
+    // Determinar rol inicial de forma segura a partir de la pista del token
+    // Solo aceptar ADMIN/STAFF explícitos; por defecto USER
+    const initialRole = hintedRole;
+    const created = await prisma.user.create({
+      data: {
+        email,
+        name: name || null,
+        firstName: firstName || null as any,
+        lastName: lastName,
+        role: initialRole,
+        isActive: true,
+        emailVerified: true,
+      },
+    });
+    return this.formatUser(created);
   }
 
   /**

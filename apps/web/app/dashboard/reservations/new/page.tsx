@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import PaymentModal from '@/app/components/PaymentModal';
 import { api } from '@/lib/api';
 import { useCourts, usePricing } from '@/lib/hooks';
 
@@ -50,6 +51,8 @@ export default function NewReservationPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [createdReservationId, setCreatedReservationId] = useState<string | null>(null);
 
   // Cargar canchas activas
   useEffect(() => {
@@ -131,14 +134,20 @@ export default function NewReservationPage() {
       const [hour, minute] = selectedTime.split(':').map((v) => Number(v || 0));
       const start = new Date(selectedDate + 'T00:00:00');
       start.setHours(hour ?? 0, minute ?? 0, 0, 0);
-      await api.reservations.create({
+      const res: any = await api.reservations.create({
         courtId: selectedCourt.id,
         startTime: start.toISOString(),
         duration,
         // paymentMethod omitido para usar flujo predeterminado en backend
         notes,
       });
-      router.push('/dashboard/reservations');
+      const reservationId = res?.reservation?.id || res?.id;
+      if (reservationId) {
+        setCreatedReservationId(reservationId);
+        setShowPaymentModal(true);
+      } else {
+        router.push('/dashboard/reservations');
+      }
     } catch (error) {
       console.error('Error creating reservation:', error);
       alert('Error al crear la reserva. Inténtalo de nuevo.');
@@ -594,6 +603,19 @@ export default function NewReservationPage() {
           </div>
         )}
       </div>
+
+      {/* Modal de Pago Demo */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        reservationId={createdReservationId || ''}
+        amount={Number(totalCost || 0)}
+        currency="COP"
+        courtName={selectedCourt?.name || ''}
+        dateLabel={selectedDate ? formatDate(selectedDate) : ''}
+        timeLabel={selectedTime}
+        onSuccess={() => router.push('/dashboard/reservations')}
+      />
     </div>
   );
 }

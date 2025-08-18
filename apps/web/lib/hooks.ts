@@ -114,14 +114,81 @@ export function useReservations() {
   const { data, loading, error, execute, reset, setData } = useApiState<any[]>([]);
 
   const getReservations = useCallback((params?: any) => {
-    return execute(() => api.reservations.getAll(params) as Promise<any[]>);
+    return execute(async () => {
+      const res: any = await api.reservations.getAll(params as any);
+      const rawList = Array.isArray(res?.reservations)
+        ? res.reservations
+        : Array.isArray(res)
+        ? res
+        : [];
+      const mapped = rawList.map((r: any) => {
+        const start = new Date(r.startTime);
+        const end = new Date(r.endTime);
+        const toTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const statusMap: Record<string, 'confirmed' | 'pending' | 'cancelled' | 'completed'> = {
+          PENDING: 'pending',
+          PAID: 'confirmed',
+          IN_PROGRESS: 'confirmed',
+          COMPLETED: 'completed',
+          CANCELLED: 'cancelled',
+          NO_SHOW: 'cancelled',
+        };
+        const uiStatus = statusMap[(r.status || '').toUpperCase()] || 'pending';
+        const paymentStatus: 'paid' | 'pending' | 'refunded' =
+          uiStatus === 'completed' || uiStatus === 'confirmed' ? 'paid' : 'pending';
+        return {
+          id: r.id,
+          courtName: r.court?.name || '—',
+          courtType: r.court?.sportType || '—',
+          date: r.startTime,
+          startTime: toTime(start),
+          endTime: toTime(end),
+          duration: Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000)),
+          status: uiStatus,
+          cost: Number(r.totalPrice || 0),
+          paymentStatus,
+          createdAt: r.createdAt,
+          notes: r.notes || undefined,
+        };
+      });
+      return mapped as any[];
+    });
   }, [execute]);
 
   const createReservation = useCallback(async (reservationData: any) => {
     try {
-      const newReservation = await api.reservations.create(reservationData);
-      setData(prev => prev ? [newReservation, ...prev] : [newReservation]);
-      return newReservation;
+      const response = await api.reservations.create(reservationData);
+      const r: any = (response as any)?.reservation || response;
+      const start = new Date(r.startTime);
+      const end = new Date(r.endTime);
+      const toTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const statusMap: Record<string, 'confirmed' | 'pending' | 'cancelled' | 'completed'> = {
+        PENDING: 'pending',
+        PAID: 'confirmed',
+        IN_PROGRESS: 'confirmed',
+        COMPLETED: 'completed',
+        CANCELLED: 'cancelled',
+        NO_SHOW: 'cancelled',
+      };
+      const uiStatus = statusMap[(r.status || '').toUpperCase()] || 'pending';
+      const paymentStatus: 'paid' | 'pending' | 'refunded' =
+        uiStatus === 'completed' || uiStatus === 'confirmed' ? 'paid' : 'pending';
+      const mapped = {
+        id: r.id,
+        courtName: r.court?.name || '—',
+        courtType: r.court?.sportType || '—',
+        date: r.startTime,
+        startTime: toTime(start),
+        endTime: toTime(end),
+        duration: Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000)),
+        status: uiStatus,
+        cost: Number(r.totalPrice || 0),
+        paymentStatus,
+        createdAt: r.createdAt,
+        notes: r.notes || undefined,
+      };
+      setData(prev => (prev ? [mapped, ...prev] : [mapped]));
+      return response;
     } catch (err) {
       throw err;
     }

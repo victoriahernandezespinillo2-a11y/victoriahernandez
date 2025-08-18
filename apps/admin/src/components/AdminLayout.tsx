@@ -81,7 +81,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col sm:flex-row justify-between items-center text-sm text-gray-600">
               <div className="flex items-center space-x-4">
-                <span>© 2024 Polideportivo Oroquieta</span>
+                <span>© 2024 Polideportivo Victoria Hernandez</span>
                 <span>•</span>
                 <span>Versión 1.0.0</span>
               </div>

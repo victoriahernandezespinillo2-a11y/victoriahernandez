@@ -307,7 +307,7 @@ export function CTASection() {
                       <i className="fas fa-envelope text-white"></i>
                     </div>
                     <div>
-                      <div className="text-white font-semibold">info@polideportivooroquieta.com</div>
+                      <div className="text-white font-semibold">info@polideportivovictoriahernandez.com</div>
                       <div className="text-gray-300 text-sm">Respuesta en menos de 2 horas</div>
                     </div>
                   </div>
@@ -317,7 +317,7 @@ export function CTASection() {
                       <i className="fas fa-map-marker-alt text-white"></i>
                     </div>
                     <div>
-                      <div className="text-white font-semibold">Calle 123 #45-67, Oroquieta</div>
+                      <div className="text-white font-semibold">Calle 123 #45-67, Victoria Hernandez</div>
                       <div className="text-gray-300 text-sm">A 5 min del centro de la ciudad</div>
                     </div>
                   </div>

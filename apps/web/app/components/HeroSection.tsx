@@ -10,7 +10,7 @@ export function HeroSection() {
 
   const heroSlides = [
     {
-      title: "Polideportivo Oroquieta",
+      title: "Polideportivo Victoria Hernandez",
       subtitle: "Centro Deportivo Premium",
       description: "Vive la pasión del deporte en nuestras instalaciones de clase mundial. Reserva, entrena y compite en el mejor ambiente deportivo de la región.",
       image: "bg-gradient-to-br from-emerald-600 via-blue-600 to-purple-700",
@@ -94,7 +94,7 @@ export function HeroSection() {
           {/* Badge */}
           <div className="inline-flex items-center space-x-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full px-6 py-2 mb-8 animate-pulse-glow">
             <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-            <span className="text-white font-medium text-sm">🏆 Centro Deportivo #1 en Oroquieta</span>
+            <span className="text-white font-medium text-sm">🏆 Centro Deportivo #1 en Victoria Hernandez</span>
           </div>
 
           {/* Main Title */}

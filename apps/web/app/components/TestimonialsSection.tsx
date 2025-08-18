@@ -15,7 +15,7 @@ export function TestimonialsSection() {
       company: "Fitness Pro",
       image: "/api/placeholder/80/80",
       rating: 5,
-      text: "Las instalaciones de Polideportivo Oroquieta superaron todas mis expectativas. La calidad del equipamiento y la atención al cliente son excepcionales. Mis clientes siempre salen satisfechos de cada sesión.",
+      text: "Las instalaciones de Polideportivo Victoria Hernandez superaron todas mis expectativas. La calidad del equipamiento y la atención al cliente son excepcionales. Mis clientes siempre salen satisfechos de cada sesión.",
       sport: "Fitness & Entrenamiento",
       experience: "3 años como usuario",
       highlight: "Equipamiento de última generación"

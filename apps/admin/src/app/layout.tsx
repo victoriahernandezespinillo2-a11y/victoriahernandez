@@ -5,8 +5,8 @@ import { ToastProvider } from '../components/ToastProvider'
 import ConditionalLayout from '../components/ConditionalLayout'
 
 export const metadata: Metadata = {
-  title: 'Admin - Polideportivo Oroquieta',
-  description: 'Panel de administración del polideportivo de Oroquieta',
+  title: 'Admin - Polideportivo Victoria Hernandez',
+  description: 'Panel de administración del polideportivo de Victoria Hernandez',
 }
 
 export default function RootLayout({

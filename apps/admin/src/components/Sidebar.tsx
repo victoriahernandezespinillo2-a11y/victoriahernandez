@@ -230,7 +230,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       <div className="p-4 border-t border-gray-700">
         {!isCollapsed && (
           <div className="text-xs text-gray-400">
-            <p>Polideportivo Oroquieta</p>
+            <p>Polideportivo Victoria Hernandez</p>
             <p>v1.0.0</p>
           </div>
         )}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   User,
   Bell,
@@ -22,6 +22,8 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import { useUserProfile } from '@/lib/hooks';
+import { api } from '@/lib/api';
 
 interface NotificationSettings {
   emailReservations: boolean;
@@ -81,6 +83,7 @@ const currentSettings = {
 };
 
 export default function SettingsPage() {
+  const { profile, getProfile, updateProfile } = useUserProfile();
   const [activeTab, setActiveTab] = useState('account');
   const [notifications, setNotifications] = useState<NotificationSettings>(currentSettings.notifications);
   const [privacy, setPrivacy] = useState<PrivacySettings>(currentSettings.privacy);
@@ -99,6 +102,10 @@ export default function SettingsPage() {
     confirm: false
   });
 
+  useEffect(() => {
+    getProfile().catch(() => {});
+  }, [getProfile]);
+
   const tabs = [
     { id: 'account', label: 'Cuenta', icon: User },
     { id: 'notifications', label: 'Notificaciones', icon: Bell },
@@ -110,8 +117,12 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     setIsLoading(true);
     try {
-      // Aquí iría la llamada a la API para guardar configuraciones
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (profile?.id) {
+        const firstName = (document.querySelector('#firstName') as HTMLInputElement)?.value;
+        const lastName = (document.querySelector('#lastName') as HTMLInputElement)?.value;
+        const phone = (document.querySelector('#phone') as HTMLInputElement)?.value;
+        await updateProfile({ firstName, lastName, phone });
+      }
       alert('Configuraciones guardadas exitosamente');
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -126,11 +137,19 @@ export default function SettingsPage() {
       alert('Las contraseñas no coinciden');
       return;
     }
-    
+
     setIsLoading(true);
     try {
-      // Aquí iría la llamada a la API para cambiar contraseña
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const res = await fetch('/api/users/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(passwordData),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
       alert('Contraseña actualizada exitosamente');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setShowPasswordForm(false);
@@ -145,15 +164,43 @@ export default function SettingsPage() {
   const handleDeleteAccount = async () => {
     setIsLoading(true);
     try {
-      // Aquí iría la llamada a la API para eliminar cuenta
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      alert('Cuenta eliminada exitosamente');
+      const res = await fetch('/api/users/delete', { method: 'DELETE', credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      alert('Cuenta eliminada exitosamente. Cerraremos tu sesión.');
+      try { await fetch('/api/auth/signout', { method: 'POST' }); } catch {}
+      window.location.href = '/';
     } catch (error) {
       console.error('Error deleting account:', error);
-      alert('Error al eliminar cuenta');
+      alert((error as any)?.message || 'Error al eliminar cuenta');
     } finally {
       setIsLoading(false);
       setShowDeleteModal(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/users/export', { method: 'GET', credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+      const blob = new Blob([JSON.stringify(data?.data ?? data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `exportacion-datos-${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exportando datos:', error);
+      alert((error as any)?.message || 'Error al exportar datos');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -168,8 +215,9 @@ export default function SettingsPage() {
               Nombre
             </label>
             <input
+              id="firstName"
               type="text"
-              defaultValue="Juan"
+              defaultValue={profile?.firstName || ''}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
             />
           </div>
@@ -178,8 +226,9 @@ export default function SettingsPage() {
               Apellido
             </label>
             <input
+              id="lastName"
               type="text"
-              defaultValue="Pérez"
+              defaultValue={profile?.lastName || ''}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
             />
           </div>
@@ -189,8 +238,9 @@ export default function SettingsPage() {
             </label>
             <input
               type="email"
-              defaultValue="juan.perez@email.com"
+              defaultValue={profile?.email || ''}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+              disabled
             />
           </div>
           <div>
@@ -198,8 +248,9 @@ export default function SettingsPage() {
               Teléfono
             </label>
             <input
+              id="phone"
               type="tel"
-              defaultValue="+57 300 123 4567"
+              defaultValue={profile?.phone || ''}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
             />
           </div>
@@ -317,6 +368,12 @@ export default function SettingsPage() {
                 className="mt-3 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
               >
                 Eliminar Cuenta
+              </button>
+              <button
+                onClick={handleExportData}
+                className="mt-3 ml-3 px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 transition-colors"
+              >
+                Exportar mis datos (GDPR)
               </button>
             </div>
           </div>
@@ -575,55 +632,12 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Métodos de Pago</h3>
-        <div className="space-y-3">
-          <div className="border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <CreditCard className="h-5 w-5 text-gray-600 mr-3" />
-                <div>
-                  <div className="font-medium text-gray-900">**** **** **** 1234</div>
-                  <div className="text-sm text-gray-500">Visa • Vence 12/25</div>
-                </div>
-              </div>
-              <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                Principal
-              </span>
-            </div>
-          </div>
-          <button className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors">
-            + Agregar método de pago
-          </button>
-        </div>
+        <BillingMethods />
       </div>
 
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Historial de Facturación</h3>
-        <div className="space-y-3">
-          {[
-            { date: '2024-01-15', amount: 80000, description: 'Plan Premium - Enero 2024', status: 'Pagado' },
-            { date: '2023-12-15', amount: 80000, description: 'Plan Premium - Diciembre 2023', status: 'Pagado' },
-            { date: '2023-11-20', amount: 45000, description: 'Compra de créditos', status: 'Pagado' },
-          ].map((invoice, index) => (
-            <div key={index} className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-gray-900">{invoice.description}</div>
-                  <div className="text-sm text-gray-500">{invoice.date}</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-medium text-gray-900">
-                    {new Intl.NumberFormat('es-CO', {
-                      style: 'currency',
-                      currency: 'COP',
-                      minimumFractionDigits: 0
-                    }).format(invoice.amount)}
-                  </div>
-                  <div className="text-sm text-green-600">{invoice.status}</div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <BillingHistory />
       </div>
     </div>
   );
@@ -721,4 +735,83 @@ export default function SettingsPage() {
       )}
     </div>
   );
+}
+
+function BillingMethods() {
+  const [methods, setMethods] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ brand: 'Visa', last4: '', expMonth: 12, expYear: new Date().getFullYear() + 2, holderName: '' });
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res: any = await api.payments.getMethods();
+      setMethods(res?.methods || []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const add = async () => {
+    setAdding(true);
+    try {
+      await api.payments.addMethod({ ...form, setDefault: methods.length === 0 });
+      await load();
+      setForm({ brand: 'Visa', last4: '', expMonth: 12, expYear: new Date().getFullYear() + 2, holderName: '' });
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const del = async (id: string) => {
+    await api.payments.deleteMethod(id);
+    await load();
+  };
+
+  if (loading) return <div className="text-sm text-gray-500">Cargando métodos...</div>;
+
+  return (
+    <div className="space-y-3">
+      {methods.map((m) => (
+        <div key={m.id} className="border border-gray-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center">
+            <CreditCard className="h-5 w-5 text-gray-600 mr-3" />
+            <div>
+              <div className="font-medium text-gray-900">**** **** **** {m.last4}</div>
+              <div className="text-sm text-gray-500">{m.brand} • Vence {String(m.expMonth).padStart(2, '0')}/{String(m.expYear).slice(-2)}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {m.isDefault && <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">Principal</span>}
+            <button onClick={() => del(m.id)} className="text-sm text-red-600 hover:underline">Eliminar</button>
+          </div>
+        </div>
+      ))}
+
+      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <input className="border rounded px-3 py-2" placeholder="Nombre del titular" value={form.holderName} onChange={e => setForm({ ...form, holderName: e.target.value })} />
+          <input className="border rounded px-3 py-2" placeholder="Últimos 4" value={form.last4} onChange={e => setForm({ ...form, last4: e.target.value.replace(/[^0-9]/g,'').slice(0,4) })} />
+          <select className="border rounded px-3 py-2" value={form.brand} onChange={e => setForm({ ...form, brand: e.target.value })}>
+            <option>Visa</option>
+            <option>Mastercard</option>
+            <option>Amex</option>
+          </select>
+          <div className="flex gap-2">
+            <input className="border rounded px-3 py-2 w-24" placeholder="MM" value={form.expMonth} onChange={e => setForm({ ...form, expMonth: Number(e.target.value) })} />
+            <input className="border rounded px-3 py-2 w-28" placeholder="YYYY" value={form.expYear} onChange={e => setForm({ ...form, expYear: Number(e.target.value) })} />
+          </div>
+        </div>
+        <button onClick={add} disabled={adding} className="mt-3 w-full border rounded px-4 py-2 text-gray-700 hover:bg-gray-50">{adding ? 'Agregando...' : '+ Agregar método de pago'}</button>
+      </div>
+    </div>
+  );
+}
+
+function BillingHistory() {
+  // TODO: si se expone /api/payments, consumir y listar pagos; por ahora muestra vacío si no hay
+  return <div className="text-sm text-gray-500">Sin movimientos.</div>;
 }

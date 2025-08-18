@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@repo/auth';
 import { reservationService } from '../../../lib/services/reservation.service';
+import AuthService from '../../../lib/services/auth.service';
 import { z } from 'zod';
 
-// Esquema para crear reserva
+// Esquema para crear reserva (acepta UUID o CUID)
 const CreateReservationSchema = z.object({
-  courtId: z.string().cuid(),
+  courtId: z.string().min(1, 'courtId requerido'),
   startTime: z.string().datetime(),
   duration: z.number().min(30).max(480),
   isRecurring: z.boolean().optional().default(false),
@@ -19,12 +20,12 @@ const CreateReservationSchema = z.object({
   notes: z.string().optional(),
 });
 
-// Esquema para filtros de búsqueda
+// Esquema para filtros de búsqueda (acepta IDs genéricos)
 const GetReservationsSchema = z.object({
   status: z.string().optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
-  courtId: z.string().cuid().optional(),
+  courtId: z.string().min(1).optional(),
   page: z.string().transform(Number).optional().default('1'),
   limit: z.string().transform(Number).optional().default('20'),
 });
@@ -42,6 +43,21 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
+    // Alinear ID de sesión con usuario real en BD (autoprovisionado por OAuth)
+    const authService = new AuthService();
+    let finalUserId = session.user.id as string;
+    try {
+      const userById = await authService.getUserById(finalUserId);
+      if (!userById && session.user.email) {
+        const ensured = await authService.ensureUserByEmail(
+          session.user.email as string,
+          (session.user as any).name as string | undefined
+        );
+        finalUserId = ensured.id;
+      }
+    } catch {
+      // continuar con el ID de sesión si falla la comprobación
+    }
 
     const { searchParams } = new URL(request.url);
     const params = Object.fromEntries(searchParams.entries());
@@ -58,7 +74,7 @@ export async function GET(request: NextRequest) {
     }
     
     const reservations = await reservationService.getReservationsByUser(
-      session.user.id,
+      finalUserId,
       filters
     );
     
@@ -110,12 +126,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Asegurar que el usuario exista en la base de datos (autoprovisionamiento OAuth)
+    const authService = new AuthService();
+    let finalUserId = session.user.id as string;
+    try {
+      const userById = await authService.getUserById(finalUserId);
+      if (!userById && session.user.email) {
+        const ensured = await authService.ensureUserByEmail(
+          session.user.email as string,
+          (session.user as any).name as string | undefined
+        );
+        finalUserId = ensured.id;
+      }
+    } catch {
+      // Si algo falla en la comprobación/creación, continuamos y dejaremos que Prisma reporte con claridad
+    }
+
     const body = await request.json();
     const validatedData = CreateReservationSchema.parse(body);
     
     const reservation = await reservationService.createReservation({
       ...validatedData,
-      userId: session.user.id,
+      userId: finalUserId,
     });
     
     return NextResponse.json(

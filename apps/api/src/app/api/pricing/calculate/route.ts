@@ -3,13 +3,13 @@ import { auth } from '@repo/auth';
 import { pricingService } from '../../../../lib/services/pricing.service';
 import { z } from 'zod';
 
-// Esquema para calcular precio
+// Esquema para calcular precio (acepta UUID o CUID para mayor compatibilidad)
 const CalculatePriceSchema = z.object({
-  courtId: z.string().cuid(),
+  courtId: z.string().min(1, 'courtId requerido'),
   startTime: z.string().datetime(),
   duration: z.number().min(30).max(480),
-  userId: z.string().cuid().optional(),
-  membershipId: z.string().cuid().optional(),
+  userId: z.string().min(1).optional(),
+  membershipId: z.string().min(1).optional(),
   isRecurring: z.boolean().optional().default(false),
   recurringFrequency: z.enum(['weekly', 'biweekly', 'monthly']).optional(),
   recurringCount: z.number().min(1).max(52).optional(),

@@ -1,8 +1,8 @@
 import { Metadata } from 'next';
 
-export const metadata: Metadata = {
-  title: 'Autenticación - Polideportivo Oroquieta',
-  description: 'Inicia sesión o regístrate en Polideportivo Oroquieta',
+export const metadata = {
+  title: 'Autenticación - Polideportivo Victoria Hernandez',
+  description: 'Inicia sesión o regístrate en Polideportivo Victoria Hernandez',
 };
 
 export default function AuthLayout({
@@ -18,7 +18,7 @@ export default function AuthLayout({
           <div className="absolute inset-0 bg-black/20"></div>
           <div className="relative z-10 flex flex-col justify-center items-center text-white p-12">
             <div className="text-center">
-              <h1 className="text-4xl font-bold mb-4">Polideportivo Oroquieta</h1>
+              <h1 className="text-4xl font-bold mb-4">Polideportivo Victoria Hernandez</h1>
               <p className="text-xl mb-8 opacity-90">
                 Tu centro deportivo de confianza
               </p>

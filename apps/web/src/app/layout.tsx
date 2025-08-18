@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
 import './globals.css'
 
-export const metadata: Metadata = {
-  title: 'Polideportivo Oroquieta',
-  description: 'Plataforma de gestión del polideportivo de Oroquieta',
-}
+export const metadata = {
+  title: 'Polideportivo Victoria Hernandez',
+  description: 'Plataforma de gestión del polideportivo de Victoria Hernandez',
+};
 
 export default function RootLayout({
   children,

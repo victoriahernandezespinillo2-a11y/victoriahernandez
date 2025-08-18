@@ -64,7 +64,7 @@ const paymentConfig: Record<Reservation['paymentStatus'], { label: string; color
 };
 
 export default function ReservationsPage() {
-  const { reservations, loading, error, cancelReservation } = useReservations();
+  const { reservations, loading, error, cancelReservation, getReservations } = useReservations();
   const [linkLoadingId, setLinkLoadingId] = useState<string | null>(null);
   const [filteredReservations, setFilteredReservations] = useState<Reservation[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -121,6 +121,11 @@ export default function ReservationsPage() {
   useEffect(() => {
     applyFilters();
   }, [reservations, searchTerm, statusFilter, dateFilter]);
+
+  // Cargar reservas del usuario al montar
+  useEffect(() => {
+    getReservations().catch(() => {});
+  }, [getReservations]);
 
   const handleCancelReservation = async (reservationId: string) => {
     if (confirm('¿Estás seguro de que quieres cancelar esta reserva?')) {

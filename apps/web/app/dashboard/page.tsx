@@ -20,8 +20,8 @@ import { useUserProfile, useReservations } from '@/lib/hooks';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
-  const { profile, loading: profileLoading, error: profileError } = useUserProfile();
-  const { reservations, loading: reservationsLoading, error: reservationsError } = useReservations();
+  const { profile, loading: profileLoading, error: profileError, getProfile } = useUserProfile();
+  const { reservations, loading: reservationsLoading, error: reservationsError, getReservations } = useReservations();
   const [userStats, setUserStats] = useState({
     totalReservations: 0,
     upcomingReservations: 0,
@@ -85,6 +85,12 @@ export default function DashboardPage() {
       setRecentActivity(recent);
     }
   }, [reservations, profile]);
+
+  // Cargar datos (perfil y reservas) al montar
+  useEffect(() => {
+    getProfile().catch(() => {});
+    getReservations().catch(() => {});
+  }, [getProfile, getReservations]);
 
   if (status === 'loading' || profileLoading || reservationsLoading) {
     return (

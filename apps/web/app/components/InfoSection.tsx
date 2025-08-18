@@ -9,7 +9,7 @@ export function InfoSection() {
       title: "Sobre Nosotros",
       description: "Más de 10 años brindando experiencias deportivas excepcionales",
       icon: "fas fa-building",
-      content: "Somos el centro deportivo líder en Oroquieta, comprometidos con la excelencia y el bienestar de nuestra comunidad."
+      content: "Somos el centro deportivo líder en Victoria Hernandez, comprometidos con la excelencia y el bienestar de nuestra comunidad."
     },
     {
       title: "Horarios",
@@ -21,13 +21,13 @@ export function InfoSection() {
       title: "Ubicación",
       description: "Fácil acceso y amplio estacionamiento",
       icon: "fas fa-map-marker-alt",
-      content: "Av. Principal #123, Oroquieta, Andalucía, España\nZona deportiva central con transporte público"
+      content: "Av. Principal #123, Victoria Hernandez, Andalucía, España\nZona deportiva central con transporte público"
     },
     {
       title: "Contacto",
       description: "Estamos aquí para ayudarte",
       icon: "fas fa-phone",
-      content: "Teléfono: +34 123 456 789\nWhatsApp: +34 123 456 789\nEmail: info@polideportivooroquieta.es"
+      content: "Teléfono: +34 123 456 789\nWhatsApp: +34 123 456 789\nEmail: info@polideportivovictoriahernandez.es"
     }
   ];
 

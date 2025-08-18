@@ -9,8 +9,8 @@ import { DashboardHeader } from './components/DashboardHeader';
 export const runtime = 'nodejs';
 
 export const metadata = {
-  title: 'Dashboard - Polideportivo Oroquieta',
-  description: 'Panel de usuario del Polideportivo Oroquieta',
+  title: 'Dashboard - Polideportivo Victoria Hernandez',
+  description: 'Panel de usuario del Polideportivo Victoria Hernandez',
 };
 
 export default async function DashboardLayout({

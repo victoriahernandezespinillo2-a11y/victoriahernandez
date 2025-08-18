@@ -146,7 +146,7 @@ export function Navigation() {
                 <p className={`text-sm font-medium transition-colors duration-300 ${
                   isScrolled ? 'text-emerald-600' : 'text-emerald-200'
                 }`}>
-                  Oroquieta
+                  Victoria Hernandez
                 </p>
               </div>
             </div>
