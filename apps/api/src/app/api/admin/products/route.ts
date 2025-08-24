@@ -58,6 +58,16 @@ export async function POST(request: NextRequest) {
     try {
       const body = await req.json();
       const data = CreateProductSchema.parse(body);
+      
+      // Verificar si ya existe un producto con el mismo SKU
+      const existingProduct = await (db as any).product.findFirst({
+        where: { sku: data.sku }
+      });
+      
+      if (existingProduct) {
+        return ApiResponse.error('Ya existe un producto con este SKU', 400);
+      }
+      
       const created = await (db as any).product.create({ data: {
         centerId: data.centerId,
         name: data.name,

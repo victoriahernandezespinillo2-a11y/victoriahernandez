@@ -86,6 +86,20 @@ export class ReservationService {
           timestamp: new Date().toISOString()
         });
 
+        // 0) Advisory lock a nivel de BD para blindaje multi-instancia (clave derivada de cancha+franja)
+        const advisoryKey = `reservation:${validatedInput.courtId}:${startTime.toISOString()}:${endTime.toISOString()}`;
+        const lockRows = await (tx as any).$queryRaw<{ locked: boolean }[]>`
+          SELECT pg_try_advisory_xact_lock(
+            ('x'||substr(md5(${advisoryKey}),1,8))::bit(32)::int,
+            ('x'||substr(md5(${advisoryKey}),9,8))::bit(32)::int
+          ) as locked
+        `;
+        const locked = Array.isArray(lockRows) && lockRows[0] && (lockRows[0] as any).locked === true;
+        if (!locked) {
+          // Falla rápido si otra transacción ya está procesando la misma cancha y franja
+          throw new Error('El horario está siendo procesado por otro usuario. Intenta nuevamente en unos segundos.');
+        }
+
         // 1) Verificar disponibilidad al momento de crear
         await this.checkAvailability(tx, {
           courtId: validatedInput.courtId,
@@ -156,7 +170,7 @@ export class ReservationService {
         // eslint-disable-next-line no-console
         console.warn('No se pudo registrar outbox RESERVATION_CREATED:', e);
       }
-    } catch (error) {
+    } catch (error: any) {
       // 🔓 PASO 3: Liberar bloqueo en caso de error
       await reservationLockService.releaseLock(
         validatedInput.courtId,
@@ -164,7 +178,12 @@ export class ReservationService {
         endTime,
         validatedInput.userId
       );
-      // Re-lanzar el error
+      // Mapear violación de exclusión (solape de horario) a un mensaje de negocio claro
+      const msg = typeof error?.message === 'string' ? error.message : '';
+      if (msg.includes('23P01') || /exclusion constraint/i.test(msg) || /overlap/i.test(msg)) {
+        throw new Error('Horario no disponible');
+      }
+      // Re-lanzar el error original si no coincide
       throw error;
     }
 
@@ -492,58 +511,66 @@ export class ReservationService {
   async updateReservation(id: string, input: UpdateReservationInput): Promise<Reservation> {
     const validatedInput = UpdateReservationSchema.parse(input);
     
-    return await db.$transaction(async (tx: any) => {
-      const existingReservation = await tx.reservation.findUnique({
-        where: { id },
-      });
-      
-      if (!existingReservation) {
-        throw new Error('Reserva no encontrada');
-      }
-      
-      // Si se cambia la hora, verificar disponibilidad
-      if (validatedInput.startTime || validatedInput.duration) {
-        const newStartTime = validatedInput.startTime 
-          ? new Date(validatedInput.startTime) 
-          : existingReservation.startTime;
-        const newDuration = validatedInput.duration || 
-          (existingReservation.endTime.getTime() - existingReservation.startTime.getTime()) / 60000;
-        const newEndTime = new Date(newStartTime.getTime() + newDuration * 60000);
-        
-        await this.checkAvailability(tx, {
-          courtId: existingReservation.courtId,
-          startTime: newStartTime,
-          endTime: newEndTime,
+    try {
+      return await db.$transaction(async (tx: any) => {
+        const existingReservation = await tx.reservation.findUnique({
+          where: { id },
         });
-      }
-      
-      const updatedReservation = await tx.reservation.update({
-        where: { id },
-        data: {
-          ...validatedInput,
-          ...(validatedInput.startTime && { startTime: new Date(validatedInput.startTime) }),
-          ...(validatedInput.duration && {
-            endTime: new Date(
-              (validatedInput.startTime ? new Date(validatedInput.startTime) : existingReservation.startTime).getTime() + 
-              validatedInput.duration * 60000
-            ),
-          }),
-        },
-      });
-      
-      // Crear evento para procesamiento asíncrono
-      await tx.outboxEvent.create({
-        data: {
-          eventType: 'RESERVATION_UPDATED',
-          eventData: {
-            reservationId: updatedReservation.id,
-            changes: validatedInput,
+        
+        if (!existingReservation) {
+          throw new Error('Reserva no encontrada');
+        }
+        
+        // Si se cambia la hora, verificar disponibilidad
+        if (validatedInput.startTime || validatedInput.duration) {
+          const newStartTime = validatedInput.startTime 
+            ? new Date(validatedInput.startTime) 
+            : existingReservation.startTime;
+          const newDuration = validatedInput.duration || 
+            (existingReservation.endTime.getTime() - existingReservation.startTime.getTime()) / 60000;
+          const newEndTime = new Date(newStartTime.getTime() + newDuration * 60000);
+          
+          await this.checkAvailability(tx, {
+            courtId: existingReservation.courtId,
+            startTime: newStartTime,
+            endTime: newEndTime,
+          });
+        }
+        
+        const updatedReservation = await tx.reservation.update({
+          where: { id },
+          data: {
+            ...validatedInput,
+            ...(validatedInput.startTime && { startTime: new Date(validatedInput.startTime) }),
+            ...(validatedInput.duration && {
+              endTime: new Date(
+                (validatedInput.startTime ? new Date(validatedInput.startTime) : existingReservation.startTime).getTime() + 
+                validatedInput.duration * 60000
+              ),
+            }),
           },
-        },
+        });
+        
+        // Crear evento para procesamiento asíncrono
+        await tx.outboxEvent.create({
+          data: {
+            eventType: 'RESERVATION_UPDATED',
+            eventData: {
+              reservationId: updatedReservation.id,
+              changes: validatedInput,
+            },
+          },
+        });
+        
+        return updatedReservation;
       });
-      
-      return updatedReservation;
-    });
+    } catch (error: any) {
+      const msg = typeof error?.message === 'string' ? error.message : '';
+      if (msg.includes('23P01') || /exclusion constraint/i.test(msg) || /overlap/i.test(msg)) {
+        throw new Error('Horario no disponible');
+      }
+      throw error;
+    }
   }
 
   /**

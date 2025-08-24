@@ -29,6 +29,7 @@ interface Product {
   centerId: string;
   createdAt: string;
   updatedAt: string;
+  media?: any[]; // added
 }
 
 interface Center {
@@ -48,7 +49,7 @@ export default function ProductsPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [isCenterSelectOpen, setIsCenterSelectOpen] = useState(false);
+
   const [formData, setFormData] = useState({
     centerId: '',
     name: '',
@@ -61,6 +62,7 @@ export default function ProductsPage() {
     isPerishable: false,
     expiresAt: '',
     creditMultiplier: 0,
+    media: [] as any[], // added
   });
 
   // Usar el hook para manejar el scroll del body
@@ -101,12 +103,20 @@ export default function ProductsPage() {
       }
       
       // Verificar estructura de respuesta y establecer centers
-      if (data.success && Array.isArray(data.data)) {
+      // Formatos soportados:
+      // 1) { success: true, data: { data: [...] } }  -> actual API admin
+      // 2) { success: true, data: [...] }
+      // 3) { data: [...] }
+      // 4) [...]
+      const maybeNested = data?.data?.data;
+      if (Array.isArray(maybeNested)) {
+        setCenters(maybeNested);
+      } else if (data?.success && Array.isArray(data?.data)) {
         setCenters(data.data);
       } else if (Array.isArray(data)) {
         // Si la respuesta es directamente un array
         setCenters(data);
-      } else if (data.data && Array.isArray(data.data)) {
+      } else if (data?.data && Array.isArray(data.data)) {
         // Si la respuesta tiene estructura { data: [...] }
         setCenters(data.data);
       } else {
@@ -172,21 +182,68 @@ export default function ProductsPage() {
   };
 
   const handleCreate = async () => {
+    // Validaciones mínimas en frontend para evitar errores de Zod
+    const errors: string[] = [];
+    if (!formData.centerId) errors.push('Centro es requerido');
+    if (!formData.name || formData.name.trim().length < 2) errors.push('Nombre debe tener al menos 2 caracteres');
+    if (!formData.sku || formData.sku.trim().length < 1) errors.push('SKU es requerido');
+    if (!formData.category || formData.category.trim().length < 1) errors.push('Categoría es requerida');
+    if (!formData.priceEuro || Number(formData.priceEuro) <= 0) errors.push('Precio debe ser mayor que 0');
+
+    if (errors.length) {
+      toast.error(errors.join(' • '));
+      return;
+    }
+
+    // Construir payload acorde al esquema del backend
+    const payload: any = {
+      centerId: formData.centerId,
+      name: formData.name.trim(),
+      sku: formData.sku.trim(),
+      category: formData.category.trim(),
+      priceEuro: Number(formData.priceEuro),
+      taxRate: Number.isFinite(Number(formData.taxRate)) ? Number(formData.taxRate) : 0,
+      stockQty: Number.isFinite(Number(formData.stockQty)) ? Math.max(0, Math.floor(Number(formData.stockQty))) : 0,
+      isActive: !!formData.isActive,
+      isPerishable: !!formData.isPerishable,
+      media: Array.isArray(formData.media) ? formData.media : [],
+    };
+    if (formData.expiresAt && formData.expiresAt.trim() !== '') {
+      const iso = new Date(formData.expiresAt).toISOString();
+      payload.expiresAt = iso;
+    }
+    if (formData.creditMultiplier && Number(formData.creditMultiplier) > 0) {
+      payload.creditMultiplier = Number(formData.creditMultiplier);
+    }
+
     try {
       const response = await fetch('/api/admin/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
-      const data = await response.json();
-      if (data.success) {
+
+      const text = await response.text();
+      let data: any = null;
+      try { data = text ? JSON.parse(text) : null; } catch { /* noop */ }
+
+      if (!response.ok) {
+        const message = data?.error || data?.message || `Error ${response.status}`;
+        const details = Array.isArray(data?.details) ? data.details.map((d: any) => `${d.field}: ${d.message}`).join(', ') : '';
+        toast.error(details ? `${message}: ${details}` : message);
+        return;
+      }
+
+      if (data?.success) {
         toast.success('Producto creado exitosamente');
         setIsCreateDialogOpen(false);
         resetForm();
         fetchProducts();
       } else {
-        toast.error(data.message || 'Error creando producto');
+        const message = data?.error || data?.message || 'Error creando producto';
+        const details = Array.isArray(data?.details) ? data.details.map((d: any) => `${d.field}: ${d.message}`).join(', ') : '';
+        toast.error(details ? `${message}: ${details}` : message);
       }
     } catch (error) {
       console.error('Error creating product:', error);
@@ -196,22 +253,56 @@ export default function ProductsPage() {
 
   const handleUpdate = async () => {
     if (!editingProduct) return;
+
+    // Construir payload de actualización, omitiendo opcionales inválidos
+    const payload: any = {
+      centerId: formData.centerId,
+      name: formData.name?.trim(),
+      sku: formData.sku?.trim(),
+      category: formData.category?.trim(),
+      priceEuro: Number.isFinite(Number(formData.priceEuro)) ? Number(formData.priceEuro) : undefined,
+      taxRate: Number.isFinite(Number(formData.taxRate)) ? Number(formData.taxRate) : undefined,
+      stockQty: Number.isFinite(Number(formData.stockQty)) ? Math.max(0, Math.floor(Number(formData.stockQty))) : undefined,
+      isActive: !!formData.isActive,
+      isPerishable: !!formData.isPerishable,
+      media: Array.isArray(formData.media) ? formData.media : undefined,
+    };
+    if (formData.expiresAt && formData.expiresAt.trim() !== '') {
+      payload.expiresAt = new Date(formData.expiresAt).toISOString();
+    }
+    if (formData.creditMultiplier && Number(formData.creditMultiplier) > 0) {
+      payload.creditMultiplier = Number(formData.creditMultiplier);
+    }
+
     try {
       const response = await fetch(`/api/admin/products/${editingProduct.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
-      const data = await response.json();
-      if (data.success) {
+
+      const text = await response.text();
+      let data: any = null;
+      try { data = text ? JSON.parse(text) : null; } catch { /* noop */ }
+
+      if (!response.ok) {
+        const message = data?.error || data?.message || `Error ${response.status}`;
+        const details = Array.isArray(data?.details) ? data.details.map((d: any) => `${d.field}: ${d.message}`).join(', ') : '';
+        toast.error(details ? `${message}: ${details}` : message);
+        return;
+      }
+
+      if (data?.success) {
         toast.success('Producto actualizado exitosamente');
         setIsEditDialogOpen(false);
         setEditingProduct(null);
         resetForm();
         fetchProducts();
       } else {
-        toast.error(data.message || 'Error actualizando producto');
+        const message = data?.error || data?.message || 'Error actualizando producto';
+        const details = Array.isArray(data?.details) ? data.details.map((d: any) => `${d.field}: ${d.message}`).join(', ') : '';
+        toast.error(details ? `${message}: ${details}` : message);
       }
     } catch (error) {
       console.error('Error updating product:', error);
@@ -252,7 +343,107 @@ export default function ProductsPage() {
       isPerishable: false,
       expiresAt: '',
       creditMultiplier: 0,
+      media: [], // added
     });
+  };
+
+  // Gestión de media
+  const addMedia = (asset: any) => {
+    setFormData((prev) => ({ ...prev, media: [...(prev.media || []), asset] }));
+  };
+  const removeMedia = (index: number) => {
+    setFormData((prev) => ({ ...prev, media: (prev.media || []).filter((_, i) => i !== index) }));
+  };
+  const moveMedia = (from: number, to: number) => {
+    setFormData((prev) => {
+      const arr = [...(prev.media || [])];
+      if (from < 0 || to < 0 || from >= arr.length || to >= arr.length) return prev;
+      const [item] = arr.splice(from, 1);
+      arr.splice(to, 0, item);
+      return { ...prev, media: arr };
+    });
+  };
+
+  // Carga de imágenes con Cloudinary Upload Widget (firma desde backend)
+  const openCloudinary = async () => {
+    try {
+      // Primer request para obtener cloudName y apiKey
+      const baseRes = await fetch('/api/admin/products/uploads/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ folder: 'products' }),
+      });
+      const baseJson = await baseRes.json();
+      if (!baseRes.ok || !baseJson?.success) {
+        toast.error(baseJson?.message || 'Error obteniendo firma de subida');
+        return;
+      }
+      const { cloudName, apiKey, folder } = baseJson.data;
+
+      // @ts-ignore
+      if (!window.cloudinary) {
+        const script = document.createElement('script');
+        script.src = 'https://widget.cloudinary.com/v2.0/global/all.js';
+        script.onload = () => openCloudinary();
+        document.body.appendChild(script);
+        return;
+      }
+
+      // @ts-ignore
+      const widget = window.cloudinary.createUploadWidget(
+        {
+          cloudName,
+          apiKey,
+          multiple: true,
+          folder,
+          cropping: false,
+          sources: ['local', 'camera', 'url'],
+          uploadSignature: async (callback: (signature: string, timestamp: number) => void, paramsToSign: Record<string, any>) => {
+            try {
+              const res = await fetch('/api/admin/products/uploads/sign', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ folder, paramsToSign }),
+              });
+              const json = await res.json();
+              if (!res.ok || !json?.success) {
+                toast.error(json?.message || 'Error generando firma');
+                return;
+              }
+              const { signature, timestamp } = json.data;
+              callback(signature, timestamp);
+            } catch (err) {
+              console.error('Error firmando subida', err);
+              toast.error('Error firmando subida');
+            }
+          },
+        },
+        (error: any, result: any) => {
+          if (error) {
+            console.error('Cloudinary widget error', error);
+            return;
+          }
+          if (result?.event === 'success') {
+            const info = result.info;
+            const asset = {
+              url: info.secure_url,
+              publicId: info.public_id,
+              width: info.width,
+              height: info.height,
+              format: info.format,
+              resourceType: info.resource_type,
+            };
+            addMedia(asset);
+          }
+        }
+      );
+      widget.open();
+    } catch (e) {
+      console.error('Cloudinary widget error', e);
+      toast.error('Error abriendo el widget de subida');
+    }
   };
 
   const openEditDialog = (product: Product) => {
@@ -269,6 +460,7 @@ export default function ProductsPage() {
       isPerishable: product.isPerishable,
       expiresAt: product.expiresAt || '',
       creditMultiplier: product.creditMultiplier || 0,
+      media: (product.media as any[]) || [], // added
     });
     setIsEditDialogOpen(true);
   };
@@ -281,7 +473,10 @@ export default function ProductsPage() {
         {/* Modal de Crear Producto */}
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <Button 
+              onClick={() => setIsCreateDialogOpen(true)}
+              className="bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-2 rounded-md shadow-sm transition-colors duration-200 flex items-center"
+            >
               <PlusIcon className="h-4 w-4 mr-2" />
               Nuevo Producto
             </Button>
@@ -298,7 +493,11 @@ export default function ProductsPage() {
                     <Label htmlFor="centerId">Centro</Label>
                     <Select value={formData.centerId} onValueChange={(value) => setFormData({ ...formData, centerId: value })}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar centro" />
+                        <SelectValue placeholder="Seleccionar centro">
+                          {formData.centerId && Array.isArray(centers)
+                            ? centers.find((c) => c.id === formData.centerId)?.name
+                            : "Seleccionar centro"}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {centers.map((center) => (
@@ -342,7 +541,7 @@ export default function ProductsPage() {
                       id="priceEuro"
                       type="number"
                       step="0.01"
-                      value={formData.priceEuro}
+                      value={formData.priceEuro === 0 ? '' : formData.priceEuro}
                       onChange={(e) => setFormData({ ...formData, priceEuro: parseFloat(e.target.value) || 0 })}
                       placeholder="0.00"
                     />
@@ -353,7 +552,7 @@ export default function ProductsPage() {
                       id="taxRate"
                       type="number"
                       step="0.01"
-                      value={formData.taxRate}
+                      value={formData.taxRate === 0 ? '' : formData.taxRate}
                       onChange={(e) => setFormData({ ...formData, taxRate: parseFloat(e.target.value) || 0 })}
                       placeholder="0"
                     />
@@ -363,7 +562,7 @@ export default function ProductsPage() {
                     <Input
                       id="stockQty"
                       type="number"
-                      value={formData.stockQty}
+                      value={formData.stockQty === 0 ? '' : formData.stockQty}
                       onChange={(e) => setFormData({ ...formData, stockQty: parseInt(e.target.value) || 0 })}
                       placeholder="0"
                     />
@@ -374,7 +573,7 @@ export default function ProductsPage() {
                       id="creditMultiplier"
                       type="number"
                       step="0.01"
-                      value={formData.creditMultiplier}
+                      value={formData.creditMultiplier === 0 ? '' : formData.creditMultiplier}
                       onChange={(e) => setFormData({ ...formData, creditMultiplier: parseFloat(e.target.value) || 0 })}
                       placeholder="0.00"
                     />
@@ -405,6 +604,55 @@ export default function ProductsPage() {
                     <Label htmlFor="isPerishable">Perecedero</Label>
                   </div>
                 </div>
+
+                {/* Gestión de imágenes - Crear */}
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>Imágenes</Label>
+                    <Button type="button" variant="outline" onClick={openCloudinary}>
+                      Subir imágenes
+                    </Button>
+                  </div>
+                  {formData.media && formData.media.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {formData.media.map((m: any, idx: number) => (
+                        <div key={m.publicId || idx} className="border rounded p-2">
+                          <img src={m.url} alt={`media-${idx}`} className="w-full h-24 object-cover rounded" />
+                          <div className="mt-2 flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={idx === 0}
+                              onClick={() => moveMedia(idx, Math.max(0, idx - 1))}
+                              title="Mover arriba"
+                            >
+                              ↑
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={idx === (formData.media?.length || 1) - 1}
+                              onClick={() => moveMedia(idx, Math.min((formData.media?.length || 1) - 1, idx + 1))}
+                              title="Mover abajo"
+                            >
+                              ↓
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => removeMedia(idx)}
+                              title="Eliminar"
+                            >
+                              <TrashIcon className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">No hay imágenes aún.</p>
+                  )}
+                </div>
               </DialogBody>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
@@ -432,40 +680,22 @@ export default function ProductsPage() {
             </div>
           </div>
           <div className="relative">
-            <Select>
-              <SelectTrigger 
-                className="w-48" 
-                onClick={() => setIsCenterSelectOpen(!isCenterSelectOpen)}
-              >
-                <SelectValue>
+            <Select value={selectedCenter} onValueChange={setSelectedCenter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Todos los centros">
                   {selectedCenter && Array.isArray(centers) ? centers.find(c => c.id === selectedCenter)?.name : "Todos los centros"}
                 </SelectValue>
               </SelectTrigger>
-              {isCenterSelectOpen && (
-                <SelectContent>
-                  <SelectItem 
-                    value="" 
-                    onClick={() => {
-                      setSelectedCenter('');
-                      setIsCenterSelectOpen(false);
-                    }}
-                  >
-                    Todos los centros
+              <SelectContent>
+                <SelectItem value="">
+                  Todos los centros
+                </SelectItem>
+                {Array.isArray(centers) && centers.map((center) => (
+                  <SelectItem key={center.id} value={center.id}>
+                    {center.name}
                   </SelectItem>
-                  {Array.isArray(centers) && centers.map((center) => (
-                    <SelectItem 
-                      key={center.id} 
-                      value={center.id}
-                      onClick={() => {
-                        setSelectedCenter(center.id);
-                        setIsCenterSelectOpen(false);
-                      }}
-                    >
-                      {center.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              )}
+                ))}
+              </SelectContent>
             </Select>
           </div>
           <div className="flex items-center space-x-2">
@@ -630,7 +860,7 @@ export default function ProductsPage() {
                     id="edit-priceEuro"
                     type="number"
                     step="0.01"
-                    value={formData.priceEuro}
+                    value={formData.priceEuro === 0 ? '' : formData.priceEuro}
                     onChange={(e) => setFormData({ ...formData, priceEuro: parseFloat(e.target.value) || 0 })}
                     placeholder="0.00"
                   />
@@ -641,7 +871,7 @@ export default function ProductsPage() {
                     id="edit-taxRate"
                     type="number"
                     step="0.01"
-                    value={formData.taxRate}
+                    value={formData.taxRate === 0 ? '' : formData.taxRate}
                     onChange={(e) => setFormData({ ...formData, taxRate: parseFloat(e.target.value) || 0 })}
                     placeholder="0"
                   />
@@ -651,7 +881,7 @@ export default function ProductsPage() {
                   <Input
                     id="edit-stockQty"
                     type="number"
-                    value={formData.stockQty}
+                    value={formData.stockQty === 0 ? '' : formData.stockQty}
                     onChange={(e) => setFormData({ ...formData, stockQty: parseInt(e.target.value) || 0 })}
                     placeholder="0"
                   />
@@ -662,7 +892,7 @@ export default function ProductsPage() {
                     id="edit-creditMultiplier"
                     type="number"
                     step="0.01"
-                    value={formData.creditMultiplier}
+                    value={formData.creditMultiplier === 0 ? '' : formData.creditMultiplier}
                     onChange={(e) => setFormData({ ...formData, creditMultiplier: parseFloat(e.target.value) || 0 })}
                     placeholder="0.00"
                   />
@@ -692,6 +922,55 @@ export default function ProductsPage() {
                   />
                   <Label htmlFor="edit-isPerishable">Perecedero</Label>
                 </div>
+              </div>
+
+              {/* Gestión de imágenes - Editar */}
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Imágenes</Label>
+                  <Button type="button" variant="outline" onClick={openCloudinary}>
+                    Subir imágenes
+                  </Button>
+                </div>
+                {formData.media && formData.media.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {formData.media.map((m: any, idx: number) => (
+                      <div key={m.publicId || idx} className="border rounded p-2">
+                        <img src={m.url} alt={`media-${idx}`} className="w-full h-24 object-cover rounded" />
+                        <div className="mt-2 flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={idx === 0}
+                            onClick={() => moveMedia(idx, Math.max(0, idx - 1))}
+                            title="Mover arriba"
+                          >
+                            ↑
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={idx === (formData.media?.length || 1) - 1}
+                            onClick={() => moveMedia(idx, Math.min((formData.media?.length || 1) - 1, idx + 1))}
+                            title="Mover abajo"
+                          >
+                            ↓
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => removeMedia(idx)}
+                            title="Eliminar"
+                          >
+                            <TrashIcon className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No hay imágenes aún.</p>
+                )}
               </div>
             </DialogBody>
             <DialogFooter>

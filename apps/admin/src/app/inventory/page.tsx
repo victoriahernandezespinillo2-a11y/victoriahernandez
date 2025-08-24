@@ -46,7 +46,7 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [selectedCenter, setSelectedCenter] = useState('');
   const [isMovementDialogOpen, setIsMovementDialogOpen] = useState(false);
-  const [isCenterSelectOpen, setIsCenterSelectOpen] = useState(false);
+
   const [formData, setFormData] = useState({
     productId: '',
     type: 'IN' as 'IN' | 'OUT' | 'ADJUST' | 'WASTE',
@@ -90,12 +90,20 @@ export default function InventoryPage() {
       }
       
       // Verificar estructura de respuesta y establecer centers
-      if (data.success && Array.isArray(data.data)) {
+      // Formatos soportados:
+      // 1) { success: true, data: { data: [...] } }  -> actual API admin
+      // 2) { success: true, data: [...] }
+      // 3) { data: [...] }
+      // 4) [...]
+      const maybeNested = data?.data?.data;
+      if (Array.isArray(maybeNested)) {
+        setCenters(maybeNested);
+      } else if (data?.success && Array.isArray(data?.data)) {
         setCenters(data.data);
       } else if (Array.isArray(data)) {
         // Si la respuesta es directamente un array
         setCenters(data);
-      } else if (data.data && Array.isArray(data.data)) {
+      } else if (data?.data && Array.isArray(data.data)) {
         // Si la respuesta tiene estructura { data: [...] }
         setCenters(data.data);
       } else {
@@ -111,7 +119,7 @@ export default function InventoryPage() {
   const fetchProducts = async () => {
     try {
       const params = new URLSearchParams({
-        limit: '1000',
+        limit: '100',
         ...(search && { search }),
         ...(selectedCenter && { centerId: selectedCenter }),
         active: 'true',
@@ -253,7 +261,10 @@ export default function InventoryPage() {
         {/* Modal de Movimiento de Inventario */}
         <Dialog open={isMovementDialogOpen} onOpenChange={setIsMovementDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setIsMovementDialogOpen(true)}>
+            <Button 
+              onClick={() => setIsMovementDialogOpen(true)}
+              className="bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-2 rounded-md shadow-sm transition-colors duration-200 flex items-center"
+            >
               <PlusIcon className="h-4 w-4 mr-2" />
               Nuevo Movimiento
             </Button>
@@ -344,40 +355,22 @@ export default function InventoryPage() {
             </div>
           </div>
           <div className="relative">
-            <Select>
-              <SelectTrigger 
-                className="w-48" 
-                onClick={() => setIsCenterSelectOpen(!isCenterSelectOpen)}
-              >
-                <SelectValue>
+            <Select value={selectedCenter} onValueChange={setSelectedCenter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Todos los centros">
                   {selectedCenter && Array.isArray(centers) ? centers.find(c => c.id === selectedCenter)?.name : "Todos los centros"}
                 </SelectValue>
               </SelectTrigger>
-              {isCenterSelectOpen && (
-                <SelectContent>
-                  <SelectItem 
-                    value="" 
-                    onClick={() => {
-                      setSelectedCenter('');
-                      setIsCenterSelectOpen(false);
-                    }}
-                  >
-                    Todos los centros
+              <SelectContent>
+                <SelectItem value="">
+                  Todos los centros
+                </SelectItem>
+                {Array.isArray(centers) && centers.map((center) => (
+                  <SelectItem key={center.id} value={center.id}>
+                    {center.name}
                   </SelectItem>
-                  {Array.isArray(centers) && centers.map((center) => (
-                    <SelectItem 
-                      key={center.id} 
-                      value={center.id}
-                      onClick={() => {
-                        setSelectedCenter(center.id);
-                        setIsCenterSelectOpen(false);
-                      }}
-                    >
-                      {center.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              )}
+                ))}
+              </SelectContent>
             </Select>
           </div>
         </div>

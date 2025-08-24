@@ -11,6 +11,7 @@ interface ButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   type?: 'button' | 'submit' | 'reset';
+  title?: string;
 }
 
 export const Button = ({ 
@@ -20,15 +21,17 @@ export const Button = ({
   size = 'default',
   onClick,
   disabled = false,
-  type = 'button'
+  type = 'button',
+  title
 }: ButtonProps) => {
   const baseClasses = "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none"
   
   const variantClasses = {
-    default: "bg-primary text-primary-foreground hover:bg-primary/90",
-    outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-    ghost: "hover:bg-accent hover:text-accent-foreground",
-    destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+    // Cambiamos a colores seguros (azules) para asegurar visibilidad si no hay tokens CSS configurados
+    default: "bg-blue-600 text-white hover:bg-blue-700",
+    outline: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900",
+    ghost: "text-gray-700 hover:bg-gray-100 hover:text-gray-900",
+    destructive: "bg-red-600 text-white hover:bg-red-700"
   }
   
   const sizeClasses = {
@@ -50,6 +53,7 @@ export const Button = ({
       className={classes}
       onClick={onClick}
       disabled={disabled}
+      title={title}
     >
       {children}
     </button>

@@ -37,5 +37,32 @@ export async function POST(request: NextRequest) {
 
 export async function OPTIONS() { return ApiResponse.success(null); }
 
+export async function GET(request: NextRequest) {
+  return withAdminMiddleware(async (req) => {
+    try {
+      const search = req.nextUrl.searchParams;
+      const limitParam = search.get('limit');
+      const productId = search.get('productId') || undefined;
+      const centerId = search.get('centerId') || undefined;
+      const limit = Math.min(Math.max(Number(limitParam) || 50, 1), 200);
+
+      const where: any = {};
+      if (productId) where.productId = productId;
+      if (centerId) where.product = { centerId };
+
+      const items = await (db as any).inventoryMovement.findMany({
+        where,
+        include: { product: { select: { name: true, sku: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      });
+
+      return ApiResponse.success(items);
+    } catch (error) {
+      return ApiResponse.internalError('Error listando movimientos de inventario');
+    }
+  })(request);
+}
+
 
 

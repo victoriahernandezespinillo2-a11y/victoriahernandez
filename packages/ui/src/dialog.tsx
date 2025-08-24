@@ -77,10 +77,10 @@ const DialogContent = React.forwardRef<
     {...props}
   >
     {/* Overlay */}
-    <div className="absolute inset-0 bg-black/50" />
+    <div className="absolute inset-0 bg-black/50 pointer-events-none" />
     
     {/* Modal Content */}
-    <div className="relative bg-white rounded-lg shadow-xl border border-gray-200 max-h-[90vh] overflow-y-auto w-full max-w-2xl">
+    <div className="relative z-10 bg-white rounded-lg shadow-xl border border-gray-200 w-full max-w-2xl max-h-[90vh] flex flex-col">
       {children}
     </div>
   </div>
@@ -117,7 +117,7 @@ const DialogBody = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("p-6 pt-0", className)}
+    className={cn("p-6 pt-0 flex-1 overflow-y-auto", className)}
     {...props}
   />
 ))

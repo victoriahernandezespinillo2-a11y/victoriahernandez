@@ -56,7 +56,15 @@ export async function GET(request: NextRequest) {
     let finalUserId: string | undefined;
     
     try {
-      const session = await getAuthenticatedUser(req);
+      // 1) Intentar con usuario provisto por middleware (JWT Bearer)
+      const contextUser = context?.user;
+      let session: any = contextUser ? { id: contextUser.id, email: contextUser.email } : null;
+
+      // 2) Si no hay usuario en contexto, intentar con NextAuth
+      if (!session) {
+        session = await getAuthenticatedUser(req);
+      }
+
       if (!session?.id) {
         return NextResponse.json(
           { error: 'No autorizado' },
@@ -144,7 +152,15 @@ export async function POST(request: NextRequest) {
   let body: any;
   
   try {
-      const session = await getAuthenticatedUser(req);
+      // 1) Intentar con usuario provisto por middleware (JWT Bearer)
+      const contextUser = context?.user;
+      let session: any = contextUser ? { id: contextUser.id, email: contextUser.email } : null;
+
+      // 2) Si no hay usuario en contexto, intentar con NextAuth
+      if (!session) {
+        session = await getAuthenticatedUser(req);
+      }
+
     if (!session?.id) {
       return NextResponse.json(
         { error: 'No autorizado' },
@@ -218,114 +234,64 @@ export async function POST(request: NextRequest) {
         }
 
         await tx.user.update({ where: { id: finalUserId }, data: { creditsBalance: { decrement: creditsNeeded } } });
-        reservation = await tx.reservation.update({ where: { id: reservation.id }, data: { status: 'PAID' as any, paymentMethod: 'CREDITS' } });
+        await tx.reservation.update({ where: { id: reservation.id }, data: { status: 'PAID', paymentMethod: 'CREDITS' } });
 
-        // Registrar en ledger del monedero
         await tx.walletLedger.create({
           data: {
-            userId: finalUserId,
+            userId: finalUserId!,
+            reservationId: reservation.id,
+            amount: -creditsNeeded,
             type: 'DEBIT',
-            reason: 'ORDER',
-            credits: creditsNeeded,
-            balanceAfter: (user.creditsBalance || 0) - creditsNeeded,
-            metadata: { reservationId: reservation.id, euroPerCredit },
-            idempotencyKey: idemKey || null,
+            description: 'Pago de reserva con créditos',
+            idempotency_key: idemKey,
           }
         });
 
-        // Outbox para downstream
         await tx.outboxEvent.create({
           data: {
-            eventType: 'CREDITS_DEBITED',
-            eventData: { reservationId: reservation.id, userId: finalUserId, credits: creditsNeeded, euroPerCredit } as any,
+            type: 'reservation_paid',
+            payload: {
+              reservationId: reservation.id,
+              userId: finalUserId,
+              amount,
+              creditsUsed: creditsNeeded,
+              paymentMethod: 'CREDITS'
+            },
           }
         });
       });
     }
 
-    return NextResponse.json(
-      {
-        message: 'Reserva creada exitosamente',
-        reservation,
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({ reservation }, { status: 201 });
   } catch (error) {
-    // 🔍 LOGGING PROFESIONAL PARA DEBUGGING
-    console.error('🚨 [RESERVATIONS-API] Error creando reserva:', {
-      error: {
-        message: error instanceof Error ? error.message : 'Error desconocido',
-        name: error instanceof Error ? error.name : 'Unknown',
-        stack: error instanceof Error ? error.stack : undefined,
-        code: (error as any)?.code,
-        meta: (error as any)?.meta,
-        cause: (error as any)?.cause
-      },
-      userId: finalUserId || 'undefined',
-      timestamp: new Date().toISOString(),
-      requestData: {
-        courtId: body?.courtId || 'undefined',
-        startTime: body?.startTime || 'undefined',
-        duration: body?.duration || 'undefined',
-        hasNotes: !!body?.notes
-      }
-    });
-    
+    console.error('Error creando reserva:', error);
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Parámetros inválidos', details: error.errors },
+        { error: 'Datos inválidos', details: error.errors },
         { status: 400 }
       );
     }
-    
-    if (error instanceof Error) {
-      // 🔒 Errores específicos del negocio
-      if (error.message.includes('no disponible') || 
-          error.message.includes('no está disponible') ||
-          error.message.includes('mantenimiento')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 409 } // Conflict
-        );
-      }
-      
-      // 🚨 MANEJO ESPECÍFICO DEL ERROR DE CONFLICTO DE USUARIO
-      if (error.message.includes('usuario ya tiene') || 
-          error.message.includes('ya tiene una reserva')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 409 } // Conflict
-        );
-      }
-      
-      // 💳 Errores de créditos
-      if (error.message.includes('créditos') || 
-          error.message.includes('saldo') ||
-          error.message.includes('insuficiente')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 402 } // Payment Required
-        );
-      }
-      
-      // 🏟️ Errores de cancha
-      if (error.message.includes('cancha') || 
-          error.message.includes('court')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 400 } // Bad Request
-        );
-      }
-    }
-    
-    if (process.env.NODE_ENV !== 'production') {
-      const err = error as Error;
+
+    // Mapear errores de negocio conocidos a 409 Conflict
+    const message = (error as Error)?.message || '';
+    const conflictPhrases = [
+      'Horario no disponible',
+      'El usuario ya tiene una reserva',
+      'Cancha en mantenimiento',
+      'El horario está siendo procesado'
+    ];
+    if (conflictPhrases.some((m) => message.includes(m))) {
       return NextResponse.json(
-        { error: err?.message || 'Error interno del servidor', stack: err?.stack },
-        { status: 500 }
+        { error: message || 'Conflicto al crear la reserva' },
+        { status: 409 }
       );
     }
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+
+    return NextResponse.json(
+      { error: 'Error interno del servidor' },
+      { status: 500 }
+    );
   }
   })(request);
 }
