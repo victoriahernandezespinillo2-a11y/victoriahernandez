@@ -28,11 +28,17 @@ export const metadata: Metadata = {
     type: "website",
     locale: "es_ES",
   },
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [{ url: "/icons/icon.svg" }],
+    apple: [{ url: "/icons/maskable-icon.svg" }],
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#0ea5e9",
 };
 
 export default function RootLayout({
@@ -43,6 +49,7 @@ export default function RootLayout({
   return (
     <html lang="es" className="scroll-smooth" data-scroll-behavior="smooth">
       <head>
+        <link rel="manifest" href="/manifest.webmanifest" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
