@@ -67,7 +67,7 @@ export default function MembershipsPage() {
       .catch(() => setPlanTypes([]));
 
     // Cargar membresía actual
-    fetch('/api/memberships?limit=1&sortBy=endDate&sortOrder=desc', { credentials: 'include' })
+    fetch('/api/memberships?limit=1&sortBy=validUntil&sortOrder=desc', { credentials: 'include' })
       .then(res => res.ok ? res.json() : Promise.reject(res))
       .then(json => {
         const memberships = (json.data?.memberships || json.memberships || []) as ApiMembership[];

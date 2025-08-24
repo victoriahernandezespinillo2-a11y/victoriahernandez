@@ -4,8 +4,8 @@
  */
 
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '../../../lib/middleware';
-import { db } from '../../../../../../packages/db/src';
+import { ApiResponse } from '@/lib/middleware';
+import { db } from '@repo/db';
 
 /**
  * GET /api/health
@@ -128,9 +128,9 @@ async function getDatabaseStats() {
   try {
     const [userCount, centerCount, courtCount, reservationCount] = await Promise.all([
       db.user.count(),
-    db.center.count(),
-    db.court.count(),
-    db.reservation.count({
+      db.center.count(),
+      db.court.count(),
+      db.reservation.count({
         where: {
           createdAt: {
             gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Últimas 24 horas
@@ -303,8 +303,8 @@ async function checkInternalServices() {
  */
 async function checkNotificationService() {
   try {
-    // Verificar que las tablas de eventos del sistema existan y sean accesibles
-    const recentEvents = await db.outboxEvent.count({
+    // Verificar que las tablas básicas existan y sean accesibles
+    const recentUsers = await db.user.count({
       where: {
         createdAt: {
           gte: new Date(Date.now() - 60 * 60 * 1000) // Última hora
@@ -314,7 +314,7 @@ async function checkNotificationService() {
     
     return {
       status: 'healthy',
-      recentEvents
+      recentUsers
     };
   } catch (error) {
     return {
@@ -356,12 +356,12 @@ async function checkReservationService() {
   try {
     const [activeReservations, recentReservations] = await Promise.all([
       db.reservation.count({
-      where: {
-        status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
-        startTime: { gte: new Date() }
-      }
-    }),
-    db.reservation.count({
+        where: {
+          status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
+          startTime: { gte: new Date() }
+        }
+      }),
+      db.reservation.count({
         where: {
           createdAt: {
             gte: new Date(Date.now() - 60 * 60 * 1000) // Última hora

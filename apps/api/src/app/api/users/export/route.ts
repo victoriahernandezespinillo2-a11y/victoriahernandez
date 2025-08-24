@@ -4,7 +4,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { withAuthMiddleware, ApiResponse } from '../../../../lib/middleware';
+import { withAuthMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 
 export async function GET(req: NextRequest) {
@@ -48,5 +48,10 @@ export async function GET(req: NextRequest) {
 export async function OPTIONS() {
   return new Response(null, { status: 200 });
 }
+
+
+
+
+
 
 

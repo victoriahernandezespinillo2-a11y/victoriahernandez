@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { PricingService } from './pricing.service';
 import { NotificationService } from '@repo/notifications';
 import { PaymentService } from '@repo/payments';
+import { reservationLockService } from './reservation-lock.service';
 // Importar qrcode dinámicamente donde se usa para evitar error de tipos en compilación
 
 // Esquemas de validación
@@ -48,72 +49,123 @@ export class ReservationService {
    */
   async createReservation(input: CreateReservationInput): Promise<Reservation> {
     const validatedInput = CreateReservationSchema.parse(input);
+    
+    const startTime = new Date(validatedInput.startTime);
+    const endTime = new Date(startTime.getTime() + validatedInput.duration * 60000);
 
-    // Calcular precio fuera de la transacción (solo lecturas)
-    const computedPrice = await this.pricingService.calculatePrice({
-      courtId: validatedInput.courtId,
-      startTime: new Date(validatedInput.startTime),
-      duration: validatedInput.duration,
-      userId: validatedInput.userId,
-    });
+    // 🔒 PASO 1: Intentar adquirir bloqueo temporal
+    const lockAcquired = await reservationLockService.acquireLock(
+      validatedInput.courtId,
+      startTime,
+      endTime,
+      validatedInput.userId
+    );
 
-    // Operaciones críticas dentro de transacción con mayor timeout
-    const reservation = await (db as any).$transaction(async (tx: any) => {
-      // 1) Verificar disponibilidad al momento de crear
-      await this.checkAvailability(tx, {
-        courtId: validatedInput.courtId,
-        startTime: new Date(validatedInput.startTime),
-        endTime: new Date(new Date(validatedInput.startTime).getTime() + validatedInput.duration * 60000),
-      });
+    if (!lockAcquired) {
+      throw new Error('El horario está siendo procesado por otro usuario. Intenta nuevamente en unos segundos.');
+    }
 
-      // 1b) Verificar conflicto para el mismo usuario en ventana de tiempo
-      await this.checkUserConflict(tx, {
-        userId: validatedInput.userId,
-        startTime: new Date(validatedInput.startTime),
-        endTime: new Date(new Date(validatedInput.startTime).getTime() + validatedInput.duration * 60000),
-      });
-
-      // 2) Crear reserva principal
-      const created = await tx.reservation.create({
-        data: {
-          courtId: validatedInput.courtId,
-          userId: validatedInput.userId,
-          startTime: new Date(validatedInput.startTime),
-          endTime: new Date(new Date(validatedInput.startTime).getTime() + validatedInput.duration * 60000),
-          totalPrice: computedPrice.total,
-          status: 'PENDING',
-          isRecurring: validatedInput.isRecurring,
-          paymentMethod: validatedInput.paymentMethod,
-          notes: validatedInput.notes,
-        },
-      });
-
-      // 3) Crear reservas recurrentes si es necesario (sigue dentro de la transacción)
-      if (validatedInput.isRecurring && validatedInput.recurringPattern) {
-        await this.createRecurringReservations(tx, created, validatedInput.recurringPattern);
-      }
-
-      return created;
-    }, { timeout: 15000 });
-
-    // 4) Registrar evento asíncrono fuera de la transacción para no prolongarla
+    let reservation!: Reservation;
     try {
-      await db.outboxEvent.create({
-        data: {
-          eventType: 'RESERVATION_CREATED',
-          eventData: {
-            reservationId: reservation.id,
-            userId: reservation.userId,
-            courtId: reservation.courtId,
-            startTime: reservation.startTime,
-            totalPrice: reservation.totalPrice,
-          },
-        },
+      // Calcular precio fuera de la transacción (solo lecturas)
+      const computedPrice = await this.pricingService.calculatePrice({
+        courtId: validatedInput.courtId,
+        startTime: startTime,
+        duration: validatedInput.duration,
+        userId: validatedInput.userId,
       });
-    } catch (e) {
-      // Log y continuar; no bloquear la creación por el outbox
-      // eslint-disable-next-line no-console
-      console.warn('No se pudo registrar outbox RESERVATION_CREATED:', e);
+
+      // Operaciones críticas dentro de transacción con mayor timeout
+      reservation = await (db as any).$transaction(async (tx: any) => {
+        // 🔍 LOGGING DE DEBUGGING
+        console.log(`🔍 [RESERVATION-CREATE] Iniciando validaciones para usuario ${validatedInput.userId}:`, {
+          courtId: validatedInput.courtId,
+          startTime: startTime.toISOString(),
+          duration: validatedInput.duration,
+          endTime: endTime.toISOString(),
+          timestamp: new Date().toISOString()
+        });
+
+        // 1) Verificar disponibilidad al momento de crear
+        await this.checkAvailability(tx, {
+          courtId: validatedInput.courtId,
+          startTime: startTime,
+          endTime: endTime,
+        });
+
+        // 1b) Verificar conflicto para el mismo usuario en ventana de tiempo
+        await this.checkUserConflict(tx, {
+          userId: validatedInput.userId,
+          startTime: startTime,
+          endTime: endTime,
+        });
+
+        console.log(`✅ [RESERVATION-CREATE] Validaciones aprobadas, creando reserva...`);
+
+        // 2) Crear reserva principal con timeout automático
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 15 * 60 * 1000); // 15 minutos desde ahora
+        
+        const created = await tx.reservation.create({
+          data: {
+            courtId: validatedInput.courtId,
+            userId: validatedInput.userId,
+            startTime: startTime,
+            endTime: endTime,
+            totalPrice: computedPrice.total,
+            status: 'PENDING',
+            expiresAt: expiresAt,
+            isRecurring: validatedInput.isRecurring,
+            paymentMethod: validatedInput.paymentMethod,
+            notes: validatedInput.notes,
+          },
+        });
+
+        // 3) Crear reservas recurrentes si es necesario (sigue dentro de la transacción)
+        if (validatedInput.isRecurring && validatedInput.recurringPattern) {
+          await this.createRecurringReservations(tx, created, validatedInput.recurringPattern);
+        }
+
+        return created as Reservation;
+      }, { timeout: 15000 });
+
+      // 🔓 PASO 2: Liberar bloqueo después de transacción exitosa
+      await reservationLockService.releaseLock(
+        validatedInput.courtId,
+        startTime,
+        endTime,
+        validatedInput.userId
+      );
+
+      // 4) Registrar evento asíncrono fuera de la transacción para no prolongarla
+      try {
+        await db.outboxEvent.create({
+          data: {
+            eventType: 'RESERVATION_CREATED',
+            eventData: {
+              reservationId: reservation.id,
+              userId: reservation.userId,
+              courtId: reservation.courtId,
+              startTime: reservation.startTime,
+              totalPrice: reservation.totalPrice,
+            },
+          },
+        });
+      } catch (e) {
+        // Log y continuar; no bloquear la creación por el outbox
+        // eslint-disable-next-line no-console
+        console.warn('No se pudo registrar outbox RESERVATION_CREATED:', e);
+      }
+    } catch (error) {
+      // 🔓 PASO 3: Liberar bloqueo en caso de error
+      await reservationLockService.releaseLock(
+        validatedInput.courtId,
+        startTime,
+        endTime,
+        validatedInput.userId
+      );
+      // Re-lanzar el error
+      throw error;
     }
 
     // 5) Enviar confirmación (email/SMS) usando notificador real; tolerar fallos sin romper flujo
@@ -140,24 +192,41 @@ export class ReservationService {
         const variables = {
           userName: user.name || 'Usuario',
           courtName: court.name,
-          date: reservation.startTime.toLocaleDateString('es-ES'),
+          date: reservation.startTime.toLocaleDateString('es-ES', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          }),
           startTime: reservation.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
           endTime: reservation.endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
           duration: String(Math.round((reservation.endTime.getTime() - reservation.startTime.getTime()) / 60000)),
           price: String(Number(reservation.totalPrice || 0)),
           reservationCode: reservation.id.slice(0, 8).toUpperCase(),
+          qrCodeDataUrl: qrDataUrl,
         } as Record<string, string>;
-        const email = await (await import('@repo/notifications')).emailService.sendEmail({
+        
+        const notifications = await import('@repo/notifications');
+        const template = await notifications.emailService.getTemplate('reservationConfirmation', variables);
+        if (!template) {
+          throw new Error('Plantilla de email no encontrada');
+        }
+        
+        const base64 = (qrDataUrl.split(',')[1] || '');
+        const pngBuffer = Buffer.from(base64, 'base64');
+        
+        await notifications.emailService.sendEmail({
           to: user.email!,
-          subject: `Confirmación de reserva - ${court.name}`,
-          html: (await (await import('@repo/notifications')).emailService.getTemplate('reservationConfirmation', variables))!.html,
+          subject: template.subject,
+          html: template.html,
           attachments: [
-            { filename: 'reserva.ics', content: ics, contentType: 'text/calendar' },
-            { filename: 'qr.png', content: Buffer.from(qrDataUrl.split(',')[1], 'base64'), contentType: 'image/png' },
+            { filename: `reserva-${reservation.id}.ics`, content: ics, contentType: 'text/calendar' },
+            { filename: 'pase-acceso.png', content: pngBuffer, contentType: 'image/png' },
           ],
         });
       }
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.warn('No se pudo enviar confirmación de reserva:', e);
     }
 
@@ -181,12 +250,25 @@ export class ReservationService {
     }
     
     // Verificar que no hay conflictos con otras reservas
+    // Excluir reservas PENDING que han expirado
+    const now = new Date();
     const conflictingReservations = await tx.reservation.findMany({
       where: {
         courtId,
-        status: { in: ['PENDING', 'PAID', 'IN_PROGRESS'] },
         OR: [
           {
+            // Reservas PAID o IN_PROGRESS (siempre bloquean)
+            status: { in: ['PAID', 'IN_PROGRESS'] },
+            startTime: { lt: endTime },
+            endTime: { gt: startTime },
+          },
+          {
+            // Reservas PENDING que NO han expirado
+            status: 'PENDING',
+            OR: [
+              { expiresAt: null }, // Reservas antiguas sin expiresAt
+              { expiresAt: { gt: now } }, // Reservas que aún no han expirado
+            ],
             startTime: { lt: endTime },
             endTime: { gt: startTime },
           },
@@ -222,17 +304,50 @@ export class ReservationService {
     tx: any,
     { userId, startTime, endTime }: { userId: string; startTime: Date; endTime: Date }
   ): Promise<void> {
+    // 🔒 VALIDACIÓN MEJORADA: Solo verificar conflictos en el mismo día
+    const startOfDay = new Date(startTime);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(startTime);
+    endOfDay.setHours(23, 59, 59, 999);
+    
     const conflicts = await tx.reservation.findMany({
       where: {
         userId,
         status: { in: ['PENDING', 'PAID', 'IN_PROGRESS'] },
+        // Solo verificar reservas en el mismo día
+        startTime: { gte: startOfDay, lte: endOfDay },
+        // Verificar solapamiento real de horarios
         OR: [
-          { startTime: { lt: endTime }, endTime: { gt: startTime } },
+          // Caso 1: La nueva reserva empieza durante una existente
+          { startTime: { lte: startTime }, endTime: { gt: startTime } },
+          // Caso 2: La nueva reserva termina durante una existente
+          { startTime: { lt: endTime }, endTime: { gte: endTime } },
+          // Caso 3: La nueva reserva envuelve completamente una existente
+          { startTime: { gte: startTime }, endTime: { lte: endTime } }
         ],
       },
-      select: { id: true },
+      select: { 
+        id: true, 
+        startTime: true, 
+        endTime: true,
+        status: true 
+      },
     });
+    
     if (conflicts.length > 0) {
+      // 🔍 LOGGING DETALLADO PARA DEBUGGING
+      console.log(`🚨 [USER-CONFLICT] Usuario ${userId} tiene ${conflicts.length} conflicto(s):`, {
+        requestedTime: { start: startTime, end: endTime },
+        conflicts: conflicts.map((c: { id: string; startTime: Date; endTime: Date; status: string }) => ({
+          id: c.id,
+          start: c.startTime,
+          end: c.endTime,
+          status: c.status
+        })),
+        timestamp: new Date().toISOString()
+      });
+      
       throw new Error('El usuario ya tiene una reserva en ese horario');
     }
   }
@@ -291,7 +406,7 @@ export class ReservationService {
                 startTime: reservationStart,
                 endTime: reservationEnd,
                 totalPrice: parentReservation.totalPrice,
-                status: 'pending',
+                status: 'PENDING',
                 isRecurring: true,
                 recurringParentId: parentReservation.id,
                 paymentMethod: parentReservation.paymentMethod,

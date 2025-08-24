@@ -22,7 +22,6 @@
 
 body {
   color: rgb(var(--foreground-rgb));
-  /* Permitir scroll en body por si el main no cubre toda la altura */
   overflow: auto;
   background: #f8fafc;
 }
@@ -37,12 +36,12 @@ input::placeholder, textarea::placeholder {
 }
 @media (prefers-color-scheme: dark) {
   input, textarea, select {
-    color: #000000; /* mantener negro también en dark */
-    background-color: #ffffff; /* fondo blanco para contraste */
-    border-color: #d1d5db; /* gray-300 */
+    color: #000000;
+    background-color: #ffffff;
+    border-color: #d1d5db;
   }
   input::placeholder, textarea::placeholder {
-    color: #6b7280; /* gray-500 */
+    color: #6b7280;
   }
 }
 
@@ -53,4 +52,21 @@ input::placeholder, textarea::placeholder {
 
 .admin-button {
   @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors;
+}
+
+/* Estilos básicos para modales */
+.modal-content {
+  z-index: 50;
+}
+
+/* Prevenir scroll del body cuando hay modales abiertos */
+body.modal-open {
+  overflow: hidden;
+}
+
+/* Mejorar la apariencia de los inputs en modales */
+.modal-content input,
+.modal-content textarea,
+.modal-content select {
+  @apply border-gray-300 focus:border-blue-500 focus:ring-blue-500;
 }

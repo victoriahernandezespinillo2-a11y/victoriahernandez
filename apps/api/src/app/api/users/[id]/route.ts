@@ -8,7 +8,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { UserService, UpdateUserSchema } from '../../../../lib/services/user.service';
-import { withAuthMiddleware, withAdminMiddleware, ApiResponse } from '../../../../lib/middleware';
+import { withAuthMiddleware, withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 
 const userService = new UserService();
 

@@ -7,9 +7,13 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { UserService, UpdateUserSchema } from '../../../../lib/services/user.service';
-import { withAuthMiddleware, ApiResponse } from '../../../../lib/middleware';
+import { withAuthMiddleware, ApiResponse } from '@/lib/middleware';
+import { db } from '@repo/db';
 
 const userService = new UserService();
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/users/profile
@@ -19,6 +23,8 @@ export async function GET(req: NextRequest) {
   return withAuthMiddleware(async (_request: NextRequest, context: any) => {
   try {
     const user = (context as any).user;
+    // Tocar DB para asegurar inicialización y surfacing de errores de prisma
+    await (db as any).$connect();
     const userData = await userService.getUserById(user.id);
     
     return ApiResponse.success(userData);
@@ -46,7 +52,7 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await request.json();
     const user = (context as any).user;
-    
+    await (db as any).$connect();
     const updatedUser = await userService.updateUser(user.id, body);
     
     return ApiResponse.success(updatedUser);

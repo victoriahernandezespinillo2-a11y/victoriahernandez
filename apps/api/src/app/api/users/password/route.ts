@@ -6,7 +6,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { UserService, UpdatePasswordSchema } from '../../../../lib/services/user.service';
-import { withAuthMiddleware, ApiResponse } from '../../../../lib/middleware';
+import { withAuthMiddleware, ApiResponse } from '@/lib/middleware';
 
 const userService = new UserService();
 

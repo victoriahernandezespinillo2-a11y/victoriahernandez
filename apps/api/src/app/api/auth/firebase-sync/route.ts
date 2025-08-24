@@ -7,7 +7,7 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { db } from '@repo/db';
 import { hashPassword } from '@repo/auth';
-import { withPublicMiddleware, ApiResponse } from '../../../../lib/middleware';
+import { withPublicMiddleware, ApiResponse } from '@/lib/middleware';
 
 // Schema de validación para datos de sincronización Firebase
 const FirebaseSyncSchema = z.object({

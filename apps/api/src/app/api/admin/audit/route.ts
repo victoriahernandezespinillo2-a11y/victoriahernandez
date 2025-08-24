@@ -4,7 +4,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { withAdminMiddleware, ApiResponse } from '../../../../lib/middleware';
+import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { z } from 'zod';
 

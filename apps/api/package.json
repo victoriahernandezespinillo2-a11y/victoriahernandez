@@ -12,6 +12,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.3.0",
     "@repo/auth": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/notifications": "workspace:*",
@@ -21,16 +22,16 @@
     "bcryptjs": "^2.4.3",
     "iconv-lite": "0.6.x",
     "jsonwebtoken": "^9.0.2",
+    "lru-cache": "^11.1.0",
     "next": "^15.4.2",
     "next-auth": "5.0.0-beta.29",
-    "pdfkit": "^0.15.0",
+    "pdfkit": "^0.17.1",
     "qrcode": "^1.5.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@prisma/client": "^6.14.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
@@ -39,7 +40,8 @@
     "@types/react-dom": "19.1.1",
     "dotenv-cli": "^7.4.2",
     "eslint": "^9.31.0",
+    "eslint-config-next": "15.5.0",
     "prisma": "^6.14.0",
-    "typescript": "5.8.2"
+    "typescript": "5.8.3"
   }
 }

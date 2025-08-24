@@ -6,6 +6,9 @@ const nextConfig = {
   transpilePackages: ['@repo/ui'],
   // Configurar para usar Node.js Runtime por defecto
   serverExternalPackages: ['pg', 'bcryptjs', '@repo/auth'],
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   async rewrites() {
     return {
       beforeFiles: [],

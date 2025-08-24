@@ -3,6 +3,8 @@
  * Maneja todas las llamadas HTTP a la API backend
  */
 
+import { CalendarData } from '../types/calendar.types';
+
 // Base de la API: usar variable pública si está definida, sin barra final
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002').replace(/\/$/, '');
 
@@ -20,7 +22,7 @@ const buildHeaders = (method: string): Record<string, string> => {
 /**
  * Wrapper para fetch con manejo de errores
  */
-async function apiRequest<T>(
+export async function apiRequest<T = any>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
@@ -60,23 +62,36 @@ async function apiRequest<T>(
       let code = '';
       let traceId = response.headers.get('x-request-id') || '';
       let details: any = undefined;
+      let originalError: any = undefined;
+      
       try {
         const asJson = await response.json();
         message = asJson?.error || JSON.stringify(asJson);
         code = asJson?.code || '';
         details = asJson?.details;
         traceId = asJson?.traceId || traceId;
+        originalError = asJson; // Preservar el error original completo
       } catch {
         try {
           message = await response.text();
+          originalError = { error: message, status: response.status };
         } catch {
-          message = '';
+          message = `HTTP ${response.status}: ${response.statusText}`;
+          originalError = { error: message, status: response.status };
         }
       }
+      
+      // 🔒 CREAR ERROR ENRIQUECIDO CON INFORMACIÓN COMPLETA
       const err = new Error(message || `HTTP ${response.status}`) as any;
-      if (code) err.code = code;
-      if (traceId) err.traceId = traceId;
-      if (details) err.details = details;
+      err.code = code;
+      err.traceId = traceId;
+      err.details = details;
+      err.status = response.status;
+      err.statusText = response.statusText;
+      err.originalError = originalError; // Preservar error completo
+      err.endpoint = endpoint;
+      err.method = method;
+      
       throw err;
     }
 
@@ -88,7 +103,34 @@ async function apiRequest<T>(
       return text as unknown as T;
     }
   } catch (error) {
-    console.error(`API Error [${endpoint}]:`, error);
+    // 🔒 LOGGING PROFESIONAL CON INFORMACIÓN COMPLETA
+    // Extraer información del error de forma segura para evitar problemas de serialización
+    const errorInfo = {
+      message: error instanceof Error ? error.message : 'Error desconocido',
+      name: error instanceof Error ? error.name : 'Unknown',
+      code: (error as any)?.code,
+      status: (error as any)?.status,
+      statusText: (error as any)?.statusText,
+      endpoint: (error as any)?.endpoint,
+      method: (error as any)?.method,
+      // Extraer originalError de forma segura
+      originalError: (error as any)?.originalError ? {
+        error: (error as any).originalError.error,
+        status: (error as any).originalError.status,
+        details: (error as any).originalError.details
+      } : undefined
+    };
+    
+    console.error(`🚨 [API-REQUEST] Error en ${endpoint}:`, errorInfo);
+    
+    // 🔒 PRESERVAR INFORMACIÓN DEL ERROR PARA EL ERROR HANDLER
+    if (error instanceof Error) {
+      // Enriquecer el error con información adicional
+      (error as any).apiEndpoint = endpoint;
+      (error as any).apiMethod = method;
+      (error as any).timestamp = new Date().toISOString();
+    }
+    
     throw error;
   }
 }
@@ -137,11 +179,8 @@ export const api = {
   courts: {
     getAll: (params?: {
       centerId?: string;
-      sport?: string;
-      surface?: string;
+      sportType?: string;
       isActive?: boolean;
-      hasLighting?: boolean;
-      isIndoor?: boolean;
       page?: number;
       limit?: number;
     }) => {
@@ -154,29 +193,28 @@ export const api = {
         });
       }
       const query = searchParams.toString();
-      return apiRequest(`/api/courts${query ? `?${query}` : ''}`)
-        .then((res: any) => (Array.isArray(res?.courts) ? res.courts : res));
+      return apiRequest(`/api/courts${query ? `?${query}` : ''}`);
     },
     
     getById: (id: string) => 
       apiRequest(`/api/courts/${id}`),
     
-    getAvailability: (id: string, params?: {
-      date?: string;
-      startTime?: string;
-      endTime?: string;
-      duration?: number;
-    }) => {
-      const searchParams = new URLSearchParams();
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) {
-            searchParams.append(key, String(value));
-          }
-        });
-      }
-      const query = searchParams.toString();
-      return apiRequest(`/api/courts/${id}/availability${query ? `?${query}` : ''}`);
+    getAvailability: (id: string, params: { date: string; duration: number }) => {
+      const query = new URLSearchParams({
+        date: params.date,
+        duration: String(params.duration)
+      });
+      return apiRequest(`/api/courts/${id}/availability?${query}`);
+    },
+    
+    // 🎨 NUEVO: Estado completo del calendario con colores
+    getCalendarStatus: async (id: string, params: { date: string; duration: number }): Promise<CalendarData> => {
+      const query = new URLSearchParams({
+        date: params.date,
+        duration: String(params.duration)
+      });
+      const response = await apiRequest(`/api/courts/${id}/calendar-status?${query}`);
+      return response as CalendarData;
     },
     
     getReservations: (id: string) => 
@@ -423,6 +461,42 @@ export const api = {
     addMethod: (data: { brand: string; last4: string; expMonth: number; expYear: number; holderName?: string; setDefault?: boolean; }) =>
       apiRequest('/api/payments/methods', { method: 'POST', body: JSON.stringify(data) }),
     deleteMethod: (id: string) => apiRequest(`/api/payments/methods?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  },
+
+  // Wallet
+  wallet: {
+    topup: (credits: number, opts?: { checkout?: boolean; successUrl?: string; cancelUrl?: string }) =>
+      apiRequest('/api/credits/topup', {
+        method: 'POST',
+        body: JSON.stringify({ credits, checkout: opts?.checkout ?? true, successUrl: opts?.successUrl, cancelUrl: opts?.cancelUrl }),
+      }),
+    ledger: (params?: { page?: number; limit?: number }) => {
+      const sp = new URLSearchParams();
+      if (params?.page) sp.set('page', String(params.page));
+      if (params?.limit) sp.set('limit', String(params.limit));
+      const q = sp.toString();
+      return apiRequest(`/api/wallet/ledger${q ? `?${q}` : ''}`);
+    },
+  },
+
+  // Shop
+  shop: {
+    list: (params?: { centerId?: string; search?: string; category?: string; page?: number; limit?: number }) => {
+      const sp = new URLSearchParams();
+      Object.entries(params || {}).forEach(([k, v]) => { if (v !== undefined) sp.set(k, String(v)); });
+      const q = sp.toString();
+      return apiRequest(`/api/products${q ? `?${q}` : ''}`);
+    },
+    detail: (id: string) => apiRequest(`/api/products/${id}`),
+  },
+
+  cart: {
+    checkout: (data: { items: Array<{ productId: string; qty: number }>; paymentMethod: 'credits' | 'card' }, idemKey?: string) =>
+      apiRequest('/api/cart/checkout', {
+        method: 'POST',
+        headers: { ...(idemKey ? { 'Idempotency-Key': idemKey } : {}) },
+        body: JSON.stringify(data),
+      }),
   },
 };
 

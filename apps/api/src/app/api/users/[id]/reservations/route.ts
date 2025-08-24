@@ -6,7 +6,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { UserService } from '../../../../../lib/services/user.service';
-import { withAuthMiddleware, ApiResponse } from '../../../../../lib/middleware';
+import { withReservationMiddleware, ApiResponse } from '@/lib/middleware';
 
 const userService = new UserService();
 
@@ -40,7 +40,7 @@ const GetUserReservationsSchema = z.object({
  * Los usuarios pueden ver sus propias reservas, STAFF/ADMIN pueden ver cualquier usuario
  */
 export async function GET(req: NextRequest) {
-  return withAuthMiddleware(async (request: NextRequest, context: any) => {
+  return withReservationMiddleware(async (request: NextRequest, context: any) => {
   try {
     const pathname = request.nextUrl.pathname;
     // Extract userId from path: /api/users/[id]/reservations -> get the [id] part

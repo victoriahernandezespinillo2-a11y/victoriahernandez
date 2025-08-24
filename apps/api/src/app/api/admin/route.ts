@@ -5,9 +5,7 @@
 
 import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { db } from '@repo/db';
 
 /**
  * GET /api/admin
@@ -19,11 +17,11 @@ export async function GET(request: NextRequest) {
     try {
       // Obtener estadísticas generales del sistema
       const [userCount, centerCount, courtCount, reservationCount, membershipCount] = await Promise.all([
-        prisma.user.count(),
-        prisma.center.count(),
-        prisma.court.count(),
-        prisma.reservation.count(),
-        prisma.membership.count()
+        (db as any).user.count(),
+        (db as any).center.count(),
+        (db as any).court.count(),
+        (db as any).reservation.count(),
+        (db as any).membership.count()
       ]);
       
       // Obtener estadísticas de los últimos 30 días
@@ -31,21 +29,21 @@ export async function GET(request: NextRequest) {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
       const [newUsers, newReservations, newMemberships] = await Promise.all([
-        prisma.user.count({
+        (db as any).user.count({
           where: {
             createdAt: {
               gte: thirtyDaysAgo
             }
           }
         }),
-        prisma.reservation.count({
+        (db as any).reservation.count({
           where: {
             createdAt: {
               gte: thirtyDaysAgo
             }
           }
         }),
-        prisma.membership.count({
+        (db as any).membership.count({
           where: {
             createdAt: {
               gte: thirtyDaysAgo
@@ -55,7 +53,7 @@ export async function GET(request: NextRequest) {
       ]);
       
       // Obtener reservas por estado
-      const reservationsByStatus = await prisma.reservation.groupBy({
+      const reservationsByStatus = await (db as any).reservation.groupBy({
         by: ['status'],
         _count: {
           id: true
@@ -63,7 +61,7 @@ export async function GET(request: NextRequest) {
       });
       
       // Obtener membresías por estado
-      const membershipsByStatus = await prisma.membership.groupBy({
+      const membershipsByStatus = await (db as any).membership.groupBy({
         by: ['status'],
         _count: {
           id: true

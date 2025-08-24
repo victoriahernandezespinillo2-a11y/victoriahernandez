@@ -66,16 +66,31 @@ export async function GET(request: NextRequest) {
   return withAuthMiddleware(async (req: NextRequest, context: any) => {
     try {
       const user = (context as any)?.user;
+      console.log('🔍 [NOTIFICATIONS] Usuario autenticado:', { 
+        id: user?.id, 
+        role: user?.role, 
+        email: user?.email,
+        isUuid: user?.id ? /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(user.id) : false
+      });
       const params = Object.fromEntries(req.nextUrl.searchParams.entries());
       if (params.limit !== undefined) params.limit = Number(params.limit) as any;
       if (params.page !== undefined) params.page = Number(params.page) as any;
       if (params.read !== undefined) params.read = (params.read === 'true') as any;
 
       const parsed = QuerySchema.parse(params);
-      const effectiveParams = {
-        ...parsed,
-        ...(user?.role === 'USER' ? { userId: user.id } : {}),
-      } as any;
+      
+      // Validar que el user.id sea un UUID válido antes de usarlo
+      let effectiveParams = { ...parsed };
+      if (user?.role === 'USER' && user?.id) {
+        try {
+          // Validar que el userId sea un UUID válido
+          z.string().uuid().parse(user.id);
+          effectiveParams.userId = user.id;
+        } catch (uuidError) {
+          console.warn('Usuario con ID inválido:', user.id, uuidError);
+          // No agregar userId si no es válido, fallback a búsqueda general
+        }
+      }
 
       let result;
       try {

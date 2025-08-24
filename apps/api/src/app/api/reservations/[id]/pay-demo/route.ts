@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { withAuthMiddleware, ApiResponse } from '@/lib/middleware';
+import { withReservationMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { PaymentService } from '@/lib/services/payment.service';
 
@@ -11,7 +11,7 @@ const paymentService = new PaymentService();
  * Acceso: usuario autenticado propietario de la reserva
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withAuthMiddleware(async (_req, context: any) => {
+  return withReservationMiddleware(async (_req, context: any) => {
     const user = (context as any)?.user;
     const { id: reservationId } = await params;
 

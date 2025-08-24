@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { withAuthMiddleware, ApiResponse } from '../../../../lib/middleware';
+import { withAuthMiddleware, ApiResponse } from '@/lib/middleware';
 import { PaymentService } from '../../../../lib/services/payment.service';
 
 const paymentService = new PaymentService();

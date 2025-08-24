@@ -16,9 +16,14 @@ export default function SignInPage() {
 
   useEffect(() => {
     const checkSession = async () => {
-      const session = await getSession();
-      if (session?.user) {
-        router.push('/');
+      try {
+        const session = await getSession();
+        if (session?.user) {
+          router.push('/');
+        }
+      } catch (err) {
+        // Evitar romper la UI si /api/auth/session no devuelve JSON válido (p.ej. 204 o HTML)
+        console.warn('No se pudo verificar sesión actual:', err);
       }
     };
     checkSession();

@@ -4,6 +4,7 @@
  */
 
 import { db } from '@repo/db';
+import { notificationService as realNotificationService, NotificationUtils as RealNotificationUtils } from '@repo/notifications';
 import { z } from 'zod';
 
 // Esquemas de validación
@@ -102,10 +103,54 @@ interface PushProvider {
 // Implementaciones mock de proveedores (en producción usar servicios reales)
 class MockEmailProvider implements EmailProvider {
   async sendEmail(data: z.infer<typeof SendEmailSchema>) {
-    console.log('📧 Enviando email:', data);
-    // Simular envío
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // eslint-disable-next-line no-console
+    console.log('📧 (MOCK) Enviando email:', data);
+    await new Promise(resolve => setTimeout(resolve, 50));
     return { id: `email_${Date.now()}`, status: 'sent' };
+  }
+}
+
+class RealEmailProvider implements EmailProvider {
+  async sendEmail(data: z.infer<typeof SendEmailSchema>) {
+    const recipients = Array.isArray(data.to) ? data.to : [data.to];
+
+    // Preferir plantillas si se especifican
+    const results = [] as Array<{ success: boolean; messageId?: string; error?: string }>;
+
+    for (const to of recipients) {
+      if (data.template) {
+        const variables = RealNotificationUtils.formatTemplateVariables(data.data || {});
+        // Plantilla (usa @repo/notifications)
+        const result = await realNotificationService.sendEmailTemplate(
+          data.template,
+          to,
+          variables
+        );
+        results.push(result);
+      } else if (data.html || data.text) {
+        // Envío directo
+        const result = await realNotificationService.sendEmail({
+          to,
+          subject: data.subject,
+          html: data.html || data.text || '',
+          text: data.text,
+          attachments: data.attachments?.map((a) => ({
+            filename: a.filename,
+            content: a.content,
+            contentType: a.contentType,
+          })),
+        } as any);
+        results.push(result as any);
+      } else {
+        throw new Error('Contenido de email faltante: html o template requerido');
+      }
+    }
+
+    const first = results[0];
+    if (first?.success) {
+      return { id: first.messageId || `email_${Date.now()}`, status: 'sent' };
+    }
+    throw new Error(first?.error || 'Fallo enviando email');
   }
 }
 
@@ -133,8 +178,12 @@ export class NotificationService {
   private pushProvider: PushProvider;
 
   constructor() {
-    // En producción, usar proveedores reales como SendGrid, Twilio, Firebase, etc.
-    this.emailProvider = new MockEmailProvider();
+    // Seleccionar proveedor de email según configuración
+    if ((process.env.EMAIL_PROVIDER || '').trim().length > 0) {
+      this.emailProvider = new RealEmailProvider();
+    } else {
+      this.emailProvider = new MockEmailProvider();
+    }
     this.smsProvider = new MockSMSProvider();
     this.pushProvider = new MockPushProvider();
   }
@@ -396,7 +445,22 @@ export class NotificationService {
       };
     } catch (e) {
       // Fallback: sintetizar notificaciones desde otras tablas cuando no existe el modelo Notification
-      const safeParams = GetNotificationsSchema.partial().parse(params as any);
+      console.warn('Error en getNotifications, usando fallback:', e);
+      
+      // Sanitizar parámetros antes de usar partial parse
+      const sanitizedParams = { ...params };
+      
+      // Si userId no es válido, removerlo
+      if (sanitizedParams.userId) {
+        try {
+          z.string().uuid().parse(sanitizedParams.userId);
+        } catch {
+          console.warn('Removiendo userId inválido del fallback:', sanitizedParams.userId);
+          delete sanitizedParams.userId;
+        }
+      }
+      
+      const safeParams = GetNotificationsSchema.partial().parse(sanitizedParams);
       const page = Number(safeParams.page || 1);
       const limit = Number(safeParams.limit || 20);
       const skip = (page - 1) * limit;

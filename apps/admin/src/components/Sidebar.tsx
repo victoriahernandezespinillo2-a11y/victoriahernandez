@@ -58,6 +58,9 @@ const menuItems: MenuItem[] = [
       { name: 'Pagos', href: '/payments', icon: CreditCardIcon },
       { name: 'Membresías', href: '/memberships', icon: IdentificationIcon },
       { name: 'Precios', href: '/pricing', icon: CurrencyDollarIcon },
+      { name: 'Productos', href: '/products', icon: RectangleStackIcon },
+      { name: 'Inventario', href: '/inventory', icon: BuildingOfficeIcon },
+      { name: 'Pedidos', href: '/orders', icon: CurrencyDollarIcon },
     ],
   },
   {

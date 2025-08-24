@@ -11,6 +11,7 @@ const authService = new AuthService();
 import { RouteUtils, RATE_LIMITS } from '../routes';
 import { z } from 'zod';
 import { getToken } from 'next-auth/jwt';
+import { db } from '@repo/db';
 
 /**
  * Interfaz para el contexto de middleware
@@ -538,6 +539,71 @@ export const withStaffMiddleware = compose(
 );
 
 /**
+ * Middleware de limpieza automática de reservas expiradas
+ */
+export const withReservationCleanup = (handler: ApiHandler): ApiHandler => {
+  return async (req: NextRequest, context?: { params?: Record<string, string> }) => {
+    // Solo ejecutar limpieza en rutas de reservas
+    const isReservationRoute = req.nextUrl.pathname.includes('/reservations') || 
+                              req.nextUrl.pathname.includes('/availability');
+    
+    if (isReservationRoute) {
+      try {
+        // Limpiar reservas PENDING expiradas de forma asíncrona
+        const now = new Date();
+        const expiredReservations = await db.reservation.findMany({
+          where: {
+            status: 'PENDING',
+            expiresAt: {
+              lt: now
+            }
+          },
+          select: { id: true, createdAt: true }
+        });
+        
+        if (expiredReservations.length > 0) {
+          // Ejecutar limpieza en background sin bloquear el request
+          setImmediate(async () => {
+            try {
+              await db.$transaction(async (tx) => {
+                for (const reservation of expiredReservations) {
+                  await tx.reservation.update({
+                    where: { id: reservation.id },
+                    data: {
+                      status: 'CANCELLED',
+                      notes: 'Auto-cancelada por timeout'
+                    }
+                  });
+                  
+                  await tx.outboxEvent.create({
+                    data: {
+                      eventType: 'RESERVATION_EXPIRED',
+                      eventData: {
+                        reservationId: reservation.id,
+                        expiredAt: now.toISOString()
+                      }
+                    }
+                  });
+                }
+              });
+              
+              console.log(`🧹 [AUTO-CLEANUP] Canceladas ${expiredReservations.length} reservas expiradas`);
+            } catch (error) {
+              console.error('❌ [AUTO-CLEANUP] Error:', error);
+            }
+          });
+        }
+      } catch (error) {
+        // No fallar el request si hay error en la limpieza
+        console.error('❌ [AUTO-CLEANUP] Error verificando reservas expiradas:', error);
+      }
+    }
+    
+    return handler(req, context);
+  };
+};
+
+/**
  * Middleware completo para rutas de admin
  */
 export const withAdminMiddleware = compose(
@@ -547,6 +613,18 @@ export const withAdminMiddleware = compose(
   withRateLimit,
   withAuth,
   withRole('ADMIN')
+);
+
+/**
+ * Middleware completo para rutas de reservas (con limpieza automática)
+ */
+export const withReservationMiddleware = compose(
+  withErrorHandling,
+  withLogging,
+  withCors,
+  withRateLimit,
+  withAuth,
+  withReservationCleanup
 );
 
 /**

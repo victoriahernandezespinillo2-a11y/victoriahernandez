@@ -1,23 +1,90 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@repo/auth';
 import { db } from '@repo/db';
-import PDFDocument from 'pdfkit';
 
 export async function GET(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return new Response('No autorizado', { status: 401 });
+  let userId: string | null = null;
+  
+  // 1) Intentar autenticación de sesión primero
+  try {
+    const session = await auth();
+    if (session?.user?.id) {
+      userId = session.user.id;
+      console.log('✅ [RECEIPT] Usuario autenticado por sesión:', userId);
+    }
+  } catch (sessionError) {
+    console.log('⚠️ [RECEIPT] Error en autenticación de sesión:', sessionError);
   }
+
+  // 2) Si no hay sesión, intentar autenticación por token JWT en header
+  if (!userId) {
+    const authHeader = request.headers.get('authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const jwt = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
+        const payload = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any;
+        userId = payload.uid || payload.userId;
+        console.log('✅ [RECEIPT] Usuario autenticado por JWT header:', userId);
+      } catch (jwtError) {
+        console.log('❌ [RECEIPT] Error en autenticación JWT header:', jwtError);
+      }
+    }
+  }
+
+  // 3) Si no hay autenticación, intentar token en query parameter
+  if (!userId) {
+    const tokenParam = request.nextUrl.searchParams.get('token');
+    if (tokenParam) {
+      try {
+        const jwt = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
+        const payload = jwt.verify(tokenParam, process.env.JWT_SECRET || 'your-secret-key') as any;
+        
+        // Verificar que es un token de acceso al recibo
+        if (payload.type === 'receipt-access') {
+          userId = payload.userId;
+          console.log('✅ [RECEIPT] Usuario autenticado por token query:', userId);
+        } else {
+          console.log('❌ [RECEIPT] Token no es de tipo receipt-access');
+        }
+      } catch (jwtError) {
+        console.log('❌ [RECEIPT] Error en autenticación JWT query:', jwtError);
+      }
+    }
+  }
+
   const id = request.nextUrl.pathname.split('/').slice(-2, -1)[0];
   if (!id) return new Response('ID requerido', { status: 400 });
-  const reservation = await db.reservation.findUnique({ where: { id }, include: { user: true, court: { include: { center: true } } } });
-  if (!reservation || reservation.userId !== session.user.id) {
+  
+  const reservation = await db.reservation.findUnique({ 
+    where: { id }, 
+    include: { user: true, court: { include: { center: true } } } 
+  });
+  
+  if (!reservation) {
+    return new Response('Reserva no encontrada', { status: 404 });
+  }
+
+  // 4) En desarrollo, permitir acceso sin autenticación para facilitar pruebas
+  if (process.env.NODE_ENV === 'development') {
+    console.log('⚠️ [RECEIPT] Modo desarrollo: permitiendo acceso público');
+    // No validar pertenencia en desarrollo
+  } else if (userId && reservation.userId !== userId) {
+    // En producción, validar que el usuario es propietario de la reserva
+    return new Response('No autorizado', { status: 401 });
+  } else if (!userId) {
+    // En producción, requerir autenticación
     return new Response('No autorizado', { status: 401 });
   }
+
+  // Importación dinámica de PDFDocument para evitar errores de build
+  const { createRequire } = await import('module');
+  const require = createRequire(import.meta.url);
+  const PDFDocument = require('pdfkit');
 
   const doc = new PDFDocument({ margin: 50 });
   const chunks: any[] = [];
-  doc.on('data', (c) => chunks.push(c));
+  doc.on('data', (c: any) => chunks.push(c));
   const done = new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks as any))));
 
   // Configuración dinámica del centro

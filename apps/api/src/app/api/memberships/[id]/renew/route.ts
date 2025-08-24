@@ -6,7 +6,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { MembershipService, RenewMembershipSchema } from '../../../../../lib/services/membership.service';
-import { withAuthMiddleware, ApiResponse, AuthenticatedContext } from '../../../../../lib/middleware';
+import { withAuthMiddleware, ApiResponse, AuthenticatedContext } from '@/lib/middleware';
 
 const membershipService = new MembershipService();
 

@@ -6,7 +6,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { UserService } from '../../../../lib/services/user.service';
-import { withAuthMiddleware, ApiResponse } from '../../../../lib/middleware';
+import { withReservationMiddleware, ApiResponse } from '@/lib/middleware';
 
 const userService = new UserService();
 
@@ -39,7 +39,7 @@ const GetCurrentUserReservationsSchema = z.object({
  * Obtener reservas del usuario autenticado con filtros y paginación
  */
 export async function GET(req: NextRequest) {
-  return withAuthMiddleware(async (request: NextRequest, context: any) => {
+  return withReservationMiddleware(async (request: NextRequest, context: any) => {
     try {
       const { user } = (context as any);
       const { searchParams } = request.nextUrl;

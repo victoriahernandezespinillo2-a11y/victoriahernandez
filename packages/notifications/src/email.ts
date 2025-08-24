@@ -220,6 +220,56 @@ export class EmailService {
   // Plantillas de email predefinidas
   getTemplate(templateName: string, variables: Record<string, string>): EmailTemplate | null {
     const templates: Record<string, EmailTemplate> = {
+      'email-verification': {
+        name: 'email-verification',
+        subject: 'Verifica tu email - Polideportivo',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h1 style="color: #2563eb;">Verifica tu cuenta</h1>
+            <p>Hola {{firstName}},</p>
+            <p>Gracias por registrarte. Por favor verifica tu correo haciendo clic en el siguiente botón:</p>
+            <p style="margin: 24px 0;">
+              <a href="{{verificationUrl}}" style="background-color:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Verificar correo</a>
+            </p>
+            <p>Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
+            <p><a href="{{verificationUrl}}" style="word-break: break-all; color:#2563eb;">{{verificationUrl}}</a></p>
+            <p style="color: #6b7280; font-size: 14px;">Si no solicitaste esta verificación, puedes ignorar este mensaje.</p>
+          </div>
+        `,
+        variables: ['firstName', 'verificationUrl'],
+      },
+
+      'password-reset': {
+        name: 'password-reset',
+        subject: 'Restablecer contraseña - Polideportivo',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h1 style="color: #2563eb;">Restablecer contraseña</h1>
+            <p>Hola {{firstName}},</p>
+            <p>Hemos recibido una solicitud para restablecer tu contraseña.</p>
+            <p>Haz clic en el botón para continuar. Este enlace expirará en 60 minutos.</p>
+            <p style="margin: 24px 0;">
+              <a href="{{resetUrl}}" style="background-color:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Restablecer contraseña</a>
+            </p>
+            <p>Si no solicitaste este cambio, ignora este mensaje.</p>
+          </div>
+        `,
+        variables: ['firstName', 'resetUrl'],
+      },
+
+      'password-changed': {
+        name: 'password-changed',
+        subject: 'Tu contraseña ha sido cambiada',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h1 style="color: #16a34a;">Contraseña actualizada</h1>
+            <p>Hola {{firstName}},</p>
+            <p>Confirmamos que tu contraseña fue cambiada el {{changeTime}}.</p>
+            <p>Si no reconoces este cambio, por favor restablece tu contraseña de inmediato y contacta con soporte.</p>
+          </div>
+        `,
+        variables: ['firstName', 'changeTime'],
+      },
       welcome: {
         name: 'welcome',
         subject: '¡Bienvenido a nuestro polideportivo!',
@@ -247,27 +297,127 @@ export class EmailService {
       
       reservationConfirmation: {
         name: 'reservationConfirmation',
-        subject: 'Confirmación de reserva - {{courtName}}',
+        subject: '✅ Reserva confirmada - {{courtName}}',
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h1 style="color: #16a34a;">Reserva confirmada</h1>
-            <p>Hola {{userName}},</p>
-            <p>Tu reserva ha sido confirmada exitosamente. Aquí tienes los detalles:</p>
-            <div style="background-color: #f0fdf4; border: 1px solid #16a34a; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="margin-top: 0; color: #16a34a;">Detalles de la reserva</h3>
-              <p><strong>Pista:</strong> {{courtName}}</p>
-              <p><strong>Fecha:</strong> {{date}}</p>
-              <p><strong>Hora:</strong> {{startTime}} - {{endTime}}</p>
-              <p><strong>Duración:</strong> {{duration}} minutos</p>
-              <p><strong>Precio:</strong> {{price}}€</p>
-              <p><strong>Código de reserva:</strong> {{reservationCode}}</p>
-            </div>
-            <p><strong>Importante:</strong> Por favor, llega 10 minutos antes de tu hora de reserva.</p>
-            <p>Si necesitas cancelar o modificar tu reserva, puedes hacerlo desde tu panel de usuario hasta 2 horas antes del inicio.</p>
-            <p>¡Disfruta tu tiempo en nuestras instalaciones!</p>
-          </div>
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="margin: 0; padding: 0; font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%); min-height: 100vh;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+              <tr>
+                <td style="padding: 40px 20px;">
+                  
+                  <!-- Container principal -->
+                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px rgba(0,0,0,0.15);">
+                    
+                    <!-- Header con gradiente -->
+                    <tr>
+                      <td style="background: linear-gradient(135deg, #10b981, #3b82f6); padding: 40px 30px; text-align: center;">
+                        <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
+                          🎾 Reserva Confirmada
+                        </h1>
+                        <p style="margin: 8px 0 0 0; color: #e2e8f0; font-size: 16px; font-weight: 500;">
+                          ¡Todo listo para tu sesión!
+                        </p>
+                      </td>
+                    </tr>
+                    
+                    <!-- Contenido principal -->
+                    <tr>
+                      <td style="padding: 40px 30px;">
+                        <p style="margin: 0 0 24px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                          Hola <strong>{{userName}}</strong>,
+                        </p>
+                        <p style="margin: 0 0 32px 0; color: #6b7280; font-size: 15px; line-height: 1.6;">
+                          Tu reserva ha sido confirmada exitosamente. Aquí tienes todos los detalles:
+                        </p>
+                        
+                        <!-- Card de detalles -->
+                        <div style="background: linear-gradient(135deg, #f0fdf4, #ecfdf5); border: 2px solid #10b981; border-radius: 12px; padding: 24px; margin: 24px 0;">
+                          <h3 style="margin: 0 0 20px 0; color: #065f46; font-size: 18px; font-weight: 600;">
+                            📋 Detalles de la reserva
+                          </h3>
+                          
+                          <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                              <td style="padding: 8px 0; color: #374151; font-weight: 600; width: 120px;">🏟️ Pista:</td>
+                              <td style="padding: 8px 0; color: #6b7280;">{{courtName}}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 8px 0; color: #374151; font-weight: 600;">📅 Fecha:</td>
+                              <td style="padding: 8px 0; color: #6b7280;">{{date}}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 8px 0; color: #374151; font-weight: 600;">⏰ Horario:</td>
+                              <td style="padding: 8px 0; color: #6b7280;">{{startTime}} - {{endTime}}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 8px 0; color: #374151; font-weight: 600;">⏱️ Duración:</td>
+                              <td style="padding: 8px 0; color: #6b7280;">{{duration}} minutos</td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 8px 0; color: #374151; font-weight: 600;">💰 Precio:</td>
+                              <td style="padding: 8px 0; color: #10b981; font-weight: 600;">{{price}}€</td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 8px 0; color: #374151; font-weight: 600;">🔢 Código:</td>
+                              <td style="padding: 8px 0; color: #3b82f6; font-weight: 600; font-family: monospace;">{{reservationCode}}</td>
+                            </tr>
+                          </table>
+                        </div>
+                        
+                        <!-- QR Code Section -->
+                        <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 2px solid #3b82f6; border-radius: 12px; padding: 24px; margin: 24px 0; text-align: center;">
+                          <h3 style="margin: 0 0 16px 0; color: #1e40af; font-size: 18px; font-weight: 600;">
+                            📱 Tu pase de acceso
+                          </h3>
+                          <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 14px;">
+                            Presenta este código QR al personal de acceso
+                          </p>
+                          <img src="{{qrCodeDataUrl}}" alt="Código QR de acceso" style="width: 160px; height: 160px; border-radius: 8px; border: 3px solid #ffffff; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);">
+                          <p style="margin: 16px 0 0 0; color: #9ca3af; font-size: 12px;">
+                            Válido el día de tu reserva
+                          </p>
+                        </div>
+                        
+                        <!-- Instrucciones importantes -->
+                        <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+                          <h4 style="margin: 0 0 12px 0; color: #92400e; font-size: 16px; font-weight: 600;">
+                            ⚠️ Instrucciones importantes
+                          </h4>
+                          <ul style="margin: 0; padding-left: 20px; color: #78350f;">
+                            <li style="margin-bottom: 8px;">Llega 10 minutos antes de tu hora de reserva</li>
+                            <li style="margin-bottom: 8px;">Presenta tu código QR o ID de reserva al acceder</li>
+                            <li style="margin-bottom: 8px;">Puedes cancelar hasta 2 horas antes del inicio</li>
+                          </ul>
+                        </div>
+                        
+                        <p style="margin: 32px 0 0 0; color: #6b7280; font-size: 15px; line-height: 1.6; text-align: center;">
+                          ¡Disfruta tu tiempo en nuestras instalaciones! 🏆
+                        </p>
+                      </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                      <td style="background: #f8fafc; padding: 24px 30px; border-top: 1px solid #e5e7eb; text-align: center;">
+                        <p style="margin: 0; color: #9ca3af; font-size: 13px;">
+                          ¿Necesitas ayuda? Responde a este email o contacta con nosotros
+                        </p>
+                      </td>
+                    </tr>
+                    
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </body>
+          </html>
         `,
-        variables: ['userName', 'courtName', 'date', 'startTime', 'endTime', 'duration', 'price', 'reservationCode'],
+        variables: ['userName', 'courtName', 'date', 'startTime', 'endTime', 'duration', 'price', 'reservationCode', 'qrCodeDataUrl'],
       },
       
       reservationReminder: {

@@ -5,13 +5,16 @@ import { authConfig } from './config';
 
 // Exportar la configuración de NextAuth
 const nextAuth = NextAuth(authConfig);
-export const handlers = nextAuth.handlers;
+// Evitar fuga de tipos de Next.js en el paquete (TS2742)
+type AnyRouteHandler = (...args: any[]) => any;
+type Handlers = { GET: AnyRouteHandler; POST: AnyRouteHandler };
+export const handlers: Handlers = nextAuth.handlers as unknown as Handlers;
 export const auth: typeof nextAuth.auth = nextAuth.auth;
 export const signIn = nextAuth.signIn;
 export const signOut = nextAuth.signOut;
 
 // Exportar configuración y proveedores
-export { authConfig } from './config';
+export { authConfig, adminAuthConfig, webAuthConfig } from './config';
 export {
   providers,
   hashPassword,

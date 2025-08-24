@@ -1,167 +1,181 @@
-import { NextAuthConfig } from 'next-auth';
-import { 
-  providers, 
-  SECURITY_CONFIG, 
-  validateAdminEmail, 
-  validateStaffDomain, 
-  determineUserRole, 
-  logSecurityEvent 
-} from './providers';
+import type { NextAuthConfig } from 'next-auth';
+import CredentialsProvider from 'next-auth/providers/credentials';
+import { providers } from './providers';
 
+// Configuración específica para cada aplicación
+const getCookieConfig = (appName: string) => {
+  const baseConfig = {
+    session: {
+      strategy: 'jwt' as const,
+      maxAge: 30 * 24 * 60 * 60, // 30 días
+    },
+    cookies: {
+      sessionToken: {
+        name: `next-auth.session-token-${appName}`,
+        options: {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+          secure: process.env.NODE_ENV === 'production',
+        },
+      },
+      callbackUrl: {
+        name: `next-auth.callback-url-${appName}`,
+        options: {
+          sameSite: 'lax',
+          path: '/',
+          secure: process.env.NODE_ENV === 'production',
+        },
+      },
+      csrfToken: {
+        name: `next-auth.csrf-token-${appName}`,
+        options: {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+          secure: process.env.NODE_ENV === 'production',
+        },
+      },
+    },
+  };
+
+  return baseConfig;
+};
+
+// Configuración base de NextAuth
 export const authConfig: NextAuthConfig = {
-  // Usamos JWT strategy, sin adapter (delegamos a la API para credenciales)
   providers,
-  trustHost: true,
-  // Aceptar tanto AUTH_SECRET (v5) como NEXTAUTH_SECRET (compat) con fallback seguro en dev
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-secret-change-in-prod',
-  basePath: '/api/auth',
   pages: {
     signIn: '/auth/signin',
+    signOut: '/auth/signout',
     error: '/auth/error',
   },
-  session: {
-    strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 días
-  },
-  cookies: {
-    sessionToken: {
-      // Nombre consistente para compartir entre puertos en desarrollo
-      name: process.env.NEXTAUTH_COOKIE_NAME || 'next-auth.session-token',
-      options: {
-        domain: process.env.NODE_ENV === 'development' ? undefined : undefined,
-        path: '/',
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production' ? true : false,
-      }
-    }
-  },
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }) {
+      // Cuando hay `user`, estamos en el primer login del flujo.
       if (user) {
-        token.id = user.id;
-        token.role = user.role || 'user';
-        token.membershipType = user.membershipType;
-        token.creditsBalance = user.creditsBalance;
+        // Intentar asegurar/obtener el usuario local (BD) por email para fijar el id correcto de Prisma.
+        try {
+          const base = (process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || '/api/backend').replace(/\/$/, '');
+          if (user.email) {
+            const resp = await fetch(`${base}/api/auth/oauth-sync`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: user.email,
+                name: user.name ?? null,
+                image: (user as any).image ?? null,
+                provider: 'oauth',
+              }),
+              cache: 'no-store',
+            });
+
+            if (resp.ok) {
+              const payload: any = await resp.json().catch(() => ({}));
+              const data = payload?.data || payload;
+              if (data && data.user) {
+                token.id = data.user.id as string;
+                token.role = (data.user.role as any) ?? user.role;
+                return token;
+              }
+            } else {
+              const info = await resp.text().catch(() => '');
+              console.log('❌ [AUTH] oauth-sync falló:', resp.status, info);
+            }
+          }
+        } catch (err) {
+          console.log('❌ [AUTH] Error llamando a oauth-sync:', err instanceof Error ? err.message : String(err));
+        }
+
+        // Fallback: mantener datos entregados por el proveedor
+        token.role = (user as any).role;
+        token.id = (user as any).id;
       }
       return token;
     },
     async session({ session, token }) {
-      // Proteger cuando no hay sesión o usuario aún (no autenticado)
-      if (token && session?.user) {
-        session.user.id = (token.id as string) ?? session.user.id;
-        session.user.role = (token.role as string) ?? session.user.role ?? 'user';
-        session.user.membershipType = (token.membershipType as string) ?? session.user.membershipType;
-        session.user.creditsBalance = Number((token.creditsBalance as number) ?? session.user.creditsBalance ?? 0);
+      if (token) {
+        session.user.role = token.role as string;
+        session.user.id = token.id as string;
       }
-      return session ?? null;
-    },
-    async redirect({ url, baseUrl }) {
-      try {
-        const target = new URL(url, baseUrl);
-        const base = new URL(baseUrl);
-        // Forzar redirección al mismo origen (evita salto a 3001 desde 3003)
-        if (target.origin !== base.origin) {
-          return base.origin + '/';
-        }
-        return target.toString();
-      } catch {
-        return baseUrl + '/';
-      }
-    },
-    async signIn({ user, account, profile }) {
-      try {
-        const email = user.email || profile?.email;
-        
-        if (!email) {
-          logSecurityEvent({
-            type: 'LOGIN_FAILED',
-            email: 'unknown',
-            provider: account?.provider
-          });
-          return false;
-        }
-        
-        // Validar proveedor autorizado
-        if (account?.provider && !SECURITY_CONFIG.allowedProviders.includes(account.provider)) {
-          logSecurityEvent({
-            type: 'UNAUTHORIZED_ACCESS',
-            email,
-            provider: account.provider
-          });
-          return false;
-        }
-        
-        // Validaciones específicas para OAuth
-        if (account?.provider === 'google') {
-          // Determinar el rol basado en el email
-          const expectedRole = determineUserRole(email);
-          
-          // Asignar el rol determinado al usuario
-          user.role = expectedRole;
-          
-          // Verificar autorización basada en rol determinado
-          if (expectedRole === 'admin' && !validateAdminEmail(email)) {
-            logSecurityEvent({
-              type: 'UNAUTHORIZED_ACCESS',
-              email,
-              role: expectedRole,
-              provider: account.provider
-            });
-            return false;
-          }
-          
-          if (expectedRole === 'staff' && !validateStaffDomain(email) && !validateAdminEmail(email)) {
-            logSecurityEvent({
-              type: 'UNAUTHORIZED_ACCESS',
-              email,
-              role: expectedRole,
-              provider: account.provider
-            });
-            return false;
-          }
-        }
-        
-        // Log de acceso exitoso
-        logSecurityEvent({
-          type: 'LOGIN_SUCCESS',
-          email,
-          role: user.role,
-          provider: account?.provider
-        });
-        
-        return true;
-      } catch (error) {
-        console.error('Error en validación de signIn:', error);
-        logSecurityEvent({
-          type: 'LOGIN_FAILED',
-          email: user.email || 'unknown',
-          provider: account?.provider
-        });
-        return false;
-      }
+      return session;
     },
   },
-  // Comentamos los eventos que usan la base de datos
-  // events: {
-  //   async signIn({ user, account, profile, isNewUser }) {
-  //     if (isNewUser && user.email) {
-  //       // Crear evento de nuevo usuario
-  //       await db.outboxEvent.create({
-  //         data: {
-  //           eventType: 'USER_REGISTERED',
-  //           eventData: {
-  //             userId: user.id,
-  //             email: user.email,
-  //             name: user.name,
-  //             provider: account?.provider
-  //           }
-  //         }
-  //       });
-  //     }
-  //   },
-  // },
   debug: process.env.NODE_ENV === 'development',
+};
+
+// Configuración específica para Admin
+export const adminAuthConfig: NextAuthConfig = {
+  ...authConfig,
+  ...getCookieConfig('admin'),
+  cookies: {
+    sessionToken: {
+      name: 'next-auth.session-token-admin',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
+      },
+    },
+    callbackUrl: {
+      name: 'next-auth.callback-url-admin',
+      options: {
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
+      },
+    },
+    csrfToken: {
+      name: 'next-auth.csrf-token-admin',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
+      },
+    },
+  },
+};
+
+// Configuración específica para Web
+export const webAuthConfig: NextAuthConfig = {
+  ...authConfig,
+  ...getCookieConfig('web'),
+  cookies: {
+    sessionToken: {
+      name: 'next-auth.session-token-web',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
+      },
+    },
+    callbackUrl: {
+      name: 'next-auth.callback-url-web',
+      options: {
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
+      },
+    },
+    csrfToken: {
+      name: 'next-auth.csrf-token-web',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
+      },
+    },
+  },
 };
 
 // Tipos extendidos para la sesión

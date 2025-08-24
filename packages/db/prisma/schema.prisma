@@ -43,6 +43,8 @@ model User {
   waitingLists         WaitingList[]
   refreshTokens        RefreshToken[]
   passwordResetTokens  PasswordResetToken[]
+  walletLedger         WalletLedger[]
+  orders               Order[]
 
   @@map("users")
 }
@@ -60,6 +62,7 @@ model Center {
   // Relaciones
   courts      Court[]
   tournaments Tournament[]
+  products    Product[]
 
   @@map("centers")
 }
@@ -100,6 +103,7 @@ model Reservation {
   recurringParentId  String?   @map("recurring_parent_id")
   checkInTime        DateTime? @map("check_in_time")
   checkOutTime       DateTime? @map("check_out_time")
+  expiresAt          DateTime? @map("expires_at")
   notes              String?
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
@@ -358,4 +362,135 @@ model PasswordResetToken {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("password_reset_tokens")
+}
+
+/// Tipos de movimientos del monedero
+enum WalletLedgerType {
+  CREDIT
+  DEBIT
+}
+
+/// Motivos de movimientos del monedero
+enum WalletLedgerReason {
+  ORDER
+  TOPUP
+  REFUND
+  ADJUST
+}
+
+/// Libro mayor de monedero de créditos por usuario (auditoría e idempotencia)
+model WalletLedger {
+  id              String             @id @default(cuid())
+  userId          String             @map("user_id")
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            WalletLedgerType
+  reason          WalletLedgerReason
+  credits         Int
+  balanceAfter    Int                @map("balance_after")
+  metadata        Json?              @default("{}")
+  idempotencyKey  String?            @unique @map("idempotency_key")
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("wallet_ledger")
+}
+
+// -----------------
+// Tienda (Productos / Pedidos / Inventario)
+// -----------------
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FULFILLED
+  REFUNDED
+  CANCELLED
+}
+
+enum OrderPaymentMethod {
+  CREDITS
+  CARD
+  MIXED
+}
+
+model Product {
+  id              String   @id @default(cuid())
+  centerId        String   @map("center_id")
+  center          Center   @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  name            String
+  sku             String   @unique
+  category        String
+  priceEuro       Decimal  @map("price_euro")
+  taxRate         Decimal  @default(0.0) @map("tax_rate")
+  stockQty        Int      @default(0) @map("stock_qty")
+  isActive        Boolean  @default(true) @map("is_active")
+  isPerishable    Boolean  @default(false) @map("is_perishable")
+  expiresAt       DateTime? @map("expires_at")
+  creditMultiplier Decimal? @map("credit_multiplier")
+  media           Json?    @default("[]")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  orderItems      OrderItem[]
+  inventoryMovements InventoryMovement[]
+
+  @@index([centerId, isActive])
+  @@map("products")
+}
+
+model Order {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status          OrderStatus @default(PENDING)
+  totalEuro       Decimal  @map("total_euro")
+  paymentMethod   OrderPaymentMethod @map("payment_method")
+  creditsUsed     Int      @default(0) @map("credits_used")
+  paymentIntentId String?  @map("payment_intent_id")
+  idempotencyKey  String?  @unique @map("idempotency_key")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  items           OrderItem[]
+
+  @@index([userId, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String  @map("order_id")
+  productId   String  @map("product_id")
+  qty         Int
+  unitPriceEuro Decimal @map("unit_price_euro")
+  taxRate     Decimal  @map("tax_rate")
+  creditsPerUnit Int?   @map("credits_per_unit")
+
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+enum InventoryMovementType {
+  IN
+  OUT
+  ADJUST
+  WASTE
+}
+
+model InventoryMovement {
+  id          String   @id @default(cuid())
+  productId   String   @map("product_id")
+  type        InventoryMovementType
+  qty         Int
+  reason      String?
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, createdAt])
+  @@map("inventory_movements")
 }

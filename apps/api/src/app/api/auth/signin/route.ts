@@ -48,6 +48,9 @@ export async function POST(request: NextRequest) {
   })(request);
 }
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 /**
  * OPTIONS /api/auth/signin
  * Manejar preflight requests

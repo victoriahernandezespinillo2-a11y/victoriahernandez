@@ -5,7 +5,7 @@
 
 import { NextRequest } from 'next/server';
 import { MembershipService } from '../../../../lib/services/membership.service';
-import { withStaffMiddleware, ApiResponse } from '../../../../lib/middleware';
+import { withStaffMiddleware, ApiResponse } from '@/lib/middleware';
 
 const membershipService = new MembershipService();
 

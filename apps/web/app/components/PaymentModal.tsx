@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ type PaymentMethod = 'CARD_DEMO' | 'ONSITE';
 
 export default function PaymentModal(props: PaymentModalProps) {
   const { isOpen, onClose, reservationId, amount, currency = 'COP', courtName, dateLabel, timeLabel, onSuccess } = props;
+  const router = useRouter();
 
   const [method, setMethod] = useState<PaymentMethod>('CARD_DEMO');
   const [holder, setHolder] = useState<string>('');
@@ -87,7 +89,8 @@ export default function PaymentModal(props: PaymentModalProps) {
     setError(null);
     if (method === 'ONSITE') {
       onClose();
-      onSuccess();
+      // Redirigir a página de éxito
+      router.push(`/dashboard/reservations/success?reservationId=${reservationId}`);
       return;
     }
     const validation = validateCardDemo();
@@ -106,7 +109,8 @@ export default function PaymentModal(props: PaymentModalProps) {
         throw new Error(body?.error || `HTTP ${res.status}`);
       }
       onClose();
-      onSuccess();
+      // Redirigir a página de éxito
+      router.push(`/dashboard/reservations/success?reservationId=${reservationId}`);
     } catch (e: any) {
       setError(e?.message || 'No se pudo completar el pago.');
     } finally {

@@ -13,6 +13,9 @@ import {
   Settings,
   Menu,
   X,
+  ShoppingCart,
+  Wallet,
+  ListOrdered,
 } from 'lucide-react';
 
 const navigation = [
@@ -20,6 +23,9 @@ const navigation = [
   { name: 'Mis Reservas', href: '/dashboard/reservations', icon: Calendar },
   { name: 'Perfil', href: '/dashboard/profile', icon: User },
   { name: 'Membresías', href: '/dashboard/memberships', icon: CreditCard },
+  { name: 'Monedero', href: '/dashboard/wallet', icon: Wallet },
+  { name: 'Tienda', href: '/dashboard/shop', icon: ShoppingCart },
+  { name: 'Pedidos', href: '/dashboard/orders', icon: ListOrdered },
   { name: 'Historial', href: '/dashboard/history', icon: Clock },
   { name: 'Torneos', href: '/dashboard/tournaments', icon: Trophy },
   { name: 'Configuración', href: '/dashboard/settings', icon: Settings },

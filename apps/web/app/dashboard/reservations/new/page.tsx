@@ -16,6 +16,9 @@ import { useRouter } from 'next/navigation';
 import PaymentModal from '@/app/components/PaymentModal';
 import { api } from '@/lib/api';
 import { useCourts, usePricing } from '@/lib/hooks';
+import { ErrorHandler } from '../../../../lib/error-handler';
+
+import CalendarVisualModal from '@/components/CalendarVisualModal';
 
 interface Court {
   id: string;
@@ -31,6 +34,17 @@ interface TimeSlot {
   time: string;
   available: boolean;
   price: number;
+}
+
+interface CalendarSlot {
+  time: string;
+  startTime: string;
+  endTime: string;
+  status: 'AVAILABLE' | 'BOOKED' | 'MAINTENANCE' | 'USER_BOOKED' | 'PAST' | 'UNAVAILABLE';
+  color: string;
+  message: string;
+  conflicts: any[];
+  available: boolean;
 }
 
 // Datos reales se cargan desde la API
@@ -53,27 +67,63 @@ export default function NewReservationPage() {
   const [error, setError] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [createdReservationId, setCreatedReservationId] = useState<string | null>(null);
+  const [selectedCalendarSlot, setSelectedCalendarSlot] = useState<CalendarSlot | null>(null);
+
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
 
   // Cargar canchas activas
   useEffect(() => {
-    getCourts({ isActive: true }).catch(() => {});
+    console.log('🔄 [DEBUG] Iniciando carga de canchas...');
+    getCourts({ isActive: true })
+      .then((result) => {
+        console.log('✅ [DEBUG] Canchas cargadas exitosamente:', result);
+      })
+      .catch((error) => {
+        console.error('❌ [DEBUG] Error cargando canchas:', error);
+      });
   }, [getCourts]);
 
   // Deportes disponibles a partir de las canchas
   const sports = useMemo(() => {
-    const list = Array.isArray(courts) ? (courts as any[]) : [];
+    console.log('🎯 [DEBUG] Procesando deportes, courts:', courts);
+    
+    // 🔧 EXTRAER EL ARRAY DE CANCHAS DEL OBJETO RESPONSE
+    let courtsArray: any[] = [];
+    const cAny: any = courts as any;
+    if (Array.isArray(cAny)) {
+      courtsArray = cAny;
+    } else if (cAny && typeof cAny === 'object' && Array.isArray(cAny.courts)) {
+      courtsArray = cAny.courts;
+    }
+    
+    console.log('📋 [DEBUG] Array de canchas extraído:', courtsArray);
+    
     const unique = new Set<string>();
-    list.forEach((c: any) => {
-      if (c?.sportType) unique.add(c.sportType);
+    courtsArray.forEach((c: any) => {
+      if (c?.sportType) {
+        unique.add(c.sportType);
+        console.log('🏅 [DEBUG] Deporte encontrado:', c.sportType);
+      }
     });
-    return Array.from(unique);
+    
+    const result = Array.from(unique);
+    console.log('📊 [DEBUG] Deportes finales:', result);
+    return result;
   }, [courts]);
 
   // Canchas filtradas por deporte
   const filteredCourts: any[] = useMemo(() => {
-    const list = Array.isArray(courts) ? (courts as any[]) : [];
-    if (!selectedSport) return list; // mostrar todas si no se eligió deporte
-    return list.filter((c: any) => c.sportType === selectedSport);
+    // 🔧 EXTRAER EL ARRAY DE CANCHAS DEL OBJETO RESPONSE
+    let courtsArray: any[] = [];
+    const cAny: any = courts as any;
+    if (Array.isArray(cAny)) {
+      courtsArray = cAny;
+    } else if (cAny && typeof cAny === 'object' && Array.isArray(cAny.courts)) {
+      courtsArray = cAny.courts;
+    }
+    
+    if (!selectedSport) return courtsArray; // mostrar todas si no se eligió deporte
+    return courtsArray.filter((c: any) => c.sportType === selectedSport);
   }, [courts, selectedSport]);
 
   const getSportIcon = (sport: string) => {
@@ -124,19 +174,19 @@ export default function NewReservationPage() {
   const maxDate = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   const handleSubmit = async () => {
-    if (!selectedCourt || !selectedDate || !selectedTime) {
+    if (!selectedCourt || !selectedDate || !selectedCalendarSlot) {
       alert('Por favor completa todos los campos requeridos');
       return;
     }
 
     setIsLoading(true);
     try {
-      const [hour, minute] = selectedTime.split(':').map((v) => Number(v || 0));
-      const start = new Date(selectedDate + 'T00:00:00');
-      start.setHours(hour ?? 0, minute ?? 0, 0, 0);
+      // 🎯 USAR EL SLOT DEL CALENDARIO VISUAL
+      const startTime = selectedCalendarSlot.startTime;
+      
       const res: any = await api.reservations.create({
         courtId: selectedCourt.id,
-        startTime: start.toISOString(),
+        startTime: startTime,
         duration,
         // paymentMethod omitido para usar flujo predeterminado en backend
         notes,
@@ -148,9 +198,16 @@ export default function NewReservationPage() {
       } else {
         router.push('/dashboard/reservations');
       }
-    } catch (error) {
-      console.error('Error creating reservation:', error);
-      alert('Error al crear la reserva. Inténtalo de nuevo.');
+    } catch (error: any) {
+      // 🔒 MANEJO ROBUSTO DE ERRORES CON ERROR HANDLER
+      const userMessage = ErrorHandler.handleError(error, {
+        action: 'Crear reserva',
+        endpoint: '/api/reservations',
+        timestamp: new Date().toISOString()
+      });
+      
+      // Mostrar mensaje específico al usuario
+      alert(userMessage);
     } finally {
       setIsLoading(false);
     }
@@ -173,49 +230,59 @@ export default function NewReservationPage() {
     });
   };
 
-  // Cargar disponibilidad cuando hay cancha, fecha y duración
-  useEffect(() => {
-    const loadAvailability = async () => {
-      try {
-        setError(null);
-        setIsLoading(true);
-        setSlots([]);
-        if (!selectedCourt || !selectedDate || !duration) return;
-        const res: any = await api.courts.getAvailability(selectedCourt.id, {
-          date: selectedDate,
-          duration: duration,
-        });
-        const nextSlots: TimeSlot[] = (res.slots || []).map((s: any) => ({
-          time: s.timeSlot?.split(' - ')[0] || new Date(s.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          available: !!s.available,
-          price: 0,
-        }));
-        setSlots(nextSlots);
-      } catch (e: any) {
-        setError(e?.message || 'Error cargando disponibilidad');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadAvailability();
-  }, [selectedCourt, selectedDate, duration]);
 
-  // Calcular precio cuando se selecciona hora
+
+  // 🚀 MANEJAR MODAL DEL CALENDARIO VISUAL
+  const handleOpenCalendarModal = () => {
+    setShowCalendarModal(true);
+  };
+
+  const handleCloseCalendarModal = () => {
+    setShowCalendarModal(false);
+  };
+
+  const handleCalendarSlotSelection = (slot: CalendarSlot) => {
+    setSelectedCalendarSlot(slot);
+    setShowCalendarModal(false);
+    
+    // Extraer la hora del slot seleccionado
+    const startTime = new Date(slot.startTime);
+    const timeString = startTime.toLocaleTimeString('es-ES', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+    setSelectedTime(timeString);
+  };
+
+  // 🚀 FUNCIÓN PARA CONFIRMAR Y CONTINUAR AL PAGO (YA NO SE USA - MANEJADO EN CALENDARVISUALMODAL)
+  // Esta función se mantiene por compatibilidad pero ya no se ejecuta
+  const handleConfirmAndContinue = async () => {
+    // Funcionalidad movida a CalendarVisualModal.handleContinue
+    console.log('handleConfirmAndContinue: Funcionalidad movida a CalendarVisualModal');
+  };
+
+
+
+  // 🎯 EL CALENDARIO VISUAL AHORA FUNCIONA A TRAVÉS DEL MODAL
+
+  // 🎯 Calcular precio cuando se selecciona slot del calendario
   useEffect(() => {
     const run = async () => {
       try {
-        if (!selectedCourt || !selectedDate || !selectedTime) return;
-        const [hour, minute] = selectedTime.split(':').map((v) => Number(v || 0));
-        const start = new Date(selectedDate + 'T00:00:00');
-        start.setHours(hour ?? 0, minute ?? 0, 0, 0);
-        await calculatePrice({ courtId: selectedCourt.id, startTime: start.toISOString(), duration });
+        if (!selectedCourt || !selectedCalendarSlot) return;
+        // Usar directamente el startTime del slot seleccionado
+        await calculatePrice({ 
+          courtId: selectedCourt.id, 
+          startTime: selectedCalendarSlot.startTime, 
+          duration 
+        });
       } catch {
         // noop
       }
     };
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTime]);
+  }, [selectedCalendarSlot]);
 
   return (
     <div className="space-y-6">
@@ -243,8 +310,7 @@ export default function NewReservationPage() {
           {[
             { number: 1, title: 'Deporte', completed: step > 1 },
             { number: 2, title: 'Cancha', completed: step > 2 },
-            { number: 3, title: 'Fecha y Hora', completed: step > 3 },
-            { number: 4, title: 'Confirmación', completed: false }
+            { number: 3, title: 'Fecha y Hora', completed: false }
           ].map((stepItem, index) => (
             <div key={stepItem.number} className="flex items-center">
               <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
@@ -267,7 +333,7 @@ export default function NewReservationPage() {
               }`}>
                 {stepItem.title}
               </span>
-              {index < 3 && (
+              {index < 2 && (
                 <div className={`w-16 h-0.5 mx-4 ${
                   stepItem.completed ? 'bg-green-600' : 'bg-gray-300'
                 }`}></div>
@@ -285,6 +351,7 @@ export default function NewReservationPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Selecciona el Deporte
             </h2>
+            
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {sports.map((sport) => (
                 <button
@@ -306,6 +373,7 @@ export default function NewReservationPage() {
                 </button>
               ))}
             </div>
+            
             {selectedSport && (
               <div className="mt-6 flex justify-end">
                 <button
@@ -346,10 +414,8 @@ export default function NewReservationPage() {
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-medium text-gray-900 flex items-center gap-2">
-                        <span className="text-xl">{getSportIcon(court.sportType)}</span>
-                        {court.name}
-                      </h3>
+                      <div className="text-xl mb-2">{getSportIcon(court.sportType)}</div>
+                      <h3 className="font-medium text-gray-900">{court.name}</h3>
                       <p className="text-sm text-gray-500 flex items-center mt-1">
                         <Users className="h-4 w-4 mr-1" />
                         Hasta {court.capacity} personas
@@ -392,12 +458,12 @@ export default function NewReservationPage() {
           </div>
         )}
 
-        {/* Step 3: Select Date and Time */}
+        {/* Step 3: Select Date and Time with Visual Calendar */}
         {step === 3 && (
           <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-gray-900">
-                Selecciona Fecha y Hora
+                🎯 Selecciona Fecha y Hora con Calendario Visual
               </h2>
               <button
                 onClick={() => setStep(2)}
@@ -407,7 +473,8 @@ export default function NewReservationPage() {
               </button>
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 🎨 CONFIGURACIÓN INICIAL */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               {/* Date Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -422,6 +489,7 @@ export default function NewReservationPage() {
                   onChange={(e) => {
                     setSelectedDate(e.target.value);
                     setSelectedTime('');
+                    setSelectedCalendarSlot(null);
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -435,7 +503,11 @@ export default function NewReservationPage() {
                 </label>
                 <select
                   value={duration}
-                  onChange={(e) => setDuration(Number(e.target.value))}
+                  onChange={(e) => {
+                    setDuration(Number(e.target.value));
+                    setSelectedTime('');
+                    setSelectedCalendarSlot(null);
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value={60}>1 hora</option>
@@ -446,35 +518,54 @@ export default function NewReservationPage() {
               </div>
             </div>
 
-            {/* Time Slots */}
+            {/* 🎨 CALENDARIO VISUAL INTELIGENTE */}
             {selectedDate && (
-              <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Horarios Disponibles para {formatDate(selectedDate)}
-                </label>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                  {slots.map((slot) => (
+              <div className="mb-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start">
+                      <div className="text-blue-600 text-lg mr-3">💡</div>
+                      <div className="text-sm text-blue-800">
+                        <p className="font-medium mb-1">Calendario Visual Inteligente:</p>
+                        <p>Selecciona directamente un horario disponible del calendario. Los colores te indican el estado de cada horario.</p>
+                      </div>
+                    </div>
+                    
+                    {/* 🚀 BOTÓN PARA ABRIR MODAL DEL CALENDARIO */}
                     <button
-                      key={slot.time}
-                      onClick={() => slot.available && setSelectedTime(slot.time)}
-                      disabled={!slot.available}
-                      className={`p-3 rounded-md text-sm font-medium transition-colors ${
-                        !slot.available
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : selectedTime === slot.time
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                      }`}
+                      onClick={handleOpenCalendarModal}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center space-x-2"
                     >
-                      {slot.time}
+                      <Calendar className="h-4 w-4" />
+                      <span>Ver Calendario</span>
                     </button>
-                  ))}
+                  </div>
+                </div>
+                
+                {/* 🚀 CALENDARIO VISUAL ELIMINADO - FUNCIONALIDAD INTEGRADA EN EL MODAL */}
+                <div className="text-center py-8">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <Calendar className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-blue-900 mb-2">
+                      Calendario Visual
+                    </h3>
+                    <p className="text-blue-700 mb-4">
+                      Haz clic en "Ver Calendario" para abrir el calendario visual completo
+                    </p>
+                    <button
+                      onClick={handleOpenCalendarModal}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center mx-auto"
+                    >
+                      <Calendar className="h-4 w-4 mr-2" />
+                      Abrir Calendario
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Notes */}
-            <div className="mt-6">
+            {/* 📝 NOTAS */}
+            <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Notas (Opcional)
               </label>
@@ -487,122 +578,62 @@ export default function NewReservationPage() {
               />
             </div>
 
-            {selectedDate && selectedTime && (
-              <div className="mt-6 flex justify-between">
+            {/* 🎯 INDICADOR DE SELECCIÓN */}
+            {selectedCalendarSlot && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-center">
+                  <div className="text-blue-600 text-lg mr-3">🎯</div>
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium">Horario seleccionado: <strong>{new Date(selectedCalendarSlot.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - {new Date(selectedCalendarSlot.endTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</strong></p>
+                    <p className="text-xs mt-1">Revisa el modal flotante para continuar</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 🚀 BOTONES DE NAVEGACIÓN */}
+            {selectedDate && selectedCalendarSlot && (
+              <div className="flex justify-between">
                 <button
                   onClick={() => setStep(2)}
                   className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   Anterior
                 </button>
-                <button
-                  onClick={() => setStep(4)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  Revisar Reserva
-                </button>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-sm text-green-800 mb-2">
+                    ✅ <strong>Horario confirmado:</strong> {new Date(selectedCalendarSlot.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - {new Date(selectedCalendarSlot.endTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  <p className="text-xs text-green-700">
+                    🚀 Al confirmar en el calendario visual, tu reserva se creará automáticamente y se abrirá el modal de pago.
+                  </p>
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {/* Step 4: Confirmation */}
-        {step === 4 && (
-          <div className="p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">
-              Confirmar Reserva
-            </h2>
-            
-            <div className="bg-gray-50 rounded-lg p-6 mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="font-medium text-gray-900 mb-3">Detalles de la Reserva</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Cancha:</span>
-                      <span className="text-gray-900">{selectedCourt?.name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Deporte:</span>
-                      <span className="text-gray-900">{selectedSport}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Fecha:</span>
-                      <span className="text-gray-900">{formatDate(selectedDate)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Hora:</span>
-                      <span className="text-gray-900">{selectedTime}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Duración:</span>
-                      <span className="text-gray-900">{duration} minutos</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="font-medium text-gray-900 mb-3">Resumen de Pago</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Precio por hora:</span>
-                      <span className="text-gray-900">{formatCurrency(selectedCourt?.pricePerHour || 0)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Duración:</span>
-                      <span className="text-gray-900">{duration / 60} hora(s)</span>
-                    </div>
-                    <div className="border-t border-gray-200 pt-2 mt-2">
-                      <div className="flex justify-between font-medium">
-                        <span className="text-gray-900">Total:</span>
-                        <span className="text-gray-900">{formatCurrency(totalCost)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {notes && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <h4 className="font-medium text-gray-900 mb-2">Notas:</h4>
-                  <p className="text-sm text-gray-600">{notes}</p>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <div className="flex items-start">
-                <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 mr-3" />
-                <div className="text-sm text-blue-800">
-                  <p className="font-medium mb-1">Términos de la Reserva:</p>
-                  <ul className="list-disc list-inside space-y-1">
-                    <li>Las reservas deben ser canceladas con al menos 2 horas de anticipación</li>
-                    <li>Los reembolsos se procesarán según la política de cancelación</li>
-                    <li>Es necesario llegar 10 minutos antes del horario reservado</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-between">
-              <button
-                onClick={() => setStep(3)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Anterior
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={isLoading}
-                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 flex items-center"
-              >
-                <CreditCard className="h-4 w-4 mr-2" />
-                {isLoading ? 'Procesando...' : 'Confirmar y Pagar'}
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Step 4 eliminado - flujo directo desde calendario al pago */}
       </div>
+
+      {/* 🚀 Modal del Calendario Visual */}
+      <CalendarVisualModal
+        isOpen={showCalendarModal}
+        courtId={selectedCourt?.id || ''}
+        date={selectedDate}
+        duration={duration}
+        selectedSport={selectedSport}
+        selectedCourt={selectedCourt}
+        notes={notes}
+        onSlotSelect={handleCalendarSlotSelection}
+        onClose={handleCloseCalendarModal}
+        onReservationCreated={(reservationId) => {
+          setCreatedReservationId(reservationId);
+          setShowPaymentModal(true);
+        }}
+      />
+
+
 
       {/* Modal de Pago Demo */}
       <PaymentModal

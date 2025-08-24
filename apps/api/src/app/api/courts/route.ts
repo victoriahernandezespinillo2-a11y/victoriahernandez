@@ -7,6 +7,8 @@ import { z } from 'zod';
 const GetCourtsSchema = z.object({
   centerId: z.string().optional(),
   sport: z.string().optional(),
+  // Aceptar también sportType para compatibilidad con el frontend
+  sportType: z.string().optional(),
   isActive: z.string().transform(val => val === 'true').optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
@@ -29,35 +31,37 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const params = Object.fromEntries(searchParams.entries());
     const validatedParams = GetCourtsSchema.parse(params);
-    
+
     // Construir filtros para Prisma
     const where: any = {};
-    
+
     if (validatedParams.centerId) {
       where.centerId = validatedParams.centerId;
     }
-    
-    if (validatedParams.sport) {
+
+    // Permitir filtrar por sport (alias) o sportType (param original del frontend)
+    const sportQuery = validatedParams.sport || validatedParams.sportType;
+    if (sportQuery) {
       where.sportType = {
-        contains: validatedParams.sport,
+        contains: sportQuery,
         mode: 'insensitive',
       } as any;
     }
-    
+
     if (validatedParams.isActive !== undefined) {
       where.isActive = validatedParams.isActive;
     }
-    
+
     // Campos hasLighting/isIndoor/surface no existen en el esquema actual
-    
+
     // Obtener total de registros para paginación
     const totalCourts = await db.court.count({ where });
-    
+
     // Calcular paginación
     const page = validatedParams.page;
     const limit = validatedParams.limit;
     const skip = (page - 1) * limit;
-    
+
     // Obtener canchas con información del centro
     const courts = await db.court.findMany({
       where,
@@ -84,7 +88,7 @@ export async function GET(request: NextRequest) {
         { name: 'asc' },
       ],
     });
-    
+
     // Formatear respuesta
     const formattedCourts = courts.map((court: any) => ({
       id: court.id,
@@ -102,7 +106,7 @@ export async function GET(request: NextRequest) {
       createdAt: court.createdAt,
       updatedAt: court.updatedAt,
     }));
-    
+
     return NextResponse.json({
       courts: formattedCourts,
       pagination: {
@@ -115,20 +119,20 @@ export async function GET(request: NextRequest) {
       },
       filters: {
         centerId: validatedParams.centerId,
-        sport: validatedParams.sport,
+        sport: validatedParams.sport || validatedParams.sportType,
         isActive: validatedParams.isActive,
       },
     });
   } catch (error) {
     console.error('Error obteniendo canchas:', error);
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Parámetros inválidos', details: error.errors },
         { status: 400 }
       );
     }
-    
+
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }
