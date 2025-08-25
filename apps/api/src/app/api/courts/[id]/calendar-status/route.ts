@@ -244,8 +244,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
       calendarSlots.push({
         time: slotStart.toISOString(),
-        startTime: slotStart,
-        endTime: slotEnd,
+        startTime: slotStart.toTimeString().slice(0, 5), // HH:MM format
+        endTime: slotEnd.toTimeString().slice(0, 5), // HH:MM format
         status: slotStatus,
         color: slotColor,
         message: slotMessage,

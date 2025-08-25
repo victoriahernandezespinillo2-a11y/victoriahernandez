@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
+import '@/app/styles/mobile-animations.css';
 import {
   Calendar,
   Clock,
@@ -10,6 +11,8 @@ import {
   ArrowLeft,
   Check,
   AlertCircle,
+  Smartphone,
+  Monitor,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -19,6 +22,27 @@ import { useCourts, usePricing } from '@/lib/hooks';
 import { ErrorHandler } from '../../../../lib/error-handler';
 
 import CalendarVisualModal from '@/components/CalendarVisualModal';
+import { MobileCourtSelector } from '@/app/components/MobileCourtSelector';
+import { MobileCalendar } from '@/app/components/MobileCalendar';
+import MobilePaymentModal from '@/app/components/MobilePaymentModal';
+import { CalendarSlot } from '@/types/calendar.types';
+
+// Hook para detectar dispositivo móvil
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkDevice = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkDevice();
+    window.addEventListener('resize', checkDevice);
+    return () => window.removeEventListener('resize', checkDevice);
+  }, []);
+
+  return isMobile;
+}
 
 interface Court {
   id: string;
@@ -32,20 +56,14 @@ interface Court {
 
 interface TimeSlot {
   time: string;
+  startTime: string;
+  endTime: string;
+  status: 'AVAILABLE' | 'BOOKED' | 'MAINTENANCE' | 'USER_BOOKED' | 'PAST' | 'UNAVAILABLE';
   available: boolean;
   price: number;
 }
 
-interface CalendarSlot {
-  time: string;
-  startTime: string;
-  endTime: string;
-  status: 'AVAILABLE' | 'BOOKED' | 'MAINTENANCE' | 'USER_BOOKED' | 'PAST' | 'UNAVAILABLE';
-  color: string;
-  message: string;
-  conflicts: any[];
-  available: boolean;
-}
+
 
 // Datos reales se cargan desde la API
 
@@ -55,6 +73,11 @@ export default function NewReservationPage() {
   const router = useRouter();
   const { courts, getCourts } = useCourts();
   const { pricing, calculatePrice, reset: resetPricing } = usePricing();
+  const isMobile = useIsMobile();
+  
+  // Estado para forzar vista móvil/escritorio
+  const [forceMobileView, setForceMobileView] = useState(false);
+  const shouldUseMobileView = isMobile || forceMobileView;
   const [step, setStep] = useState(1);
   const [selectedSport, setSelectedSport] = useState<string>('');
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
@@ -64,12 +87,59 @@ export default function NewReservationPage() {
   const [notes, setNotes] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
+  const [timeSlots, setTimeSlots] = useState<any[]>([]);
+  const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [createdReservationId, setCreatedReservationId] = useState<string | null>(null);
   const [selectedCalendarSlot, setSelectedCalendarSlot] = useState<CalendarSlot | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
+  const [selectedDuration, setSelectedDuration] = useState<number>(60);
 
   const [showCalendarModal, setShowCalendarModal] = useState(false);
+
+  // Calculate total price
+  const totalPrice = useMemo(() => {
+    if (!selectedCourt || !selectedDuration) return 0;
+    return (selectedCourt.pricePerHour * selectedDuration) / 60;
+  }, [selectedCourt, selectedDuration]);
+
+  // Función para cargar timeSlots desde la API
+  const loadTimeSlots = async (courtId: string, date: string, duration: number) => {
+    if (!courtId || !date) return;
+    
+    setLoadingTimeSlots(true);
+    try {
+      const calendarData = await api.courts.getCalendarStatus(courtId, {
+        date,
+        duration
+      });
+      
+      // Convertir CalendarSlots a TimeSlots
+      const convertedTimeSlots: TimeSlot[] = calendarData.slots.map(slot => ({
+        time: slot.time,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        status: slot.status,
+        available: slot.available,
+        price: selectedCourt?.pricePerHour ? (selectedCourt.pricePerHour * duration) / 60 : 0
+      }));
+      
+      setTimeSlots(convertedTimeSlots);
+    } catch (error) {
+      console.error('Error cargando timeSlots:', error);
+      setTimeSlots([]);
+    } finally {
+      setLoadingTimeSlots(false);
+    }
+  };
+
+  // Cargar timeSlots cuando cambie la cancha, fecha o duración
+  useEffect(() => {
+    if (selectedCourt && selectedDate) {
+      loadTimeSlots(selectedCourt.id, selectedDate, duration);
+    }
+  }, [selectedCourt, selectedDate, duration]);
 
   // Cargar canchas activas
   useEffect(() => {
@@ -287,7 +357,7 @@ export default function NewReservationPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center justify-between">
         <Link
           href="/dashboard/reservations"
           className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700"
@@ -295,6 +365,21 @@ export default function NewReservationPage() {
           <ArrowLeft className="h-4 w-4 mr-1" />
           Volver a Reservas
         </Link>
+        
+        {/* Selector de vista */}
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setForceMobileView(!forceMobileView)}
+            className={`p-2 rounded-lg transition-colors ${
+              shouldUseMobileView 
+                ? 'bg-blue-100 text-blue-600' 
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+            title={shouldUseMobileView ? 'Cambiar a vista escritorio' : 'Cambiar a vista móvil'}
+          >
+            {shouldUseMobileView ? <Monitor className="h-5 w-5" /> : <Smartphone className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       <div>
@@ -306,53 +391,98 @@ export default function NewReservationPage() {
 
       {/* Progress Steps */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between">
-          {[
-            { number: 1, title: 'Deporte', completed: step > 1 },
-            { number: 2, title: 'Cancha', completed: step > 2 },
-            { number: 3, title: 'Fecha y Hora', completed: false }
-          ].map((stepItem, index) => (
-            <div key={stepItem.number} className="flex items-center">
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-                stepItem.completed
-                  ? 'bg-green-600 border-green-600 text-white'
-                  : step === stepItem.number
-                  ? 'bg-blue-600 border-blue-600 text-white'
-                  : 'border-gray-300 text-gray-500'
-              }`}>
-                {stepItem.completed ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  stepItem.number
+        {shouldUseMobileView ? (
+          // Vista móvil optimizada
+          <div className="flex items-center justify-center space-x-4 mobile-fade-in-up">
+            {[
+              { number: 1, title: 'Deporte', completed: step > 1 },
+              { number: 2, title: 'Cancha', completed: step > 2 },
+              { number: 3, title: 'Fecha y Hora', completed: false }
+            ].map((stepItem, index) => (
+              <div key={stepItem.number} className="flex flex-col items-center relative">
+                <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 mb-2 ${
+                  stepItem.completed
+                    ? 'bg-green-600 border-green-600 text-white'
+                    : step === stepItem.number
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'border-gray-300 text-gray-500'
+                }`}>
+                  {stepItem.completed ? (
+                    <Check className="h-5 w-5" />
+                  ) : (
+                    stepItem.number
+                  )}
+                </div>
+                <span className={`text-xs font-medium text-center ${
+                  stepItem.completed || step === stepItem.number
+                    ? 'text-gray-900'
+                    : 'text-gray-500'
+                }`}>
+                  {stepItem.title}
+                </span>
+                {index < 2 && (
+                  <div className={`absolute top-5 left-full w-8 h-0.5 ${
+                    stepItem.completed ? 'bg-green-600' : 'bg-gray-300'
+                  }`}></div>
                 )}
               </div>
-              <span className={`ml-2 text-sm font-medium ${
-                stepItem.completed || step === stepItem.number
-                  ? 'text-gray-900'
-                  : 'text-gray-500'
-              }`}>
-                {stepItem.title}
-              </span>
-              {index < 2 && (
-                <div className={`w-16 h-0.5 mx-4 ${
-                  stepItem.completed ? 'bg-green-600' : 'bg-gray-300'
-                }`}></div>
-              )}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          // Vista escritorio original
+          <div className="flex items-center justify-between">
+            {[
+              { number: 1, title: 'Deporte', completed: step > 1 },
+              { number: 2, title: 'Cancha', completed: step > 2 },
+              { number: 3, title: 'Fecha y Hora', completed: false }
+            ].map((stepItem, index) => (
+              <div key={stepItem.number} className="flex items-center">
+                <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+                  stepItem.completed
+                    ? 'bg-green-600 border-green-600 text-white'
+                    : step === stepItem.number
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'border-gray-300 text-gray-500'
+                }`}>
+                  {stepItem.completed ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    stepItem.number
+                  )}
+                </div>
+                <span className={`ml-2 text-sm font-medium ${
+                  stepItem.completed || step === stepItem.number
+                    ? 'text-gray-900'
+                    : 'text-gray-500'
+                }`}>
+                  {stepItem.title}
+                </span>
+                {index < 2 && (
+                  <div className={`w-16 h-0.5 mx-4 ${
+                    stepItem.completed ? 'bg-green-600' : 'bg-gray-300'
+                  }`}></div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Step Content */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         {/* Step 1: Select Sport */}
         {step === 1 && (
-          <div className="p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className={shouldUseMobileView ? "p-4 mobile-fade-in-up" : "p-6"}>
+            <h2 className={`font-semibold text-gray-900 mb-4 ${
+              shouldUseMobileView ? "text-xl text-center" : "text-lg"
+            }`}>
               Selecciona el Deporte
             </h2>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className={shouldUseMobileView 
+              ? "grid grid-cols-2 gap-3 mobile-stagger-children" 
+              : "grid grid-cols-2 md:grid-cols-4 gap-4"
+            }>
               {sports.map((sport) => (
                 <button
                   key={sport}
@@ -360,14 +490,16 @@ export default function NewReservationPage() {
                     setSelectedSport(sport);
                     setSelectedCourt(null);
                   }}
-                  className={`p-4 rounded-lg border-2 transition-colors ${
+                  className={`p-4 rounded-lg border-2 transition-all duration-200 ${
                     selectedSport === sport
-                      ? 'border-blue-600 bg-blue-50 text-blue-900'
-                      : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                  }`}
+                      ? 'border-blue-600 bg-blue-50 text-blue-900 scale-105'
+                      : 'border-gray-200 hover:border-gray-300 text-gray-700 hover:shadow-md'
+                  } ${shouldUseMobileView ? 'active:scale-95 mobile-card-hover' : ''}`}
                 >
                   <div className="text-center">
-                    <div className="text-2xl mb-2">{getSportIcon(sport)}</div>
+                    <div className={shouldUseMobileView ? "text-3xl mb-2" : "text-2xl mb-2"}>
+                      {getSportIcon(sport)}
+                    </div>
                     <div className="font-medium">{getSportLabel(sport)}</div>
                   </div>
                 </button>
@@ -375,10 +507,14 @@ export default function NewReservationPage() {
             </div>
             
             {selectedSport && (
-              <div className="mt-6 flex justify-end">
+              <div className={`mt-6 flex ${
+                shouldUseMobileView ? "justify-center" : "justify-end"
+              }`}>
                 <button
                   onClick={() => setStep(2)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  className={`bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+                    shouldUseMobileView ? "px-8 py-3 text-lg font-medium" : "px-4 py-2"
+                  }`}
                 >
                   Continuar
                 </button>
@@ -389,18 +525,32 @@ export default function NewReservationPage() {
 
         {/* Step 2: Select Court */}
         {step === 2 && (
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Selecciona la Cancha de {selectedSport}
-              </h2>
-              <button
-                onClick={() => setStep(1)}
-                className="text-sm text-gray-500 hover:text-gray-700"
-              >
-                Cambiar deporte
-              </button>
-            </div>
+          <div className={shouldUseMobileView ? "mobile-fade-in-up" : "p-6"}>
+            {shouldUseMobileView ? (
+              // Vista móvil con MobileCourtSelector
+              <MobileCourtSelector
+                courts={filteredCourts}
+                selectedCourt={selectedCourt}
+                onCourtSelect={(court) => {
+                  setSelectedCourt(court);
+                  setStep(3);
+                }}
+                selectedSport={selectedSport}
+              />
+            ) : (
+              // Vista escritorio original
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Selecciona la Cancha de {selectedSport}
+                  </h2>
+                  <button
+                    onClick={() => setStep(1)}
+                    className="text-sm text-gray-500 hover:text-gray-700"
+                  >
+                    Cambiar deporte
+                  </button>
+                </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {filteredCourts.map((court) => (
                 <div
@@ -439,20 +589,22 @@ export default function NewReservationPage() {
                 </div>
               ))}
             </div>
-            {selectedCourt && (
-              <div className="mt-6 flex justify-between">
-                <button
-                  onClick={() => setStep(1)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  Anterior
-                </button>
-                <button
-                  onClick={() => setStep(3)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  Continuar
-                </button>
+                {selectedCourt && (
+                  <div className="mt-6 flex justify-between">
+                    <button
+                      onClick={() => setStep(1)}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      Anterior
+                    </button>
+                    <button
+                      onClick={() => setStep(3)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      Continuar
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -460,18 +612,64 @@ export default function NewReservationPage() {
 
         {/* Step 3: Select Date and Time with Visual Calendar */}
         {step === 3 && (
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-gray-900">
-                🎯 Selecciona Fecha y Hora con Calendario Visual
-              </h2>
-              <button
-                onClick={() => setStep(2)}
-                className="text-sm text-gray-500 hover:text-gray-700"
-              >
-                Cambiar cancha
-              </button>
-            </div>
+          <div className={shouldUseMobileView ? "mobile-fade-in-up" : "p-6"}>
+            {shouldUseMobileView ? (
+              // Vista móvil con MobileCalendar
+              <MobileCalendar
+                selectedDate={selectedDate}
+                onDateChange={setSelectedDate}
+                duration={selectedDuration}
+                onDurationChange={setSelectedDuration}
+                timeSlots={timeSlots}
+                selectedSlot={selectedSlot}
+                onSlotSelect={(slot) => {
+                  // Convertir TimeSlot a CalendarSlot
+                  const calendarSlot: CalendarSlot = {
+                    ...slot,
+                    color: slot.available ? 'green' : 'red',
+                    message: slot.available ? 'Disponible' : 'No disponible',
+                    conflicts: []
+                  };
+                  setSelectedSlot(calendarSlot);
+                }}
+                loading={loadingTimeSlots}
+                courtName={selectedCourt?.name || ''}
+                onContinue={async () => {
+                   // En móvil, crear la reserva directamente con el slot seleccionado
+                   if (selectedSlot && selectedCourt && selectedDate) {
+                     try {
+                       // Crear fecha ISO para startTime
+                       const startDateTime = new Date(`${selectedDate}T${selectedSlot.startTime}`);
+                       
+                       const reservation = await api.reservations.create({
+                         courtId: selectedCourt.id,
+                         startTime: startDateTime.toISOString(),
+                         duration: selectedDuration,
+                         notes: notes
+                       });
+                       
+                       setCreatedReservationId(reservation.id);
+                       setShowPaymentModal(true);
+                     } catch (error) {
+                       console.error('Error creating reservation:', error);
+                     }
+                   }
+                 }}
+              />
+            ) : (
+              // Vista escritorio original
+              <div>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    🎯 Selecciona Fecha y Hora con Calendario Visual
+                  </h2>
+                  <button
+                    onClick={() => setStep(2)}
+                    className="text-sm text-gray-500 hover:text-gray-700"
+                  >
+                    Cambiar cancha
+                  </button>
+                </div>
             
             {/* 🎨 CONFIGURACIÓN INICIAL */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -610,6 +808,8 @@ export default function NewReservationPage() {
                 </div>
               </div>
             )}
+              </div>
+            )}
           </div>
         )}
 
@@ -636,17 +836,31 @@ export default function NewReservationPage() {
 
 
       {/* Modal de Pago Demo */}
-      <PaymentModal
-        isOpen={showPaymentModal}
-        onClose={() => setShowPaymentModal(false)}
-        reservationId={createdReservationId || ''}
-        amount={Number(totalCost || 0)}
-        currency="COP"
-        courtName={selectedCourt?.name || ''}
-        dateLabel={selectedDate ? formatDate(selectedDate) : ''}
-        timeLabel={selectedTime}
-        onSuccess={() => router.push('/dashboard/reservations')}
-      />
+      {shouldUseMobileView ? (
+        <MobilePaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          reservationId={createdReservationId || ''}
+          amount={Number(totalCost || 0)}
+          currency="COP"
+          courtName={selectedCourt?.name || ''}
+          dateLabel={selectedDate ? formatDate(selectedDate) : ''}
+          timeLabel={selectedTime}
+          onSuccess={() => router.push('/dashboard/reservations')}
+        />
+      ) : (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          reservationId={createdReservationId || ''}
+          amount={Number(totalCost || 0)}
+          currency="COP"
+          courtName={selectedCourt?.name || ''}
+          dateLabel={selectedDate ? formatDate(selectedDate) : ''}
+          timeLabel={selectedTime}
+          onSuccess={() => router.push('/dashboard/reservations')}
+        />
+      )}
     </div>
   );
 }

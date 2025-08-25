@@ -7,6 +7,7 @@ export interface CalendarSlot {
   message: string;
   conflicts: any[];
   available: boolean;
+  price: number;
 }
 
 export interface CalendarData {

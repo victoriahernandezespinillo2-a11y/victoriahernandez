@@ -1,0 +1,304 @@
+/* Animaciones y transiciones para la experiencia móvil */
+
+/* Transiciones de entrada para modales móviles */
+@keyframes slideUpIn {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideUpOut {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+/* Animaciones para botones móviles */
+@keyframes buttonPress {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Transiciones suaves para cambios de paso */
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Animación de carga */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Animación de éxito */
+@keyframes checkmark {
+  0% {
+    transform: scale(0) rotate(45deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2) rotate(45deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(45deg);
+    opacity: 1;
+  }
+}
+
+/* Animación de rebote para elementos interactivos */
+@keyframes bounce {
+  0%, 20%, 53%, 80%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  40%, 43% {
+    transform: translate3d(0, -8px, 0);
+  }
+  70% {
+    transform: translate3d(0, -4px, 0);
+  }
+  90% {
+    transform: translate3d(0, -2px, 0);
+  }
+}
+
+/* Clases de utilidad para animaciones */
+.mobile-slide-up {
+  animation: slideUpIn 0.3s ease-out;
+}
+
+.mobile-slide-down {
+  animation: slideUpOut 0.3s ease-in;
+}
+
+.mobile-fade-in-left {
+  animation: fadeInLeft 0.4s ease-out;
+}
+
+.mobile-fade-in-right {
+  animation: fadeInRight 0.4s ease-out;
+}
+
+.mobile-fade-in-up {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+.mobile-button-press {
+  animation: buttonPress 0.15s ease-in-out;
+}
+
+.mobile-pulse {
+  animation: pulse 2s infinite;
+}
+
+.mobile-spin {
+  animation: spin 1s linear infinite;
+}
+
+.mobile-checkmark {
+  animation: checkmark 0.6s ease-out;
+}
+
+.mobile-bounce {
+  animation: bounce 1s;
+}
+
+/* Transiciones suaves para elementos interactivos */
+.mobile-transition {
+  transition: all 0.2s ease-in-out;
+}
+
+.mobile-transition-fast {
+  transition: all 0.1s ease-in-out;
+}
+
+.mobile-transition-slow {
+  transition: all 0.4s ease-in-out;
+}
+
+/* Efectos de hover/touch para móvil */
+.mobile-touch-feedback {
+  transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+}
+
+.mobile-touch-feedback:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Animaciones específicas para componentes móviles */
+.mobile-court-card {
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.mobile-court-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.mobile-court-card.selected {
+  transform: scale(1.02);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
+}
+
+.mobile-calendar-day {
+  transition: all 0.2s ease-in-out;
+}
+
+.mobile-calendar-day:active {
+  transform: scale(0.95);
+}
+
+.mobile-calendar-day.selected {
+  animation: bounce 0.6s ease-out;
+}
+
+/* Animaciones para el progreso de pasos */
+.mobile-step-indicator {
+  transition: all 0.3s ease-in-out;
+}
+
+.mobile-step-indicator.completed {
+  animation: checkmark 0.5s ease-out;
+}
+
+.mobile-step-indicator.active {
+  animation: pulse 2s infinite;
+}
+
+/* Animaciones para modales de pago */
+.mobile-payment-modal {
+  animation: slideUpIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.mobile-payment-step {
+  animation: fadeInRight 0.3s ease-out;
+}
+
+.mobile-payment-success {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+/* Animaciones para gestos de deslizamiento */
+.mobile-swipe-indicator {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+/* Responsive: Desactivar animaciones en dispositivos con preferencia de movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Optimizaciones de rendimiento para animaciones móviles */
+.mobile-gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.mobile-smooth-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Animaciones específicas para diferentes tipos de contenido */
+.mobile-content-enter {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+.mobile-content-exit {
+  animation: fadeInUp 0.3s ease-in reverse;
+}
+
+/* Efectos de carga para componentes móviles */
+.mobile-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Animaciones para notificaciones y alertas móviles */
+.mobile-notification {
+  animation: slideUpIn 0.3s ease-out;
+}
+
+.mobile-notification.success {
+  animation: slideUpIn 0.3s ease-out, bounce 0.6s ease-out 0.3s;
+}
+
+.mobile-notification.error {
+  animation: slideUpIn 0.3s ease-out, pulse 0.5s ease-out 0.3s;
+}

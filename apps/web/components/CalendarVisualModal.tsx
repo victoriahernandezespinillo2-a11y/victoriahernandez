@@ -36,6 +36,60 @@ export default function CalendarVisualModal({
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
   const [currentStep, setCurrentStep] = useState<'selection' | 'confirmation'>('selection');
   const [isCreatingReservation, setIsCreatingReservation] = useState(false);
+  
+  // 🚀 GESTOS TÁCTILES PARA MÓVIL
+  const [touchStart, setTouchStart] = useState<{ y: number; time: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  
+  // 🚀 MANEJO DE GESTOS TÁCTILES
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    setTouchStart({ y: touch.clientY, time: Date.now() });
+    setIsDragging(false);
+    setDragOffset(0);
+  };
+  
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStart) return;
+    
+    const touch = e.touches[0];
+    if (!touch) return;
+    const deltaY = touch.clientY - touchStart.y;
+    
+    // Solo permitir swipe hacia abajo
+    if (deltaY > 0) {
+      setIsDragging(true);
+      setDragOffset(Math.min(deltaY, 200)); // Limitar el drag
+      
+      // Prevenir scroll del body durante el drag
+      e.preventDefault();
+    }
+  };
+  
+  const handleTouchEnd = () => {
+    if (!touchStart || !isDragging) {
+      setTouchStart(null);
+      setIsDragging(false);
+      setDragOffset(0);
+      return;
+    }
+    
+    const swipeDistance = dragOffset;
+    const swipeTime = Date.now() - touchStart.time;
+    const swipeVelocity = swipeDistance / swipeTime;
+    
+    // Cerrar modal si el swipe es suficiente (distancia > 100px o velocidad > 0.5)
+    if (swipeDistance > 100 || swipeVelocity > 0.5) {
+      onClose();
+    }
+    
+    // Reset states
+    setTouchStart(null);
+    setIsDragging(false);
+    setDragOffset(0);
+  };
 
   // 🔄 CARGAR DATOS DEL CALENDARIO
   useEffect(() => {
@@ -59,24 +113,26 @@ export default function CalendarVisualModal({
     loadCalendarData();
   }, [courtId, date, duration, isOpen]);
 
-  // 🎨 FUNCIÓN PARA OBTENER ESTILOS DEL SLOT
+  // 🎨 FUNCIÓN PARA OBTENER ESTILOS DEL SLOT MÓVIL-OPTIMIZADO
   const getSlotStyles = (slot: CalendarSlot) => {
     const baseStyles = {
-      padding: '8px 12px',
+      padding: '12px 8px',
       margin: '2px',
-      borderRadius: '6px',
+      borderRadius: '8px',
       cursor: slot.available ? 'pointer' : 'not-allowed',
       border: '2px solid transparent',
-      transition: 'all 0.2s ease',
+      transition: 'all 0.3s ease',
       fontSize: '12px',
-      fontWeight: '500',
+      fontWeight: '600',
       textAlign: 'center' as const,
-      minHeight: '40px',
+      minHeight: '60px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       flexDirection: 'column' as const,
-      position: 'relative' as const
+      position: 'relative' as const,
+      userSelect: 'none' as const,
+      WebkitTapHighlightColor: 'transparent'
     };
 
     // Estilos específicos por estado
@@ -86,9 +142,9 @@ export default function CalendarVisualModal({
           ...baseStyles,
           backgroundColor: slot.color,
           color: 'white',
-          border: selectedSlot?.time === slot.time ? '2px solid #1f2937' : '2px solid transparent',
-          transform: selectedSlot?.time === slot.time ? 'scale(1.05)' : 'scale(1)',
-          boxShadow: selectedSlot?.time === slot.time ? '0 4px 12px rgba(0,0,0,0.15)' : 'none'
+          border: selectedSlot?.time === slot.time ? '3px solid #1f2937' : '2px solid transparent',
+          transform: selectedSlot?.time === slot.time ? 'scale(1.08)' : 'scale(1)',
+          boxShadow: selectedSlot?.time === slot.time ? '0 6px 20px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.1)'
         };
       
       case 'BOOKED':
@@ -250,18 +306,32 @@ export default function CalendarVisualModal({
         onClick={onClose}
       />
       
-      {/* Modal central responsive */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
-        <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-6xl max-h-[95vh] overflow-hidden">
-                     {/* Header del modal */}
-           <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 sm:p-6 rounded-t-2xl relative">
-             {/* 🚀 BOTÓN DE CERRAR REPOSICIONADO - MÁS VISIBLE */}
+      {/* Modal central responsive - Optimizado para móvil */}
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div 
+          className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full max-w-6xl h-[98vh] xs:h-[95vh] sm:max-h-[95vh] overflow-hidden animate-slide-up sm:animate-none modal-mobile"
+          style={{
+            transform: `translateY(${dragOffset}px)`,
+            opacity: isDragging ? Math.max(0.5, 1 - dragOffset / 200) : 1,
+            transition: isDragging ? 'none' : 'transform 0.3s ease-out, opacity 0.3s ease-out'
+          }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+                     {/* Header del modal - Optimizado para móvil */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-3 xs:p-4 sm:p-6 rounded-t-3xl sm:rounded-t-2xl relative">
+             {/* 🚀 BOTÓN DE CERRAR MÓVIL-FRIENDLY */}
              <button
                onClick={onClose}
-               className="absolute top-2 right-2 text-white hover:text-blue-100 transition-colors p-3 rounded-full hover:bg-blue-600 z-10"
+               className="absolute top-4 right-4 text-white hover:text-blue-100 transition-colors p-2 rounded-full hover:bg-blue-600 z-10 bg-black bg-opacity-20 button-native touch-feedback"
+               aria-label="Cerrar modal"
              >
-               <X className="h-6 w-6" />
+               <X className="h-5 w-5" />
              </button>
+             
+             {/* 🚀 HANDLE VISUAL PARA MÓVIL */}
+             <div className="sm:hidden w-12 h-1 bg-white bg-opacity-30 rounded-full mx-auto mb-4"></div>
              
              <div className="flex items-center justify-between">
                <div className="flex items-center space-x-3">
@@ -299,41 +369,50 @@ export default function CalendarVisualModal({
              </div>
            </div>
 
-           {/* 🚀 BOTÓN CONFIRMAR HORARIO FIJO EN LA PARTE SUPERIOR */}
+           {/* 🚀 BOTÓN CONFIRMAR HORARIO MÓVIL-OPTIMIZADO */}
            {currentStep === 'selection' && (
-             <div className="px-4 sm:px-6 py-3 bg-white border-b border-gray-200 shadow-sm">
+             <div className="px-4 sm:px-6 py-4 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
                <div className="flex justify-center">
                  <button
                    onClick={handleConfirm}
                    disabled={!selectedSlot}
                    className={`
-                     px-12 py-4 rounded-xl font-bold text-lg transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg transform hover:scale-105
+                     w-full sm:w-auto px-8 sm:px-12 py-4 sm:py-4 rounded-xl font-bold text-base sm:text-lg transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg transform active:scale-95 touch-manipulation
                      ${selectedSlot
                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-blue-200 ring-2 ring-blue-200 ring-opacity-50 animate-pulse'
                        : 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-gray-200'
                      }
                    `}
                  >
-                   <span>{selectedSlot ? '✓ Confirmar Horario Seleccionado' : '💡 Selecciona un Horario Primero'}</span>
+                   <span className="text-center">{selectedSlot ? '✓ Confirmar Horario Seleccionado' : '💡 Selecciona un Horario Primero'}</span>
                    <Check className="h-5 w-5" />
                  </button>
                </div>
                {selectedSlot && (
-                 <p className="text-center text-sm text-gray-600 mt-2">
+                 <p className="text-center text-sm text-gray-600 mt-3">
                    📅 {formatTime(selectedSlot.startTime)} - {formatTime(selectedSlot.endTime)} • {duration} min
                  </p>
                )}
              </div>
            )}
 
-                     {/* Contenido del modal */}
-           <div className="p-4 sm:p-6 overflow-y-auto max-h-[70vh]">
+                     {/* Contenido del modal móvil-optimizado */}
+           <div className="p-3 xs:p-4 sm:p-6 overflow-y-auto max-h-[70vh] xs:max-h-[65vh] sm:max-h-[70vh] overscroll-behavior-contain">
              {loading ? (
-               <div className="flex items-center justify-center p-8">
-                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                 <span className="ml-2 text-gray-600">Cargando calendario...</span>
-               </div>
-             ) : error ? (
+                <div className="space-y-6">
+                  <div className="flex flex-col items-center justify-center p-8 space-y-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                    <p className="text-gray-600 loading-pulse">Cargando horarios disponibles...</p>
+                  </div>
+                  
+                  {/* Skeleton loading para slots */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                    {Array.from({ length: 12 }).map((_, i) => (
+                      <div key={i} className="h-16 sm:h-14 rounded-lg shimmer"></div>
+                    ))}
+                  </div>
+                </div>
+              ) : error ? (
                <div className="text-center p-8 text-red-600">
                  <p>❌ Error cargando calendario: {error}</p>
                  <button 
@@ -375,7 +454,7 @@ export default function CalendarVisualModal({
                    <h3 className="text-lg font-semibold mb-3">Resumen del {formatDate(date)}</h3>
                    
                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                     {Object.entries(calendarData.legend).map(([key, legend]) => (
+                     {calendarData.legend && Object.entries(calendarData.legend).map(([key, legend]) => (
                        <div key={key} className="flex items-center space-x-2">
                          <div 
                            className="w-4 h-4 rounded-full" 
@@ -391,32 +470,36 @@ export default function CalendarVisualModal({
 
 
 
-                 {/* 📅 CALENDARIO VISUAL RESPONSIVE */}
+                 {/* 📅 CALENDARIO VISUAL MÓVIL-OPTIMIZADO */}
                  <div className="bg-white rounded-lg shadow-sm border p-4">
                    <h4 className="font-medium mb-4">Horarios Disponibles</h4>
                    
-                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-                     {calendarData.slots.map((slot, index) => (
+                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-2">
+                     {calendarData.slots && calendarData.slots.map((slot, index) => (
                        <div
                          key={index}
                          style={getSlotStyles(slot)}
                          onClick={() => handleSlotClick(slot)}
                          title={getTooltipContent(slot)}
                          className={`
-                           ${slot.available ? 'hover:scale-105 hover:shadow-md' : ''}
+                           min-h-[60px] sm:min-h-[50px] touch-manipulation
+                           ${slot.available ? 'hover:scale-105 hover:shadow-md active:scale-95' : ''}
                            ${selectedSlot?.time === slot.time ? 'ring-4 ring-blue-400 ring-opacity-75 scale-105 shadow-xl border-blue-400 animate-pulse' : ''}
                          `}
                        >
-                         <div className="font-medium text-xs sm:text-sm">
+                         <div className="font-medium text-sm sm:text-xs">
                            {formatTime(slot.startTime)}
+                         </div>
+                         <div className="text-xs opacity-90 block sm:hidden truncate">
+                           {slot.message}
                          </div>
                          <div className="text-xs opacity-90 hidden sm:block">
                            {slot.message}
                          </div>
                          
-                         {/* Indicador de duración */}
+                         {/* Indicador de duración móvil-optimizado */}
                          {slot.available && (
-                           <div className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs px-1 rounded-full">
+                           <div className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">
                              {duration}min
                            </div>
                          )}
@@ -511,44 +594,43 @@ export default function CalendarVisualModal({
              )}
            </div>
 
-                     {/* Botones de acción */}
-           <div className="p-4 sm:p-6 border-t border-gray-200 bg-gray-50">
-             <div className="flex flex-col sm:flex-row justify-between items-center space-y-3 sm:space-y-0">
-               {currentStep === 'selection' ? (
-                 // 🚀 PASO 1: SOLO BOTÓN CANCELAR (Confirmar está arriba)
-                 <div className="flex justify-center">
-                   <button
-                     onClick={onClose}
-                     className="px-8 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                   >
-                     ❌ Cancelar
-                   </button>
-                 </div>
-               ) : (
-                 // 🚀 PASO 2: BOTONES DE CONFIRMACIÓN
-                 <>
-                   <button
-                     onClick={handleBackToSelection}
-                     className="w-full sm:w-auto px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                   >
-                     ← Volver
-                   </button>
-                   
-                   <button
-                     onClick={handleContinue}
-                     disabled={isCreatingReservation}
-                     className="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-xl font-bold text-lg transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg transform hover:scale-105 ring-2 ring-green-200 ring-opacity-50 shadow-green-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                   >
-                     <span>{isCreatingReservation ? '⏳ Creando Reserva...' : '🚀 Confirmar y Pagar'}</span>
-                     {isCreatingReservation ? (
-                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                     ) : (
-                       <Check className="h-5 w-5" />
-                     )}
-                   </button>
-                 </>
-               )}
-             </div>
+                     {/* 🚀 BOTONES DE ACCIÓN MÓVIL-OPTIMIZADOS */}
+           <div className="bg-white px-3 xs:px-4 sm:px-6 py-3 xs:py-4 sm:py-4 border-t border-gray-200 safe-area-bottom">
+             {currentStep === 'selection' ? (
+               <div className="flex flex-col sm:flex-row sm:justify-center space-y-3 sm:space-y-0">
+                 <button
+                   onClick={onClose}
+                   className="w-full sm:w-auto px-8 py-4 sm:py-3 border border-gray-300 text-gray-700 rounded-xl sm:rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors font-medium text-base sm:text-sm button-native touch-feedback"
+                 >
+                   ❌ Cancelar
+                 </button>
+               </div>
+             ) : (
+               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+                 <button
+                   onClick={handleBackToSelection}
+                   className="w-full sm:w-auto px-6 py-4 sm:py-3 border border-gray-300 text-gray-700 rounded-xl sm:rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors font-medium text-base sm:text-sm button-native touch-feedback"
+                 >
+                   ← Volver
+                 </button>
+                 
+                 <button
+                   onClick={handleContinue}
+                   disabled={isCreatingReservation}
+                   className="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-xl font-bold text-lg transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg transform hover:scale-105 ring-2 ring-green-200 ring-opacity-50 shadow-green-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 button-native touch-feedback"
+                 >
+                   <span>{isCreatingReservation ? '⏳ Creando Reserva...' : '🚀 Confirmar y Pagar'}</span>
+                   {isCreatingReservation ? (
+                     <div className="flex items-center justify-center gap-3">
+                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                       <span className="loading-pulse">Creando reserva...</span>
+                     </div>
+                   ) : (
+                     <Check className="h-5 w-5" />
+                   )}
+                 </button>
+               </div>
+             )}
            </div>
         </div>
       </div>

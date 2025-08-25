@@ -225,6 +225,7 @@ export default function CalendarVisual({
 
   // Mapea las claves de leyenda a las claves del resumen (corrige USER_BOOKED -> userBooked)
   const getSummaryCount = (key: string) => {
+    if (!calendarData) return 0;
     const map: Record<string, keyof typeof calendarData.summary> = {
       AVAILABLE: 'available',
       BOOKED: 'booked',
@@ -249,7 +250,7 @@ export default function CalendarVisual({
         })}</h3>
         
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {Object.entries(calendarData.legend).map(([key, legend]) => (
+          {calendarData.legend && Object.entries(calendarData.legend).map(([key, legend]) => (
             <div key={key} className="flex items-center space-x-2">
               <div 
                 className="w-4 h-4 rounded-full" 
@@ -267,7 +268,7 @@ export default function CalendarVisual({
       <div className="bg-white rounded-lg shadow-sm border p-4">
         <h4 className="font-medium mb-3">Leyenda de Colores</h4>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {Object.entries(calendarData.legend).map(([key, legend]) => (
+          {calendarData.legend && Object.entries(calendarData.legend).map(([key, legend]) => (
             <div key={key} className="flex items-center space-x-2">
               <div 
                 className="w-4 h-4 rounded-full" 
@@ -284,7 +285,7 @@ export default function CalendarVisual({
         <h4 className="font-medium mb-4">Horarios Disponibles</h4>
         
         <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-          {calendarData.slots.map((slot, index) => (
+          {calendarData.slots && calendarData.slots.map((slot, index) => (
             <div
               key={index}
               style={getSlotStyles(slot)}

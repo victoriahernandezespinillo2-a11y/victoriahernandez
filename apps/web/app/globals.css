@@ -308,3 +308,127 @@ a {
   height: 300px;
   opacity: 0.1;
 }
+
+/* 🚀 ANIMACIONES PARA MODAL MÓVIL */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+/* 🚀 SAFE AREA PARA MÓVILES */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* 🚀 MEJORAS TÁCTILES PARA MÓVIL */
+@media (max-width: 640px) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  .modal-mobile {
+    touch-action: pan-y;
+  }
+}
+
+/* 🚀 FEEDBACK TÁCTIL Y ANIMACIONES */
+.touch-feedback {
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-feedback:active {
+  transform: scale(0.98);
+  opacity: 0.8;
+}
+
+.loading-pulse {
+  animation: pulse-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-loading {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* 🚀 ESTADOS DE INTERACCIÓN MEJORADOS */
+.button-native {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.button-native:active {
+  transform: scale(0.96);
+}
+
+.button-native:disabled {
+  opacity: 0.6;
+  transform: none;
+  cursor: not-allowed;
+}
+
+/* 🚀 RESPONSIVE MEJORADO PARA PANTALLAS EXTRA PEQUEÑAS */
+@media (max-width: 375px) {
+  .modal-mobile {
+    border-radius: 1.5rem 1.5rem 0 0;
+  }
+  
+  .touch-target {
+    min-height: 48px;
+    min-width: 48px;
+  }
+  
+  /* Optimización de texto para pantallas pequeñas */
+  .text-responsive {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+  
+  /* Espaciado compacto para pantallas pequeñas */
+  .space-compact > * + * {
+    margin-top: 0.75rem;
+  }
+}
+
+@media (max-width: 320px) {
+  .modal-mobile {
+    height: 100vh !important;
+    border-radius: 0;
+  }
+  
+  .text-responsive {
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+  }
+}
