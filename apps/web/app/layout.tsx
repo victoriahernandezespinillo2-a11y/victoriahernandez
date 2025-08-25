@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import { ConditionalNavigation } from "./components/ConditionalNavigation";
 import { Footer } from "./components/Footer";
 import { SessionWrapper } from "./components/SessionWrapper";
 import CookieBanner from "./components/CookieBanner";
 import { FirebaseAuthProvider } from "../components/auth/FirebaseAuthProvider";
+import { ClientNavigation } from "./components/ClientNavigation";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -59,7 +59,7 @@ export default function RootLayout({
         <SessionWrapper>
           <FirebaseAuthProvider>
             <div className="min-h-screen flex flex-col">
-              <ConditionalNavigation />
+              <ClientNavigation />
               <main className="flex-1">
                 {children}
               </main>

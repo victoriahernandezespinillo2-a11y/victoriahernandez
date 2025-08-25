@@ -12,11 +12,12 @@ import {
   Trophy,
   Settings,
   Menu,
-  X,
   ShoppingCart,
   Wallet,
   ListOrdered,
 } from 'lucide-react';
+import { MobileDrawer } from '../../components/MobileDrawer';
+import { useMobileDrawer } from '../../hooks/useMobileDrawer';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
@@ -32,7 +33,7 @@ const navigation = [
 ];
 
 export function DashboardSidebar() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { isMobileDrawerOpen, openDrawer, closeDrawer } = useMobileDrawer();
   const pathname = usePathname();
 
   return (
@@ -41,29 +42,21 @@ export function DashboardSidebar() {
       <div className="lg:hidden fixed top-4 left-4 z-50">
         <button
           type="button"
-          className="bg-white p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
-          onClick={() => setSidebarOpen(true)}
+          className="bg-white p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 shadow-lg"
+          onClick={openDrawer}
         >
           <Menu className="h-6 w-6" />
         </button>
       </div>
 
-      {/* Mobile sidebar */}
-      <div className={`lg:hidden fixed inset-0 z-40 ${sidebarOpen ? 'block' : 'hidden'}`}>
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)}></div>
-        <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white">
-          <div className="absolute top-0 right-0 -mr-12 pt-2">
-            <button
-              type="button"
-              className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
-              onClick={() => setSidebarOpen(false)}
-            >
-              <X className="h-6 w-6 text-white" />
-            </button>
-          </div>
-          <SidebarContent pathname={pathname} />
-        </div>
-      </div>
+      {/* Mobile Drawer */}
+      <MobileDrawer 
+        isOpen={isMobileDrawerOpen} 
+        onClose={closeDrawer}
+        title="Dashboard"
+      >
+        <SidebarContent pathname={pathname} />
+      </MobileDrawer>
 
       {/* Desktop sidebar */}
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0">

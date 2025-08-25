@@ -2,6 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { 
+  CalendarPlus, 
+  Eye, 
+  UserPlus, 
+  ArrowRight, 
+  Compass, 
+  Info, 
+  Calendar, 
+  ChevronDown, 
+  ChevronLeft, 
+  ChevronRight 
+} from 'lucide-react';
 
 export function HeroSection() {
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -116,16 +128,20 @@ export function HeroSection() {
               onClick={currentHero.primaryAction}
               className="group bg-white text-gray-900 px-8 py-4 rounded-2xl font-bold text-lg shadow-2xl hover:shadow-glow transition-all duration-300 hover:scale-105 hover:-translate-y-1 flex items-center space-x-3"
             >
-              <i className={`fas ${currentSlide === 0 ? 'fa-calendar-plus' : currentSlide === 1 ? 'fa-eye' : 'fa-user-plus'} text-emerald-600 group-hover:scale-110 transition-transform duration-300`}></i>
+              {currentSlide === 0 ? <CalendarPlus className="h-5 w-5 text-emerald-600 group-hover:scale-110 transition-transform duration-300" /> : 
+               currentSlide === 1 ? <Eye className="h-5 w-5 text-emerald-600 group-hover:scale-110 transition-transform duration-300" /> : 
+               <UserPlus className="h-5 w-5 text-emerald-600 group-hover:scale-110 transition-transform duration-300" />}
               <span>{currentHero.cta}</span>
-              <i className="fas fa-arrow-right text-emerald-600 group-hover:translate-x-1 transition-transform duration-300"></i>
+              <ArrowRight className="h-5 w-5 text-emerald-600 group-hover:translate-x-1 transition-transform duration-300" />
             </button>
             
             <button 
               onClick={currentHero.secondaryAction}
               className="group bg-transparent border-2 border-white/50 text-white px-8 py-4 rounded-2xl font-semibold text-lg hover:bg-white/10 hover:border-white transition-all duration-300 hover:scale-105 flex items-center space-x-3"
             >
-              <i className={`fas ${currentSlide === 0 ? 'fa-compass' : currentSlide === 1 ? 'fa-info-circle' : 'fa-calendar-alt'} group-hover:scale-110 transition-transform duration-300`}></i>
+              {currentSlide === 0 ? <Compass className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" /> : 
+               currentSlide === 1 ? <Info className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" /> : 
+               <Calendar className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />}
               <span>{currentHero.secondaryCta}</span>
             </button>
           </div>
@@ -171,7 +187,7 @@ export function HeroSection() {
       <div className="absolute bottom-8 right-8 animate-bounce">
         <div className="flex flex-col items-center space-y-2 text-white/80">
           <span className="text-sm font-medium">Explorar</span>
-          <i className="fas fa-chevron-down text-xl"></i>
+          <ChevronDown className="h-6 w-6" />
         </div>
       </div>
 
@@ -180,14 +196,14 @@ export function HeroSection() {
         onClick={() => setCurrentSlide((prev) => (prev - 1 + heroSlides.length) % heroSlides.length)}
         className="absolute left-8 top-1/2 transform -translate-y-1/2 w-12 h-12 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-all duration-300 hover:scale-110 z-20"
       >
-        <i className="fas fa-chevron-left"></i>
+        <ChevronLeft className="h-5 w-5" />
       </button>
       
       <button 
         onClick={() => setCurrentSlide((prev) => (prev + 1) % heroSlides.length)}
         className="absolute right-8 top-1/2 transform -translate-y-1/2 w-12 h-12 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-all duration-300 hover:scale-110 z-20"
       >
-        <i className="fas fa-chevron-right"></i>
+        <ChevronRight className="h-5 w-5" />
       </button>
 
       {/* Live Status Indicator */}

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 
 export function Footer() {
+  const pathname = usePathname();
   const currentYear = new Date().getFullYear();
   const [isVisible, setIsVisible] = useState(false);
   // Evitar hidratación no determinista: inicializar tras montar
@@ -10,6 +12,16 @@ export function Footer() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [email, setEmail] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
+
+  // Determinar si estamos en una ruta del dashboard
+  const isDashboardRoute = pathname && (
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/reservas') ||
+    pathname.startsWith('/nueva-reserva') ||
+    pathname.startsWith('/actividades') ||
+    pathname.startsWith('/perfil') ||
+    pathname.startsWith('/admin')
+  );
 
   // Marcar componente montado y configurar reloj
   useEffect(() => {
@@ -127,7 +139,9 @@ export function Footer() {
   ];
 
   return (
-    <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden">
+    <footer className={`bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden ${
+      isDashboardRoute ? 'hidden md:block' : ''
+    }`}>
       {/* Enhanced Background Pattern */}
       <div className="absolute inset-0 opacity-5">
         <div className="absolute inset-0" style={{
@@ -468,7 +482,9 @@ export function Footer() {
 
         {/* Enhanced Floating Action Button */}
         {isVisible && (
-          <div className="fixed bottom-6 right-6 z-50">
+          <div className={`fixed bottom-6 right-6 z-50 ${
+            isDashboardRoute ? 'hidden md:block' : ''
+          }`}>
             <button 
               onClick={scrollToTop}
               className="group relative w-14 h-14 bg-gradient-to-r from-emerald-500 to-blue-600 text-white rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-110 hover:rotate-12 flex items-center justify-center"
@@ -484,7 +500,9 @@ export function Footer() {
         )}
 
         {/* Emergency Contact Floating Button */}
-        <div className="fixed bottom-6 left-6 z-50">
+        <div className={`fixed bottom-6 left-6 z-50 ${
+          isDashboardRoute ? 'hidden md:block' : ''
+        }`}>
           <a
             href={`tel:${contactInfo.emergency}`}
             className="group relative w-12 h-12 bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-110 flex items-center justify-center"

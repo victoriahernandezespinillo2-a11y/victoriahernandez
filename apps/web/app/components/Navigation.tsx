@@ -2,14 +2,37 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { 
+  Home, 
+  Building, 
+  Dumbbell, 
+  Calendar, 
+  Info, 
+  Users, 
+  Clock, 
+  MapPin, 
+  Phone, 
+  Waves, 
+  Zap, 
+  User, 
+  CalendarPlus,
+  Activity,
+  Search,
+  Bell,
+} from "lucide-react";
+// Remove MobileNativeMenu import and use MobileLandingMenu named export
+import { MobileLandingMenu } from "./MobileLandingMenu";
+import { useMobileDrawer } from "../hooks/useMobileDrawer";
 
 export function Navigation() {
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
   // Estado para controlar acordeones en móvil
   const [mobileAccordions, setMobileAccordions] = useState<Record<string, boolean>>({});
+  const { isMobileDrawerOpen, openDrawer, closeDrawer } = useMobileDrawer();
   const router = useRouter();
 
   const handleSmoothScroll = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
@@ -23,9 +46,8 @@ export function Navigation() {
           top: offsetTop,
           behavior: 'smooth'
         });
-        setIsMobileMenuOpen(false); // Close mobile menu after navigation
+        handleCloseDrawer(); // Close mobile drawer after navigation
         setActiveDropdown(null); // Close dropdown
-        setMobileAccordions({}); // Reset mobile accordions
       } else {
         // Si no encuentra el elemento, navegar a la página principal
         router.push('/' + href);
@@ -33,10 +55,27 @@ export function Navigation() {
     } else {
       // Para rutas absolutas, usar router.push
       router.push(href);
-      setIsMobileMenuOpen(false);
+      handleCloseDrawer();
       setActiveDropdown(null);
-      setMobileAccordions({}); // Reset mobile accordions
     }
+  };
+
+  // Función adaptadora para MobileLandingMenu
+  const handleMobileSmoothScroll = (section: string) => {
+    const targetElement = document.getElementById(section);
+    if (targetElement) {
+      const offsetTop = targetElement.offsetTop - 80; // Account for fixed navbar height
+      window.scrollTo({
+        top: offsetTop,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  // Función para cerrar drawer y resetear acordeones
+  const handleCloseDrawer = () => {
+    closeDrawer();
+    setMobileAccordions({});
   };
 
   // Función para manejar acordeones móviles
@@ -64,12 +103,31 @@ export function Navigation() {
 
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
+      const currentScrollY = window.scrollY;
+      
+      // Set scrolled state
+      setIsScrolled(currentScrollY > 50);
+      
+      // Hide/show header elements (we'll use this to hide the hamburger button on mobile)
+      if (window.innerWidth < 1024) { // lg breakpoint
+        if (currentScrollY > lastScrollY && currentScrollY > 100) {
+          // Scrolling down & past threshold
+          setIsHeaderVisible(false);
+        } else if (currentScrollY < lastScrollY || currentScrollY < 50) {
+          // Scrolling up or near top
+          setIsHeaderVisible(true);
+        }
+      } else {
+        // Always visible on desktop
+        setIsHeaderVisible(true);
+      }
+      
+      setLastScrollY(currentScrollY);
     };
 
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [lastScrollY]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -84,70 +142,81 @@ export function Navigation() {
     {
       label: 'Inicio',
       href: '#inicio',
-      icon: 'fas fa-home'
+      icon: Home
     },
     {
       label: 'Instalaciones',
       href: '#instalaciones',
-      icon: 'fas fa-building',
+      icon: Building,
       dropdown: [
-        { label: 'Piscinas', href: '#instalaciones', icon: 'fas fa-swimmer' },
-        { label: 'Gimnasio', href: '#instalaciones', icon: 'fas fa-dumbbell' },
-        { label: 'Pistas Deportivas', href: '#instalaciones', icon: 'fas fa-running' },
-        { label: 'Spa & Wellness', href: '#instalaciones', icon: 'fas fa-spa' }
+        { label: 'Piscinas', href: '#instalaciones', icon: Waves },
+        { label: 'Gimnasio', href: '#instalaciones', icon: Dumbbell },
+        { label: 'Pistas Deportivas', href: '#instalaciones', icon: Zap },
+        { label: 'Spa & Wellness', href: '#instalaciones', icon: Waves }
       ]
     },
     {
       label: 'Deportes',
       href: '#deportes',
-      icon: 'fas fa-futbol'
+      icon: Zap
     },
     {
       label: 'Actividades',
       href: '#actividades',
-      icon: 'fas fa-calendar-alt'
+      icon: Calendar
     },
     {
       label: 'Información',
       href: '#info',
-      icon: 'fas fa-info-circle',
+      icon: Info,
       dropdown: [
-        { label: 'Sobre Nosotros', href: '#info', icon: 'fas fa-users' },
-        { label: 'Horarios', href: '#info', icon: 'fas fa-clock' },
-        { label: 'Ubicación', href: '#info', icon: 'fas fa-map-marker-alt' },
-        { label: 'Contacto', href: '#info', icon: 'fas fa-phone' }
+        { label: 'Sobre Nosotros', href: '#info', icon: Users },
+        { label: 'Horarios', href: '#info', icon: Clock },
+        { label: 'Ubicación', href: '#info', icon: MapPin },
+        { label: 'Contacto', href: '#info', icon: Phone }
       ]
     }
   ];
 
   return (
     <>
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      <nav className={`fixed left-0 right-0 z-50 transition-all duration-300 ${
         isScrolled 
           ? 'bg-white/95 backdrop-blur-lg shadow-xl border-b border-gray-200/50' 
           : 'bg-black/20 backdrop-blur-sm'
+      } ${
+        // En mobile mantenemos el header, pero ocultamos el botón de menú; en desktop siempre visible
+        'top-0 translate-y-0'
       }`}>
-        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 xl:px-16">
-          <div className="flex items-center justify-between h-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 xl:px-16">
+          <div className="flex items-center justify-between h-16 sm:h-20">
             {/* Logo */}
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-3">
               <div className="relative">
-                <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <i className="fas fa-running text-white text-xl"></i>
+                <div className="w-8 h-8 sm:w-12 sm:h-12 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-lg sm:rounded-xl flex items-center justify-center shadow-lg">
+                  <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                 </div>
-                <div className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 rounded-full animate-pulse"></div>
+                <div className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-3 h-3 sm:w-4 sm:h-4 bg-orange-500 rounded-full animate-pulse"></div>
               </div>
-              <div>
-                <h1 className={`font-bold text-xl transition-colors duration-300 ${
+              <div className="hidden sm:block">
+                <h1 className={`font-bold text-lg sm:text-xl transition-colors duration-300 ${
                   isScrolled ? 'text-gray-900' : 'text-white'
                 }`}>
                   Polideportivo
                 </h1>
-                <p className={`text-sm font-medium transition-colors duration-300 ${
+                <p className={`text-xs sm:text-sm font-medium transition-colors duration-300 ${
                   isScrolled ? 'text-emerald-600' : 'text-emerald-200'
                 }`}>
                   Victoria Hernandez
                 </p>
+              </div>
+              {/* Logo compacto solo para móvil */}
+              <div className="block sm:hidden">
+                <h1 className={`font-bold text-base transition-colors duration-300 ${
+                  isScrolled ? 'text-gray-900' : 'text-white'
+                }`}>
+                  Polideportivo
+                </h1>
               </div>
             </div>
 
@@ -169,12 +238,14 @@ export function Navigation() {
                         : 'text-white hover:text-emerald-200 hover:bg-white/10'
                     }`}
                   >
-                    <i className={`${item.icon} text-sm`}></i>
+                    <item.icon className="h-4 w-4" />
                     <span className="text-sm">{item.label}</span>
                     {item.dropdown && (
-                      <i className={`fas fa-chevron-down text-xs transition-transform duration-300 ${
+                      <svg className={`h-3 w-3 transition-transform duration-300 ${
                         activeDropdown === item.label ? 'rotate-180' : ''
-                      }`}></i>
+                      }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
                     )}
                   </a>
                   
@@ -191,7 +262,7 @@ export function Navigation() {
                             onClick={(e) => handleSmoothScroll(e, dropdownItem.href)}
                             className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 transition-colors duration-200"
                           >
-                            <i className={`${dropdownItem.icon} text-emerald-500 w-4`}></i>
+                            <dropdownItem.icon className="h-4 w-4 text-emerald-500" />
                             <span className="text-sm font-medium">{dropdownItem.label}</span>
                           </a>
                         ))}
@@ -206,124 +277,97 @@ export function Navigation() {
             <div className="hidden lg:flex items-center space-x-4 xl:space-x-6">
               <button 
                 onClick={() => router.push('/auth/signin')}
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
                 isScrolled 
                   ? 'text-gray-700 hover:text-emerald-600 hover:bg-emerald-50' 
                   : 'text-white hover:text-emerald-200 hover:bg-white/10'
               }`}>
-                <i className="fas fa-user mr-2"></i>
-                Iniciar Sesión
+                <User className="h-4 w-4" />
+                <span>Iniciar Sesión</span>
               </button>
               <button 
                 onClick={() => router.push('/dashboard/reservations/new')}
-                className="bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-6 py-2 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 hover:from-emerald-600 hover:to-blue-700">
-                <i className="fas fa-calendar-plus mr-2"></i>
+                className="flex items-center space-x-2 bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-6 py-2 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 hover:from-emerald-600 hover:to-blue-700">
+                <CalendarPlus className="h-4 w-4" />
                 Reservar Ahora
               </button>
             </div>
 
-            {/* Mobile Menu Button */}
-            <button
-              className={`lg:hidden p-2 rounded-lg transition-colors duration-300 ${
-                isScrolled ? 'text-gray-700 hover:bg-gray-100' : 'text-white hover:bg-white/10'
-              }`}
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            >
-              <i className={`fas ${isMobileMenuOpen ? 'fa-times' : 'fa-bars'} text-xl`}></i>
-            </button>
+            {/* Mobile Actions */}
+            <div className="lg:hidden flex items-center space-x-2">
+              {/* Search Button */}
+              <button
+                className={`p-2 rounded-lg transition-all duration-300 hover:scale-105 ${
+                  isScrolled 
+                    ? 'text-gray-700 hover:bg-gray-100' 
+                    : 'text-white hover:bg-white/10'
+                }`}
+                aria-label="Buscar"
+              >
+                <Search className="h-5 w-5" />
+              </button>
+              
+              {/* Notifications */}
+              <button
+                className={`relative p-2 rounded-lg transition-all duration-300 hover:scale-105 ${
+                  isScrolled 
+                    ? 'text-gray-700 hover:bg-gray-100' 
+                    : 'text-white hover:bg-white/10'
+                }`}
+                aria-label="Notificaciones"
+              >
+                <Bell className="h-5 w-5" />
+                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+              </button>
+              
+              {/* Login Button */}
+              <button
+                onClick={() => router.push('/auth/signin')}
+                className={`p-2 rounded-lg transition-all duration-300 hover:scale-105 ${
+                  isScrolled 
+                    ? 'text-emerald-600 hover:bg-emerald-50' 
+                    : 'text-emerald-200 hover:bg-white/10'
+                }`}
+                aria-label="Iniciar sesión"
+              >
+                <User className="h-5 w-5" />
+              </button>
+              
+              {/* Hamburger Menu Button with Animation: ocultar al hacer scroll hacia abajo */}
+              <button
+                onClick={openDrawer}
+                className={`relative p-2 rounded-lg transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
+                  isScrolled 
+                    ? 'text-gray-700 hover:bg-gray-100 focus:ring-offset-white' 
+                    : 'text-white hover:bg-white/10 focus:ring-offset-transparent'
+                } ${
+                  isHeaderVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
+                }`}
+                aria-label="Abrir menú de navegación"
+                aria-expanded={isMobileDrawerOpen}
+              >
+                <div className="w-6 h-6 flex flex-col justify-center items-center">
+                  <span className={`block h-0.5 w-6 bg-current transform transition-all duration-300 ${
+                    isMobileDrawerOpen ? 'rotate-45 translate-y-1.5' : '-translate-y-1'
+                  }`}></span>
+                  <span className={`block h-0.5 w-6 bg-current transform transition-all duration-300 ${
+                    isMobileDrawerOpen ? 'opacity-0' : 'opacity-100'
+                  }`}></span>
+                  <span className={`block h-0.5 w-6 bg-current transform transition-all duration-300 ${
+                    isMobileDrawerOpen ? '-rotate-45 -translate-y-1.5' : 'translate-y-1'
+                  }`}></span>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Mobile Menu */}
-        {isMobileMenuOpen && (
-          <div className="lg:hidden bg-white border-t border-gray-200 shadow-xl">
-            <div className="px-4 py-6 space-y-2">
-              {navigationItems.map((item, index) => (
-                <div key={index} className="border-b border-gray-100 last:border-b-0 pb-2 last:pb-0">
-                  {/* Elemento principal del menú */}
-                  {item.dropdown ? (
-                    <button
-                      onClick={() => toggleMobileAccordion(item.label)}
-                      className="w-full flex items-center justify-between px-4 py-3 text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all duration-200"
-                      aria-expanded={mobileAccordions[item.label] || false}
-                      aria-controls={`mobile-submenu-${index}`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <i className={`${item.icon} text-emerald-500 w-5`}></i>
-                        <span className="font-medium">{item.label}</span>
-                      </div>
-                      <i className={`fas fa-chevron-down text-sm transition-transform duration-200 ${
-                        mobileAccordions[item.label] ? 'rotate-180' : ''
-                      }`}></i>
-                    </button>
-                  ) : (
-                    <a
-                      href={item.href}
-                      onClick={(e) => handleSmoothScroll(e, item.href)}
-                      className="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors duration-200"
-                    >
-                      <i className={`${item.icon} text-emerald-500 w-5`}></i>
-                      <span className="font-medium">{item.label}</span>
-                    </a>
-                  )}
-                  
-                  {/* Submenú acordeón */}
-                  {item.dropdown && (
-                    <div 
-                      id={`mobile-submenu-${index}`}
-                      className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                        mobileAccordions[item.label] 
-                          ? 'max-h-96 opacity-100 mt-2' 
-                          : 'max-h-0 opacity-0'
-                      }`}
-                      style={{
-                        transitionProperty: 'max-height, opacity, margin-top'
-                      }}
-                    >
-                      <div className="ml-8 space-y-1 bg-gray-50 rounded-lg p-2">
-                        {item.dropdown.map((dropdownItem, dropdownIndex) => (
-                          <a
-                            key={dropdownIndex}
-                            href={dropdownItem.href}
-                            onClick={(e) => handleSmoothScroll(e, dropdownItem.href)}
-                            className="flex items-center space-x-3 px-3 py-2 text-gray-600 hover:text-emerald-600 hover:bg-white rounded-md transition-all duration-200 text-sm"
-                          >
-                            <i className={`${dropdownItem.icon} text-emerald-400 w-4 text-xs`}></i>
-                            <span className="font-medium">{dropdownItem.label}</span>
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-              
-              {/* Botones de acción principales */}
-              <div className="pt-4 mt-4 border-t border-gray-200 space-y-3">
-                <button 
-                  onClick={() => {
-                    router.push('/auth/signin');
-                    setIsMobileMenuOpen(false);
-                    setMobileAccordions({});
-                  }}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-3 text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors duration-200 border border-gray-200 hover:border-emerald-200">
-                  <i className="fas fa-user"></i>
-                  <span className="font-medium">Iniciar Sesión</span>
-                </button>
-                <button 
-                  onClick={() => {
-                    router.push('/dashboard/reservations/new');
-                    setIsMobileMenuOpen(false);
-                    setMobileAccordions({});
-                  }}
-                  className="w-full bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-4 py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:from-emerald-600 hover:to-blue-700">
-                  <i className="fas fa-calendar-plus mr-2"></i>
-                  Reservar Ahora
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Mobile Landing Menu (side drawer) */}
+        <MobileLandingMenu 
+          isOpen={isMobileDrawerOpen} 
+          onClose={handleCloseDrawer}
+          handleSmoothScroll={handleMobileSmoothScroll}
+        />
       </nav>
 
       {/* Spacer for fixed navigation */}
