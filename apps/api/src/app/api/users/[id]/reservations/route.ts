@@ -46,6 +46,11 @@ export async function GET(req: NextRequest) {
     // Extract userId from path: /api/users/[id]/reservations -> get the [id] part
     const pathParts = pathname.split('/');
     const userId = pathParts[pathParts.length - 2]; // Get the ID before 'reservations'
+    
+    if (!userId) {
+      return ApiResponse.badRequest('ID de usuario no válido');
+    }
+    
     const { user } = (context as any);
     
     // Verificar permisos: usuarios solo pueden ver sus propias reservas

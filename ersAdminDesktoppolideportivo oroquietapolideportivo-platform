@@ -1,9 +1,0 @@
-warning: in the working copy of 'packages/payments/src/index.ts', LF will be replaced by CRLF the next time Git touches it
-apps/admin/src/app/access-control/page.tsx
-apps/admin/src/app/favicon.ico/route.ts
-apps/admin/src/app/users/new/page.tsx
-apps/admin/src/components/ConfirmDialog.tsx
-apps/admin/src/components/ToastProvider.tsx
-apps/admin/src/components/WeekCalendar.tsx
-apps/api/src/app/api/admin/reservations/[id]/route.ts
-packages/payments/src/index.ts

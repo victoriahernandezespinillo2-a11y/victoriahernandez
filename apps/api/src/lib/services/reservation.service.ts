@@ -48,6 +48,7 @@ export class ReservationService {
    * Crear una nueva reserva
    */
   async createReservation(input: CreateReservationInput): Promise<Reservation> {
+    console.log('🏗️ [RESERVATION-SERVICE] Iniciando createReservation:', input);
     const validatedInput = CreateReservationSchema.parse(input);
     
     const startTime = new Date(validatedInput.startTime);
@@ -73,6 +74,16 @@ export class ReservationService {
         startTime: startTime,
         duration: validatedInput.duration,
         userId: validatedInput.userId,
+      });
+      
+      console.log('💰 [RESERVATION-PRICE] Precio calculado:', {
+        courtId: validatedInput.courtId,
+        duration: validatedInput.duration,
+        subtotal: computedPrice.subtotal,
+        discount: computedPrice.discount,
+        taxes: computedPrice.taxes,
+        total: computedPrice.total,
+        breakdown: computedPrice.breakdown
       });
 
       // Operaciones críticas dentro de transacción con mayor timeout
@@ -120,6 +131,12 @@ export class ReservationService {
         const now = new Date();
         const expiresAt = new Date(now.getTime() + 15 * 60 * 1000); // 15 minutos desde ahora
         
+        console.log('💾 [RESERVATION-CREATE] Guardando reserva con precio:', {
+          totalPrice: computedPrice.total,
+          totalPriceType: typeof computedPrice.total,
+          computedPriceObject: computedPrice
+        });
+        
         const created = await tx.reservation.create({
           data: {
             courtId: validatedInput.courtId,
@@ -133,6 +150,12 @@ export class ReservationService {
             paymentMethod: validatedInput.paymentMethod,
             notes: validatedInput.notes,
           },
+        });
+        
+        console.log('✅ [RESERVATION-CREATED] Reserva guardada:', {
+          id: created.id,
+          totalPrice: created.totalPrice,
+          totalPriceType: typeof created.totalPrice
         });
 
         // 3) Crear reservas recurrentes si es necesario (sigue dentro de la transacción)
@@ -155,7 +178,8 @@ export class ReservationService {
       try {
         await db.outboxEvent.create({
           data: {
-            eventType: 'RESERVATION_CREATED',
+            // Evento de reserva pendiente, a la espera de confirmación de pago
+            eventType: 'RESERVATION_PENDING',
             eventData: {
               reservationId: reservation.id,
               userId: reservation.userId,
@@ -187,67 +211,7 @@ export class ReservationService {
       throw error;
     }
 
-    // 5) Enviar confirmación (email/SMS) usando notificador real; tolerar fallos sin romper flujo
-    try {
-      const user = await db.user.findUnique({ where: { id: reservation.userId } });
-      const court = await db.court.findUnique({ where: { id: reservation.courtId } });
-      if (user && (user.email || user.phone) && court) {
-        // Generar QR con token firmado para check-in
-        const tokenPayload = { reservationId: reservation.id };
-        const jwtMod = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
-        const jwtToken = jwtMod.sign(
-          tokenPayload,
-          process.env.JWT_SECRET || 'your-secret-key',
-          { expiresIn: '3h' }
-        );
-        const QRCode = (await import('qrcode')) as unknown as { toDataURL: (text: string, opts?: any) => Promise<string> };
-        const qrDataUrl = await QRCode.toDataURL(jwtToken, { width: 256 });
-
-        // Generar ICS
-        const dtStart = reservation.startTime.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-        const dtEnd = reservation.endTime.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-        const ics = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Polideportivo//EN\nBEGIN:VEVENT\nUID:${reservation.id}\nDTSTAMP:${dtStart}\nDTSTART:${dtStart}\nDTEND:${dtEnd}\nSUMMARY:Reserva ${court.name}\nEND:VEVENT\nEND:VCALENDAR`;
-
-        const variables = {
-          userName: user.name || 'Usuario',
-          courtName: court.name,
-          date: reservation.startTime.toLocaleDateString('es-ES', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          }),
-          startTime: reservation.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-          endTime: reservation.endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-          duration: String(Math.round((reservation.endTime.getTime() - reservation.startTime.getTime()) / 60000)),
-          price: String(Number(reservation.totalPrice || 0)),
-          reservationCode: reservation.id.slice(0, 8).toUpperCase(),
-          qrCodeDataUrl: qrDataUrl,
-        } as Record<string, string>;
-        
-        const notifications = await import('@repo/notifications');
-        const template = await notifications.emailService.getTemplate('reservationConfirmation', variables);
-        if (!template) {
-          throw new Error('Plantilla de email no encontrada');
-        }
-        
-        const base64 = (qrDataUrl.split(',')[1] || '');
-        const pngBuffer = Buffer.from(base64, 'base64');
-        
-        await notifications.emailService.sendEmail({
-          to: user.email!,
-          subject: template.subject,
-          html: template.html,
-          attachments: [
-            { filename: `reserva-${reservation.id}.ics`, content: ics, contentType: 'text/calendar' },
-            { filename: 'pase-acceso.png', content: pngBuffer, contentType: 'image/png' },
-          ],
-        });
-      }
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn('No se pudo enviar confirmación de reserva:', e);
-    }
+    // Se omite el envío de confirmación en creación de reserva. El correo con QR se enviará tras la confirmación del pago en el webhook.
 
     return reservation;
   }
@@ -697,7 +661,7 @@ export class ReservationService {
           6: 'saturday',
         };
         const key = map[weekday];
-        const config = (oh as any)[key];
+        const config = key ? (oh as any)[key] : undefined;
         if (config?.closed === true) {
           dayRanges = [];
         } else if (config?.open && config?.close) {
@@ -752,8 +716,10 @@ export class ReservationService {
     const slotDuration = slotMinutes * 60 * 1000;
 
     for (const range of dayRanges) {
-      const [startH, startM] = String(range.start).split(':').map((n) => Number(n));
-      const [endH, endM] = String(range.end).split(':').map((n) => Number(n));
+      const startParts = String(range.start).split(':').map((n) => Number(n));
+      const endParts = String(range.end).split(':').map((n) => Number(n));
+      const [startH = 0, startM = 0] = startParts;
+      const [endH = 0, endM = 0] = endParts;
       if (
         Number.isFinite(startH) && Number.isFinite(startM) &&
         Number.isFinite(endH) && Number.isFinite(endM)

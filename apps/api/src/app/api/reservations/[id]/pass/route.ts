@@ -270,7 +270,11 @@ export async function GET(request: NextRequest) {
   doc.restore();
 
   // Convertir QR data URL a buffer
-  const base64 = qrDataUrl.split(',')[1];
+  const base64Parts = qrDataUrl.split(',');
+  const base64 = base64Parts[1];
+  if (!base64) {
+    throw new Error('QR code data URL format is invalid');
+  }
   const qrBuffer = Buffer.from(base64, 'base64');
   doc.image(qrBuffer, qrX, qrY, { width: qrSize, height: qrSize });
 

@@ -166,6 +166,11 @@ export function Navigation() {
       icon: Calendar
     },
     {
+      label: 'Patrocinadores',
+      href: '#patrocinadores',
+      icon: Users
+    },
+    {
       label: 'Información',
       href: '#info',
       icon: Info,

@@ -283,7 +283,7 @@ export async function GET(
           const weekday = now.getDay();
           const map: Record<number, string> = { 0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday' };
           const key = map[weekday];
-          const config = (oh as any)[key];
+          const config = key ? (oh as any)[key] : undefined;
           if (!config || config.closed) {
             return { isCurrentlyOpen: false, nextOpeningTime: null, nextClosingTime: null };
           }

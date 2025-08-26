@@ -304,8 +304,8 @@ export async function POST(request: NextRequest) {
       if (input.payment?.method === 'LINK') {
         try {
           const amount = Number(reservation.totalPrice || 0);
-          const successUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/payments/success?rid=${reservation.id}`;
-          const cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/payments/cancel?rid=${reservation.id}`;
+          const successUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/dashboard/reservations/success?reservationId=${reservation.id}`;
+          const cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/dashboard/reservations`;
           const session = await stripeService.createCheckoutSession({
             amount,
             currency: 'eur',

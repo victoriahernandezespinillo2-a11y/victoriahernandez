@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@repo/ui/switch';
 import { toast } from 'sonner';
 import { useModalScroll } from '../../hooks/useModalScroll';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 interface Product {
   id: string;
@@ -49,6 +50,10 @@ export default function ProductsPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  
+  // Estado para el modal de confirmación de eliminación
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const [formData, setFormData] = useState({
     centerId: '',
@@ -310,16 +315,24 @@ export default function ProductsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este producto?')) return;
+  const handleDelete = (product: Product) => {
+    setProductToDelete({ id: product.id, name: product.name });
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!productToDelete) return;
+    
     try {
-      const response = await fetch(`/api/admin/products/${id}`, {
+      const response = await fetch(`/api/admin/products/${productToDelete.id}`, {
         method: 'DELETE',
         credentials: 'include',
       });
       const data = await response.json();
       if (data.success) {
-        toast.success('Producto eliminado exitosamente');
+        toast.success(`Producto "${productToDelete.name}" eliminado exitosamente`);
+        setDeleteConfirmOpen(false);
+        setProductToDelete(null);
         fetchProducts();
       } else {
         toast.error(data.message || 'Error eliminando producto');
@@ -328,6 +341,11 @@ export default function ProductsPage() {
       console.error('Error deleting product:', error);
       toast.error('Error eliminando producto');
     }
+  };
+
+  const cancelDeleteProduct = () => {
+    setDeleteConfirmOpen(false);
+    setProductToDelete(null);
   };
 
   const resetForm = () => {
@@ -790,7 +808,7 @@ export default function ProductsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(product.id)}
+                          onClick={() => handleDelete(product)}
                         >
                           <TrashIcon className="h-4 w-4" />
                         </Button>
@@ -982,6 +1000,22 @@ export default function ProductsPage() {
           </DialogContent>
         )}
       </Dialog>
+
+      {/* Modal de confirmación de eliminación */}
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Eliminar producto"
+        description={
+          productToDelete
+            ? `¿Estás seguro de que deseas eliminar el producto "${productToDelete.name}"? Esta acción no se puede deshacer.`
+            : ''
+        }
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="danger"
+        onConfirm={confirmDeleteProduct}
+        onCancel={cancelDeleteProduct}
+      />
     </div>
   );
 }

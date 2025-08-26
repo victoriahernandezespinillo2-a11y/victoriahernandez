@@ -183,7 +183,7 @@ export async function GET(
           const end = new Date(reservation.endTime);
           return now >= start && now <= end;
         }),
-        nextAvailableSlot: court.reservations.length > 0 
+        nextAvailableSlot: court.reservations.length > 0 && court.reservations[0]
           ? court.reservations[0].endTime 
           : null,
       },

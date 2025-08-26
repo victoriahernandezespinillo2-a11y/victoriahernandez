@@ -284,7 +284,8 @@ export class PricingService {
    * Convertir string de tiempo (HH:MM) a minutos desde medianoche
    */
   private parseTimeString(timeString: string): number {
-    const [hours, minutes] = timeString.split(':').map(Number);
+    const timeParts = timeString.split(':').map(Number);
+    const [hours = 0, minutes = 0] = timeParts;
     return hours * 60 + minutes;
   }
   
@@ -332,7 +333,10 @@ export class PricingService {
         const rule = await this.createPricingRule(payload as any);
         created.push(rule);
       }
-      return created[0];
+      if (created.length === 0) {
+        throw new Error('No se pudo crear ninguna regla de precios');
+      }
+      return created[0]!;
     }
 
     const validatedInput = CreatePricingRuleSchema.parse(basePayload);

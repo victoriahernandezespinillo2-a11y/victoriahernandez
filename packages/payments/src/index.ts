@@ -152,7 +152,9 @@ export const PaymentUtils = {
     let isEven = false;
     
     for (let i = num.length - 1; i >= 0; i--) {
-      let digit = parseInt(num[i]);
+      const char = num[i];
+      if (!char) continue;
+      let digit = parseInt(char);
       
       if (isEven) {
         digit *= 2;

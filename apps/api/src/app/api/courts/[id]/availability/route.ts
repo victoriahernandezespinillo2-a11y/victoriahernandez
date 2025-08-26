@@ -61,12 +61,13 @@ export async function GET(
       if (court?.centerId) {
         const center = await db.center.findUnique({ where: { id: court.centerId }, select: { settings: true } });
         const settings: any = center?.settings || {};
-        const oh = settings?.operatingHours;
+        // 🔧 BUSCAR EN AMBAS ESTRUCTURAS: operatingHours Y business_hours
+        const oh = settings?.operatingHours || settings?.business_hours;
         if (oh && typeof oh === 'object') {
           const weekday = date.getDay();
           const map: Record<number, string> = { 0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday' };
           const key = map[weekday];
-          const config = (oh as any)[key];
+          const config = key ? (oh as any)[key] : null;
           if (config?.closed === true) {
             // Centro cerrado ese día
             return NextResponse.json({
@@ -89,8 +90,10 @@ export async function GET(
       if (!endTime) endTime = '23:00';
     }
     
-    const [startHour, startMinute] = startTime.split(':').map(Number);
-    const [endHour, endMinute] = endTime.split(':').map(Number);
+    const startParts = startTime.split(':').map(Number);
+    const endParts = endTime.split(':').map(Number);
+    const [startHour = 6, startMinute = 0] = startParts;
+    const [endHour = 23, endMinute = 0] = endParts;
     
     const startDateTime = new Date(date);
     startDateTime.setHours(startHour, startMinute, 0, 0);
@@ -110,7 +113,7 @@ export async function GET(
     let stepMinutes = 30;
     try {
       const sorted = [...baseSlots].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-      if (sorted.length >= 2) {
+      if (sorted.length >= 2 && sorted[0] && sorted[1]) {
         const diffMs = new Date(sorted[1].start).getTime() - new Date(sorted[0].start).getTime();
         const inferred = Math.max(1, Math.round(diffMs / 60000));
         if (Number.isFinite(inferred)) stepMinutes = inferred;
@@ -229,7 +232,7 @@ export async function POST(
     let stepMinutes = 30;
     try {
       const sorted = [...slots].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-      if (sorted.length >= 2) {
+      if (sorted.length >= 2 && sorted[0] && sorted[1]) {
         const diffMs = new Date(sorted[1].start).getTime() - new Date(sorted[0].start).getTime();
         const inferred = Math.max(1, Math.round(diffMs / 60000));
         if (Number.isFinite(inferred)) stepMinutes = inferred;

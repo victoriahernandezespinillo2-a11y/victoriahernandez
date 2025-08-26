@@ -153,11 +153,26 @@ export default function CalendarVisual({
 
   // 🕐 FUNCIÓN PARA FORMATEAR HORA
   const formatTime = (timeString: string) => {
-    const date = new Date(timeString);
-    return date.toLocaleTimeString('es-ES', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    // Si ya viene en HH:MM desde la API, devolver tal cual
+    if (/^\d{2}:\d{2}$/.test(timeString)) {
+      return timeString;
+    }
+
+    const parsed = new Date(timeString);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    const hhmm = timeString.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+    if (hhmm) {
+      const composed = new Date(`${date}T${hhmm[0]}`);
+      if (!isNaN(composed.getTime())) {
+        return composed.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      }
+      return hhmm[0].slice(0, 5);
+    }
+
+    return timeString;
   };
 
   // 🎯 FUNCIÓN PARA MANEJAR CLICK EN SLOT

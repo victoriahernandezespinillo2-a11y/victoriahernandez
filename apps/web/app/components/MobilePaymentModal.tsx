@@ -10,7 +10,6 @@ import {
   Clock,
   Check,
   ArrowLeft,
-  Smartphone,
   Building2,
 } from 'lucide-react';
 
@@ -26,7 +25,7 @@ interface MobilePaymentModalProps {
   onSuccess: () => void;
 }
 
-type PaymentMethod = 'CARD_DEMO' | 'ONSITE';
+type PaymentMethod = 'CARD' | 'ONSITE';
 
 export default function MobilePaymentModal(props: MobilePaymentModalProps) {
   const {
@@ -42,11 +41,7 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
   } = props;
   
   const router = useRouter();
-  const [method, setMethod] = useState<PaymentMethod>('CARD_DEMO');
-  const [holder, setHolder] = useState<string>('');
-  const [card, setCard] = useState<string>('');
-  const [expiry, setExpiry] = useState<string>('');
-  const [cvc, setCvc] = useState<string>('');
+  const [method, setMethod] = useState<PaymentMethod>('CARD');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<'summary' | 'payment' | 'processing' | 'success'>('summary');
@@ -98,69 +93,31 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
     }).format(amount);
   };
   
-  const formatCardNumber = (value: string) => {
-    const v = value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
-    const matches = v.match(/\d{4,16}/g);
-    const match = matches && matches[0] || '';
-    const parts = [];
-    
-    for (let i = 0, len = match.length; i < len; i += 4) {
-      parts.push(match.substring(i, i + 4));
-    }
-    
-    if (parts.length) {
-      return parts.join(' ');
-    } else {
-      return v;
-    }
-  };
-  
-  const formatExpiry = (value: string) => {
-    const v = value.replace(/\D/g, '');
-    if (v.length >= 2) {
-      return v.substring(0, 2) + '/' + v.substring(2, 4);
-    }
-    return v;
-  };
-  
-  const handleSubmit = async () => {
-    if (method === 'CARD_DEMO' && (!holder || !card || !expiry || !cvc)) {
-      setError('Por favor completa todos los campos de la tarjeta');
+  const handlePay = async () => {
+    setError(null);
+    if (method === 'ONSITE') {
+      // Confirmar reserva sin pago en línea
+      onSuccess();
+      onClose();
+      router.push(`/dashboard/reservations/success?reservationId=${reservationId}`);
       return;
     }
-    
     setIsSubmitting(true);
-    setError(null);
     setStep('processing');
-    
     try {
-      // Simular procesamiento de pago
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      setStep('success');
-      
-      // Esperar un momento antes de cerrar
-      setTimeout(() => {
-        onSuccess();
-        onClose();
-        router.push('/dashboard/reservations/success?id=' + reservationId);
-      }, 1500);
-      
-    } catch (err) {
-      setError('Error al procesar el pago. Intenta nuevamente.');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const url = `${apiUrl}/api/payments/redsys/redirect?rid=${encodeURIComponent(reservationId)}`;
+      window.location.href = url;
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo iniciar el pago.');
       setStep('payment');
-    } finally {
       setIsSubmitting(false);
     }
   };
   
   const resetForm = () => {
     setStep('summary');
-    setMethod('CARD_DEMO');
-    setHolder('');
-    setCard('');
-    setExpiry('');
-    setCvc('');
+    setMethod('CARD');
     setError(null);
     setIsSubmitting(false);
   };
@@ -208,7 +165,7 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
           <h2 className="text-lg font-semibold text-gray-900">
             {step === 'summary' && 'Confirmar Reserva'}
             {step === 'payment' && 'Método de Pago'}
-            {step === 'processing' && 'Procesando...'}
+            {step === 'processing' && 'Redirigiendo al pago...'}
             {step === 'success' && '¡Reserva Confirmada!'}
           </h2>
           <div className="w-10" />
@@ -264,9 +221,9 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
                 <h3 className="font-semibold text-gray-900 mb-4">Método de Pago</h3>
                 <div className="space-y-3">
                   <button
-                    onClick={() => setMethod('CARD_DEMO')}
+                    onClick={() => setMethod('CARD')}
                     className={`w-full p-4 rounded-2xl border-2 transition-all ${
-                      method === 'CARD_DEMO'
+                      method === 'CARD'
                         ? 'border-blue-500 bg-blue-50'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
@@ -275,7 +232,7 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
                       <CreditCard className="h-6 w-6 mr-3 text-blue-600" />
                       <div className="text-left">
                         <div className="font-medium">Tarjeta de Crédito/Débito</div>
-                        <div className="text-sm text-gray-600">Pago seguro con tarjeta</div>
+                        <div className="text-sm text-gray-600">Pago seguro con Redsys</div>
                       </div>
                     </div>
                   </button>
@@ -299,70 +256,8 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
                 </div>
               </div>
               
-              {/* Formulario de tarjeta */}
-              {method === 'CARD_DEMO' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Nombre del titular
-                    </label>
-                    <input
-                      type="text"
-                      value={holder}
-                      onChange={(e) => setHolder(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Juan Pérez"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Número de tarjeta
-                    </label>
-                    <input
-                      type="text"
-                      value={card}
-                      onChange={(e) => setCard(formatCardNumber(e.target.value))}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="1234 5678 9012 3456"
-                      maxLength={19}
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Vencimiento
-                      </label>
-                      <input
-                        type="text"
-                        value={expiry}
-                        onChange={(e) => setExpiry(formatExpiry(e.target.value))}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="MM/AA"
-                        maxLength={5}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        CVC
-                      </label>
-                      <input
-                        type="text"
-                        value={cvc}
-                        onChange={(e) => setCvc(e.target.value.replace(/\D/g, '').substring(0, 4))}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="123"
-                        maxLength={4}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-              
               {error && (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
                   <p className="text-red-800 text-sm">{error}</p>
                 </div>
               )}
@@ -377,11 +272,11 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
                 </div>
                 
                 <button
-                  onClick={handleSubmit}
+                  onClick={handlePay}
                   disabled={isSubmitting}
                   className="w-full bg-green-600 text-white py-4 rounded-2xl font-semibold text-lg hover:bg-green-700 transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {method === 'CARD_DEMO' ? 'Pagar Ahora' : 'Confirmar Reserva'}
+                  {method === 'CARD' ? 'Pagar Ahora' : 'Confirmar Reserva'}
                 </button>
               </div>
             </div>
@@ -391,10 +286,10 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-6"></div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Procesando tu pago...
+                Redirigiendo a la pasarela de pago...
               </h3>
               <p className="text-gray-600">
-                Por favor espera mientras confirmamos tu reserva
+                Por favor espera un instante
               </p>
             </div>
           )}

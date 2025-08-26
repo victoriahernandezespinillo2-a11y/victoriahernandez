@@ -92,6 +92,23 @@ export default function TimeSelectionModal({
     });
   };
 
+  const formatTime = (timeString: string) => {
+    if (/^\d{2}:\d{2}$/.test(timeString)) return timeString;
+    const parsed = new Date(timeString);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    }
+    const hhmm = timeString.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+    if (hhmm) {
+      const composed = new Date(`${selectedDate}T${hhmm[0]}`);
+      if (!isNaN(composed.getTime())) {
+        return composed.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      }
+      return hhmm[0].slice(0, 5);
+    }
+    return timeString;
+  };
+
   const handleSlotSelect = (slot: CalendarSlot) => {
     setSelectedSlot(slot);
   };
@@ -145,10 +162,7 @@ export default function TimeSelectionModal({
                     <div>
                       <p className="font-semibold text-green-800">Horario Seleccionado:</p>
                       <p className="text-green-700">
-                        {selectedSlot.time} - {new Date(selectedSlot.endTime).toLocaleTimeString('es-ES', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
+                        {selectedSlot.time} - {formatTime(selectedSlot.endTime)}
                       </p>
                     </div>
                   </div>
@@ -188,10 +202,7 @@ export default function TimeSelectionModal({
                    >
                      <div className="font-bold text-lg mb-1">{slot.time}</div>
                      <div className="text-xs opacity-75">
-                       {new Date(slot.endTime).toLocaleTimeString('es-ES', { 
-                         hour: '2-digit', 
-                         minute: '2-digit' 
-                       })}
+                       {formatTime(slot.endTime)}
                      </div>
                      <div className="text-xs mt-1 font-medium">
                        {slot.message}

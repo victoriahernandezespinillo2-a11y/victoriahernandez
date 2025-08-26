@@ -194,11 +194,33 @@ export default function CalendarVisualModal({
 
   // 🕐 FUNCIÓN PARA FORMATEAR HORA
   const formatTime = (timeString: string) => {
-    const date = new Date(timeString);
-    return date.toLocaleTimeString('es-ES', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    // Si viene ya en formato HH:MM desde la API, devolver tal cual
+    if (/^\d{2}:\d{2}$/.test(timeString)) {
+      return timeString;
+    }
+
+    // Intentar parsear como fecha completa (ISO u otros formatos válidos)
+    const parsed = new Date(timeString);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toLocaleTimeString('es-ES', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    // Fallback: si parece una hora (HH:MM(:SS)?) pero no parsea, combinar con la fecha seleccionada
+    const hhmm = timeString.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+    if (hhmm) {
+      const composed = new Date(`${date}T${hhmm[0]}`);
+      if (!isNaN(composed.getTime())) {
+        return composed.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      }
+      // si aun así falla, devolvemos HH:MM
+      return hhmm[0].slice(0, 5);
+    }
+
+    // Último recurso: devolver el string original
+    return timeString;
   };
 
   // 🎯 FUNCIÓN PARA MANEJAR CLICK EN SLOT
@@ -241,20 +263,32 @@ export default function CalendarVisualModal({
     
     try {
       // Crear la reserva directamente con los campos correctos según la API
+      const hhmm = (selectedSlot.startTime || '').slice(0, 5);
+      const startISO = `${date}T${hhmm}:00.000Z`;
+      console.log('🔍 [FRONTEND-DEBUG] Creando reserva con datos:', {
+        courtId,
+        startTime: startISO,
+        duration,
+        notes: notes || undefined
+      });
+      
       const reservationData = {
         courtId,
-        startTime: selectedSlot.startTime,
+        startTime: startISO,
         duration,
+        paymentMethod: 'redsys' as 'redsys', // ⭐ AGREGAR método de pago por defecto con literal tipo
         notes: notes || undefined
       };
       
       const response = await api.reservations.create(reservationData);
+      console.log('🔍 [REDSYS-DEBUG] Response API reserva:', response);
+      // Extraer objeto de reserva: puede venir directo o en 'reservation'
+      const reservation = (response as any)?.reservation ?? (response as any);
       
-      if (response?.id) {
-        // Notificar al componente padre que se creó la reserva
-        onSlotSelect(selectedSlot);
-        onReservationCreated(response.id);
-        onClose();
+      if (reservation?.id) {
+        // Redirigir a la pasarela de Redsys después de crear la reserva
+        window.location.href = `/api/payments/redsys/redirect?rid=${reservation.id}`;
+        return;
       } else {
         throw new Error('No se pudo crear la reserva');
       }

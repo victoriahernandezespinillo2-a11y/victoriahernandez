@@ -139,7 +139,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       date: targetDate.toISOString(),
       reservationsInCourt: reservations.length,
       userReservationsTotal: userReservations.length,
-      userReservationsDetails: userReservations.map(r => ({
+      userReservationsDetails: userReservations.map((r: any) => ({
         id: r.id,
         courtName: r.court.name,
         startTime: r.startTime,
@@ -152,11 +152,72 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // 🎨 GENERAR ESTADOS DEL CALENDARIO
     const calendarSlots = [] as any[];
     const slotMinutes = 30; // Intervalo de 30 minutos
-    const currentTime = new Date(startOfDay);
+    
+    // 🕒 OBTENER HORARIOS DE OPERACIÓN DEL CENTRO
+    let operatingStart = new Date(startOfDay);
+    let operatingEnd = new Date(endOfDay);
+    
+    if (court?.center?.settings) {
+      const settings = court.center.settings as any;
+      // 🔧 BUSCAR EN AMBAS ESTRUCTURAS: operatingHours Y business_hours
+      const operatingHours = settings.operatingHours || settings.business_hours;
+      
+      if (operatingHours && typeof operatingHours === 'object') {
+        const weekday = targetDate.getDay();
+        const dayMap: Record<number, string> = { 
+          0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 
+          4: 'thursday', 5: 'friday', 6: 'saturday' 
+        };
+        const dayKey = dayMap[weekday];
+        const dayConfig = dayKey ? operatingHours[dayKey] : null;
+        
+        if (dayConfig?.closed) {
+          // Centro cerrado este día - no generar slots
+          console.log(`📅 [CALENDAR] Centro cerrado el ${dayKey}`);
+          return NextResponse.json({
+            courtId,
+            date: date,
+            duration,
+            summary: { total: 0, available: 0, booked: 0, maintenance: 0, userBooked: 0, past: 0, unavailable: 0 },
+            slots: [],
+            legend: {}
+          });
+        }
+        
+        if (dayConfig?.open && dayConfig?.close) {
+          const [openHour, openMin] = dayConfig.open.split(':').map(Number);
+          const [closeHour, closeMin] = dayConfig.close.split(':').map(Number);
+          
+          // 🕐 CREAR FECHAS EN HORA DE MADRID
+          const madridDate = new Date(targetDate.toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
+          
+          operatingStart = new Date(madridDate);
+          operatingStart.setHours(openHour, openMin, 0, 0);
+          
+          operatingEnd = new Date(madridDate);
+          operatingEnd.setHours(closeHour, closeMin, 0, 0);
+          
+          console.log(`🕒 [CALENDAR] Horarios de operación para ${dayKey}:`, {
+            open: dayConfig.open,
+            close: dayConfig.close,
+            operatingStart: operatingStart.toISOString(),
+            operatingEnd: operatingEnd.toISOString(),
+            madridTime: madridDate.toISOString(),
+            currentMadridTime: new Date().toLocaleString('en-US', { timeZone: 'Europe/Madrid' })
+          });
+        }
+      }
+    }
 
-    while (currentTime < endOfDay) {
+    const currentTime = new Date(operatingStart);
+
+    while (currentTime < operatingEnd) {
       const slotStart = new Date(currentTime);
       const slotEnd = new Date(currentTime.getTime() + duration * 60000);
+      
+      // 🕐 CONVERTIR SLOTS A HORA DE MADRID PARA COMPARACIONES
+      const slotStartMadrid = new Date(slotStart.toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
+      const slotEndMadrid = new Date(slotEnd.toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
       
       // 🔍 DETERMINAR ESTADO DEL SLOT
       let slotStatus = 'AVAILABLE';
@@ -171,7 +232,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         slotMessage = 'Cancha inactiva';
       } else {
         // Verificar mantenimiento
-        const maintenanceConflict = maintenanceSchedules.find(m => {
+        const maintenanceConflict = maintenanceSchedules.find((m: any) => {
           const maintenanceStart = m.scheduledAt;
           const maintenanceEnd = m.completedAt || new Date(maintenanceStart.getTime() + 2 * 60 * 60000); // 2h por defecto
           return slotStart < maintenanceEnd && slotEnd > maintenanceStart;
@@ -188,8 +249,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             end: maintenanceConflict.completedAt
           });        } else {
             // Verificar reservas existentes en esta cancha
-            const reservationConflict = reservations.find(r => {
-              return slotStart < r.endTime && slotEnd > r.startTime;
+            const reservationConflict = reservations.find((r: any) => {
+              return slotStartMadrid < r.endTime && slotEndMadrid > r.startTime;
             });
 
             if (reservationConflict) {
@@ -214,8 +275,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
               });
             } else {
               // Verificar si el usuario tiene reserva en otra cancha en el mismo horario
-              const userConflict = userReservations.find(r => {
-                return slotStart < r.endTime && slotEnd > r.startTime;
+              const userConflict = userReservations.find((r: any) => {
+                return slotStartMadrid < r.endTime && slotEndMadrid > r.startTime;
               });
 
               if (userConflict) {
@@ -231,8 +292,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
                   status: userConflict.status
                 });
               } else {
-                // Si la hora ya pasó
-                if (slotEnd <= new Date()) {
+                // Si la hora ya pasó (en hora de Madrid/España)
+                const nowInMadrid = new Date().toLocaleString('en-US', { timeZone: 'Europe/Madrid' });
+                const currentMadridTime = new Date(nowInMadrid);
+                if (slotEndMadrid <= currentMadridTime) {
                   slotStatus = 'PAST';
                   slotColor = '#9ca3af'; // Gris para pasado
                   slotMessage = 'Hora pasada';

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Home, Calendar, Plus, Activity, User, Wallet } from 'lucide-react';
+import { Home, Calendar, Plus, Activity, User, Wallet, Award } from 'lucide-react';
 import { useMobileDrawer } from '../hooks/useMobileDrawer';
 
 interface NavigationItem {
@@ -49,10 +49,10 @@ export default function BottomNavigation() {
       href: '#actividades',
     },
     {
-      id: 'contacto',
-      label: 'Contacto',
-      icon: User,
-      href: '#info',
+      id: 'patrocinadores',
+      label: 'Sponsors',
+      icon: Award,
+      href: '#patrocinadores',
     },
   ] : [
     {

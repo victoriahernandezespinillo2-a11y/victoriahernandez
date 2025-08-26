@@ -13,6 +13,8 @@ import {
   XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { useAdminCourts, useAdminCenters } from '@/lib/hooks';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { toast } from 'sonner';
 
 interface Court {
   id: string;
@@ -74,6 +76,10 @@ export default function CourtsPage() {
   const [centerFilter, setCenterFilter] = useState<string>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Estado para el modal de confirmación de eliminación
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [courtToDelete, setCourtToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const itemsPerPage = 8;
 
@@ -153,15 +159,28 @@ export default function CourtsPage() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedCourts = filteredCourts.slice(startIndex, startIndex + itemsPerPage);
 
-  const handleDeleteCourt = async (courtId: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar esta cancha?')) {
-      try {
-        await deleteCourt(courtId);
-      } catch (error) {
-        console.error('Error al eliminar cancha:', error);
-        alert('Error al eliminar la cancha. Por favor, inténtalo de nuevo.');
-      }
+  const handleDeleteCourt = (court: Court) => {
+    setCourtToDelete({ id: court.id, name: court.name });
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteCourt = async () => {
+    if (!courtToDelete) return;
+    
+    try {
+      await deleteCourt(courtToDelete.id);
+      toast.success(`Cancha "${courtToDelete.name}" eliminada exitosamente`);
+      setDeleteConfirmOpen(false);
+      setCourtToDelete(null);
+    } catch (error) {
+      console.error('Error al eliminar cancha:', error);
+      toast.error('Error al eliminar la cancha. Por favor, inténtalo de nuevo.');
     }
+  };
+
+  const cancelDeleteCourt = () => {
+    setDeleteConfirmOpen(false);
+    setCourtToDelete(null);
   };
 
   const totalRevenue = courts?.reduce((sum, court) => sum + court.hourlyRate, 0) || 0;
@@ -423,7 +442,7 @@ export default function CourtsPage() {
                   </button>
                   <button 
                     className="text-red-600 hover:text-red-900 p-1"
-                    onClick={() => handleDeleteCourt(court.id)}
+                    onClick={() => handleDeleteCourt(court)}
                   >
                     <TrashIcon className="h-4 w-4" />
                   </button>
@@ -560,6 +579,22 @@ export default function CourtsPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de confirmación de eliminación */}
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Eliminar cancha"
+        description={
+          courtToDelete
+            ? `¿Estás seguro de que deseas eliminar la cancha "${courtToDelete.name}"? Esta acción no se puede deshacer y se eliminarán todas las reservas asociadas.`
+            : ''
+        }
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="danger"
+        onConfirm={confirmDeleteCourt}
+        onCancel={cancelDeleteCourt}
+      />
     </div>
   );
 }

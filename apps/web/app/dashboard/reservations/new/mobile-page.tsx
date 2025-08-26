@@ -116,13 +116,28 @@ export default function MobileNewReservationPage() {
   // Calcular precio total
   const totalCost = useMemo(() => {
     if (!selectedCourt || !selectedCalendarSlot) return 0;
-    calculatePrice({ 
-      courtId: selectedCourt.id, 
-      startTime: selectedCalendarSlot.startTime, 
-      duration 
-    });
+    // Enviar startTime como ISO válido para el endpoint de pricing
+    const raw = selectedCalendarSlot.startTime;
+    let startISO: string | null = null;
+    if (/^\d{2}:\d{2}$/.test(raw)) {
+      if (!selectedDate) return 0; // necesitamos fecha para componer ISO
+      const local = new Date(`${selectedDate}T${raw}:00`);
+      if (!isNaN(local.getTime())) startISO = local.toISOString();
+    } else {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        startISO = d.toISOString();
+      }
+    }
+    if (startISO) {
+      calculatePrice({ 
+        courtId: selectedCourt.id, 
+        startTime: startISO, 
+        duration 
+      });
+    }
     return selectedCourt.pricePerHour * (duration / 60);
-  }, [selectedCourt, selectedCalendarSlot, duration, calculatePrice]);
+  }, [selectedCourt, selectedCalendarSlot, duration, calculatePrice, selectedDate]);
 
   // Formatear moneda
   const formatCurrency = (amount: number) => {
@@ -443,13 +458,7 @@ export default function MobileNewReservationPage() {
                   <div>
                     <h4 className="font-semibold text-green-900">Horario Confirmado</h4>
                     <p className="text-green-700">
-                      {new Date(selectedCalendarSlot.startTime).toLocaleTimeString('es-ES', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })} - {new Date(selectedCalendarSlot.endTime).toLocaleTimeString('es-ES', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })}
+                      {formatTime(selectedCalendarSlot.startTime)} - {formatTime(selectedCalendarSlot.endTime)}
                     </p>
                   </div>
                 </div>
@@ -483,12 +492,46 @@ export default function MobileNewReservationPage() {
                 </div>
                 
                 <button
-                  onClick={() => {
-                    // Aquí iría la lógica para crear la reserva y abrir el modal de pago
-                    setShowPaymentModal(true);
-                  }}
-                  className="w-full bg-green-600 text-white py-4 rounded-2xl font-semibold text-lg hover:bg-green-700 transition-colors active:scale-98 flex items-center justify-center"
-                >
+                  onClick={async () => {
+                    // Crear la reserva antes de abrir el modal de pago
+                    if (!selectedCourt || !selectedDate || !selectedCalendarSlot) {
+                      alert('Por favor completa la selección de cancha, fecha y horario.');
+                      return;
+                    }
+                    try {
+                      const raw = selectedCalendarSlot.startTime;
+                      let startISO: string | null = null;
+                      if (/^\d{2}:\d{2}$/.test(raw)) {
+                        const local = new Date(`${selectedDate}T${raw}:00`);
+                        if (!isNaN(local.getTime())) startISO = local.toISOString();
+                      } else {
+                        const d = new Date(raw);
+                        if (!isNaN(d.getTime())) startISO = d.toISOString();
+                      }
+                      if (!startISO) {
+                        alert('Horario seleccionado inválido. Intenta nuevamente.');
+                        return;
+                      }
+                      const res: any = await api.reservations.create({
+                        courtId: selectedCourt.id,
+                        startTime: startISO,
+                        duration,
+                        notes,
+                      });
+                       const reservationId = res?.reservation?.id || res?.id;
+                       if (reservationId) {
+                         setCreatedReservationId(reservationId);
+                         setShowPaymentModal(true);
+                       } else {
+                         alert('No se pudo crear la reserva.');
+                       }
+                     } catch (error) {
+                       console.error('Error creating reservation:', error);
+                       alert('Error al crear la reserva. Intenta nuevamente.');
+                     }
+                   }}
+                   className="w-full bg-green-600 text-white py-4 rounded-2xl font-semibold text-lg hover:bg-green-700 transition-colors active:scale-98 flex items-center justify-center"
+                 >
                   <CreditCard className="h-5 w-5 mr-2" />
                   Proceder al Pago
                 </button>
@@ -529,3 +572,17 @@ export default function MobileNewReservationPage() {
     </div>
   );
 }
+
+// Helper para formatear horas (acepta 'HH:MM' o ISO)
+const formatTime = (timeString: string) => {
+  if (/^\d{2}:\d{2}$/.test(timeString)) return timeString;
+  const parsed = new Date(timeString);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  }
+  const hhmm = timeString.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+  if (hhmm) {
+    return hhmm[0].slice(0, 5);
+  }
+  return timeString;
+};

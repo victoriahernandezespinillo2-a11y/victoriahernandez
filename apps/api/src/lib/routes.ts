@@ -343,7 +343,7 @@ export const RouteUtils = {
     
     const regex = new RegExp(pattern.replace(/\[\w+\]/g, '([^/]+)'));
     const match = route.match(regex);
-    return match ? match[1] : null;
+    return match ? (match[1] ?? null) : null;
   },
 };
 

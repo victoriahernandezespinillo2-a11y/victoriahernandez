@@ -12,6 +12,8 @@ import {
   XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { useAdminUsers } from '@/lib/hooks';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { toast } from 'sonner';
 
 interface User {
   id: string;
@@ -50,6 +52,10 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Estado para el modal de confirmación de eliminación
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<{ id: string; email: string; name: string } | null>(null);
 
   const itemsPerPage = 10;
 
@@ -103,15 +109,31 @@ export default function UsersPage() {
   const serverLimit = pagination?.limit || 20;
   const paginatedUsers = filteredUsers;
 
-  const handleDeleteUser = async (userId: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar este usuario?')) {
-      try {
-        await deleteUser(userId);
-      } catch (error) {
-        console.error('Error al eliminar usuario:', error);
-        alert('Error al eliminar el usuario. Por favor, inténtalo de nuevo.');
-      }
+  const handleDeleteUser = (user: User) => {
+    const userName = user.firstName && user.lastName 
+      ? `${user.firstName} ${user.lastName}` 
+      : user.email;
+    setUserToDelete({ id: user.id, email: user.email, name: userName });
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    
+    try {
+      await deleteUser(userToDelete.id);
+      toast.success(`Usuario "${userToDelete.name}" eliminado exitosamente`);
+      setDeleteConfirmOpen(false);
+      setUserToDelete(null);
+    } catch (error) {
+      console.error('Error al eliminar usuario:', error);
+      toast.error('Error al eliminar el usuario. Por favor, inténtalo de nuevo.');
     }
+  };
+
+  const cancelDeleteUser = () => {
+    setDeleteConfirmOpen(false);
+    setUserToDelete(null);
   };
 
   return (
@@ -323,7 +345,7 @@ export default function UsersPage() {
                       </button>
                       <button 
                         className="text-red-600 hover:text-red-900"
-                        onClick={() => handleDeleteUser(user.id)}
+                        onClick={() => handleDeleteUser(user)}
                       >
                         <TrashIcon className="h-4 w-4" />
                       </button>
@@ -391,6 +413,22 @@ export default function UsersPage() {
           </div>
         )}
       </div>
+
+      {/* Modal de confirmación de eliminación */}
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Eliminar usuario"
+        description={
+          userToDelete
+            ? `¿Estás seguro de que deseas eliminar al usuario "${userToDelete.name}" (${userToDelete.email})? Esta acción no se puede deshacer y se eliminarán todas sus reservas, créditos y datos asociados.`
+            : ''
+        }
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="danger"
+        onConfirm={confirmDeleteUser}
+        onCancel={cancelDeleteUser}
+      />
     </div>
   );
 }

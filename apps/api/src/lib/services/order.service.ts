@@ -23,9 +23,11 @@ export class OrderService {
     if (!Array.isArray(items) || items.length === 0) throw new Error('Carrito vacío');
 
     // Para créditos: necesitamos euroPerCredit; tomamos del primer producto -> su centro
-    const firstProduct = await (db as any).product.findUnique({ where: { id: items[0].productId }, include: { center: true } });
+    const firstItem = items[0];
+    if (!firstItem) throw new Error('Primer item del carrito no válido');
+    const firstProduct = await (db as any).product.findUnique({ where: { id: firstItem.productId }, include: { center: true } });
     if (!firstProduct) throw new Error('Producto no encontrado');
-    const settings: any = (firstProduct as any)?.center?.settings || {};
+    const settings: any = firstProduct?.center?.settings || {};
     const creditsCfg: any = settings.credits || {};
     const euroPerCredit: number | undefined = typeof creditsCfg.euroPerCredit === 'number' ? creditsCfg.euroPerCredit : 1;
     const ePerC = euroPerCredit && euroPerCredit > 0 ? euroPerCredit : 1;
@@ -116,18 +118,24 @@ export class OrderService {
     }
 
     if (paymentMethod === 'card') {
-      const intent = await paymentService.createPaymentIntent({
-        amount: Math.ceil(totalEuro),
-        currency: 'EUR',
-        description: `Pedido ${order.id}`,
-        userId,
-        paymentMethod: 'CARD',
-        provider: 'STRIPE',
-        metadata: { type: 'shop_order', orderId: order.id },
-      } as any);
-
-      await (db as any).order.update({ where: { id: order.id }, data: { paymentIntentId: intent.id } });
-      return { order, clientSecret: intent.clientSecret };
+      // 🔧 DEBUG: Verificar que el total no sea 0
+      console.log('🔍 DEBUG CHECKOUT CARD:', {
+        orderId: order.id,
+        totalEuro: order.totalEuro,
+        totalNumber: Number(order.totalEuro || 0),
+        items: items.map(i => ({ productId: i.productId, qty: i.qty }))
+      });
+      
+      // Validación adicional
+      const orderTotal = Number(order.totalEuro || 0);
+      if (orderTotal <= 0) {
+        throw new Error(`Total de la orden inválido: €${orderTotal}. Verifique que los productos tengan precio válido.`);
+      }
+      
+      // Integración Redsys: devolvemos URL de redirección a ruta que auto-postea el formulario a Redsys
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+      const redirectUrl = `${apiUrl}/api/payments/redsys/redirect?oid=${encodeURIComponent(order.id)}`;
+      return { order, clientSecret: null, redirectUrl };
     }
 
     // mixed: podría implementarse en fase posterior
@@ -136,6 +144,8 @@ export class OrderService {
 }
 
 export const orderService = new OrderService();
+
+
 
 
 

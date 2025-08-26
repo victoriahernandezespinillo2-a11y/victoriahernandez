@@ -113,7 +113,8 @@ export async function POST(request: NextRequest) {
     
     // Construir fecha y hora preferida
     const preferredDate = new Date(validatedData.preferredDate);
-    const [hours, minutes] = validatedData.preferredTime.split(':').map(Number);
+    const timeParts = validatedData.preferredTime.split(':').map(Number);
+    const [hours = 0, minutes = 0] = timeParts;
     
     const preferredDateTime = new Date(preferredDate);
     preferredDateTime.setHours(hours, minutes, 0, 0);
@@ -121,8 +122,10 @@ export async function POST(request: NextRequest) {
     // Construir rango de tiempo si es flexible
     let timeRange;
     if (validatedData.flexibleTime && validatedData.timeRange) {
-      const [startHours, startMinutes] = validatedData.timeRange.start.split(':').map(Number);
-      const [endHours, endMinutes] = validatedData.timeRange.end.split(':').map(Number);
+      const startParts = validatedData.timeRange.start.split(':').map(Number);
+      const endParts = validatedData.timeRange.end.split(':').map(Number);
+      const [startHours = 0, startMinutes = 0] = startParts;
+      const [endHours = 0, endMinutes = 0] = endParts;
       
       const startTime = new Date(preferredDate);
       startTime.setHours(startHours, startMinutes, 0, 0);

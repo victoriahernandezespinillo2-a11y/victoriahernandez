@@ -45,6 +45,7 @@ model User {
   passwordResetTokens  PasswordResetToken[]
   walletLedger         WalletLedger[]
   orders               Order[]
+  notifications        Notification[]
 
   @@map("users")
 }
@@ -300,6 +301,31 @@ enum MembershipType {
   PUNCH_CARD
 }
 
+/// Tipos de notificación
+enum NotificationType {
+  EMAIL
+  SMS
+  PUSH
+  IN_APP
+}
+
+/// Prioridad de notificación
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+/// Estado de notificación
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
 enum MaintenanceType {
   CLEANING
   REPAIR
@@ -324,6 +350,35 @@ model OutboxEvent {
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@map("outbox_events")
+}
+
+/// Notificaciones persistentes (in-app/email/sms/push)
+model Notification {
+  id           String                @id @default(cuid())
+  userId       String                @map("user_id")
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type         NotificationType
+  category     String
+  title        String
+  message      String?
+  priority     NotificationPriority  @default(MEDIUM)
+  status       NotificationStatus    @default(PENDING)
+
+  data         Json?                 @default("{}")
+  actionUrl    String?               @map("action_url")
+  scheduledFor DateTime?             @map("scheduled_for")
+  sentAt       DateTime?             @map("sent_at")
+  readAt       DateTime?             @map("read_at")
+  externalId   String?               @map("external_id")
+  error        String?
+
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("notifications")
 }
 
 /// Registros de webhooks recibidos (Stripe, Redsys, etc.)

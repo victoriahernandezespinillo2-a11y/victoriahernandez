@@ -47,12 +47,18 @@ export default function ProductDetailPage() {
       setLoading(true);
       const idem = crypto.randomUUID();
       const res: any = await api.cart.checkout({ items: [{ productId: product.id, qty }], paymentMethod: 'card' }, idem);
+      const redirectUrl = res?.redirectUrl;
       const clientSecret = res?.clientSecret;
+      if (redirectUrl) {
+        // Flujo Redsys: redirigir a la URL que auto-postea a la pasarela
+        window.location.href = redirectUrl as string;
+        return;
+      }
       if (!clientSecret) {
         alert('No se pudo iniciar el pago con tarjeta.');
         return;
       }
-      // Redirige a una página de confirmación/pasarela si implementas stripe.js client-side; de momento dejamos el pedido en PENDING hasta webhook
+      // Flujo Stripe (si en el futuro se usa)
       alert('Pedido creado. Completa el pago en la pasarela.');
       router.push('/dashboard/orders');
     } catch (e: any) {
@@ -109,6 +115,8 @@ export default function ProductDetailPage() {
     </div>
   );
 }
+
+
 
 
 

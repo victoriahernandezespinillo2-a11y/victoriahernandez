@@ -421,39 +421,39 @@ export default function CentersPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-xl">
             <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Nuevo Centro</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Nuevo Centro</h3>
               <button onClick={() => setShowCreate(false)} className="text-gray-500 hover:text-gray-700">✕</button>
             </div>
             <div className="p-4 space-y-4">
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Nombre</label>
+                <label className="block text-sm font-medium text-gray-900 mb-1">Nombre</label>
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border rounded px-3 py-2" />
               </div>
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Dirección</label>
+                <label className="block text-sm font-medium text-gray-900 mb-1">Dirección</label>
                 <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full border rounded px-3 py-2" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-gray-700 mb-1">Teléfono</label>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">Teléfono</label>
                   <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full border rounded px-3 py-2" />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-700 mb-1">Email</label>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">Email</label>
                   <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full border rounded px-3 py-2" />
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Descripción</label>
+                <label className="block text-sm font-medium text-gray-900 mb-1">Descripción</label>
                 <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full border rounded px-3 py-2" rows={3} />
               </div>
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Sitio web</label>
+                <label className="block text-sm font-medium text-gray-900 mb-1">Sitio web</label>
                 <input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} className="w-full border rounded px-3 py-2" />
               </div>
             </div>
             <div className="p-4 border-t flex justify-end gap-2">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 border rounded">Cancelar</button>
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Cancelar</button>
               <button
                 onClick={async () => {
                   setIsLoading(true);
@@ -490,13 +490,13 @@ export default function CentersPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl">
             <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Configurar Horarios y Slots</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Configurar Horarios y Slots</h3>
               <button onClick={() => setShowEdit(false)} className="text-gray-500 hover:text-gray-700">✕</button>
             </div>
               <div className="p-4 space-y-6 max-h-[70vh] overflow-y-auto">
               {/* Slot size */}
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Tamaño de slot (minutos)</label>
+                <label className="block text-sm font-medium text-gray-900 mb-1">Tamaño de slot (minutos)</label>
                 <input
                   type="number"
                   min={5}
@@ -508,10 +508,10 @@ export default function CentersPage() {
               </div>
                 {/* Datos fiscales y recibos */}
                 <div className="border rounded p-4 space-y-3">
-                  <h4 className="text-md font-semibold">Datos fiscales y recibos</h4>
+                  <h4 className="text-md font-semibold text-gray-900">Datos fiscales y recibos</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm text-gray-700 mb-1">Nombre fiscal (legalName)</label>
+                      <label className="block text-sm font-medium text-gray-900 mb-1">Nombre fiscal (legalName)</label>
                       <input
                         value={receiptForm.legalName || ''}
                         onChange={(e) => setReceiptForm({ ...receiptForm, legalName: e.target.value })}
@@ -519,7 +519,7 @@ export default function CentersPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-gray-700 mb-1">CIF/NIF (taxId)</label>
+                      <label className="block text-sm font-medium text-gray-900 mb-1">CIF/NIF (taxId)</label>
                       <input
                         value={receiptForm.taxId || ''}
                         onChange={(e) => setReceiptForm({ ...receiptForm, taxId: e.target.value })}
@@ -527,7 +527,7 @@ export default function CentersPage() {
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="block text-sm text-gray-700 mb-1">Dirección fiscal (fiscalAddress)</label>
+                      <label className="block text-sm font-medium text-gray-900 mb-1">Dirección fiscal (fiscalAddress)</label>
                       <textarea
                         value={receiptForm.fiscalAddress || ''}
                         onChange={(e) => setReceiptForm({ ...receiptForm, fiscalAddress: e.target.value })}
@@ -536,7 +536,7 @@ export default function CentersPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-gray-700 mb-1">Email de contacto</label>
+                      <label className="block text-sm font-medium text-gray-900 mb-1">Email de contacto</label>
                       <input
                         type="email"
                         value={receiptForm.contactEmail || ''}
@@ -545,7 +545,7 @@ export default function CentersPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-gray-700 mb-1">Teléfono de contacto</label>
+                      <label className="block text-sm font-medium text-gray-900 mb-1">Teléfono de contacto</label>
                       <input
                         value={receiptForm.contactPhone || ''}
                         onChange={(e) => setReceiptForm({ ...receiptForm, contactPhone: e.target.value })}
@@ -553,7 +553,7 @@ export default function CentersPage() {
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="block text-sm text-gray-700 mb-1">Notas de pie de página (footerNotes)</label>
+                      <label className="block text-sm font-medium text-gray-900 mb-1">Notas de pie de página (footerNotes)</label>
                       <textarea
                         value={receiptForm.footerNotes || ''}
                         onChange={(e) => setReceiptForm({ ...receiptForm, footerNotes: e.target.value })}
@@ -568,17 +568,17 @@ export default function CentersPage() {
                           checked={!!receiptForm.showStripeReferences}
                           onChange={(e) => setReceiptForm({ ...receiptForm, showStripeReferences: e.target.checked })}
                         />
-                        Mostrar referencias de Stripe (PaymentIntent/Refund) en recibo
+                        <span className="text-gray-900">Mostrar referencias de Stripe (PaymentIntent/Refund) en recibo</span>
                       </label>
                     </div>
                   </div>
                 </div>
                 {/* Créditos */}
                 <div className="border rounded p-4 space-y-3">
-                  <h4 className="text-md font-semibold">Créditos</h4>
+                  <h4 className="text-md font-semibold text-gray-900">Créditos</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm text-gray-700 mb-1">Euros por crédito (euroPerCredit)</label>
+                      <label className="block text-sm font-medium text-gray-900 mb-1">Euros por crédito (euroPerCredit)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -588,16 +588,16 @@ export default function CentersPage() {
                         className="w-full border rounded px-3 py-2"
                         placeholder="Ej: 1.00"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Se usarán créditos en reservas con método "Créditos". Debe ser mayor que 0.</p>
+                      <p className="text-xs text-gray-700 mt-1">Se usarán créditos en reservas con método "Créditos". Debe ser mayor que 0.</p>
                     </div>
                   </div>
                 </div>
                 {/* Impuestos (IVA/IGIC) */}
                 <div className="border rounded p-4 space-y-3">
-                  <h4 className="text-md font-semibold">Impuestos</h4>
+                  <h4 className="text-md font-semibold text-gray-900">Impuestos</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-sm text-gray-700 mb-1">Tasa (%)</label>
+                      <label className="block text-sm font-medium text-gray-900 mb-1">Tasa (%)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -615,11 +615,11 @@ export default function CentersPage() {
                           checked={!!taxesForm.included}
                           onChange={(e) => setTaxesForm({ ...taxesForm, included: e.target.checked })}
                         />
-                        Impuestos incluidos en el precio
+                        <span className="text-gray-900">Impuestos incluidos en el precio</span>
                       </label>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500">Si marcas “incluidos”, el precio calculado ya incorpora impuestos; el recibo mostrará el componente impositivo.</p>
+                  <p className="text-xs text-gray-700">Si marcas "incluidos", el precio calculado ya incorpora impuestos; el recibo mostrará el componente impositivo.</p>
                 </div>
               {/* Operating hours per day */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -634,8 +634,8 @@ export default function CentersPage() {
                 ].map(([key,label]) => (
                   <div key={key} className="border rounded p-3">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">{label}</span>
-                      <label className="text-sm inline-flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900">{label}</span>
+                      <label className="text-sm inline-flex items-center gap-2 text-gray-900">
                         <input
                           type="checkbox"
                           checked={ohForm.operatingHours[key as keyof typeof ohForm.operatingHours]?.closed || false}
@@ -650,12 +650,12 @@ export default function CentersPage() {
                             },
                           })}
                         />
-                        Cerrado
+                        <span className="text-gray-900">Cerrado</span>
                       </label>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex-1">
-                        <label className="block text-xs text-gray-600 mb-1">Apertura</label>
+                        <label className="block text-xs font-medium text-gray-900 mb-1">Apertura</label>
                         <input
                           type="time"
                           value={ohForm.operatingHours[key as any]?.open || ''}
@@ -671,7 +671,7 @@ export default function CentersPage() {
                         />
                       </div>
                       <div className="flex-1">
-                        <label className="block text-xs text-gray-600 mb-1">Cierre</label>
+                        <label className="block text-xs font-medium text-gray-900 mb-1">Cierre</label>
                         <input
                           type="time"
                           value={ohForm.operatingHours[key as any]?.close || ''}
@@ -693,19 +693,19 @@ export default function CentersPage() {
               {/* Exceptions */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Excepciones</span>
+                  <span className="text-sm font-medium text-gray-900">Excepciones</span>
                   <button
-                    className="text-sm px-2 py-1 border rounded"
+                    className="text-sm px-2 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
                     onClick={() => setOhForm({ ...ohForm, exceptions: [...ohForm.exceptions, { date: '', closed: true }] })}
                   >
-                    Añadir excepción
+                    <span className="text-gray-900">Añadir excepción</span>
                   </button>
                 </div>
                 <div className="space-y-2">
                   {ohForm.exceptions.map((ex: any, idx: number) => (
                     <div key={idx} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Fecha</label>
+                        <label className="block text-xs font-medium text-gray-900 mb-1">Fecha</label>
                         <input
                           type="date"
                           value={ex.date || ''}
@@ -718,7 +718,7 @@ export default function CentersPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Cerrado</label>
+                        <label className="block text-xs font-medium text-gray-900 mb-1">Cerrado</label>
                         <input
                           type="checkbox"
                           checked={!!ex.closed}
@@ -730,7 +730,7 @@ export default function CentersPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Desde</label>
+                        <label className="block text-xs font-medium text-gray-900 mb-1">Desde</label>
                         <input
                           type="time"
                           value={ex.start || ''}
@@ -744,7 +744,7 @@ export default function CentersPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Hasta</label>
+                        <label className="block text-xs font-medium text-gray-900 mb-1">Hasta</label>
                         <input
                           type="time"
                           value={ex.end || ''}
@@ -763,7 +763,7 @@ export default function CentersPage() {
               </div>
             </div>
             <div className="p-4 border-t flex justify-end gap-2">
-              <button onClick={() => setShowEdit(false)} className="px-4 py-2 border rounded">Cancelar</button>
+              <button onClick={() => setShowEdit(false)} className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Cancelar</button>
               <button
                 className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
                 disabled={!editingCenterId}

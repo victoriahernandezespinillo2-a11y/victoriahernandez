@@ -15,13 +15,13 @@ interface PaymentModalProps {
   onSuccess: () => void; // navegar/listar tras pago
 }
 
-type PaymentMethod = 'CARD_DEMO' | 'ONSITE';
+type PaymentMethod = 'CARD' | 'ONSITE';
 
 export default function PaymentModal(props: PaymentModalProps) {
   const { isOpen, onClose, reservationId, amount, currency = 'COP', courtName, dateLabel, timeLabel, onSuccess } = props;
   const router = useRouter();
 
-  const [method, setMethod] = useState<PaymentMethod>('CARD_DEMO');
+  const [method, setMethod] = useState<PaymentMethod>('CARD');
   const [holder, setHolder] = useState<string>('');
   const [card, setCard] = useState<string>('');
   const [expiry, setExpiry] = useState<string>('');
@@ -121,50 +121,21 @@ export default function PaymentModal(props: PaymentModalProps) {
     }
   }, [amount, currency]);
 
-  const validateCardDemo = (): string | null => {
-    if (method !== 'CARD_DEMO') return null;
-    if (!holder.trim()) return 'Nombre del titular requerido';
-    const digits = card.replace(/\s+/g, '');
-    if (!/^\d{16}$/.test(digits)) return 'Número de tarjeta inválido (16 dígitos)';
-    if (!/^\d{2}\/\d{2}$/.test(expiry)) return 'Fecha inválida (MM/YY)';
-    const match = expiry.match(/^(\d{2})\/(\d{2})$/);
-    if (!match) return 'Fecha inválida (MM/YY)';
-    const mm = Number(match[1]);
-    const yy = Number(match[2]);
-    if (!Number.isFinite(mm) || !Number.isFinite(yy)) return 'Fecha inválida (MM/YY)';
-    if (mm < 1 || mm > 12) return 'Mes inválido';
-    if (!/^\d{3,4}$/.test(cvc)) return 'CVC inválido';
-    return null;
-  };
-
+  // El flujo demo se elimina; sólo redirigimos a Redsys para tarjeta
   const handlePay = async () => {
     setError(null);
     if (method === 'ONSITE') {
       onClose();
-      // Redirigir a página de éxito
       router.push(`/dashboard/reservations/success?reservationId=${reservationId}`);
-      return;
-    }
-    const validation = validateCardDemo();
-    if (validation) {
-      setError(validation);
       return;
     }
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/reservations/${reservationId}/pay-demo`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || `HTTP ${res.status}`);
-      }
-      onClose();
-      // Redirigir a página de éxito
-      router.push(`/dashboard/reservations/success?reservationId=${reservationId}`);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const url = `${apiUrl}/api/payments/redsys/redirect?rid=${encodeURIComponent(reservationId)}`;
+      window.location.href = url;
     } catch (e: any) {
-      setError(e?.message || 'No se pudo completar el pago.');
+      setError(e?.message || 'No se pudo iniciar el pago.');
     } finally {
       setIsSubmitting(false);
     }
@@ -236,10 +207,10 @@ export default function PaymentModal(props: PaymentModalProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setMethod('CARD_DEMO')}
-                className={`p-4 sm:p-3 rounded-xl sm:rounded-md border text-sm font-medium transition-all duration-200 button-native touch-feedback ${method === 'CARD_DEMO' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-md scale-105' : 'border-gray-300 text-gray-700 hover:bg-gray-50 active:scale-95'}`}
+                onClick={() => setMethod('CARD')}
+                className={`p-4 sm:p-3 rounded-xl sm:rounded-md border text-sm font-medium transition-all duration-200 button-native touch-feedback ${method === 'CARD' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-md scale-105' : 'border-gray-300 text-gray-700 hover:bg-gray-50 active:scale-95'}`}
               >
-                💳 Tarjeta (demo)
+                💳 Tarjeta
               </button>
               <button
                 type="button"
@@ -251,60 +222,9 @@ export default function PaymentModal(props: PaymentModalProps) {
             </div>
           </div>
 
-          {/* Formulario de tarjeta (demo) - Móvil optimizado */}
-          {method === 'CARD_DEMO' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">👤 Titular de la tarjeta</label>
-                <input
-                  ref={firstFieldRef}
-                  type="text"
-                  value={holder}
-                  onChange={(e) => setHolder(e.target.value)}
-                  placeholder="Nombre completo"
-                  className="w-full px-4 py-4 sm:py-3 border border-gray-300 rounded-xl sm:rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base sm:text-sm touch-manipulation"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">💳 Número de tarjeta</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="cc-number"
-                  value={card}
-                  onChange={(e) => setCard(e.target.value.replace(/[^0-9\s]/g, ''))}
-                  placeholder="4242 4242 4242 4242"
-                  className="w-full px-4 py-4 sm:py-3 border border-gray-300 rounded-xl sm:rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base sm:text-sm touch-manipulation"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4 sm:gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">📅 Vencimiento</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="cc-exp"
-                    value={expiry}
-                    onChange={(e) => setExpiry(e.target.value.replace(/[^0-9/]/g, ''))}
-                    placeholder="MM/YY"
-                    className="w-full px-4 py-4 sm:py-3 border border-gray-300 rounded-xl sm:rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base sm:text-sm touch-manipulation"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">🔒 CVC</label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    autoComplete="cc-csc"
-                    value={cvc}
-                    onChange={(e) => setCvc(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="123"
-                    className="w-full px-4 py-4 sm:py-3 border border-gray-300 rounded-xl sm:rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base sm:text-sm touch-manipulation"
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-gray-500">Esta es una simulación. No se realizará ningún cargo real.</p>
-            </div>
+          {/* Formulario de tarjeta eliminado (demo) */}
+          {false && method === 'CARD' && (
+            <div className="space-y-4"></div>
           )}
 
           {/* Error */}
@@ -336,7 +256,7 @@ export default function PaymentModal(props: PaymentModalProps) {
                   <span className="loading-pulse">Procesando pago...</span>
                 </>
               ) : (
-                <span>{method === 'ONSITE' ? '🏢 Confirmar (pagar en sede)' : '💳 Pagar ahora (demo)'}</span>
+                <span>{method === 'ONSITE' ? '🏢 Confirmar (pagar en sede)' : '💳 Pagar ahora'}</span>
               )}
             </button>
           </div>

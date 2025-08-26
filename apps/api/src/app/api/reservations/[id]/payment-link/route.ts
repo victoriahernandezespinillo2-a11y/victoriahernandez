@@ -16,8 +16,8 @@ export async function POST(request: NextRequest) {
       return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401 });
     }
     const amount = Number(reservation.totalPrice || 0);
-    const successUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/payments/success?rid=${reservation.id}`;
-    const cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/payments/cancel?rid=${reservation.id}`;
+    const successUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/dashboard/reservations/success?reservationId=${reservation.id}`;
+    const cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/dashboard/reservations`;
     const checkout = await stripeService.createCheckoutSession({
       amount,
       currency: 'eur',

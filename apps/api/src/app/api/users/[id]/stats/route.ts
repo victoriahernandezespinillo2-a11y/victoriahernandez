@@ -21,6 +21,11 @@ export async function GET(req: NextRequest) {
     // Extraer el userId como el segmento anterior a 'stats'
     const parts = pathname.split('/');
     const userId = parts[parts.length - 2];
+    
+    if (!userId) {
+      return ApiResponse.badRequest('ID de usuario no válido');
+    }
+    
     const { user } = (context as any);
     
     // Verificar permisos: usuarios solo pueden ver sus propias estadísticas

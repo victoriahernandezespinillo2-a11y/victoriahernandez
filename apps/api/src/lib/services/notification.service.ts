@@ -208,7 +208,12 @@ export class NotificationService {
       throw new Error('Usuario no encontrado');
     }
 
-    const notification = await (db as any).notification.create({
+    // Persistir notificación en DB
+    const repo = (db as any).notification;
+    if (!repo?.create) {
+      throw new Error('Modelo Notification no disponible en la base de datos');
+    }
+    const notification = await repo.create({
       data: {
         userId: validatedData.userId,
         type: validatedData.type,
@@ -246,7 +251,8 @@ export class NotificationService {
    * Enviar notificación por ID
    */
   async sendNotification(notificationId: string) {
-    const notification = await (db as any).notification.findUnique({
+    const repo = (db as any).notification;
+    const notification = await repo.findUnique({
       where: { id: notificationId },
       include: {
         user: {
@@ -315,7 +321,7 @@ export class NotificationService {
       }
 
       // Actualizar estado de la notificación
-      const updatedNotification = await (db as any).notification.update({
+      const updatedNotification = await repo.update({
         where: { id: notificationId },
         data: {
           status,
@@ -327,7 +333,7 @@ export class NotificationService {
       return updatedNotification;
     } catch (error) {
       // Marcar como fallida
-      await (db as any).notification.update({
+      await repo.update({
         where: { id: notificationId },
         data: {
           status: 'FAILED',
@@ -424,8 +430,9 @@ export class NotificationService {
       }
 
       // Intentar usar tabla real de notificaciones
+      const repo = (db as any).notification;
       const [notifications, total] = await Promise.all([
-        (db as any).notification.findMany({
+        repo.findMany({
           where,
           skip,
           take: limit,
@@ -436,7 +443,7 @@ export class NotificationService {
             },
           },
         }),
-        (db as any).notification.count({ where }),
+        repo.count({ where }),
       ]);
 
       return {
@@ -540,12 +547,13 @@ export class NotificationService {
    */
   async markAsRead(notificationId: string, userId?: string) {
     try {
+      const repo = (db as any).notification;
       const where: any = { id: notificationId };
       if (userId) where.userId = userId;
-      const notification = await (db as any).notification.findUnique({ where });
+      const notification = await repo.findUnique({ where });
       if (!notification) throw new Error('Notificación no encontrada');
       if (notification.readAt) return notification;
-      return await (db as any).notification.update({ where: { id: notificationId }, data: { readAt: new Date() } });
+      return await repo.update({ where: { id: notificationId }, data: { readAt: new Date() } });
     } catch {
       // Fallback sin persistencia
       return { id: notificationId, readAt: new Date() } as any;
@@ -557,7 +565,8 @@ export class NotificationService {
    */
   async markAllAsRead(userId: string) {
     try {
-      const result = await (db as any).notification.updateMany({ where: { userId, readAt: null }, data: { readAt: new Date() } });
+      const repo = (db as any).notification;
+      const result = await repo.updateMany({ where: { userId, readAt: null }, data: { readAt: new Date() } });
       return { count: result.count };
     } catch {
       return { count: 0 };
@@ -568,7 +577,8 @@ export class NotificationService {
    * Cancelar notificación programada
    */
   async cancelNotification(notificationId: string) {
-    const notification = await (db as any).notification.findUnique({
+    const repo = (db as any).notification;
+    const notification = await repo.findUnique({
       where: { id: notificationId },
     });
 
@@ -580,7 +590,7 @@ export class NotificationService {
       throw new Error('Solo se pueden cancelar notificaciones pendientes');
     }
 
-    const cancelledNotification = await (db as any).notification.update({
+    const cancelledNotification = await repo.update({
       where: { id: notificationId },
       data: {
         status: 'CANCELLED',
@@ -598,15 +608,16 @@ export class NotificationService {
       const where = userId ? { userId } : {};
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const repo = (db as any).notification;
       const [total, unread, sent, failed, monthlyCount] = await Promise.all([
-        (db as any).notification.count({ where }),
-        (db as any).notification.count({ where: { ...where, readAt: null, type: 'IN_APP' } }),
-        (db as any).notification.count({ where: { ...where, status: 'SENT' } }),
-        (db as any).notification.count({ where: { ...where, status: 'FAILED' } }),
-        (db as any).notification.count({ where: { ...where, createdAt: { gte: startOfMonth } } }),
+        repo.count({ where }),
+        repo.count({ where: { ...where, readAt: null, type: 'IN_APP' } }),
+        repo.count({ where: { ...where, status: 'SENT' } }),
+        repo.count({ where: { ...where, status: 'FAILED' } }),
+        repo.count({ where: { ...where, createdAt: { gte: startOfMonth } } }),
       ]);
-      const byType = await (db as any).notification.groupBy({ by: ['type'], where, _count: { type: true } });
-      const byCategory = await (db as any).notification.groupBy({ by: ['category'], where, _count: { category: true } });
+      const byType = await repo.groupBy({ by: ['type'], where, _count: { type: true } });
+      const byCategory = await repo.groupBy({ by: ['category'], where, _count: { category: true } });
       return {
         total,
         unread,
@@ -646,7 +657,8 @@ export class NotificationService {
   async processScheduledNotifications() {
     const now = new Date();
     
-    const pendingNotifications = await (db as any).notification.findMany({
+    const repo = (db as any).notification;
+    const pendingNotifications = await repo.findMany({
       where: {
         status: 'PENDING',
         scheduledFor: {

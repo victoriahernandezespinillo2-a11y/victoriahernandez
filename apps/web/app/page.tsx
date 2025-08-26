@@ -7,6 +7,7 @@ import { SportsSection } from "./components/SportsSection";
 import { ActivitiesSection } from "./components/ActivitiesSection";
 import { StatsSection } from "./components/StatsSection";
 import { TestimonialsSection } from "./components/TestimonialsSection";
+import { SponsorsSection } from "./components/SponsorsSection";
 import { NewsSection } from "./components/NewsSection";
 import { InfoSection } from "./components/InfoSection";
 import { CTASection } from "./components/CTASection";
@@ -48,6 +49,11 @@ export default function Home() {
       {/* Testimonials Section */}
       <section id="testimonios">
         <TestimonialsSection />
+      </section>
+      
+      {/* Sponsors Section */}
+      <section id="patrocinadores">
+        <SponsorsSection />
       </section>
       
       {/* News & Blog Section */}

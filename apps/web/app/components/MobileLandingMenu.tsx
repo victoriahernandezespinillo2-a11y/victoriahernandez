@@ -144,6 +144,7 @@ export function MobileLandingMenu({ isOpen, onClose, handleSmoothScroll }: Mobil
     { icon: Info, label: 'Sobre Nosotros', action: () => { handleSmoothScroll('about'); triggerHaptic('light'); } },
     { icon: Calendar, label: 'Instalaciones', action: () => { handleSmoothScroll('facilities'); triggerHaptic('light'); } },
     { icon: Users, label: 'Comunidad', action: () => { handleSmoothScroll('community'); triggerHaptic('light'); } },
+    { icon: Users, label: 'Patrocinadores', action: () => { handleSmoothScroll('patrocinadores'); triggerHaptic('light'); } },
     { icon: MapPin, label: 'Ubicación', action: () => { handleSmoothScroll('location'); triggerHaptic('light'); } },
     { icon: Phone, label: 'Contacto', action: () => { handleSmoothScroll('contact'); triggerHaptic('light'); } },
   ];

@@ -185,12 +185,20 @@ export async function POST(request: NextRequest) {
     }
 
     body = await req.json();
+    console.log('🔍 [RESERVATION-DEBUG] Datos recibidos:', {
+      body,
+      finalUserId,
+      session: session?.email
+    });
+    
     const validatedData = CreateReservationSchema.parse(body);
+    console.log('✅ [RESERVATION-DEBUG] Datos validados:', validatedData);
     
     let reservation = await reservationService.createReservation({
       ...validatedData,
       userId: finalUserId,
     });
+    console.log('🎉 [RESERVATION-DEBUG] Reserva creada exitosamente:', reservation.id);
 
     // Si el método de pago solicitado es 'credits', realizar cargo de créditos y marcar como pagado
     if (validatedData.paymentMethod === 'credits') {
@@ -264,7 +272,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ reservation }, { status: 201 });
   } catch (error) {
-    console.error('Error creando reserva:', error);
+    console.error('🚨 [RESERVATION-DEBUG] Error detallado:', {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+      body,
+      finalUserId,
+      validationStep: 'En createReservation'
+    });
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(

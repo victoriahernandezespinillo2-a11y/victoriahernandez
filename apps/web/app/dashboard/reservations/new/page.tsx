@@ -315,13 +315,29 @@ export default function NewReservationPage() {
     setSelectedCalendarSlot(slot);
     setShowCalendarModal(false);
     
-    // Extraer la hora del slot seleccionado
-    const startTime = new Date(slot.startTime);
-    const timeString = startTime.toLocaleTimeString('es-ES', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    // Extraer la hora del slot seleccionado de forma robusta (HH:MM o ISO)
+    const timeString = /^\d{2}:\d{2}$/.test(slot.startTime)
+      ? slot.startTime
+      : new Date(slot.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
     setSelectedTime(timeString);
+  };
+
+  // Helper para formatear horas (acepta 'HH:MM' o ISO)
+  const formatTime = (timeString: string) => {
+    if (/^\d{2}:\d{2}$/.test(timeString)) return timeString;
+    const parsed = new Date(timeString);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    }
+    const hhmm = timeString.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+    if (hhmm) {
+      const composed = new Date(`${selectedDate}T${hhmm[0]}`);
+      if (!isNaN(composed.getTime())) {
+        return composed.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      }
+      return hhmm[0].slice(0, 5);
+    }
+    return timeString;
   };
 
   // 🚀 FUNCIÓN PARA CONFIRMAR Y CONTINUAR AL PAGO (YA NO SE USA - MANEJADO EN CALENDARVISUALMODAL)
@@ -340,10 +356,22 @@ export default function NewReservationPage() {
     const run = async () => {
       try {
         if (!selectedCourt || !selectedCalendarSlot) return;
-        // Usar directamente el startTime del slot seleccionado
+        // Usar un startTime en formato ISO válido para el endpoint de pricing
+        const raw = selectedCalendarSlot.startTime;
+        let startISO: string | null = null;
+        if (/^\d{2}:\d{2}$/.test(raw)) {
+          if (!selectedDate) return; // necesitamos fecha para componer ISO
+          startISO = `${selectedDate}T${raw}:00.000Z`;
+        } else {
+          const d = new Date(raw);
+          if (!isNaN(d.getTime())) {
+            startISO = d.toISOString();
+          }
+        }
+        if (!startISO) return;
         await calculatePrice({ 
           courtId: selectedCourt.id, 
-          startTime: selectedCalendarSlot.startTime, 
+          startTime: startISO, 
           duration 
         });
       } catch {
@@ -641,15 +669,22 @@ export default function NewReservationPage() {
                        // Crear fecha ISO para startTime
                        const startDateTime = new Date(`${selectedDate}T${selectedSlot.startTime}`);
                        
-                       const reservation = await api.reservations.create({
+                       const reservationResponse: any = await api.reservations.create({
                          courtId: selectedCourt.id,
                          startTime: startDateTime.toISOString(),
                          duration: selectedDuration,
+                         paymentMethod: 'redsys' as 'redsys',
                          notes: notes
                        });
                        
-                       setCreatedReservationId(reservation.id);
-                       setShowPaymentModal(true);
+                       const reservationId = reservationResponse?.reservation?.id || reservationResponse?.id;
+                       if (reservationId) {
+                         setCreatedReservationId(reservationId);
+                         setShowPaymentModal(true);
+                       } else {
+                         console.error('No se obtuvo reservationId válido de la API:', reservationResponse);
+                         alert('No se pudo crear la reserva. Intenta nuevamente.');
+                       }
                      } catch (error) {
                        console.error('Error creating reservation:', error);
                      }
@@ -782,7 +817,7 @@ export default function NewReservationPage() {
                 <div className="flex items-center justify-center">
                   <div className="text-blue-600 text-lg mr-3">🎯</div>
                   <div className="text-sm text-blue-800">
-                    <p className="font-medium">Horario seleccionado: <strong>{new Date(selectedCalendarSlot.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - {new Date(selectedCalendarSlot.endTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</strong></p>
+                    <p className="font-medium">Horario seleccionado: <strong>{formatTime(selectedCalendarSlot.startTime)} - {formatTime(selectedCalendarSlot.endTime)}</strong></p>
                     <p className="text-xs mt-1">Revisa el modal flotante para continuar</p>
                   </div>
                 </div>
@@ -800,7 +835,7 @@ export default function NewReservationPage() {
                 </button>
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <p className="text-sm text-green-800 mb-2">
-                    ✅ <strong>Horario confirmado:</strong> {new Date(selectedCalendarSlot.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - {new Date(selectedCalendarSlot.endTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                    ✅ <strong>Horario confirmado:</strong> {formatTime(selectedCalendarSlot.startTime)} - {formatTime(selectedCalendarSlot.endTime)}
                   </p>
                   <p className="text-xs text-green-700">
                     🚀 Al confirmar en el calendario visual, tu reserva se creará automáticamente y se abrirá el modal de pago.

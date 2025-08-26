@@ -205,3 +205,5 @@ if (require.main === module) {
 
 module.exports = { generateTestQR, TEST_CONFIG };
 
+
+
