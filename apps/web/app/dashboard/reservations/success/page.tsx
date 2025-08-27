@@ -273,6 +273,8 @@ export default function PaymentSuccessPage() {
             Descargar Comprobante
           </button>
         </div>
+
+        {/* Fin contenido principal */}
       </div>
     </div>
   );

@@ -180,7 +180,17 @@ export function Footer() {
             <div className="lg:col-span-2">
               <div className="flex items-center space-x-3 mb-6">
                 <div className="relative">
-                  <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-2xl hover:scale-110 transition-transform duration-300">
+                  <img 
+                    src="/images/logo.png" 
+                    alt="Polideportivo Victoria Hernandez" 
+                    className="w-16 h-16 object-contain rounded-2xl shadow-2xl hover:scale-110 transition-transform duration-300"
+                    onError={(e) => {
+                      // Fallback al diseño original si no carga la imagen
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                  <div className="hidden w-16 h-16 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-2xl hover:scale-110 transition-transform duration-300">
                     <i className="fas fa-running text-white text-2xl"></i>
                   </div>
                   <div className="absolute -top-2 -right-2 w-6 h-6 bg-orange-500 rounded-full animate-pulse flex items-center justify-center">

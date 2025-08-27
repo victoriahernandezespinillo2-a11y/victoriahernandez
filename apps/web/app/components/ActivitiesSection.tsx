@@ -1,35 +1,37 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useLandingData } from "@/src/hooks/useLandingData";
 
 export function ActivitiesSection() {
   const router = useRouter();
-  const activities = [
-    {
-      title: "Clases Dirigidas",
-      description: "Entrenamientos grupales con instructores certificados",
-      icon: "fas fa-users",
-      schedule: "Lun-Vie 6:00-22:00"
-    },
-    {
-      title: "Torneos",
-      description: "Competencias regulares en todas las disciplinas",
-      icon: "fas fa-medal",
-      schedule: "Fines de semana"
-    },
-    {
-      title: "Eventos Especiales",
-      description: "Celebraciones deportivas y actividades familiares",
-      icon: "fas fa-calendar-star",
-      schedule: "Fechas especiales"
-    },
-    {
-      title: "Escuelas Deportivas",
-      description: "Formación deportiva para niños y jóvenes",
-      icon: "fas fa-graduation-cap",
-      schedule: "Lun-Sáb 15:00-18:00"
-    }
-  ];
+  const { activities, loading } = useLandingData();
+
+  // Si no hay datos o está cargando, mostrar skeleton
+  if (loading || !activities || activities.length === 0) {
+    return (
+      <section className="py-20 bg-gradient-to-br from-blue-50 to-emerald-50">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
+          <div className="animate-pulse">
+            <div className="text-center mb-16">
+              <div className="h-12 bg-gray-200 rounded w-1/2 mx-auto mb-6"></div>
+              <div className="h-6 bg-gray-200 rounded w-3/4 mx-auto"></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="bg-white rounded-2xl p-8 shadow-lg">
+                  <div className="w-16 h-16 bg-gray-200 rounded-xl mb-6"></div>
+                  <div className="h-6 bg-gray-200 rounded mb-3"></div>
+                  <div className="h-4 bg-gray-200 rounded mb-4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="py-20 bg-gradient-to-br from-blue-50 to-emerald-50">
@@ -45,8 +47,8 @@ export function ActivitiesSection() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {activities.map((activity, index) => (
-            <div key={index} className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2">
-              <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-xl flex items-center justify-center mb-6">
+            <div key={activity.id} className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2">
+              <div className={`w-16 h-16 bg-gradient-to-br ${activity.color} rounded-xl flex items-center justify-center mb-6`}>
                 <i className={`${activity.icon} text-white text-2xl`}></i>
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">{activity.title}</h3>

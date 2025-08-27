@@ -132,7 +132,8 @@ export default function PaymentModal(props: PaymentModalProps) {
     setIsSubmitting(true);
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const url = `${apiUrl}/api/payments/redsys/redirect?rid=${encodeURIComponent(reservationId)}`;
+      const bizumFlag = method === 'BIZUM' ? '&bizum=1' : '';
+      const url = `${apiUrl}/api/payments/redsys/redirect?rid=${encodeURIComponent(reservationId)}${bizumFlag}`;
       window.location.href = url;
     } catch (e: any) {
       setError(e?.message || 'No se pudo iniciar el pago.');
@@ -217,7 +218,20 @@ export default function PaymentModal(props: PaymentModalProps) {
                 onClick={() => setMethod('BIZUM')}
                 className={`p-4 sm:p-3 rounded-xl sm:rounded-md border text-sm font-medium transition-all duration-200 button-native touch-feedback ${method === 'BIZUM' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-md scale-105' : 'border-gray-300 text-gray-700 hover:bg-gray-50 active:scale-95'}`}
               >
-                🤳 Bizum
+                <div className="flex items-center justify-center gap-2">
+                  <img 
+                    src="/images/bizum-logo.png" 
+                    alt="Bizum" 
+                    className="w-6 h-6 object-contain"
+                    onError={(e) => {
+                      // Fallback al emoji si no carga la imagen
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                  <span className="hidden">🤳</span>
+                  <span>Bizum</span>
+                </div>
               </button>
               <button
                 type="button"
@@ -268,7 +282,24 @@ export default function PaymentModal(props: PaymentModalProps) {
                   <span className="loading-pulse">Procesando pago...</span>
                 </>
               ) : (
-                <span>{method === 'ONSITE' ? '🏢 Confirmar (pagar en sede)' : method==='BIZUM' ? '🤳 Pagar con Bizum' : '💳 Pagar ahora'}</span>
+                <span>
+                  {method === 'ONSITE' ? '🏢 Confirmar (pagar en sede)' : 
+                   method === 'BIZUM' ? (
+                     <div className="flex items-center gap-2">
+                       <img 
+                         src="/images/bizum-logo.png" 
+                         alt="Bizum" 
+                         className="w-5 h-5 object-contain"
+                         onError={(e) => {
+                           e.currentTarget.style.display = 'none';
+                           e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                         }}
+                       />
+                       <span className="hidden">🤳</span>
+                       <span>Pagar con Bizum</span>
+                     </div>
+                   ) : '💳 Pagar ahora'}
+                </span>
               )}
             </button>
           </div>

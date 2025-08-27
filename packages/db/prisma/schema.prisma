@@ -46,6 +46,7 @@ model User {
   walletLedger         WalletLedger[]
   orders               Order[]
   notifications        Notification[]
+  posts                Post[]
 
   @@map("users")
 }
@@ -549,3 +550,330 @@ model InventoryMovement {
   @@index([productId, createdAt])
   @@map("inventory_movements")
 }
+
+// ========================================
+// BLOG CONTENT MANAGEMENT
+// ========================================
+
+model Post {
+  id              String    @id @default(cuid())
+  title           String
+  slug            String    @unique
+  excerpt         String?
+  content         String
+  status          PostStatus @default(DRAFT)
+  type            PostType  @default(NEWS)
+  publishedAt     DateTime? @map("published_at")
+  isFeatured      Boolean   @default(false) @map("is_featured")
+  allowComments   Boolean   @default(true) @map("allow_comments")
+  seoKeywords     String[]  @default([]) @map("seo_keywords")
+  seoDescription  String?   @map("seo_description")
+  featuredImage   String?   @map("featured_image")
+  authorId        String    @map("author_id")
+  viewCount       Int       @default(0) @map("view_count")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relaciones
+  author          User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  categories      PostCategory[]
+  tags            PostTag[]
+  comments        Comment[]
+
+  @@index([status, publishedAt])
+  @@index([authorId])
+  @@index([isFeatured])
+  @@map("posts")
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  color       String?
+  icon        String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  posts       PostCategory[]
+
+  @@index([slug])
+  @@map("categories")
+}
+
+model Tag {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  color       String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  posts       PostTag[]
+
+  @@index([slug])
+  @@map("tags")
+}
+
+model PostCategory {
+  id         String   @id @default(cuid())
+  postId     String   @map("post_id")
+  categoryId String   @map("category_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relaciones
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, categoryId])
+  @@map("post_categories")
+}
+
+model PostTag {
+  id       String   @id @default(cuid())
+  postId   String   @map("post_id")
+  tagId    String   @map("tag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relaciones
+  post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, tagId])
+  @@map("post_tags")
+}
+
+model Comment {
+  id        String        @id @default(cuid())
+  postId    String        @map("post_id")
+  authorName String       @map("author_name")
+  authorEmail String      @map("author_email")
+  content   String
+  status    CommentStatus @default(PENDING)
+  parentId  String?       @map("parent_id")
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  // Relaciones
+  post      Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[]     @relation("CommentReplies")
+
+  @@index([postId])
+  @@index([status])
+  @@map("comments")
+}
+
+// ========================================
+// LANDING PAGE CONTENT MANAGEMENT
+// ========================================
+
+model LandingHero {
+  id          String   @id @default(cuid())
+  title       String
+  subtitle    String?
+  description String?
+  imageUrl    String?
+  ctaText     String?
+  ctaLink     String?
+  secondaryCtaText String?
+  secondaryCtaLink String?
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_hero")
+}
+
+model LandingStat {
+  id          String   @id @default(cuid())
+  value       String
+  suffix      String?
+  label       String
+  description String?
+  icon        String?
+  color       String?
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_stats")
+}
+
+model LandingAchievement {
+  id           String   @id @default(cuid())
+  title        String
+  year         String?
+  organization String?
+  icon         String?
+  color        String?
+  isActive     Boolean  @default(true)
+  order        Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_achievements")
+}
+
+model LandingTestimonial {
+  id        String   @id @default(cuid())
+  name      String
+  role      String?
+  company   String?
+  content   String
+  rating    Int      @default(5)
+  imageUrl  String?
+  sport     String?
+  experience String?
+  highlight String?
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_testimonials")
+}
+
+model LandingSponsor {
+  id          String   @id @default(cuid())
+  name        String
+  category    String?
+  logoUrl     String?
+  description String?
+  website     String?
+  partnership String?
+  since       String?
+  tier        SponsorTier @default(SILVER)
+  benefits    String[]  @default([])
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_sponsors")
+}
+
+model LandingActivity {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  icon        String
+  schedule    String
+  color       String   @default("from-emerald-500 to-blue-600")
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_activities")
+}
+
+model LandingInfoCard {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  icon        String
+  content     String
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_info_cards")
+}
+
+model LandingFAQ {
+  id       String   @id @default(cuid())
+  question String
+  answer   String
+  isActive Boolean  @default(true)
+  order    Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_faqs")
+}
+
+// ========================================
+// INSTALACIONES DEPORTIVAS - LANDING PAGE
+// ========================================
+
+model LandingSportCategory {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  icon        String
+  color       String
+  description String?
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  facilities LandingSportFacility[]
+
+  @@map("landing_sport_categories")
+}
+
+model LandingSportFacility {
+  id          String   @id @default(cuid())
+  categoryId  String   @map("category_id")
+  name        String
+  description String
+  imageUrl    String?  @map("image_url")
+  price       String
+  availability String
+  rating      Decimal  @default(0)
+  features    String[]
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  category LandingSportCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("landing_sport_facilities")
+}
+
+// Enums para el sistema de blog
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PostType {
+  NEWS
+  EVENT
+  TIP
+  RESULT
+  ANNOUNCEMENT
+}
+
+enum CommentStatus {
+  PENDING
+  APPROVED
+  HIDDEN
+  SPAM
+}
+
+// Enums para el sistema de landing
+enum SponsorTier {
+  PLATINUM
+  GOLD
+  SILVER
+  BRONZE
+}
+

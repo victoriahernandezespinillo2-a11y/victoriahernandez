@@ -5,9 +5,36 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { zonedTimeToUtc, utcToZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { auth } from '@repo/auth';
 import { db } from '@repo/db';
 import { withReservationMiddleware, ApiResponse } from '@/lib/middleware';
+
+// Utilidad: normaliza '08:00 a.m.' | '10:00 p.m.' | '8:00 PM' -> 'HH:mm'
+function normalizeToHHmm(input: string): string {
+  if (!input) return '00:00';
+  let s = input.trim().toLowerCase();
+  s = s.replace(/\s+/g, ''); // quitar espacios
+  // Reemplazar variantes a.m./p.m.
+  s = s.replace(/a\.?m\.?/, 'am').replace(/p\.?m\.?/, 'pm');
+  const m = s.match(/^(\d{1,2}):(\d{2})(am|pm)?$/);
+  if (!m) {
+    // si ya viene como HH:mm
+    const hhmm = input.match(/^(\d{2}):(\d{2})$/);
+    if (hhmm) return hhmm[0] || '00:00';
+    return '00:00';
+  }
+  let hour = parseInt(m[1] || '0', 10);
+  const minute = m[2] || '00';
+  const mer = m[3];
+  if (mer === 'am') {
+    if (hour === 12) hour = 0;
+  } else if (mer === 'pm') {
+    if (hour !== 12) hour += 12;
+  }
+  const hh = hour.toString().padStart(2, '0');
+  return `${hh}:${minute}`;
+}
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   return withReservationMiddleware(async (request: NextRequest) => {
@@ -156,9 +183,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // 🕒 OBTENER HORARIOS DE OPERACIÓN DEL CENTRO
     let operatingStart = new Date(startOfDay);
     let operatingEnd = new Date(endOfDay);
+    // Determinar zona horaria del centro (default Europe/Madrid)
+    let centerTz = 'Europe/Madrid';
     
-    if (court?.center?.settings) {
-      const settings = court.center.settings as any;
+    const centerSettings = court?.center?.settings as any || {};
+
+    if (centerSettings) {
+      const settings = centerSettings;
       // 🔧 BUSCAR EN AMBAS ESTRUCTURAS: operatingHours Y business_hours
       const operatingHours = settings.operatingHours || settings.business_hours;
       
@@ -185,25 +216,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         }
         
         if (dayConfig?.open && dayConfig?.close) {
-          const [openHour, openMin] = dayConfig.open.split(':').map(Number);
-          const [closeHour, closeMin] = dayConfig.close.split(':').map(Number);
-          
-          // 🕐 CREAR FECHAS EN HORA DE MADRID
-          const madridDate = new Date(targetDate.toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
-          
-          operatingStart = new Date(madridDate);
-          operatingStart.setHours(openHour, openMin, 0, 0);
-          
-          operatingEnd = new Date(madridDate);
-          operatingEnd.setHours(closeHour, closeMin, 0, 0);
+          const tzSetting = (centerSettings.timezone as string | undefined) ?? 'Europe/Madrid';
+          centerTz = tzSetting;
+
+          // Normalizar a HH:mm 24h
+          const open24  = normalizeToHHmm(dayConfig.open);
+          const close24 = normalizeToHHmm(dayConfig.close);
+
+          // Convertir HH:mm locales a UTC utilizando la zona horaria del centro
+          // Usar ISO completo para evitar ambigüedad al parsear (corrige desfase observado)
+          operatingStart = zonedTimeToUtc(`${date}T${open24}:00`, centerTz);
+          operatingEnd   = zonedTimeToUtc(`${date}T${close24}:00`, centerTz);
           
           console.log(`🕒 [CALENDAR] Horarios de operación para ${dayKey}:`, {
-            open: dayConfig.open,
-            close: dayConfig.close,
+            open: open24,
+            close: close24,
             operatingStart: operatingStart.toISOString(),
             operatingEnd: operatingEnd.toISOString(),
-            madridTime: madridDate.toISOString(),
-            currentMadridTime: new Date().toLocaleString('en-US', { timeZone: 'Europe/Madrid' })
+            timezone: centerTz,
+            currentServerTime: new Date().toISOString()
           });
         }
       }
@@ -214,10 +245,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     while (currentTime < operatingEnd) {
       const slotStart = new Date(currentTime);
       const slotEnd = new Date(currentTime.getTime() + duration * 60000);
+
+      // Representaciones en hora local del centro para mostrar al usuario
+      const slotStartLocal = utcToZonedTime(slotStart, centerTz);
+      const slotEndLocal   = utcToZonedTime(slotEnd, centerTz);
       
       // 🕐 CONVERTIR SLOTS A HORA DE MADRID PARA COMPARACIONES
-      const slotStartMadrid = new Date(slotStart.toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
-      const slotEndMadrid = new Date(slotEnd.toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
+      const slotStartCompare = slotStart; // ya en UTC
+      const slotEndCompare   = slotEnd;
       
       // 🔍 DETERMINAR ESTADO DEL SLOT
       let slotStatus = 'AVAILABLE';
@@ -250,7 +285,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           });        } else {
             // Verificar reservas existentes en esta cancha
             const reservationConflict = reservations.find((r: any) => {
-              return slotStartMadrid < r.endTime && slotEndMadrid > r.startTime;
+              return slotStartCompare < r.endTime && slotEndCompare > r.startTime;
             });
 
             if (reservationConflict) {
@@ -276,7 +311,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             } else {
               // Verificar si el usuario tiene reserva en otra cancha en el mismo horario
               const userConflict = userReservations.find((r: any) => {
-                return slotStartMadrid < r.endTime && slotEndMadrid > r.startTime;
+                return slotStartCompare < r.endTime && slotEndCompare > r.startTime;
               });
 
               if (userConflict) {
@@ -293,9 +328,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
                 });
               } else {
                 // Si la hora ya pasó (en hora de Madrid/España)
-                const nowInMadrid = new Date().toLocaleString('en-US', { timeZone: 'Europe/Madrid' });
-                const currentMadridTime = new Date(nowInMadrid);
-                if (slotEndMadrid <= currentMadridTime) {
+                const nowUtc = new Date(); // comparar en UTC, slotEndCompare ya está en UTC
+                if (slotEndCompare <= nowUtc) {
                   slotStatus = 'PAST';
                   slotColor = '#9ca3af'; // Gris para pasado
                   slotMessage = 'Hora pasada';
@@ -306,14 +340,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
 
       calendarSlots.push({
-        time: slotStart.toISOString(),
-        startTime: slotStart.toTimeString().slice(0, 5), // HH:MM format
-        endTime: slotEnd.toTimeString().slice(0, 5), // HH:MM format
+        startTime: formatInTimeZone(slotStartLocal, centerTz, 'HH:mm'),
+        endTime: formatInTimeZone(slotEndLocal,   centerTz, 'HH:mm'),
         status: slotStatus,
-        color: slotColor,
         message: slotMessage,
+        color: slotColor,
+        available: slotStatus === 'AVAILABLE',
         conflicts,
-        available: slotStatus === 'AVAILABLE'
       });
 
       currentTime.setMinutes(currentTime.getMinutes() + slotMinutes);

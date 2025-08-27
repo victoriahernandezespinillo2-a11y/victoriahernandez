@@ -21,6 +21,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "bcryptjs": "^2.4.3",
     "iconv-lite": "0.6.x",
+    "isomorphic-dompurify": "^2.26.0",
     "jsonwebtoken": "^9.0.2",
     "lru-cache": "^11.1.0",
     "next": "^15.4.2",

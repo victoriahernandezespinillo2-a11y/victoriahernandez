@@ -198,7 +198,17 @@ export function Navigation() {
             {/* Logo */}
             <div className="flex items-center space-x-2 sm:space-x-3">
               <div className="relative">
-                <div className="w-8 h-8 sm:w-12 sm:h-12 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-lg sm:rounded-xl flex items-center justify-center shadow-lg">
+                <img 
+                  src="/images/logo.png" 
+                  alt="Polideportivo Victoria Hernandez" 
+                  className="w-8 h-8 sm:w-12 sm:h-12 object-contain rounded-lg sm:rounded-xl shadow-lg"
+                  onError={(e) => {
+                    // Fallback al diseño original si no carga la imagen
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+                <div className="hidden w-8 h-8 sm:w-12 sm:h-12 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-lg sm:rounded-xl flex items-center justify-center shadow-lg">
                   <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                 </div>
                 <div className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-3 h-3 sm:w-4 sm:h-4 bg-orange-500 rounded-full animate-pulse"></div>

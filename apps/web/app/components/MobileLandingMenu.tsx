@@ -203,7 +203,17 @@ export function MobileLandingMenu({ isOpen, onClose, handleSmoothScroll }: Mobil
           style={{ height: `${headerHeight}px` }}
         >
           <div className="flex items-center space-x-3 flex-1">
-            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+            <img 
+              src="/images/logo.png" 
+              alt="Polideportivo Victoria Hernandez" 
+              className="w-10 h-10 object-contain bg-white rounded-xl shadow-sm"
+              onError={(e) => {
+                // Fallback al diseño original si no carga la imagen
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+            <div className="hidden w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
               <span className="text-emerald-600 font-bold text-lg">P</span>
             </div>
             <div className="flex-1 min-w-0">

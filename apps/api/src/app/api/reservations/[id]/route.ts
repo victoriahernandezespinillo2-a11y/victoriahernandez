@@ -41,8 +41,11 @@ export async function GET(
   request: NextRequest
 ) {
   try {
+    console.log('🔍 [GET-RESERVATION] Iniciando búsqueda de reserva');
+    
     const session = await auth();
     if (!session?.user?.id) {
+      console.log('❌ [GET-RESERVATION] Usuario no autenticado');
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 401 }
@@ -52,7 +55,10 @@ export async function GET(
     const pathname = request.nextUrl.pathname;
     const reservationId = pathname.split('/').pop() as string;
     
+    console.log('🔍 [GET-RESERVATION] Buscando reserva:', reservationId, 'para usuario:', session.user.id);
+    
     if (!reservationId) {
+      console.log('❌ [GET-RESERVATION] ID de reserva requerido');
       return NextResponse.json(
         { error: 'ID de reserva requerido' },
         { status: 400 }
@@ -60,22 +66,27 @@ export async function GET(
     }
 
     // Obtener reservas del usuario para verificar permisos
+    console.log('🔍 [GET-RESERVATION] Obteniendo reservas del usuario...');
     const userReservations = await reservationService.getReservationsByUser(
       session.user.id
     );
     
+    console.log('🔍 [GET-RESERVATION] Reservas del usuario encontradas:', userReservations.length);
+    
     const reservation = userReservations.find(r => r.id === reservationId);
     
     if (!reservation) {
+      console.log('❌ [GET-RESERVATION] Reserva no encontrada para el usuario');
       return NextResponse.json(
         { error: 'Reserva no encontrada' },
         { status: 404 }
       );
     }
     
+    console.log('✅ [GET-RESERVATION] Reserva encontrada exitosamente:', reservation.id);
     return NextResponse.json({ reservation });
   } catch (error) {
-    console.error('Error obteniendo reserva:', error);
+    console.error('🚨 [GET-RESERVATION] Error obteniendo reserva:', error);
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }

@@ -22,6 +22,16 @@ import {
   ChevronRightIcon,
   Bars3Icon,
   QrCodeIcon,
+  GlobeAltIcon,
+  PhotoIcon,
+  ChatBubbleLeftRightIcon,
+  StarIcon,
+  QuestionMarkCircleIcon,
+  DocumentTextIcon as BlogIcon,
+  TagIcon,
+  FolderIcon,
+  CalendarIcon,
+  InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 
 interface MenuItem {
@@ -94,6 +104,32 @@ const menuItems: MenuItem[] = [
     name: 'Control de acceso',
     href: '/access-control',
     icon: QrCodeIcon,
+  },
+  {
+    name: 'Landing Page',
+    href: '#',
+    icon: GlobeAltIcon,
+    submenu: [
+      { name: 'Hero Slides', href: '/landing/hero', icon: PhotoIcon },
+      { name: 'Testimonios', href: '/landing/testimonials', icon: ChatBubbleLeftRightIcon },
+      { name: 'Patrocinadores', href: '/landing/sponsors', icon: StarIcon },
+      { name: 'Estadísticas', href: '/landing/stats', icon: ChartBarIcon },
+      { name: 'FAQ', href: '/landing/faqs', icon: QuestionMarkCircleIcon },
+      { name: 'Instalaciones Deportivas', href: '/landing/sports', icon: TrophyIcon },
+      { name: 'Actividades & Eventos', href: '/landing/activities', icon: CalendarIcon },
+      { name: 'Información General', href: '/landing/info-cards', icon: InformationCircleIcon },
+    ],
+  },
+  {
+    name: 'Blog',
+    href: '#',
+    icon: BlogIcon,
+    submenu: [
+      { name: 'Posts', href: '/blog/posts', icon: DocumentTextIcon },
+      { name: 'Categorías', href: '/blog/categories', icon: FolderIcon },
+      { name: 'Tags', href: '/blog/tags', icon: TagIcon },
+      { name: 'Comentarios', href: '/blog/comments', icon: ChatBubbleLeftRightIcon },
+    ],
   },
 ];
 

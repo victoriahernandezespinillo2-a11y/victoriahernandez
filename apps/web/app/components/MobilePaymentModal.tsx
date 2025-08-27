@@ -25,7 +25,7 @@ interface MobilePaymentModalProps {
   onSuccess: () => void;
 }
 
-type PaymentMethod = 'CARD' | 'ONSITE';
+type PaymentMethod = 'CARD' | 'BIZUM' | 'ONSITE';
 
 export default function MobilePaymentModal(props: MobilePaymentModalProps) {
   const {
@@ -106,7 +106,8 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
     setStep('processing');
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const url = `${apiUrl}/api/payments/redsys/redirect?rid=${encodeURIComponent(reservationId)}`;
+      const bizumFlag = method === 'BIZUM' ? '&bizum=1' : '';
+      const url = `${apiUrl}/api/payments/redsys/redirect?rid=${encodeURIComponent(reservationId)}${bizumFlag}`;
       window.location.href = url;
     } catch (e: any) {
       setError(e?.message || 'No se pudo iniciar el pago.');
@@ -216,42 +217,30 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
           
           {step === 'payment' && (
             <div className="space-y-6">
-              {/* Selector de método de pago */}
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-4">Método de Pago</h3>
-                <div className="space-y-3">
+              {/* Selector método */}
+              <div className="px-6 py-4 border-b border-gray-100">
+                <p className="text-sm font-medium text-gray-900 mb-3">Método de pago</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
+                    type="button"
                     onClick={() => setMethod('CARD')}
-                    className={`w-full p-4 rounded-2xl border-2 transition-all ${
-                      method === 'CARD'
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                    className={`p-4 rounded-xl border text-sm font-medium transition-all duration-200 ${method === 'CARD' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-md scale-105' : 'border-gray-300 text-gray-700'}`}
                   >
-                    <div className="flex items-center">
-                      <CreditCard className="h-6 w-6 mr-3 text-blue-600" />
-                      <div className="text-left">
-                        <div className="font-medium">Tarjeta de Crédito/Débito</div>
-                        <div className="text-sm text-gray-600">Pago seguro con Redsys</div>
-                      </div>
-                    </div>
+                    💳 Tarjeta
                   </button>
-                  
                   <button
-                    onClick={() => setMethod('ONSITE')}
-                    className={`w-full p-4 rounded-2xl border-2 transition-all ${
-                      method === 'ONSITE'
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                    type="button"
+                    onClick={() => setMethod('BIZUM')}
+                    className={`p-4 rounded-xl border text-sm font-medium transition-all duration-200 ${method === 'BIZUM' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-md scale-105' : 'border-gray-300 text-gray-700'}`}
                   >
-                    <div className="flex items-center">
-                      <MapPin className="h-6 w-6 mr-3 text-green-600" />
-                      <div className="text-left">
-                        <div className="font-medium">Pagar en el Lugar</div>
-                        <div className="text-sm text-gray-600">Paga al llegar a la cancha</div>
-                      </div>
-                    </div>
+                    🤳 Bizum
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMethod('ONSITE')}
+                    className={`p-4 rounded-xl border text-sm font-medium transition-all duration-200 ${method === 'ONSITE' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-md scale-105' : 'border-gray-300 text-gray-700'}`}
+                  >
+                    🏢 Pago en sede
                   </button>
                 </div>
               </div>
@@ -276,7 +265,7 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
                   disabled={isSubmitting}
                   className="w-full bg-green-600 text-white py-4 rounded-2xl font-semibold text-lg hover:bg-green-700 transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {method === 'CARD' ? 'Pagar Ahora' : 'Confirmar Reserva'}
+                  {isSubmitting ? 'Procesando...' : method === 'ONSITE' ? 'Confirmar (pagar en sede)' : method === 'BIZUM' ? 'Pagar con Bizum' : 'Pagar ahora'}
                 </button>
               </div>
             </div>

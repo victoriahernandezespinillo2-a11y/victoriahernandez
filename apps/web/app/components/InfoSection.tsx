@@ -1,54 +1,34 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useLandingData } from "@/src/hooks/useLandingData";
 
 export function InfoSection() {
   const router = useRouter();
-  const infoCards = [
-    {
-      title: "Sobre Nosotros",
-      description: "Más de 10 años brindando experiencias deportivas excepcionales",
-      icon: "fas fa-building",
-      content: "Somos el centro deportivo líder en Victoria Hernandez, comprometidos con la excelencia y el bienestar de nuestra comunidad."
-    },
-    {
-      title: "Horarios",
-      description: "Abierto todos los días para tu comodidad",
-      icon: "fas fa-clock",
-      content: "Lunes a Viernes: 5:00 - 23:00\nSábados y Domingos: 6:00 - 22:00\nFeriados: 8:00 - 20:00"
-    },
-    {
-      title: "Ubicación",
-      description: "Fácil acceso y amplio estacionamiento",
-      icon: "fas fa-map-marker-alt",
-      content: "Av. Principal #123, Victoria Hernandez, Andalucía, España\nZona deportiva central con transporte público"
-    },
-    {
-      title: "Contacto",
-      description: "Estamos aquí para ayudarte",
-      icon: "fas fa-phone",
-      content: "Teléfono: +34 123 456 789\nWhatsApp: +34 123 456 789\nEmail: info@polideportivovictoriahernandez.es"
-    }
-  ];
+  const { infoCards, faqs, loading } = useLandingData();
 
-  const faqs = [
-    {
-      question: "¿Necesito membresía para usar las instalaciones?",
-      answer: "Ofrecemos tanto pases diarios como membresías mensuales y anuales. Las membresías incluyen beneficios adicionales como descuentos en clases y eventos."
-    },
-    {
-      question: "¿Qué incluye la membresía?",
-      answer: "Acceso ilimitado a todas las instalaciones, descuentos en clases dirigidas, prioridad en reservas y acceso a eventos exclusivos para miembros."
-    },
-    {
-      question: "¿Hay estacionamiento disponible?",
-      answer: "Sí, contamos con amplio estacionamiento gratuito para todos nuestros usuarios, con espacios cubiertos y al aire libre."
-    },
-    {
-      question: "¿Ofrecen clases para principiantes?",
-      answer: "Absolutamente. Tenemos programas especiales para principiantes en todas las disciplinas, con instructores especializados en enseñanza básica."
-    }
-  ];
+
+
+  // Si no hay datos o está cargando, mostrar skeleton
+  if (loading || !infoCards || infoCards.length === 0) {
+    return (
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
+          <div className="animate-pulse">
+            <div className="text-center mb-16">
+              <div className="h-12 bg-gray-200 rounded w-1/2 mx-auto mb-6"></div>
+              <div className="h-6 bg-gray-200 rounded w-3/4 mx-auto"></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-20">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="bg-gray-200 rounded-2xl p-8 h-64"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="py-20 bg-white">
@@ -64,8 +44,8 @@ export function InfoSection() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-20">
-          {infoCards.map((card, index) => (
-            <div key={index} className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2">
+          {infoCards.map((card) => (
+            <div key={card.id} className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2">
               <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-xl flex items-center justify-center mb-6">
                 <i className={`${card.icon} text-white text-2xl`}></i>
               </div>
@@ -88,15 +68,19 @@ export function InfoSection() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {faqs.map((faq, index) => (
-              <div key={index} className="bg-white rounded-xl p-6 shadow-md">
+            {faqs && faqs.length > 0 ? faqs.map((faq) => (
+              <div key={faq.id} className="bg-white rounded-xl p-6 shadow-md">
                 <h4 className="text-lg font-bold text-gray-900 mb-3 flex items-start">
                   <i className="fas fa-question-circle text-emerald-500 mr-3 mt-1"></i>
                   {faq.question}
                 </h4>
                 <p className="text-gray-600 ml-8">{faq.answer}</p>
               </div>
-            ))}
+            )) : (
+              <div className="col-span-2 text-center py-8">
+                <p className="text-gray-500">No hay preguntas frecuentes disponibles</p>
+              </div>
+            )}
           </div>
 
           <div className="text-center mt-12">

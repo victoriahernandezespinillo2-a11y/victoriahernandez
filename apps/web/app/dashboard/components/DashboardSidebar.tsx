@@ -75,7 +75,17 @@ function SidebarContent({ pathname }: { pathname: string }) {
       <div className="flex items-center h-16 flex-shrink-0 px-4 bg-blue-600">
         <Link href="/" className="flex items-center">
           <div className="flex-shrink-0">
-            <div className="h-8 w-8 bg-white rounded-lg flex items-center justify-center">
+            <img 
+              src="/images/logo.png" 
+              alt="Polideportivo Victoria Hernandez" 
+              className="h-8 w-8 object-contain bg-white rounded-lg"
+              onError={(e) => {
+                // Fallback al diseño original si no carga la imagen
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+            <div className="hidden h-8 w-8 bg-white rounded-lg flex items-center justify-center">
               <span className="text-blue-600 font-bold text-lg">P</span>
             </div>
           </div>

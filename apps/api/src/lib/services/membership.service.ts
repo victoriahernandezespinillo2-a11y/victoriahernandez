@@ -29,7 +29,14 @@ export const UpdateMembershipSchema = z.object({
 export const GetMembershipsSchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
-  userId: z.string().uuid().optional(),
+  userId: z
+    .union([
+      z.string().uuid(),          // UUID válido
+      z.literal(''),              // Cadena vacía (sin filtro)
+      z.undefined(),              // no enviado
+    ])
+    .transform((val) => (val ? val : undefined))
+    .optional(),
   // centerId no existe en el modelo Membership; se ignora si llega
   centerId: z.string().uuid().optional(),
   type: z.enum(['BASIC', 'PREMIUM', 'VIP']).optional(),

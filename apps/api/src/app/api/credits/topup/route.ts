@@ -39,7 +39,10 @@ export async function POST(request: NextRequest) {
         
         // Generar número de pedido para Redsys
         const orderNumber = paymentService.generateRedsysOrderNumber();
-        const paymentMethodEnum = data.paymentMethod === 'bizum' ? 'CARD' : 'CARD';
+        const isBizum = data.paymentMethod === 'bizum';
+        // El enum OrderPaymentMethod sólo admite 'CARD', 'CREDITS' o 'MIXED'.
+        // Para recargas vía Redsys (tarjeta o Bizum) registramos la operación como 'CARD'.
+        const paymentMethodEnum: 'CARD' = 'CARD';
         // Crear orden especial para la recarga del monedero (sin items)
         const order = await db.order.create({
           data: {
@@ -55,7 +58,8 @@ export async function POST(request: NextRequest) {
         });
         
         // Crear URL de redirección que generará el formulario de Redsys
-        const redirectUrl = `${apiUrl}/api/payments/redsys/redirect?oid=${encodeURIComponent(order.id)}`;
+        const bizumFlag = isBizum ? '&bizum=1' : '';
+        const redirectUrl = `${apiUrl}/api/payments/redsys/redirect?oid=${encodeURIComponent(order.id)}${bizumFlag}`;
         
         return ApiResponse.success({ 
           checkoutUrl: redirectUrl,

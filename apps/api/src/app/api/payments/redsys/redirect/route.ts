@@ -231,6 +231,7 @@ export async function GET(request: NextRequest) {
     const urlOk = `${appUrl}/dashboard/reservations/success?reservationId=${encodeURIComponent(reservation.id)}`;
     const urlKo = `${appUrl}/dashboard/reservations`;
 
+    const isBizum = request.nextUrl.searchParams.get('bizum') === '1';
     const { Ds_Signature, Ds_MerchantParameters, Ds_SignatureVersion, action } = await paymentService.createRedsysPayment({
       amount,
       order,
@@ -245,7 +246,7 @@ export async function GET(request: NextRequest) {
       urlOk,
       urlKo,
       merchantData: { type: 'reservation', reservationId: reservation.id, userId: reservation.userId },
-      useBizum: false,
+      useBizum: isBizum,
     });
 
     // 🔍 DEBUG REDSYS: decodificar y loggear parámetros enviados (RESERVATION)

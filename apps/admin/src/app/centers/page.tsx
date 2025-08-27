@@ -38,6 +38,41 @@ const statusColors = {
   INACTIVE: 'bg-gray-100 text-gray-800',
   MAINTENANCE: 'bg-yellow-100 text-yellow-800'
 };
+// Helper: normaliza '08:00 a.m.' | '10:00 p.m.' | '8:00 PM' -> 'HH:mm'
+function normalizeToHHmm(input: string | undefined): string | undefined {
+  if (!input) return undefined;
+  let s = String(input).trim().toLowerCase();
+  s = s.replace(/\s+/g, '');
+  s = s.replace(/a\.?m\.?/, 'am').replace(/p\.?m\.?/, 'pm');
+  const m = s.match(/^(\d{1,2}):(\d{2})(am|pm)?$/);
+  if (!m) {
+    const hhmm = String(input).match(/^(\d{2}):(\d{2})$/);
+    return hhmm ? hhmm[0] : undefined;
+  }
+  let hour = parseInt(m[1] || '0', 10);
+  const minute = m[2];
+  const mer = m[3];
+  if (mer === 'am') {
+    if (hour === 12) hour = 0;
+  } else if (mer === 'pm') {
+    if (hour !== 12) hour += 12;
+  }
+  const hh = hour.toString().padStart(2, '0');
+  return `${hh}:${minute}`;
+}
+// Helper: normaliza objeto operatingHours conservando flags
+function normalizeOperatingHours(source: any, fallback: any) {
+  const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+  const out: any = {};
+  days.forEach((day) => {
+    const d = (source && source[day]) || {};
+    const fb = (fallback && fallback[day]) || {};
+    const open = normalizeToHHmm(d.open) || fb.open || '08:00';
+    const close = normalizeToHHmm(d.close) || fb.close || '22:00';
+    out[day] = { open, close, closed: !!d.closed };
+  });
+  return out;
+}
 
 const statusLabels = {
   ACTIVE: 'Activo',
@@ -308,19 +343,11 @@ export default function CentersPage() {
                         const settings = centerData?.settings || {};
                         // Mapear valores existentes
                         const slotMinutes = settings?.slot?.minutes || settings?.booking?.slotMinutes || 30;
-                        const operatingHours = settings?.operatingHours || ohForm.operatingHours;
+                        const operatingHours = normalizeOperatingHours(settings?.operatingHours, ohForm.operatingHours);
                         const exceptions = Array.isArray(settings?.exceptions) ? settings.exceptions : [];
                         setOhForm({
                           slotMinutes,
-                          operatingHours: {
-                            monday: operatingHours?.monday || ohForm.operatingHours.monday,
-                            tuesday: operatingHours?.tuesday || ohForm.operatingHours.tuesday,
-                            wednesday: operatingHours?.wednesday || ohForm.operatingHours.wednesday,
-                            thursday: operatingHours?.thursday || ohForm.operatingHours.thursday,
-                            friday: operatingHours?.friday || ohForm.operatingHours.friday,
-                            saturday: operatingHours?.saturday || ohForm.operatingHours.saturday,
-                            sunday: operatingHours?.sunday || ohForm.operatingHours.sunday,
-                          },
+                          operatingHours,
                           exceptions,
                         });
                         const rc = settings?.receipt || {};
@@ -771,9 +798,12 @@ export default function CentersPage() {
                   if (!editingCenterId) return;
                   setIsLoading(true);
                   try {
+                    const normalizedHours = normalizeOperatingHours(ohForm.operatingHours, ohForm.operatingHours);
                     const payload: any = {
+                      operatingHours: normalizedHours, // <-- raíz para API
                       settings: {
-                        operatingHours: ohForm.operatingHours,
+                        // Normalizar antes de guardar para asegurar HH:mm
+                        operatingHours: normalizedHours,
                         slot: { minutes: Number(ohForm.slotMinutes) || 30 },
                         exceptions: ohForm.exceptions.map((ex: any) =>
                           ex.closed
@@ -798,6 +828,8 @@ export default function CentersPage() {
                           rate: taxesForm.rate && Number(taxesForm.rate) >= 0 ? Number(taxesForm.rate) : undefined,
                           included: !!taxesForm.included,
                         },
+                        // Garantizar timezone para coherencia de slots
+                        timezone: 'Europe/Madrid',
                       },
                     };
                     await updateCenter(editingCenterId, payload as any);

@@ -2,12 +2,19 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useLandingData } from "@/src/hooks/useLandingData";
 
 export function SportsSection() {
   const [isVisible, setIsVisible] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const sectionRef = useRef<HTMLElement>(null);
   const router = useRouter();
+  const { sports, loading } = useLandingData();
+
+  // Debug logs
+  console.log('SportsSection - loading:', loading);
+  console.log('SportsSection - sports:', sports);
+  console.log('SportsSection - sports length:', sports?.length);
 
   const handleReserveNow = () => {
     router.push('/dashboard/reservations/new');
@@ -18,137 +25,7 @@ export function SportsSection() {
   };
 
   const handleLikeSport = (sportId: string) => {
-    // Aquí iría la lógica para dar like a un deporte
     console.log(`Like dado al deporte: ${sportId}`);
-    // Podrías implementar una llamada a API para guardar el like
-  };
-
-  const sportsCategories = [
-    {
-      id: "canchas",
-      name: "Canchas Deportivas",
-      icon: "fas fa-futbol",
-      color: "from-green-500 to-emerald-600"
-    },
-    {
-      id: "gimnasio",
-      name: "Gimnasio & Fitness",
-      icon: "fas fa-dumbbell",
-      color: "from-blue-500 to-indigo-600"
-    },
-    {
-      id: "acuaticos",
-      name: "Deportes Acuáticos",
-      icon: "fas fa-swimmer",
-      color: "from-cyan-500 to-blue-600"
-    },
-    {
-      id: "indoor",
-      name: "Deportes Indoor",
-      icon: "fas fa-table-tennis",
-      color: "from-purple-500 to-pink-600"
-    }
-  ];
-
-  const sportsData = {
-    canchas: [
-      {
-        name: "Fútbol 11",
-        image: "/api/placeholder/400/300",
-        description: "Cancha de césped sintético de última generación con iluminación LED profesional.",
-        features: ["Césped sintético premium", "Iluminación LED", "Gradas para 200 personas", "Vestuarios equipados"],
-        price: "$80.000/hora",
-        availability: "Disponible",
-        rating: 4.9
-      },
-      {
-        name: "Fútbol 7",
-        image: "/api/placeholder/400/300",
-        description: "Perfecta para partidos más dinámicos con amigos o entrenamientos técnicos.",
-        features: ["Superficie antideslizante", "Portería reglamentaria", "Iluminación nocturna", "Área de descanso"],
-        price: "$50.000/hora",
-        availability: "Disponible",
-        rating: 4.8
-      },
-      {
-        name: "Básquetbol",
-        image: "/api/placeholder/400/300",
-        description: "Cancha reglamentaria con tableros profesionales y superficie de alto rendimiento.",
-        features: ["Tableros profesionales", "Superficie deportiva", "Marcador electrónico", "Gradas laterales"],
-        price: "$45.000/hora",
-        availability: "Ocupado hasta 18:00",
-        rating: 4.7
-      }
-    ],
-    gimnasio: [
-      {
-        name: "Sala de Pesas",
-        image: "/api/placeholder/400/300",
-        description: "Equipamiento completo con máquinas de última tecnología y pesas libres.",
-        features: ["Equipos Technogym", "Aire acondicionado", "Música ambiental", "Entrenador disponible"],
-        price: "$25.000/día",
-        availability: "Disponible",
-        rating: 4.9
-      },
-      {
-        name: "Sala Cardio",
-        image: "/api/placeholder/400/300",
-        description: "Zona especializada en ejercicio cardiovascular con equipos de alta gama.",
-        features: ["Caminadoras premium", "Bicicletas estáticas", "Elípticas", "Monitores cardíacos"],
-        price: "$20.000/día",
-        availability: "Disponible",
-        rating: 4.8
-      },
-      {
-        name: "Clases Grupales",
-        image: "/api/placeholder/400/300",
-        description: "Espacio amplio para yoga, pilates, aeróbicos y entrenamientos funcionales.",
-        features: ["Espejos profesionales", "Sistema de sonido", "Colchonetas incluidas", "Instructor certificado"],
-        price: "$15.000/clase",
-        availability: "Próxima clase: 19:00",
-        rating: 4.9
-      }
-    ],
-    acuaticos: [
-      {
-        name: "Piscina Olímpica",
-        image: "/api/placeholder/400/300",
-        description: "Piscina de 50 metros con 8 carriles para natación profesional y recreativa.",
-        features: ["50m x 8 carriles", "Sistema de filtrado", "Cronómetro digital", "Salvavidas certificado"],
-        price: "$30.000/hora",
-        availability: "Disponible",
-        rating: 4.8
-      },
-      {
-        name: "Piscina Recreativa",
-        image: "/api/placeholder/400/300",
-        description: "Ideal para familias y actividades acuáticas recreativas.",
-        features: ["Área infantil", "Tobogán", "Zona de descanso", "Bar acuático"],
-        price: "$20.000/día",
-        availability: "Disponible",
-        rating: 4.7
-      }
-    ],
-    indoor: [
-      {
-        name: "Tenis de Mesa",
-        image: "/api/placeholder/400/300",
-        description: "Mesas profesionales en ambiente climatizado para competencias y recreación.",
-        features: ["Mesas reglamentarias", "Iluminación óptima", "Raquetas disponibles", "Área de espectadores"],
-        price: "$25.000/hora",
-        availability: "Disponible",
-        rating: 4.6
-      },
-      {
-        name: "Squash",
-        image: "/api/placeholder/400/300",
-        description: "Cancha profesional de squash con paredes de cristal templado.",
-        features: ["Paredes de cristal", "Suelo profesional", "Raquetas incluidas", "Sistema de ventilación"],
-        price: "$35.000/hora",
-        availability: "Disponible",
-        rating: 4.8
-      }
-    ]
   };
 
   useEffect(() => {
@@ -169,11 +46,44 @@ export function SportsSection() {
     return () => observer.disconnect();
   }, []);
 
-  const currentCategory = sportsCategories[activeTab] ?? sportsCategories[0];
-  if (!currentCategory) {
-    return null;
+  // Si no hay datos o está cargando, mostrar skeleton pero con título
+  if (loading || !sports || sports.length === 0) {
+    return (
+      <section className="py-24 bg-white relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Section Header - Siempre visible */}
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center space-x-2 bg-green-100 text-green-800 rounded-full px-6 py-2 mb-6">
+              <i className="fas fa-medal text-green-600"></i>
+              <span className="font-semibold text-sm">Instalaciones Deportivas</span>
+            </div>
+            
+            <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-6">
+              Descubre nuestras
+              <span className="gradient-text block">Instalaciones Premium</span>
+            </h2>
+            
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+              Desde canchas de fútbol hasta gimnasios completamente equipados, 
+              tenemos todo lo que necesitas para alcanzar tus objetivos deportivos.
+            </p>
+          </div>
+          
+          {/* Skeleton para el contenido */}
+          <div className="animate-pulse">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="bg-gray-200 h-96 rounded-3xl"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
   }
-  const currentSports = sportsData[currentCategory.id as keyof typeof sportsData] ?? [];
+
+  const currentCategory = sports[activeTab] ?? sports[0];
+  const currentSports = currentCategory?.facilities || [];
 
   return (
     <section ref={sectionRef} className="py-24 bg-white relative overflow-hidden">
@@ -185,9 +95,7 @@ export function SportsSection() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Section Header */}
-        <div className={`text-center mb-16 transition-all duration-1000 ${
-          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-        }`}>
+        <div className="text-center mb-16">
           <div className="inline-flex items-center space-x-2 bg-green-100 text-green-800 rounded-full px-6 py-2 mb-6">
             <i className="fas fa-medal text-green-600"></i>
             <span className="font-semibold text-sm">Instalaciones Deportivas</span>
@@ -205,117 +113,146 @@ export function SportsSection() {
         </div>
 
         {/* Category Tabs */}
-        <div className={`flex flex-wrap justify-center mb-12 transition-all duration-1000 delay-200 ${
-          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-        }`}>
-          <div className="bg-gray-100 rounded-2xl p-2 flex flex-wrap gap-2">
-            {sportsCategories.map((category, index) => (
-              <button
-                key={category.id}
-                onClick={() => setActiveTab(index)}
-                className={`flex items-center space-x-3 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                  activeTab === index
-                    ? `bg-gradient-to-r ${category.color} text-white shadow-lg scale-105`
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-white'
-                }`}
-              >
-                <i className={category.icon}></i>
-                <span className="hidden sm:inline">{category.name}</span>
-              </button>
-            ))}
+        {sports && sports.length > 0 && (
+          <div className={`flex flex-wrap justify-center mb-12 transition-all duration-1000 delay-200 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
+            <div className="bg-gray-100 rounded-2xl p-2 flex flex-wrap gap-2">
+              {sports.map((category, index) => (
+                <button
+                  key={category.id}
+                  onClick={() => setActiveTab(index)}
+                  className={`flex items-center space-x-3 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                    activeTab === index
+                      ? `bg-gradient-to-r ${category.color} text-white shadow-lg scale-105`
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                  }`}
+                >
+                  <i className={category.icon}></i>
+                  <span className="hidden sm:inline">{category.name}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Sports Grid */}
-        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 transition-all duration-1000 delay-400 ${
-          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-        }`}>
-          {currentSports.map((sport, index) => (
-            <div
-              key={index}
-              className="group bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden border border-gray-100"
-            >
-              {/* Image */}
-              <div className="relative h-48 bg-gradient-to-br from-gray-200 to-gray-300 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center">
-                  <i className={`${currentCategory.icon} text-6xl text-white opacity-50`}></i>
-                </div>
-                
-                {/* Availability Badge */}
-                <div className="absolute top-4 left-4">
-                  <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    sport.availability === 'Disponible' 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-orange-100 text-orange-800'
-                  }`}>
-                    {sport.availability}
-                  </div>
-                </div>
-
-                {/* Rating */}
-                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 flex items-center space-x-1">
-                  <i className="fas fa-star text-yellow-500 text-xs"></i>
-                  <span className="text-xs font-semibold text-gray-900">{sport.rating}</span>
-                </div>
-
-                {/* Hover Overlay */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${currentCategory.color} opacity-0 group-hover:opacity-80 transition-opacity duration-300 flex items-center justify-center`}>
-                  <button 
-                    onClick={() => handleViewDetails(sport.name.toLowerCase().replace(/\s+/g, '-'))}
-                    className="bg-white text-gray-900 px-6 py-3 rounded-xl font-semibold transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300"
-                  >
-                    Ver Detalles
-                  </button>
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xl font-bold text-gray-900">{sport.name}</h3>
-                  <div className={`text-lg font-bold bg-gradient-to-r ${currentCategory.color} bg-clip-text text-transparent`}>
-                    {sport.price}
-                  </div>
-                </div>
-                
-                <p className="text-gray-600 text-sm leading-relaxed mb-4">
-                  {sport.description}
-                </p>
-
-                {/* Features */}
-                <div className="space-y-2 mb-6">
-                  {sport.features.slice(0, 3).map((feature, featureIndex) => (
-                    <div key={featureIndex} className="flex items-center space-x-2 text-sm text-gray-700">
-                      <div className={`w-2 h-2 bg-gradient-to-r ${currentCategory.color} rounded-full`}></div>
-                      <span>{feature}</span>
-                    </div>
-                  ))}
-                  {sport.features.length > 3 && (
-                    <div className="text-xs text-gray-500 ml-4">
-                      +{sport.features.length - 3} características más
+        {currentSports && currentSports.length > 0 ? (
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 transition-all duration-1000 delay-400 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
+            {currentSports.map((sport, index) => (
+              <div
+                key={index}
+                className="group bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden border border-gray-100"
+              >
+                {/* Image */}
+                <div className="relative h-48 bg-gradient-to-br from-gray-200 to-gray-300 overflow-hidden">
+                  {sport.imageUrl ? (
+                    <img 
+                      src={sport.imageUrl} 
+                      alt={sport.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center">
+                      <i className={`${currentCategory?.icon || 'fas fa-trophy'} text-6xl text-white opacity-50`}></i>
                     </div>
                   )}
+                  
+                  {/* Availability Badge */}
+                  <div className="absolute top-4 left-4">
+                    <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      sport.availability === 'Disponible' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-orange-100 text-orange-800'
+                    }`}>
+                      {sport.availability}
+                    </div>
+                  </div>
+
+                  {/* Rating */}
+                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 flex items-center space-x-1">
+                    <i className="fas fa-star text-yellow-500 text-xs"></i>
+                    <span className="text-xs font-semibold text-gray-900">
+                      {typeof sport.rating === 'string' ? parseFloat(sport.rating).toFixed(1) : sport.rating.toFixed(1)}
+                    </span>
+                  </div>
+
+                  {/* Hover Overlay */}
+                  <div className={`absolute inset-0 bg-gradient-to-br ${currentCategory?.color || 'from-gray-400 to-gray-600'} opacity-0 group-hover:opacity-80 transition-opacity duration-300 flex items-center justify-center`}>
+                    <button 
+                      onClick={() => handleViewDetails(sport.name.toLowerCase().replace(/\s+/g, '-'))}
+                      className="bg-white text-gray-900 px-6 py-3 rounded-xl font-semibold transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300"
+                    >
+                      Ver Detalles
+                    </button>
+                  </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex space-x-3">
-                  <button 
-                    onClick={handleReserveNow}
-                    className={`flex-1 bg-gradient-to-r ${currentCategory.color} text-white py-3 rounded-xl font-semibold text-sm hover:shadow-lg transition-all duration-300 hover:scale-105`}
-                  >
-                    Reservar Ahora
-                  </button>
-                  <button 
-                    onClick={() => handleLikeSport(sport.name.toLowerCase().replace(/\s+/g, '-'))}
-                    className="px-4 py-3 border border-gray-200 rounded-xl text-gray-600 hover:text-gray-900 hover:border-gray-300 transition-colors duration-300"
-                  >
-                    <i className="fas fa-heart"></i>
-                  </button>
+                {/* Content */}
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xl font-bold text-gray-900">{sport.name}</h3>
+                    <div className={`text-lg font-bold bg-gradient-to-r ${currentCategory?.color || 'from-gray-400 to-gray-600'} bg-clip-text text-transparent`}>
+                      {sport.price}
+                    </div>
+                  </div>
+                  
+                  <p className="text-gray-600 text-sm leading-relaxed mb-4">
+                    {sport.description}
+                  </p>
+
+                  {/* Features */}
+                  <div className="space-y-2 mb-6">
+                    {sport.features.slice(0, 3).map((feature, featureIndex) => (
+                      <div key={featureIndex} className="flex items-center space-x-2 text-sm text-gray-700">
+                        <div className={`w-2 h-2 bg-gradient-to-r ${currentCategory?.color || 'from-gray-400 to-gray-600'} rounded-full`}></div>
+                        <span>{feature}</span>
+                      </div>
+                    ))}
+                    {sport.features.length > 3 && (
+                      <div className="text-xs text-gray-500 ml-4">
+                        +{sport.features.length - 3} características más
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex space-x-3">
+                    <button 
+                      onClick={handleReserveNow}
+                      className={`flex-1 bg-gradient-to-r ${currentCategory?.color || 'from-gray-400 to-gray-600'} text-white py-3 rounded-xl font-semibold text-sm hover:shadow-lg transition-all duration-300 hover:scale-105`}
+                    >
+                      Reservar Ahora
+                    </button>
+                    <button 
+                      onClick={() => handleLikeSport(sport.name.toLowerCase().replace(/\s+/g, '-'))}
+                      className="px-4 py-3 border border-gray-200 rounded-xl text-gray-600 hover:text-gray-900 hover:border-gray-300 transition-colors duration-300"
+                    >
+                      <i className="fas fa-heart"></i>
+                    </button>
+                  </div>
                 </div>
               </div>
+            ))}
+          </div>
+        ) : (
+          <div className={`text-center py-16 transition-all duration-1000 delay-400 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
+            <div className="bg-gray-50 rounded-3xl p-12 border border-gray-100">
+              <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <i className="fas fa-info-circle text-white text-3xl"></i>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-4">Instalaciones en Preparación</h3>
+              <p className="text-gray-600 max-w-md mx-auto">
+                Estamos preparando nuestras instalaciones deportivas para ofrecerte la mejor experiencia. 
+                Pronto tendremos toda la información disponible.
+              </p>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
 
         {/* Bottom Stats */}
         <div className={`mt-20 transition-all duration-1000 delay-600 ${

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Calendar, Clock, Check } from 'lucide-react';
 import { api } from '@/lib/api';
 import { CalendarData, CalendarSlot } from '@/types/calendar.types';
+import PaymentModal from '@/app/components/PaymentModal';
 
 interface CalendarVisualModalProps {
   isOpen: boolean;
@@ -286,8 +287,17 @@ export default function CalendarVisualModal({
       const reservation = (response as any)?.reservation ?? (response as any);
       
       if (reservation?.id) {
-        // Redirigir a la pasarela de Redsys después de crear la reserva
-        window.location.href = `/api/payments/redsys/redirect?rid=${reservation.id}`;
+        if (window.innerWidth >= 768) {
+          // Mostrar modal de métodos de pago en escritorio
+          const start = new Date(startISO);
+          const end = new Date(start.getTime() + duration * 60000);
+          const dateLabel = start.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+          const timeLabel = `${start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+          setPaymentInfo({ reservationId: reservation.id, amount: reservation.totalPrice || 0, dateLabel, timeLabel });
+        } else {
+          // Mobile: misma lógica previa
+          window.location.href = `/api/payments/redsys/redirect?rid=${reservation.id}`;
+        }
         return;
       } else {
         throw new Error('No se pudo crear la reserva');
@@ -329,6 +339,15 @@ export default function CalendarVisualModal({
     const mappedKey = (map[key] || (key.toLowerCase() as keyof typeof calendarData.summary));
     return calendarData.summary[mappedKey] || 0;
   };
+
+  const [paymentInfo, setPaymentInfo] = useState<{
+    reservationId: string;
+    amount: number;
+    dateLabel: string;
+    timeLabel: string;
+  } | null>(null);
+
+  const closePaymentModal = () => setPaymentInfo(null);
 
   if (!isOpen) return null;
 
@@ -668,6 +687,20 @@ export default function CalendarVisualModal({
            </div>
         </div>
       </div>
+
+      {/* PaymentModal escritorio */}
+      {paymentInfo && (
+        <PaymentModal
+          isOpen={!!paymentInfo}
+          onClose={closePaymentModal}
+          reservationId={paymentInfo.reservationId}
+          amount={paymentInfo.amount}
+          courtName={selectedCourt?.name || 'Cancha'}
+          dateLabel={paymentInfo.dateLabel}
+          timeLabel={paymentInfo.timeLabel}
+          onSuccess={closePaymentModal}
+        />
+      )}
     </>
   );
 }
