@@ -81,7 +81,6 @@ export class ReservationService {
         duration: validatedInput.duration,
         subtotal: computedPrice.subtotal,
         discount: computedPrice.discount,
-        taxes: computedPrice.taxes,
         total: computedPrice.total,
         breakdown: computedPrice.breakdown
       });

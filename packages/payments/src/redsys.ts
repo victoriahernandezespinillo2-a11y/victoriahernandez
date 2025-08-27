@@ -18,6 +18,8 @@ const redsysPaymentSchema = z.object({
   urlKo: z.string().url(),
   // Permitir datos personalizados del comercio (se codificarán en base64)
   merchantData: z.any().optional(),
+  /** Si true se añade DS_MERCHANT_PAYMETHODS='z' para habilitar Bizum */
+  useBizum: z.boolean().optional(),
 });
 
 // Tipos
@@ -35,6 +37,8 @@ export interface RedsysPaymentData {
   urlOk: string;
   urlKo: string;
   merchantData?: any;
+  /** Si true se añade DS_MERCHANT_PAYMETHODS='z' para habilitar Bizum */
+  useBizum?: boolean;
 }
 
 export interface RedsysResponse {
@@ -91,8 +95,9 @@ export class RedsysService {
       });
       
     } catch (error) {
-      console.error('❌ [REDSYS-KEY] Error inicializando clave:', error.message);
-      throw new Error(`Clave Redsys inválida: ${error.message}. Verifica que sea una clave base64 válida de 24 bytes.`);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      console.error('❌ [REDSYS-KEY] Error inicializando clave:', errorMessage);
+      throw new Error(`Clave Redsys inválida: ${errorMessage}. Verifica que sea una clave base64 válida de 24 bytes.`);
     }
   }
 
@@ -136,6 +141,11 @@ export class RedsysService {
       DS_MERCHANT_URLOK: validatedData.urlOk,
       DS_MERCHANT_URLKO: validatedData.urlKo,
     };
+
+    // Bizum requiere indicar método de pago 'z'
+    if ((data as any).useBizum) {
+      merchantParameters.DS_MERCHANT_PAYMETHODS = 'z';
+    }
 
     console.log('🔧 [REDSYS-MINIMAL] Payload mínimo:', {
       amount: merchantParameters.DS_MERCHANT_AMOUNT,

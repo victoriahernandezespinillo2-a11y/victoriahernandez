@@ -12,6 +12,7 @@ const TopupSchema = z.object({
   currency: z.string().optional().default('EUR'),
   description: z.string().optional().default('Recarga de créditos'),
   checkout: z.boolean().optional().default(true),
+  paymentMethod: z.enum(['card','bizum']).optional().default('card'),
   successUrl: z.string().url().optional(),
   cancelUrl: z.string().url().optional(),
 });
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
         
         // Generar número de pedido para Redsys
         const orderNumber = paymentService.generateRedsysOrderNumber();
-        
+        const paymentMethodEnum = data.paymentMethod === 'bizum' ? 'CARD' : 'CARD';
         // Crear orden especial para la recarga del monedero (sin items)
         const order = await db.order.create({
           data: {
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
             userId: user.id,
             status: 'PENDING',
             totalEuro: amount,
-            paymentMethod: 'CARD',
+            paymentMethod: paymentMethodEnum,
             creditsUsed: data.credits, // Guardamos los créditos aquí para referencia
             paymentIntentId: orderNumber, // Usamos este campo para almacenar el número de Redsys
             // No creamos items para las recargas - es un tipo especial de orden

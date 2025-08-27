@@ -11,9 +11,12 @@ import { adminApi } from './api';
 // Tipos básicos para mejorar el tipado
 interface User {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
-  role: string;
+  role: 'ADMIN' | 'USER' | 'STAFF';
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  createdAt: string;
   [key: string]: any;
 }
 
@@ -27,8 +30,19 @@ interface Center {
 interface Court {
   id: string;
   name: string;
+  type: 'FOOTBALL' | 'BASKETBALL' | 'TENNIS' | 'VOLLEYBALL' | 'MULTIPURPOSE';
   centerId: string;
-  [key: string]: any;
+  centerName: string;
+  description: string;
+  hourlyRate: number;
+  capacity: number;
+  status: 'AVAILABLE' | 'OCCUPIED' | 'MAINTENANCE' | 'INACTIVE';
+  features: string[];
+  dimensions: string;
+  surface: string;
+  lighting: boolean;
+  covered: boolean;
+  createdAt: string;
 }
 
 interface Reservation {

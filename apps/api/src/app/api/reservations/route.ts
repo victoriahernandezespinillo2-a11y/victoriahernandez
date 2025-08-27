@@ -32,7 +32,7 @@ const CreateReservationSchema = z.object({
     endDate: z.string().datetime(),
     exceptions: z.array(z.string().datetime()).optional(),
   }).optional(),
-  paymentMethod: z.enum(['stripe', 'redsys', 'credits']).optional(),
+  paymentMethod: z.enum(['stripe', 'redsys', 'redsys_bizum', 'credits']).optional(),
   notes: z.string().optional(),
 });
 
@@ -194,8 +194,16 @@ export async function POST(request: NextRequest) {
     const validatedData = CreateReservationSchema.parse(body);
     console.log('✅ [RESERVATION-DEBUG] Datos validados:', validatedData);
     
+    // Mapear método de pago para persistencia
+    const mappedPaymentMethod = validatedData.paymentMethod === 'redsys_bizum'
+      ? 'redsys'
+      : validatedData.paymentMethod === 'redsys'
+        ? 'redsys'
+        : validatedData.paymentMethod || undefined;
+
     let reservation = await reservationService.createReservation({
       ...validatedData,
+      paymentMethod: mappedPaymentMethod,
       userId: finalUserId,
     });
     console.log('🎉 [RESERVATION-DEBUG] Reserva creada exitosamente:', reservation.id);

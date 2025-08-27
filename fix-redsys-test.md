@@ -43,3 +43,4 @@ Después del cambio, en los logs deberías ver:
 - ✅ No más warnings sobre "clave genérica con merchant específico"
 - ✅ merchantType: 'GENERIC' (en lugar de 'SPECIFIC')
 - ✅ El pago debería proceder sin error SIS0042
+

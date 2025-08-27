@@ -15,7 +15,7 @@ interface PaymentModalProps {
   onSuccess: () => void; // navegar/listar tras pago
 }
 
-type PaymentMethod = 'CARD' | 'ONSITE';
+type PaymentMethod = 'CARD' | 'BIZUM' | 'ONSITE';
 
 export default function PaymentModal(props: PaymentModalProps) {
   const { isOpen, onClose, reservationId, amount, currency = 'COP', courtName, dateLabel, timeLabel, onSuccess } = props;
@@ -204,7 +204,7 @@ export default function PaymentModal(props: PaymentModalProps) {
           {/* Selector de método - Móvil optimizado */}
           <div>
             <div className="text-sm font-medium text-gray-900 mb-3">💳 Método de pago</div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button
                 type="button"
                 onClick={() => setMethod('CARD')}
@@ -214,12 +214,24 @@ export default function PaymentModal(props: PaymentModalProps) {
               </button>
               <button
                 type="button"
+                onClick={() => setMethod('BIZUM')}
+                className={`p-4 sm:p-3 rounded-xl sm:rounded-md border text-sm font-medium transition-all duration-200 button-native touch-feedback ${method === 'BIZUM' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-md scale-105' : 'border-gray-300 text-gray-700 hover:bg-gray-50 active:scale-95'}`}
+              >
+                🤳 Bizum
+              </button>
+              <button
+                type="button"
                 onClick={() => setMethod('ONSITE')}
                 className={`p-4 sm:p-3 rounded-xl sm:rounded-md border text-sm font-medium transition-all duration-200 button-native touch-feedback ${method === 'ONSITE' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-md scale-105' : 'border-gray-300 text-gray-700 hover:bg-gray-50 active:scale-95'}`}
               >
                 🏢 Pagar en sede
               </button>
             </div>
+            <small className="text-xs text-gray-500 mt-1 block">
+              {method === 'CARD' && 'Serás redirigido a Redsys para pagar con tarjeta.'}
+              {method === 'BIZUM' && 'Serás redirigido a Redsys para pagar con Bizum. Usa móvil 700000000 y OTP 123456 en pruebas.'}
+              {method === 'ONSITE' && 'Tu reserva quedará pendiente de pago y deberás pagar en recepción.'}
+            </small>
           </div>
 
           {/* Formulario de tarjeta eliminado (demo) */}
@@ -256,7 +268,7 @@ export default function PaymentModal(props: PaymentModalProps) {
                   <span className="loading-pulse">Procesando pago...</span>
                 </>
               ) : (
-                <span>{method === 'ONSITE' ? '🏢 Confirmar (pagar en sede)' : '💳 Pagar ahora'}</span>
+                <span>{method === 'ONSITE' ? '🏢 Confirmar (pagar en sede)' : method==='BIZUM' ? '🤳 Pagar con Bizum' : '💳 Pagar ahora'}</span>
               )}
             </button>
           </div>

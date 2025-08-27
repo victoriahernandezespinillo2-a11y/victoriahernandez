@@ -138,6 +138,7 @@ export async function GET(request: NextRequest) {
           orderId: order.id, 
           userId: order.userId 
         },
+        useBizum: false,
       });
 
       // 🔍 DEBUG REDSYS: decodificar y loggear parámetros enviados (SHOP)
@@ -244,6 +245,7 @@ export async function GET(request: NextRequest) {
       urlOk,
       urlKo,
       merchantData: { type: 'reservation', reservationId: reservation.id, userId: reservation.userId },
+      useBizum: false,
     });
 
     // 🔍 DEBUG REDSYS: decodificar y loggear parámetros enviados (RESERVATION)

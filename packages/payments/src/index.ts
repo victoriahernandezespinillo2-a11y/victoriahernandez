@@ -43,7 +43,7 @@ export class PaymentService {
   }
 
   // Crear pago con Redsys
-  async createRedsysPayment(data: RedsysPaymentData) {
+  async createRedsysPayment(data: RedsysPaymentData & { useBizum?: boolean }) {
     return await this.redsys.createPaymentForm(data);
   }
 

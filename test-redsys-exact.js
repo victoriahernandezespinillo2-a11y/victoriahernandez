@@ -99,3 +99,4 @@ console.log(`✅ Merchant: ${merchantCode} (específico del banco)`);
 console.log(`✅ Terminal: ${terminal}`);
 console.log(`✅ Currency: ${currency} (EUR)`);
 console.log(`✅ Signature length: ${signature ? signature.length : 'ERROR'} caracteres`);
+
