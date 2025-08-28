@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
     
     const paginatedReservations = reservations.slice(startIndex, endIndex);
     
-    return NextResponse.json({
+    return ApiResponse.success({
       reservations: paginatedReservations,
       pagination: {
         page,
@@ -133,10 +133,7 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+    return ApiResponse.internalError('Error interno del servidor');
   }
   })(request);
 }
@@ -278,7 +275,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ reservation }, { status: 201 });
+    return ApiResponse.success({ reservation }, 201);
   } catch (error) {
     console.error('🚨 [RESERVATION-DEBUG] Error detallado:', {
       error: error instanceof Error ? error.message : error,
@@ -310,10 +307,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+    return ApiResponse.internalError('Error interno del servidor');
   }
   })(request);
 }
