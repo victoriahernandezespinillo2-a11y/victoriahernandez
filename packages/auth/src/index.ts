@@ -18,6 +18,9 @@ const nextAuthWeb = NextAuth(webAuthConfig);
 export const authWeb = nextAuthWeb.auth;
 export const handlersWeb = nextAuthWeb.handlers as any;
 
+// Alias de uso para la API pública (misma cookie que la Web)
+export const authApi = authWeb;
+
 // Instancia específica para la aplicación Admin (por si se requiere a futuro)
 // const nextAuthAdmin = NextAuth(adminAuthConfig);
 // export const authAdmin = nextAuthAdmin.auth;
