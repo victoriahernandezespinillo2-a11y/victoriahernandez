@@ -77,5 +77,16 @@ export const { handlers, auth, signIn, signOut }: {
   },
   pages: {
     signIn: '/auth/signin'
-  }
+  },
+  cookies: {
+    sessionToken: {
+      name: 'next-auth.session-token-web',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+  },
 });
