@@ -44,8 +44,9 @@ export async function apiRequest<T = any>(
     // 1) Intentar relativo para que pase por el proxy de Next (y lleve cookies de 3001)
     try {
       response = await fetch(relativeUrl, baseConfig);
-      // 2) Si 404 y hay base absoluta, intentar absoluto (algunos endpoints solo viven en API)
-      if (response.status === 404 && API_BASE_URL) {
+      // 2) Si 404 o 500 y hay base absoluta, intentar absoluto (algunos endpoints solo viven en API)
+      if ((response.status === 404 || response.status === 500) && API_BASE_URL) {
+        console.log(`🔄 [API-REQUEST] Fallback: ${relativeUrl} → ${absoluteUrl} (status: ${response.status})`);
         response = await fetch(absoluteUrl, baseConfig);
       }
     } catch (networkErr) {
