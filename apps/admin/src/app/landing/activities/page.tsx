@@ -209,3 +209,5 @@ export default function ActivitiesManagement() {
     </div>
   );
 }
+
+

@@ -243,3 +243,5 @@ export function useCategoryPosts(categorySlug: string) {
 export function useTagPosts(tagSlug: string) {
   return useBlogPosts({ tag: tagSlug });
 }
+
+

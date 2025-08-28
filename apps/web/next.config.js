@@ -55,6 +55,10 @@ const nextConfig = {
           source: "/api/:path((?!auth/).*)",
           destination: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002"}/api/:path`,
         },
+        {
+          source: "/api/backend/:path((?!auth/).*)",
+          destination: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002"}/api/:path`,
+        },
       ],
       fallback: [],
     };

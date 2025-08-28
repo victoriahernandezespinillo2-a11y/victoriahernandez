@@ -1,6 +1,8 @@
-import { handlers } from '@repo/auth';
+import NextAuth from 'next-auth';
+import { webAuthConfig } from '@repo/auth';
 
-// Configurar para usar Node.js Runtime en lugar de Edge Runtime
-export const runtime = 'nodejs';
+// Inicializar NextAuth con la configuración específica de la app Web
+const nextAuth = NextAuth(webAuthConfig);
 
-export const { GET, POST } = handlers;
+// Extraer los handlers GET y POST generados
+export const { GET, POST } = nextAuth.handlers as any;

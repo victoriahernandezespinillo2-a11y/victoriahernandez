@@ -221,3 +221,5 @@ Para problemas técnicos o preguntas sobre el módulo:
 **Versión**: 1.0.0  
 **Última actualización**: Enero 2024  
 **Mantenido por**: Equipo de Desarrollo del Polideportivo
+
+
