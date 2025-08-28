@@ -125,6 +125,14 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error obteniendo reservas:', error);
+    // Soporte de depuración: si ?debug=1 incluir detalles en la respuesta
+    const debug = request.nextUrl.searchParams.get('debug');
+    if (debug) {
+      return NextResponse.json(
+        { success: false, error: (error as any)?.message || 'Error', stack: (error as any)?.stack },
+        { status: 500 }
+      );
+    }
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
