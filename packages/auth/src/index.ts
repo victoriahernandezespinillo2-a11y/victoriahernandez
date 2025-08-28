@@ -13,6 +13,15 @@ export const auth: typeof nextAuth.auth = nextAuth.auth;
 export const signIn = nextAuth.signIn;
 export const signOut = nextAuth.signOut;
 
+// Instancia específica para la aplicación Web (usa cookies *_web)
+const nextAuthWeb = NextAuth(webAuthConfig);
+export const authWeb = nextAuthWeb.auth;
+export const handlersWeb = nextAuthWeb.handlers as any;
+
+// Instancia específica para la aplicación Admin (por si se requiere a futuro)
+// const nextAuthAdmin = NextAuth(adminAuthConfig);
+// export const authAdmin = nextAuthAdmin.auth;
+
 // Exportar configuración y proveedores
 export { authConfig, adminAuthConfig, webAuthConfig } from './config';
 export {

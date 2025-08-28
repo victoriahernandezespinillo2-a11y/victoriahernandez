@@ -1,4 +1,4 @@
-import { auth } from '@repo/auth';
+import { authWeb as auth } from '@repo/auth';
 import { redirect } from 'next/navigation';
 import { DashboardSidebar } from './components/DashboardSidebar';
 import { DashboardHeader } from './components/DashboardHeader';
