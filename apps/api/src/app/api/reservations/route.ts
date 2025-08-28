@@ -101,10 +101,16 @@ export async function GET(request: NextRequest) {
       filters.endDate = new Date(validatedParams.endDate);
     }
     
-    const reservations = await reservationService.getReservationsByUser(
-      finalUserId,
-      filters
-    );
+    // Delegar a UserService que ya está probado en /api/users/reservations
+    const { UserService } = await import('../../../lib/services/user.service');
+    const userService = new UserService();
+    const reservations = await userService.getUserReservations(finalUserId, {
+      page: validatedParams.page,
+      limit: validatedParams.limit,
+      status: filters.status,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+    });
     
     // Paginación simple
     const page = validatedParams.page;
