@@ -9,7 +9,7 @@ import { withReservationMiddleware, ApiResponse } from '@/lib/middleware';
 // Función de autenticación simplificada
 async function getAuthenticatedUser(request: NextRequest) {
   try {
-    const session = await auth();
+    const session = await authWeb();
     if (!session?.user?.id) {
       return null;
     }
