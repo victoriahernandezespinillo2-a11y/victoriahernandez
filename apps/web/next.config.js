@@ -1,68 +1,25 @@
-import withPWA from "next-pwa";
-
-const isProd = process.env.NODE_ENV === "production";
-
-const pwa = withPWA({
-  dest: "public",
-  disable: !isProd,
-  register: true,
-  skipWaiting: true,
-  runtimeCaching: [
-    {
-      urlPattern: /^https?:\/\/.*\.(?:png|jpg|jpeg|svg|webp|gif|ico)$/i,
-      handler: "CacheFirst",
-      options: {
-        cacheName: "images-cache",
-        expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
-      },
-    },
-    {
-      urlPattern: /^https?:\/\/.*\.(?:css|js)$/i,
-      handler: "StaleWhileRevalidate",
-      options: {
-        cacheName: "static-resources",
-        expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
-      },
-    },
-    {
-      urlPattern: ({ url }) => url.origin === self.location.origin,
-      handler: "NetworkFirst",
-      options: {
-        cacheName: "pages-and-api",
-        networkTimeoutSeconds: 3,
-        expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
-      },
-    },
-  ],
-  fallbacks: {
-    document: "/offline",
-  },
-});
+/**
+ * Configuración Next.js para el frontend Web
+ * Reescribe todas las peticiones que empiecen por /api/ hacia el backend
+ * definido en la variable de entorno NEXT_PUBLIC_API_URL, EXCEPTUANDO /api/auth/*
+ * que debe permanecer manejado por NextAuth en el frontend.
+ */
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  pageExtensions: ["ts", "tsx", "js", "jsx"],
-  transpilePackages: [
-    "@repo/ui",
-  ],
-  serverExternalPackages: ["pg", "bcryptjs", "@repo/auth"],
-  eslint: { ignoreDuringBuilds: true },
+module.exports = {
   async rewrites() {
+    if (!process.env.NEXT_PUBLIC_API_URL) {
+      // Falla duro en build si la variable no existe para evitar publicar un front roto
+      throw new Error('NEXT_PUBLIC_API_URL no está definida. Define la URL del backend en las variables de entorno de Vercel.');
+    }
     return {
-      beforeFiles: [],
       afterFiles: [
         {
-          source: "/api/:path((?!auth/).*)",
-          destination: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002"}/api/:path`,
-        },
-        {
-          source: "/api/backend/:path((?!auth/).*)",
-          destination: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002"}/api/:path`,
+          // Excluir /api/auth/* para que NextAuth funcione en el frontend
+          source: '/api/:path((?!auth/).*)',
+          destination: `${process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')}/api/:path`,
         },
       ],
-      fallback: [],
     };
   },
 };
-
-export default pwa(nextConfig);
