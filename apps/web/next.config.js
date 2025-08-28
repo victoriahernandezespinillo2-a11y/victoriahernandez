@@ -1,84 +1,37 @@
 /**
- * Configuración Next.js Enterprise para el frontend Web
+ * 🚀 Configuración Next.js Enterprise - Polideportivo Platform
  * 
- * SOLUCIÓN ROBUSTA Y ESCALABLE:
- * 1. afterFiles: Reescribe rutas específicas después de que Next.js busque rutas locales
- * 2. Excepción: Solo /api/auth/* permanece en el frontend (NextAuth)
- * 3. Fallback: Si no hay variable de entorno, usa URL hardcodeada
- * 4. Logging: Información de debug para troubleshooting
+ * SOLUCIÓN ENTERPRISE DEFINITIVA ANTI-BUCLES:
+ * ✅ 1. beforeFiles: Intercepta ANTES de buscar rutas locales (evita conflictos)
+ * ✅ 2. Regex negativo: Excluye explícitamente /api/auth/* (NextAuth local)  
+ * ✅ 3. Patrón único: UN SOLO rewrite que maneja TODAS las rutas no-auth
+ * ✅ 4. Fallback robusto: URL hardcodeada si variable de entorno falla
+ * ✅ 5. Logging enterprise: Información completa para troubleshooting
+ * 
+ * PROBLEMA RESUELTO: ERR_TOO_MANY_REDIRECTS por conflictos de rewrites
  */
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async rewrites() {
-    // OBTENER URL DEL BACKEND CON FALLBACK
+    // 🔧 CONFIGURACIÓN ROBUSTA DEL BACKEND
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://polideportivo-api.vercel.app';
     
-    console.log('🔧 [NEXT-CONFIG] Configurando rewrites...');
-    console.log('🔧 [NEXT-CONFIG] API URL:', apiUrl);
-    console.log('🔧 [NEXT-CONFIG] NODE_ENV:', process.env.NODE_ENV);
+    // 📊 LOGGING ENTERPRISE PARA DEBUGGING
+    console.log('🚀 [NEXT-CONFIG] === POLIDEPORTIVO REWRITES CONFIGURATION ===');
+    console.log('🔧 [NEXT-CONFIG] Backend API URL:', apiUrl);
+    console.log('🔧 [NEXT-CONFIG] Environment:', process.env.NODE_ENV);
+    console.log('🔧 [NEXT-CONFIG] Timestamp:', new Date().toISOString());
+    console.log('🔧 [NEXT-CONFIG] Strategy: beforeFiles + negative regex');
 
     return {
-      afterFiles: [
-        // REWRITE ESPECÍFICO: Rutas que sabemos que deben ir al backend
+      // 🎯 ESTRATEGIA ENTERPRISE: beforeFiles previene conflictos con rutas locales
+      beforeFiles: [
         {
-          source: '/api/reservations/:path*',
-          destination: `${apiUrl}/api/reservations/:path*`,
-        },
-        {
-          source: '/api/tournaments/:path*',
-          destination: `${apiUrl}/api/tournaments/:path*`,
-        },
-        {
-          source: '/api/memberships/:path*',
-          destination: `${apiUrl}/api/memberships/:path*`,
-        },
-        {
-          source: '/api/products/:path*',
-          destination: `${apiUrl}/api/products/:path*`,
-        },
-        {
-          source: '/api/courts/:path*',
-          destination: `${apiUrl}/api/courts/:path*`,
-        },
-        {
-          source: '/api/centers/:path*',
-          destination: `${apiUrl}/api/centers/:path*`,
-        },
-        {
-          source: '/api/users/:path*',
-          destination: `${apiUrl}/api/users/:path*`,
-        },
-        {
-          source: '/api/waiting-list/:path*',
-          destination: `${apiUrl}/api/waiting-list/:path*`,
-        },
-        {
-          source: '/api/pricing/:path*',
-          destination: `${apiUrl}/api/pricing/:path*`,
-        },
-        {
-          source: '/api/notifications/:path*',
-          destination: `${apiUrl}/api/notifications/:path*`,
-        },
-        {
-          source: '/api/payments/:path*',
-          destination: `${apiUrl}/api/payments/:path*`,
-        },
-        {
-          source: '/api/wallet/:path*',
-          destination: `${apiUrl}/api/wallet/:path*`,
-        },
-        {
-          source: '/api/credits/:path*',
-          destination: `${apiUrl}/api/credits/:path*`,
-        },
-        {
-          source: '/api/cart/:path*',
-          destination: `${apiUrl}/api/cart/:path*`,
-        },
-        // FALLBACK: Cualquier otra ruta /api/* que no sea /api/auth/*
-        {
+          // 🛡️ PATRÓN ÚNICO ANTI-BUCLES: 
+          // - Captura TODAS las rutas /api/* EXCEPTO /api/auth/*
+          // - beforeFiles = intercepta ANTES de Next.js buscar rutas locales
+          // - Evita conflictos y bucles infinitos
           source: '/api/:path((?!auth/).*)',
           destination: `${apiUrl}/api/:path`,
         },
