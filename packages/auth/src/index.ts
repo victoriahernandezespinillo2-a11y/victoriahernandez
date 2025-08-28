@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth';
 import type { NextAuthConfig, Session, User } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
-import { authConfig } from './config';
+import { authConfig, webAuthConfig } from './config';
 
 // Exportar la configuración de NextAuth
 const nextAuth = NextAuth(authConfig);
