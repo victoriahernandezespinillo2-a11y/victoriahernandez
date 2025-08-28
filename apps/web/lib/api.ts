@@ -6,7 +6,7 @@
 import { CalendarData } from '../types/calendar.types';
 
 // Base de la API: usar variable pública si está definida, sin barra final
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002').replace(/\/$/, '');
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://polideportivo-api.vercel.app').replace(/\/$/, '');
 
 /**
  * Configuración base para las peticiones fetch
