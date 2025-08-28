@@ -104,31 +104,15 @@ export async function GET(request: NextRequest) {
     // Delegar a UserService que ya está probado en /api/users/reservations
     const { UserService } = await import('../../../lib/services/user.service');
     const userService = new UserService();
-    const reservations = await userService.getUserReservations(finalUserId, {
+    const result = await userService.getUserReservations(finalUserId, {
       page: validatedParams.page,
       limit: validatedParams.limit,
       status: filters.status,
       startDate: filters.startDate,
       endDate: filters.endDate,
     });
-    
-    // Paginación simple
-    const page = validatedParams.page;
-    const limit = validatedParams.limit;
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    
-    const paginatedReservations = reservations.slice(startIndex, endIndex);
-    
-    return ApiResponse.success({
-      reservations: paginatedReservations,
-      pagination: {
-        page,
-        limit,
-        total: reservations.length,
-        totalPages: Math.ceil(reservations.length / limit),
-      },
-    });
+
+    return ApiResponse.success(result);
   } catch (error) {
     console.error('Error obteniendo reservas:', error);
     // Soporte de depuración: si ?debug=1 incluir detalles en la respuesta
