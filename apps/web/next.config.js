@@ -6,7 +6,7 @@
  */
 
 /** @type {import('next').NextConfig} */
-module.exports = {
+const nextConfig = {
   async rewrites() {
     if (!process.env.NEXT_PUBLIC_API_URL) {
       // Falla duro en build si la variable no existe para evitar publicar un front roto
@@ -16,10 +16,13 @@ module.exports = {
       afterFiles: [
         {
           // Excluir /api/auth/* para que NextAuth funcione en el frontend
-          source: '/api/:path((?!auth/).*)',
-          destination: `${process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')}/api/:path`,
+          source: "/api/:path((?!auth/).*)",
+          destination: `${process.env.NEXT_PUBLIC_API_URL}/api/:path`,
         },
       ],
     };
   },
 };
+
+export default nextConfig;
+
