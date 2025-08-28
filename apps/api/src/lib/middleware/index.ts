@@ -95,8 +95,12 @@ const addCorsHeaders = (response: NextResponse, origin?: string | null): NextRes
   
   // En producción, añadir dominios específicos
   if (process.env.NODE_ENV === 'production') {
-    // Añadir aquí los dominios de producción
-    // allowedOrigins.push('https://tu-dominio.com');
+    allowedOrigins.push(
+      'https://victoriahernandezweb.vercel.app',
+      'https://polideportivo-api.vercel.app',
+      'https://polideportivo-web.vercel.app',
+      'https://polideportivo-admin.vercel.app'
+    );
   }
   
   // Configurar headers CORS
@@ -130,6 +134,9 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
       let user = null;
       
       console.log('🔍 [AUTH] Iniciando autenticación híbrida');
+      console.log('🔍 [AUTH] Origin:', origin);
+      console.log('🔍 [AUTH] Method:', req.method);
+      console.log('🔍 [AUTH] URL:', req.nextUrl.pathname);
       
       // Intentar autenticación con token JWT primero
       const authHeader = req.headers.get('authorization');
@@ -415,6 +422,10 @@ export const withCors = (handler: ApiHandler): ApiHandler => {
       const defaultProd = [
         'https://polideportivo.com',
         'https://admin.polideportivo.com',
+        'https://victoriahernandezweb.vercel.app',
+        'https://polideportivo-api.vercel.app',
+        'https://polideportivo-web.vercel.app',
+        'https://polideportivo-admin.vercel.app',
         process.env.NEXT_PUBLIC_APP_URL || '',
         process.env.FRONTEND_URL || '',
       ].filter(Boolean) as string[];
@@ -442,6 +453,10 @@ export const withCors = (handler: ApiHandler): ApiHandler => {
     const defaultProd = [
       'https://polideportivo.com',
       'https://admin.polideportivo.com',
+      'https://victoriahernandezweb.vercel.app',
+      'https://polideportivo-api.vercel.app',
+      'https://polideportivo-web.vercel.app',
+      'https://polideportivo-admin.vercel.app',
       process.env.NEXT_PUBLIC_APP_URL || '',
       process.env.FRONTEND_URL || '',
     ].filter(Boolean) as string[];

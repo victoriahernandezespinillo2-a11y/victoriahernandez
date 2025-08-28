@@ -52,8 +52,11 @@ export async function apiRequest<T = any>(
     } catch (networkErr) {
       // Fallback a absoluto si el relativo falla por red
       if (API_BASE_URL) {
+        console.log(`🔄 [API-REQUEST] Network fallback: ${relativeUrl} → ${absoluteUrl}`);
+        console.log(`🔍 [API-REQUEST] Network error details:`, networkErr);
         response = await fetch(absoluteUrl, baseConfig);
       } else {
+        console.error(`🚨 [API-REQUEST] Network error without fallback URL:`, networkErr);
         throw networkErr;
       }
     }
