@@ -14,21 +14,6 @@ const isFirebaseConfigured = () => {
   );
 };
 
-// Importación condicional de auth
-let auth: any = null;
-try {
-  if (isFirebaseConfigured()) {
-    // Usar import dinámico en lugar de require
-    import('../../lib/firebase').then((firebaseModule) => {
-      auth = firebaseModule.auth;
-    }).catch((error) => {
-      console.warn('Firebase no está configurado correctamente:', error);
-    });
-  }
-} catch (error) {
-  console.warn('Firebase no está configurado correctamente:', error);
-}
-
 interface FirebaseAuthContextType {
   firebaseUser: User | null;
   loading: boolean;
@@ -57,52 +42,68 @@ export const FirebaseAuthProvider = ({ children }: FirebaseAuthProviderProps) =>
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [configError, setConfigError] = useState<string | null>(null);
+  // Guardar la instancia de auth en estado para forzar re-render cuando esté lista
+  const [authInstance, setAuthInstance] = useState<any | null>(null);
   const { data: session } = useSession();
 
-  // Verificar configuración de Firebase en useEffect para evitar hidratación
+  // Cargar Firebase de forma dinámica y segura
   useEffect(() => {
-    if (!isFirebaseConfigured()) {
-      setConfigError('Firebase no está configurado correctamente.');
-      setLoading(false);
-      return;
-    }
-    
-    if (!auth) {
-      setConfigError('No se pudo inicializar Firebase Auth.');
-      setLoading(false);
-      return;
-    }
-    
-    setConfigError(null);
+    let mounted = true;
+
+    const init = async () => {
+      if (!isFirebaseConfigured()) {
+        if (!mounted) return;
+        setConfigError('Firebase no está configurado correctamente.');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const firebaseModule = await import('../../lib/firebase');
+        if (!mounted) return;
+        setAuthInstance(firebaseModule.auth);
+        setConfigError(null);
+      } catch (error) {
+        console.warn('Firebase no está configurado correctamente:', error);
+        if (!mounted) return;
+        setConfigError('No se pudo inicializar Firebase Auth.');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    init();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  // Sin cronología de hooks rota: todos los hooks siempre se ejecutan en el mismo orden
-
+  // Suscribirse a cambios de autenticación cuando auth esté listo
   useEffect(() => {
-    if (configError || !auth) {
+    if (configError || !authInstance) {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(authInstance, (user) => {
       setFirebaseUser(user);
-      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [configError]);
+  }, [configError, authInstance]);
 
   // Sincronizar Firebase con NextAuth
   useEffect(() => {
-    if (!session && firebaseUser) {
+    if (!session && firebaseUser && authInstance) {
       // Si no hay sesión de NextAuth pero sí usuario de Firebase, cerrar Firebase
-      signOut(auth);
+      signOut(authInstance);
     }
-  }, [session, firebaseUser]);
+  }, [session, firebaseUser, authInstance]);
 
   const signOutFirebase = async () => {
     try {
-      if (auth) {
-        await signOut(auth);
+      if (authInstance) {
+        await signOut(authInstance);
       }
     } catch (error) {
       console.error('Error al cerrar sesión de Firebase:', error);
@@ -114,23 +115,6 @@ export const FirebaseAuthProvider = ({ children }: FirebaseAuthProviderProps) =>
     loading,
     signOutFirebase
   };
-
-  // Definir el valor del contexto y el contenido a renderizar según el estado
-  const contextValue = configError
-    ? { firebaseUser: null, loading: false, signOutFirebase: async () => {} }
-    : value;
-
-  const content = configError ? (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Error de Configuración</h2>
-        <p className="text-gray-600 mb-4">{configError}</p>
-        <p className="text-sm text-gray-500">Contacta al administrador del sistema.</p>
-      </div>
-    </div>
-  ) : (
-    children
-  );
 
   // Renderizado condicional del contenido manteniendo el orden de hooks
   const providerValue = configError
