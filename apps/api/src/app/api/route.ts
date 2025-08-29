@@ -1,6 +1,7 @@
 /**
  * API Principal del Polideportivo
  * GET /api - Documentación y estado de la API
+ * Last updated: 2025-08-29 - Cross-domain auth fix
  */
 
 import { NextRequest } from 'next/server';
