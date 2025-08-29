@@ -44,7 +44,8 @@ export const FirebaseCredentialsProvider: CredentialsConfig = {
       }
 
       // Sincronizar con la base de datos local
-      const response = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/firebase-sync`, {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || process.env.NEXTAUTH_URL;
+      const response = await fetch(`${apiBase?.replace(/\/$/, '')}/api/auth/firebase-sync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

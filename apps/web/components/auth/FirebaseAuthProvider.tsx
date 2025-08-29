@@ -61,10 +61,12 @@ export const FirebaseAuthProvider = ({ children }: FirebaseAuthProviderProps) =>
       try {
         const firebaseModule = await import('../../lib/firebase');
         if (!mounted) return;
-        setAuthInstance(firebaseModule.auth);
+        // Usar inicialización perezosa segura para cliente
+        const auth = firebaseModule.getFirebaseAuth();
+        setAuthInstance(auth);
         setConfigError(null);
       } catch (error) {
-        console.warn('Firebase no está configurado correctamente:', error);
+        console.warn('Firebase no está configurado correctamente o no se pudo inicializar:', error);
         if (!mounted) return;
         setConfigError('No se pudo inicializar Firebase Auth.');
       } finally {
@@ -85,20 +87,12 @@ export const FirebaseAuthProvider = ({ children }: FirebaseAuthProviderProps) =>
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(authInstance, (user) => {
+    const unsubscribe = onAuthStateChanged(authInstance, (user: User | null) => {
       setFirebaseUser(user);
     });
 
     return () => unsubscribe();
-  }, [configError, authInstance]);
-
-  // Sincronizar Firebase con NextAuth
-  useEffect(() => {
-    if (!session && firebaseUser && authInstance) {
-      // Si no hay sesión de NextAuth pero sí usuario de Firebase, cerrar Firebase
-      signOut(authInstance);
-    }
-  }, [session, firebaseUser, authInstance]);
+  }, [authInstance, configError]);
 
   const signOutFirebase = async () => {
     try {

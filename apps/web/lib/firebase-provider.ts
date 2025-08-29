@@ -1,5 +1,5 @@
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, UserCredential } from 'firebase/auth';
-import { auth, googleProvider } from './firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, type UserCredential } from 'firebase/auth';
+import { getFirebaseAuth, getGoogleProvider } from './firebase';
 
 // Tipos para Firebase Auth
 export interface FirebaseUser {
@@ -9,67 +9,42 @@ export interface FirebaseUser {
   photoURL: string | null;
 }
 
-// Función para iniciar sesión con email y contraseña
+// Función para iniciar sesión con email y contraseña en Firebase
 export const signInWithFirebase = async (email: string, password: string): Promise<FirebaseUser> => {
-  try {
-    const userCredential: UserCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-    
-    return {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName,
-      photoURL: user.photoURL
-    };
-  } catch (error: any) {
-    throw new Error(error.message || 'Error al iniciar sesión');
-  }
+  const auth = getFirebaseAuth();
+  const userCredential: UserCredential = await signInWithEmailAndPassword(auth, email, password);
+  const user = userCredential.user;
+  return {
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName,
+    photoURL: user.photoURL,
+  };
 };
 
-// Función para registrar usuario con email y contraseña
+// Función para registrar usuario en Firebase
 export const signUpWithFirebase = async (email: string, password: string): Promise<FirebaseUser> => {
-  try {
-    const userCredential: UserCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-    
-    return {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName,
-      photoURL: user.photoURL
-    };
-  } catch (error: any) {
-    throw new Error(error.message || 'Error al registrar usuario');
-  }
+  const auth = getFirebaseAuth();
+  const userCredential: UserCredential = await createUserWithEmailAndPassword(auth, email, password);
+  const user = userCredential.user;
+  return {
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName,
+    photoURL: user.photoURL,
+  };
 };
 
 // Función para iniciar sesión con Google
 export const signInWithGoogleFirebase = async (): Promise<FirebaseUser> => {
-  try {
-    const userCredential: UserCredential = await signInWithPopup(auth, googleProvider);
-    const user = userCredential.user;
-    
-    return {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName,
-      photoURL: user.photoURL
-    };
-  } catch (error: any) {
-    throw new Error(error.message || 'Error al iniciar sesión con Google');
-  }
-};
-
-// Función para cerrar sesión
-export const signOutFirebase = async (): Promise<void> => {
-  try {
-    await auth.signOut();
-  } catch (error: any) {
-    throw new Error(error.message || 'Error al cerrar sesión');
-  }
-};
-
-// Hook para obtener el usuario actual de Firebase
-export const getCurrentFirebaseUser = () => {
-  return auth.currentUser;
+  const auth = getFirebaseAuth();
+  const googleProvider = getGoogleProvider();
+  const userCredential: UserCredential = await signInWithPopup(auth, googleProvider);
+  const user = userCredential.user;
+  return {
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName,
+    photoURL: user.photoURL,
+  };
 };
