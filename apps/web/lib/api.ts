@@ -50,6 +50,36 @@ const getFirebaseIdTokenSafe = async (): Promise<string | null> => {
   }
 };
 
+// Obtiene un JWT token propio para comunicación cross-domain
+let lastJwtTokenCache: { token: string; fetchedAt: number } | null = null;
+const getJwtTokenSafe = async (): Promise<string | null> => {
+  try {
+    if (typeof window === 'undefined') return null; // SSR/Edge: no usar
+    
+    // Pequeña caché en memoria para evitar llamadas repetidas
+    if (lastJwtTokenCache && Date.now() - lastJwtTokenCache.fetchedAt < 50_000) { // 50 segundos
+      return lastJwtTokenCache.token;
+    }
+
+    const response = await fetch('/api/auth/token', {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.token) {
+        lastJwtTokenCache = { token: data.token, fetchedAt: Date.now() };
+        return data.token;
+      }
+    }
+    return null;
+  } catch (e) {
+    // No romper el flujo si no se puede obtener el token
+    return null;
+  }
+};
+
 /**
  * Wrapper para fetch con manejo de errores
  */
@@ -61,21 +91,30 @@ export async function apiRequest<T = any>(
   const relativeUrl = `${endpoint}`;
   const method = (options.method || 'GET').toString().toUpperCase();
 
-  // Intentar obtener token de Firebase si no se proporcionó Authorization explícito
+  // Intentar obtener token de autenticación si no se proporcionó Authorization explícito
   let authHeaderFromOptions: string | undefined;
   try {
     const providedHeaders = options.headers as Record<string, any> | undefined;
     authHeaderFromOptions = providedHeaders?.Authorization || providedHeaders?.authorization;
   } catch {}
 
-  const firebaseToken = authHeaderFromOptions ? null : await getFirebaseIdTokenSafe();
+  let authToken: string | null = null;
+  if (!authHeaderFromOptions) {
+    // Primero intentar Firebase token
+    authToken = await getFirebaseIdTokenSafe();
+    
+    // Si no hay Firebase token, intentar JWT propio (especialmente para cross-domain)
+    if (!authToken) {
+      authToken = await getJwtTokenSafe();
+    }
+  }
 
   const baseConfig: RequestInit = {
     ...options,
     headers: {
       ...buildHeaders(method),
       ...(options.headers || {}),
-      ...(firebaseToken ? { Authorization: `Bearer ${firebaseToken}` } : {}),
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
     },
     credentials: 'include',
   };

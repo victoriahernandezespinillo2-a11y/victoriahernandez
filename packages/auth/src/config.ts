@@ -14,26 +14,32 @@ const getCookieConfig = (appName: string) => {
         name: `next-auth.session-token-${appName}`,
         options: {
           httpOnly: true,
-          sameSite: 'lax',
+          sameSite: 'none',
           path: '/',
-          secure: process.env.NODE_ENV === 'production',
+          secure: true,
+          // Para dominios diferentes en Vercel, no podemos usar un dominio compartido
+          // Las cookies deben ser específicas de cada dominio
+          domain: undefined,
         },
       },
       callbackUrl: {
         name: `next-auth.callback-url-${appName}`,
         options: {
-          sameSite: 'lax',
+          httpOnly: true,
+          sameSite: 'none',
           path: '/',
-          secure: process.env.NODE_ENV === 'production',
+          secure: true,
+          domain: undefined,
         },
       },
       csrfToken: {
         name: `next-auth.csrf-token-${appName}`,
         options: {
           httpOnly: true,
-          sameSite: 'lax',
+          sameSite: 'none',
           path: '/',
-          secure: process.env.NODE_ENV === 'production',
+          secure: true,
+          domain: undefined,
         },
       },
     },
@@ -150,29 +156,29 @@ export const webAuthConfig: NextAuthConfig = {
       name: 'next-auth.session-token-web',
       options: {
         httpOnly: true,
-        sameSite: 'lax',
+        sameSite: 'none', // Cambiar a 'none' para permitir cookies cross-site
         path: '/',
-        secure: process.env.NODE_ENV === 'production',
-        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
+        secure: true, // Siempre true para sameSite: 'none'
+        domain: process.env.NODE_ENV === 'development' ? 'localhost' : '.vercel.app', // Dominio compartido para Vercel
       },
     },
     callbackUrl: {
       name: 'next-auth.callback-url-web',
       options: {
-        sameSite: 'lax',
+        sameSite: 'none',
         path: '/',
-        secure: process.env.NODE_ENV === 'production',
-        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
+        secure: true,
+        domain: process.env.NODE_ENV === 'development' ? 'localhost' : '.vercel.app',
       },
     },
     csrfToken: {
       name: 'next-auth.csrf-token-web',
       options: {
         httpOnly: true,
-        sameSite: 'lax',
+        sameSite: 'none',
         path: '/',
-        secure: process.env.NODE_ENV === 'production',
-        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
+        secure: true,
+        domain: process.env.NODE_ENV === 'development' ? 'localhost' : '.vercel.app',
       },
     },
   },
