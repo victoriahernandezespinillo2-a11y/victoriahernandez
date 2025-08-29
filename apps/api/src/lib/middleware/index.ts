@@ -85,33 +85,42 @@ setInterval(() => rateLimitCache.cleanup(), 5 * 60 * 1000);
  * Función auxiliar para añadir headers CORS
  */
 const addCorsHeaders = (response: NextResponse, origin?: string | null): NextResponse => {
-  // Lista de orígenes permitidos
-  const allowedOrigins = [
-    'http://localhost:3001', // Web app
-    'http://localhost:3003', // Docs
-    'http://127.0.0.1:3001',
-    'http://127.0.0.1:3003',
-  ];
+  // Orígenes permitidos configurables por entorno (unificado con withCors)
+  const envAllowed = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const defaultProd = [
+    'https://polideportivo.com',
+    'https://admin.polideportivo.com',
+    'https://victoriahernandezweb.vercel.app',
+    'https://polideportivo-api.vercel.app',
+    'https://polideportivo-web.vercel.app',
+    'https://polideportivo-admin.vercel.app',
+    process.env.NEXT_PUBLIC_APP_URL || '',
+    process.env.FRONTEND_URL || '',
+  ].filter(Boolean) as string[];
+  const defaultDev = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
+  const allowedOrigins = envAllowed.length > 0
+    ? envAllowed
+    : (process.env.NODE_ENV === 'production' ? defaultProd : defaultDev);
   
-  // En producción, añadir dominios específicos
-  if (process.env.NODE_ENV === 'production') {
-    allowedOrigins.push(
-      'https://victoriahernandezweb.vercel.app',
-      'https://polideportivo-api.vercel.app',
-      'https://polideportivo-web.vercel.app',
-      'https://polideportivo-admin.vercel.app'
-    );
-  }
-  
-  // Configurar headers CORS
-  if (origin && allowedOrigins.includes(origin)) {
+  // Configurar headers CORS solo si no existen ya
+  if (!response.headers.has('Access-Control-Allow-Origin') && origin && allowedOrigins.includes(origin)) {
     response.headers.set('Access-Control-Allow-Origin', origin);
   }
-  
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With');
-  response.headers.set('Access-Control-Expose-Headers', 'Set-Cookie');
+  if (!response.headers.has('Access-Control-Allow-Credentials')) {
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
+  }
+  if (!response.headers.has('Access-Control-Allow-Methods')) {
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  }
+  if (!response.headers.has('Access-Control-Allow-Headers')) {
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With');
+  }
+  if (!response.headers.has('Access-Control-Expose-Headers')) {
+    response.headers.set('Access-Control-Expose-Headers', 'Set-Cookie');
+  }
   
   return response;
 };
@@ -166,7 +175,7 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
     
     // Manejar preflight requests
     if (req.method === 'OPTIONS') {
-      const response = new NextResponse(null, { status: 200 });
+      const response = new NextResponse(null, { status: 204 });
       return addCorsHeaders(response, origin);
     }
     
@@ -497,7 +506,7 @@ export const withCors = (handler: ApiHandler): ApiHandler => {
   return async (req: NextRequest, context) => {
     // Manejo de preflight: responder antes de pasar al handler
     if (req.method === 'OPTIONS') {
-      const pre = new NextResponse(null, { status: 200 });
+      const pre = new NextResponse(null, { status: 204 });
       const origin = req.headers.get('origin');
       // Orígenes permitidos configurables por entorno
       const envAllowed = (process.env.ALLOWED_ORIGINS || '')
@@ -554,9 +563,15 @@ export const withCors = (handler: ApiHandler): ApiHandler => {
       response.headers.set('Access-Control-Allow-Origin', origin);
     }
     
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    response.headers.set('Access-Control-Allow-Credentials', 'true');
+    if (!response.headers.has('Access-Control-Allow-Methods')) {
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    }
+    if (!response.headers.has('Access-Control-Allow-Headers')) {
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    }
+    if (!response.headers.has('Access-Control-Allow-Credentials')) {
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+    }
 
     return response;
   };
