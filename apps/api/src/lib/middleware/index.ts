@@ -260,6 +260,10 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
           const configuredCookieName = process.env.NEXTAUTH_COOKIE_NAME;
           const candidateNames = [
             configuredCookieName,
+            // Cookies específicas por app (añadimos explícitamente las de la Web)
+            'next-auth.session-token-web',
+            '__Secure-next-auth.session-token-web',
+            // Otras variantes comunes
             'next-auth.session-token-admin',
             'next-auth.session-token',
             '__Secure-next-auth.session-token',
@@ -274,7 +278,7 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
             }
           }
 
-          // Último recurso: detectar cualquier cookie next-auth.session-token-<puerto>
+          // Último recurso: detectar cualquier cookie next-auth.session-token-<sufijo>
           if (!token) {
             const all = (req.cookies as any).getAll?.() || [];
             const candidate = all.find((c: any) => typeof c?.name === 'string' && c.name.startsWith('next-auth.session-token'))?.name;

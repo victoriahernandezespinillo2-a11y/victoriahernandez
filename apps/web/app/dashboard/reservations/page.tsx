@@ -329,8 +329,7 @@ export default function ReservationsPage() {
                               onClick={async () => {
                                 try {
                                   setLinkLoadingId(reservation.id);
-                                  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-                                  const res = await fetch(`${API_BASE_URL}/api/reservations/${reservation.id}/payment-link`, {
+                                  const res = await fetch(`/api/reservations/${reservation.id}/payment-link`, {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     credentials: 'include',
@@ -385,7 +384,7 @@ export default function ReservationsPage() {
                       {/* Descargar Pase QR - disponible para reservas confirmadas */}
                       {(reservation.status === 'confirmed' || reservation.paymentStatus === 'paid') && (
                          <a
-                           href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/reservations/${reservation.id}/pass`}
+                           href={`/api/reservations/${reservation.id}/pass`}
                            target="_blank"
                            rel="noreferrer"
                            className="inline-flex items-center px-3 py-1.5 border border-emerald-300 rounded-md text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors"
@@ -401,7 +400,7 @@ export default function ReservationsPage() {
                       {/* Descargar recibo si está pagado */}
                       {reservation.paymentStatus === 'paid' && (
                         <a
-                          href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/reservations/${reservation.id}/receipt`}
+                          href={`/api/reservations/${reservation.id}/receipt`}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"

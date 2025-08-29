@@ -105,9 +105,8 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
     setIsSubmitting(true);
     setStep('processing');
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const bizumFlag = method === 'BIZUM' ? '&bizum=1' : '';
-      const url = `${apiUrl}/api/payments/redsys/redirect?rid=${encodeURIComponent(reservationId)}${bizumFlag}`;
+      const url = `/api/payments/redsys/redirect?rid=${encodeURIComponent(reservationId)}${bizumFlag}`;
       window.location.href = url;
     } catch (e: any) {
       setError(e?.message || 'No se pudo iniciar el pago.');
