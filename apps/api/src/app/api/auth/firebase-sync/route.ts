@@ -177,12 +177,5 @@ export async function POST(req: NextRequest) {
  * Manejar preflight requests para CORS
  */
 export async function OPTIONS() {
-  return new Response(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
+  return new Response(null, { status: 204 });
 }

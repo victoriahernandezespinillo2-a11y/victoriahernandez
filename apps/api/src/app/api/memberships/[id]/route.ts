@@ -132,12 +132,5 @@ export async function DELETE(req: NextRequest) {
  * Manejar preflight requests
  */
 export async function OPTIONS() {
-  return new Response(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
+  return new Response(null, { status: 204 });
 }

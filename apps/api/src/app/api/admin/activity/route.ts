@@ -19,17 +19,7 @@ import { db } from '@repo/db';
  * Manejar preflight requests de CORS
  */
 export async function OPTIONS(request: NextRequest) {
-  const origin = request.headers.get('origin');
-  const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? ['https://polideportivo.com', 'https://admin.polideportivo.com']
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
-  const headers: Record<string, string> = {
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-  };
-  if (origin && allowedOrigins.includes(origin)) headers['Access-Control-Allow-Origin'] = origin;
-  return new NextResponse(null, { status: 200, headers });
+  return new NextResponse(null, { status: 204 });
 }
 
 // Schema de validación para parámetros de consulta
@@ -44,16 +34,6 @@ const ActivityQuerySchema = z.object({
  * Acceso: ADMIN únicamente
  */
 export async function GET(request: NextRequest) {
-  const origin = request.headers.get('origin');
-  const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? ['https://polideportivo.com', 'https://admin.polideportivo.com']
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
-  const corsHeaders: Record<string, string> = { Vary: 'Origin' };
-  if (origin && allowedOrigins.includes(origin)) {
-    corsHeaders['Access-Control-Allow-Origin'] = origin;
-    corsHeaders['Access-Control-Allow-Credentials'] = 'true';
-  }
-
   return withAdminMiddleware(async (req: NextRequest) => {
     try {
       const { searchParams } = req.nextUrl;
@@ -100,17 +80,14 @@ export async function GET(request: NextRequest) {
         .map(({ timestamp, ...rest }) => rest);
       
       const res = API.success({ activities: sortedActivities, meta: { total: sortedActivities.length, period: `${params.hours} horas`, lastUpdate: new Date().toISOString() } });
-      Object.entries(corsHeaders).forEach(([k, v]) => res.headers.set(k, v));
       return res;
     } catch (error) {
       if (error instanceof z.ZodError) {
         const res = API.validation(error.errors.map(err => ({ field: err.path.join('.'), message: err.message })));
-        Object.entries(corsHeaders).forEach(([k, v]) => res.headers.set(k, v));
         return res;
       }
       console.error('Error obteniendo actividad reciente:', error);
       const res = API.success({ activities: [], meta: { total: 0, period: '24 horas', lastUpdate: new Date().toISOString() } });
-      Object.entries(corsHeaders).forEach(([k, v]) => res.headers.set(k, v));
       return res;
     }
   })(request, {} as any);

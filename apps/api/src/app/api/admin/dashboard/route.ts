@@ -25,23 +25,7 @@ const DashboardQuerySchema = z.object({
  * Manejar peticiones preflight CORS
  */
 export async function OPTIONS(request: NextRequest) {
-  // Las peticiones OPTIONS no requieren autenticación
-  const origin = request.headers.get('origin');
-  const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? ['https://polideportivo.com', 'https://admin.polideportivo.com']
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
-
-  const headers: Record<string, string> = {
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-  };
-
-  if (origin && allowedOrigins.includes(origin)) {
-    headers['Access-Control-Allow-Origin'] = origin;
-  }
-
-  return new Response(null, { status: 200, headers });
+  return new Response(null, { status: 204 });
 }
 
 /**
@@ -51,15 +35,6 @@ export async function OPTIONS(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   return withAdminMiddleware(async (req) => {
-    const origin = req.headers.get('origin');
-    const allowedOrigins = process.env.NODE_ENV === 'production'
-      ? ['https://polideportivo.com', 'https://admin.polideportivo.com']
-      : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
-    const corsHeaders: Record<string, string> = { Vary: 'Origin' };
-    if (origin && allowedOrigins.includes(origin)) {
-      corsHeaders['Access-Control-Allow-Origin'] = origin;
-      corsHeaders['Access-Control-Allow-Credentials'] = 'true';
-    }
     try {
       const { searchParams } = req.nextUrl;
       const params = DashboardQuerySchema.parse(Object.fromEntries(searchParams.entries()));
@@ -172,12 +147,10 @@ export async function GET(request: NextRequest) {
       };
 
       const res = ApiResponse.success(dashboard);
-      Object.entries(corsHeaders).forEach(([k, v]) => res.headers.set(k, v));
       return res;
     } catch (error) {
       if (error instanceof z.ZodError) {
         const res = ApiResponse.validation(error.errors.map(err => ({ field: err.path.join('.'), message: err.message })));
-        Object.entries(corsHeaders).forEach(([k, v]) => res.headers.set(k, v));
         return res;
       }
       console.error('Error obteniendo dashboard:', error);
@@ -187,7 +160,6 @@ export async function GET(request: NextRequest) {
         charts: { topCourts: [], sportDistribution: [], reservationStatus: [], popularTimes: [] },
         filters: { period: '30d', centerId: undefined, dateRange: { start: new Date().toISOString(), end: new Date().toISOString() } },
       });
-      Object.entries(corsHeaders).forEach(([k, v]) => res.headers.set(k, v));
       return res;
     }
   })(request, {} as any);

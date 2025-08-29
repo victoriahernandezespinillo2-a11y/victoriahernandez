@@ -491,13 +491,5 @@ function convertToCSV(data: any): string {
  * Manejar preflight requests
  */
 export async function OPTIONS() {
-  // Manejo explícito de CORS en preflight
-  const origin = '*';
-  const headers: Record<string, string> = {
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Allow-Origin': origin,
-  };
-  return new Response(null, { status: 200, headers });
+  return new Response(null, { status: 204 });
 }

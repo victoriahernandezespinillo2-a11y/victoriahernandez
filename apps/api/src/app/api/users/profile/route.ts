@@ -85,12 +85,7 @@ export async function PUT(req: NextRequest) {
  * Manejar preflight requests
  */
 export async function OPTIONS() {
-  return new Response(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
+  // Delegar el manejo de CORS al middleware global (apps/api/middleware.ts)
+  // Devolver 204 sin headers personalizados para evitar conflictos
+  return new Response(null, { status: 204 });
 }

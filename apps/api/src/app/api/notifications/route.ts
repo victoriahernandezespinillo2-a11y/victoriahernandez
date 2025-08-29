@@ -37,32 +37,11 @@ const QuerySchema = GetNotificationsSchema.pick({
   sortOrder: true,
 });
 
-export async function OPTIONS(request: NextRequest) {
-  const origin = request.headers.get('origin');
-  const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? ['https://polideportivo.com', 'https://admin.polideportivo.com']
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
-
-  const headers: Record<string, string> = {
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-  };
-  if (origin && allowedOrigins.includes(origin)) headers['Access-Control-Allow-Origin'] = origin;
-  return new Response(null, { status: 200, headers });
+export async function OPTIONS() {
+  return new Response(null, { status: 204 });
 }
 
 export async function GET(request: NextRequest) {
-  const origin = request.headers.get('origin');
-  const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? ['https://polideportivo.com', 'https://admin.polideportivo.com']
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
-  const corsHeaders: Record<string, string> = { 'Vary': 'Origin' };
-  if (origin && allowedOrigins.includes(origin)) {
-    corsHeaders['Access-Control-Allow-Origin'] = origin;
-    corsHeaders['Access-Control-Allow-Credentials'] = 'true';
-  }
-
   return withAuthMiddleware(async (req: NextRequest, context: any) => {
     try {
       const user = (context as any)?.user;
@@ -80,7 +59,7 @@ export async function GET(request: NextRequest) {
       const parsed = QuerySchema.parse(params);
       
       // Validar que el user.id sea un UUID válido antes de usarlo
-      let effectiveParams = { ...parsed };
+      let effectiveParams = { ...parsed } as any;
       if (user?.role === 'USER' && user?.id) {
         try {
           // Validar que el userId sea un UUID válido
@@ -101,19 +80,16 @@ export async function GET(request: NextRequest) {
       }
 
       const res = API.success(result);
-      Object.entries(corsHeaders).forEach(([k, v]) => res.headers.set(k, v));
       return res;
     } catch (error) {
       if (error instanceof z.ZodError) {
         const res = API.validation(
           error.errors.map(e => ({ field: e.path.join('.'), message: e.message }))
         );
-        Object.entries(corsHeaders).forEach(([k, v]) => res.headers.set(k, v));
         return res;
       }
       console.error('Error GET /api/notifications:', error);
       const res = API.success({ notifications: [], pagination: { page: 1, limit: 10, total: 0, pages: 0 } });
-      Object.entries(corsHeaders).forEach(([k, v]) => res.headers.set(k, v));
       return res;
     }
   })(request);

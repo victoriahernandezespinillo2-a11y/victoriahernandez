@@ -15,23 +15,8 @@ const tournamentService = new TournamentService();
  * OPTIONS /api/tournaments
  * Responder preflight CORS
  */
-export async function OPTIONS(request: Request) {
-  const origin = request.headers.get('origin') || '*';
-  const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? ['https://polideportivo.com', 'https://admin.polideportivo.com']
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
-
-  const headers: Record<string, string> = {
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-  };
-
-  if (origin && allowedOrigins.includes(origin)) {
-    headers['Access-Control-Allow-Origin'] = origin;
-  }
-
-  return new Response(null, { status: 200, headers });
+export async function OPTIONS() {
+  return new Response(null, { status: 204 });
 }
 
 /**

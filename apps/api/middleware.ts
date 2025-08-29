@@ -21,9 +21,19 @@ export function middleware(request: NextRequest) {
     'http://127.0.0.1:3003',
   ];
 
+  // En producción añadimos dominios por defecto si no se especifican por entorno
+  const defaultProd = [
+    'https://victoriahernandezweb.vercel.app',
+    'https://polideportivo-api.vercel.app',
+    'https://polideportivo-web.vercel.app',
+    'https://polideportivo-admin.vercel.app',
+    process.env.NEXT_PUBLIC_APP_URL || '',
+    process.env.FRONTEND_URL || '',
+  ].filter(Boolean);
+
   const allowedOrigins = new Set<string>([
     ...envAllowed,
-    ...(process.env.NODE_ENV === 'production' ? [] : devOrigins),
+    ...(process.env.NODE_ENV === 'production' ? defaultProd : devOrigins),
   ]);
 
   const isAllowed = origin ? allowedOrigins.has(origin) : false;
