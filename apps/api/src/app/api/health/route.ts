@@ -401,12 +401,7 @@ function determineOverallStatus(statuses: string[]): 'healthy' | 'degraded' | 'u
  * Manejar preflight requests
  */
 export async function OPTIONS() {
-  return new Response(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    }
-  });
+  // Defer CORS preflight handling to the global middleware (apps/api/middleware.ts)
+  // Returning 204 without custom CORS headers avoids conflicts like "*" with credentials.
+  return new Response(null, { status: 204 });
 }
