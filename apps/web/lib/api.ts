@@ -19,6 +19,37 @@ const buildHeaders = (method: string): Record<string, string> => {
   return headers;
 };
 
+// Obtiene el Firebase ID Token si existe (solo en navegador) sin romper SSR
+let lastTokenCache: { token: string; fetchedAt: number } | null = null;
+const getFirebaseIdTokenSafe = async (): Promise<string | null> => {
+  try {
+    if (typeof window === 'undefined') return null; // SSR/Edge: no usar SDK web
+    // Verificar configuración mínima de Firebase
+    if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY || !process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) {
+      return null;
+    }
+    const firebaseModule = await import('./firebase');
+    const auth = (firebaseModule as any).auth as import('firebase/auth').Auth | undefined;
+    if (!auth || !auth.currentUser) return null;
+
+    // Pequeña caché en memoria para evitar llamadas repetidas en la misma tanda de render
+    if (lastTokenCache && Date.now() - lastTokenCache.fetchedAt < 5_000) {
+      return lastTokenCache.token;
+    }
+
+    const { getIdToken } = await import('firebase/auth');
+    const token = await getIdToken(auth.currentUser, false);
+    if (token) {
+      lastTokenCache = { token, fetchedAt: Date.now() };
+      return token;
+    }
+    return null;
+  } catch (e) {
+    // No romper el flujo si Firebase no está disponible
+    return null;
+  }
+};
+
 /**
  * Wrapper para fetch con manejo de errores
  */
@@ -30,11 +61,21 @@ export async function apiRequest<T = any>(
   const relativeUrl = `${endpoint}`;
   const method = (options.method || 'GET').toString().toUpperCase();
 
+  // Intentar obtener token de Firebase si no se proporcionó Authorization explícito
+  let authHeaderFromOptions: string | undefined;
+  try {
+    const providedHeaders = options.headers as Record<string, any> | undefined;
+    authHeaderFromOptions = providedHeaders?.Authorization || providedHeaders?.authorization;
+  } catch {}
+
+  const firebaseToken = authHeaderFromOptions ? null : await getFirebaseIdTokenSafe();
+
   const baseConfig: RequestInit = {
     ...options,
     headers: {
       ...buildHeaders(method),
       ...(options.headers || {}),
+      ...(firebaseToken ? { Authorization: `Bearer ${firebaseToken}` } : {}),
     },
     credentials: 'include',
   };
@@ -318,15 +359,16 @@ export const api = {
       page?: number;
       limit?: number;
     }) => {
-      const query = new URLSearchParams();
+      const searchParams = new URLSearchParams();
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
           if (value !== undefined) {
-            query.append(key, String(value));
+            searchParams.append(key, String(value));
           }
         });
       }
-      return apiRequest(`/api/users/${userId}/reservations${query.toString() ? `?${query.toString()}` : ''}`);
+      const query = searchParams.toString();
+      return apiRequest(`/api/users/${userId}/reservations${query ? `?${query}` : ''}`);
     },
     
     getWaitingList: () => 
@@ -418,17 +460,17 @@ export const api = {
     
     getById: (id: string) => 
       apiRequest(`/api/tournaments/${id}`),
-    
+
     join: (id: string) => 
       apiRequest(`/api/tournaments/${id}/join`, {
         method: 'POST',
       }),
-    
+
     leave: (id: string) => 
       apiRequest(`/api/tournaments/${id}/leave`, {
         method: 'DELETE',
       }),
-    
+
     getMatches: (id: string) => 
       apiRequest(`/api/tournaments/${id}/matches`),
   },
@@ -452,7 +494,7 @@ export const api = {
       const query = searchParams.toString();
       return apiRequest(`/api/notifications${query ? `?${query}` : ''}`);
     },
-    
+
     markAsRead: (id: string) => 
       apiRequest(`/api/notifications/${id}`, {
         method: 'PUT',
@@ -467,7 +509,7 @@ export const api = {
     deleteMethod: (id: string) => apiRequest(`/api/payments/methods?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
   },
 
-  // Wallet
+  // Monedero
   wallet: {
     topup: (credits: number, opts?: { checkout?: boolean; successUrl?: string; cancelUrl?: string }) =>
       apiRequest('/api/credits/topup', {
@@ -475,25 +517,37 @@ export const api = {
         body: JSON.stringify({ credits, checkout: opts?.checkout ?? true, successUrl: opts?.successUrl, cancelUrl: opts?.cancelUrl }),
       }),
     ledger: (params?: { page?: number; limit?: number }) => {
-      const sp = new URLSearchParams();
-      if (params?.page) sp.set('page', String(params.page));
-      if (params?.limit) sp.set('limit', String(params.limit));
-      const q = sp.toString();
-      return apiRequest(`/api/wallet/ledger${q ? `?${q}` : ''}`);
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined) {
+            searchParams.append(key, String(value));
+          }
+        });
+      }
+      const query = searchParams.toString();
+      return apiRequest(`/api/wallet/ledger${query ? `?${query}` : ''}`);
     },
   },
 
-  // Shop
+  // Tienda
   shop: {
     list: (params?: { centerId?: string; search?: string; category?: string; page?: number; limit?: number }) => {
-      const sp = new URLSearchParams();
-      Object.entries(params || {}).forEach(([k, v]) => { if (v !== undefined) sp.set(k, String(v)); });
-      const q = sp.toString();
-      return apiRequest(`/api/products${q ? `?${q}` : ''}`);
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined) {
+            searchParams.append(key, String(value));
+          }
+        });
+      }
+      const query = searchParams.toString();
+      return apiRequest(`/api/products${query ? `?${query}` : ''}`);
     },
     detail: (id: string) => apiRequest(`/api/products/${id}`),
   },
 
+  // Carrito
   cart: {
     checkout: (data: { items: Array<{ productId: string; qty: number }>; paymentMethod: 'credits' | 'card' }, idemKey?: string) =>
       apiRequest('/api/cart/checkout', {

@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { withAuthMiddleware, ApiResponse } from '@/lib/middleware';

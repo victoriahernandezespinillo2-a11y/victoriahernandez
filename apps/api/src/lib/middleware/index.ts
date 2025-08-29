@@ -120,6 +120,46 @@ const addCorsHeaders = (response: NextResponse, origin?: string | null): NextRes
  * Middleware de autenticación híbrido
  * Soporta tanto tokens JWT como cookies de NextAuth
  */
+// Firebase Admin (carga perezosa para evitar fallos si no hay credenciales)
+let firebaseAdmin: typeof import('firebase-admin') | null = null;
+let firebaseInitialized = false;
+const ensureFirebaseAdmin = () => {
+  if (firebaseInitialized) return;
+  try {
+    // Import dinámico para evitar carga en entornos sin credenciales
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    firebaseAdmin = require('firebase-admin');
+
+    if (!firebaseAdmin?.apps?.length) {
+      // Soportar dos formas de credenciales: JSON completo o vars separadas
+      const credJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      if (credJson) {
+        const parsed = JSON.parse(credJson);
+        firebaseAdmin!.initializeApp({
+          credential: firebaseAdmin!.credential.cert(parsed),
+        });
+      } else if (
+        process.env.FIREBASE_PROJECT_ID &&
+        process.env.FIREBASE_CLIENT_EMAIL &&
+        process.env.FIREBASE_PRIVATE_KEY
+      ) {
+        // Reemplazar \n escapados en la private key
+        const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+        firebaseAdmin!.initializeApp({
+          credential: firebaseAdmin!.credential.cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey,
+          }),
+        });
+      }
+    }
+    firebaseInitialized = true;
+  } catch (e) {
+    console.warn('⚠️ Firebase Admin no inicializado:', e);
+    firebaseInitialized = false;
+  }
+};
 export const withAuth = (handler: ApiHandler): ApiHandler => {
   return async (req: NextRequest, context) => {
     const origin = req.headers.get('origin');
@@ -151,9 +191,54 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
         } catch (jwtError) {
           console.log('❌ [AUTH] Error en autenticación JWT:', jwtError);
         }
+
+        // Si no es un JWT propio, intentar como Firebase ID Token
+        if (!user) {
+          ensureFirebaseAdmin();
+          if (firebaseInitialized && firebaseAdmin) {
+            try {
+              console.log('🔥 [AUTH] Intentando verificar Firebase ID Token');
+              const decoded = await firebaseAdmin.auth().verifyIdToken(token, true);
+              const email = decoded.email || undefined;
+              const name = decoded.name || undefined;
+              const firebaseUid = decoded.uid;
+
+              // Buscar usuario por firebaseUid o email
+              let local = null as any;
+              if (firebaseUid) {
+                local = await db.user.findFirst({ where: { firebaseUid } });
+              }
+              if (!local && email) {
+                local = await db.user.findUnique({ where: { email } });
+              }
+
+              if (!local && email) {
+                // Auto-provisionar vía ensureUserByEmail
+                const ensured = await authService.ensureUserByEmail(email, name);
+                // Persistir el uid de Firebase
+                await db.user.update({ where: { id: ensured.id }, data: { firebaseUid } });
+                local = await db.user.findUnique({ where: { id: ensured.id } });
+              }
+
+              if (local && local.isActive) {
+                user = {
+                  id: local.id,
+                  email: local.email,
+                  role: (local.role || 'USER').toUpperCase(),
+                  centerId: undefined,
+                } as any;
+                console.log('✅ [AUTH] Usuario autenticado con Firebase:', user.email);
+              } else {
+                console.log('❌ [AUTH] Usuario local no encontrado o inactivo tras verificar Firebase');
+              }
+            } catch (fbErr) {
+              console.log('❌ [AUTH] Error verificando Firebase ID Token:', fbErr);
+            }
+          }
+        }
       }
       
-      // Si no hay token JWT, intentar con cookies de NextAuth (Auth.js v5 - JWE)
+      // Si no hay token JWT/Firebase, intentar con cookies de NextAuth (Auth.js v5 - JWE)
       if (!user) {
         console.log('🍪 [AUTH] Intentando autenticación con NextAuth (getToken)');
         try {
@@ -222,17 +307,17 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
         return addCorsHeaders(unauthorizedResponse, origin);
       }
       
-      console.log('🎉 [AUTH] Autenticación exitosa para:', user.email);
+      console.log('🎉 [AUTH] Autenticación exitosa para:', (user as any).email);
 
       // Convertir rol a formato esperado
-      const userRole = user.role?.toUpperCase() as 'USER' | 'STAFF' | 'ADMIN';
+      const userRole = (user as any).role?.toUpperCase() as 'USER' | 'STAFF' | 'ADMIN';
       
       // Agregar usuario al contexto
       const userContext = {
         ...context,
         user: {
-          id: user.id,
-          email: user.email,
+          id: (user as any).id,
+          email: (user as any).email,
           role: userRole,
           centerId: undefined
         },
