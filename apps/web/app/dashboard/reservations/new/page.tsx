@@ -20,6 +20,7 @@ import PaymentModal from '@/app/components/PaymentModal';
 import { api } from '@/lib/api';
 import { useCourts, usePricing } from '@/lib/hooks';
 import { ErrorHandler } from '../../../../lib/error-handler';
+import { useFirebaseAuth } from '@/components/auth/FirebaseAuthProvider';
 
 import CalendarVisualModal from '@/components/CalendarVisualModal';
 import { MobileCourtSelector } from '@/app/components/MobileCourtSelector';
@@ -74,6 +75,7 @@ export default function NewReservationPage() {
   const { courts, getCourts } = useCourts();
   const { pricing, calculatePrice, reset: resetPricing } = usePricing();
   const isMobile = useIsMobile();
+  const { firebaseUser, loading: authLoading } = useFirebaseAuth();
   
   // Estado para forzar vista móvil/escritorio
   const [forceMobileView, setForceMobileView] = useState(false);
@@ -136,22 +138,28 @@ export default function NewReservationPage() {
 
   // Cargar timeSlots cuando cambie la cancha, fecha o duración
   useEffect(() => {
-    if (selectedCourt && selectedDate) {
+    if (selectedCourt && selectedDate && !authLoading && firebaseUser) {
       loadTimeSlots(selectedCourt.id, selectedDate, duration);
     }
-  }, [selectedCourt, selectedDate, duration]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCourt, selectedDate, duration, authLoading, firebaseUser]);
 
   // Cargar canchas activas
   useEffect(() => {
-    console.log('🔄 [DEBUG] Iniciando carga de canchas...');
-    getCourts({ isActive: true })
-      .then((result) => {
-        console.log('✅ [DEBUG] Canchas cargadas exitosamente:', result);
-      })
-      .catch((error) => {
-        console.error('❌ [DEBUG] Error cargando canchas:', error);
-      });
-  }, [getCourts]);
+    // 🔒 Solo cargar si la autenticación ha terminado y hay un usuario
+    if (!authLoading && firebaseUser) {
+      console.log('🔄 [DEBUG] Auth lista, iniciando carga de canchas...');
+      getCourts({ isActive: true })
+        .then((result) => {
+          console.log('✅ [DEBUG] Canchas cargadas exitosamente:', result);
+        })
+        .catch((error) => {
+          console.error('❌ [DEBUG] Error cargando canchas:', error);
+        });
+    } else {
+      console.log('⏳ [DEBUG] Esperando autenticación de Firebase para cargar canchas...');
+    }
+  }, [getCourts, authLoading, firebaseUser]);
 
   // Deportes disponibles a partir de las canchas
   const sports = useMemo(() => {
@@ -339,6 +347,21 @@ export default function NewReservationPage() {
     }
     return timeString;
   };
+
+  // ⏳ INDICADOR DE CARGA MIENTRAS FIREBASE VERIFICA EL ESTADO
+  if (authLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[50vh]">
+        <div className="text-center">
+          <svg className="animate-spin h-8 w-8 text-blue-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p className="text-gray-600">Verificando sesión...</p>
+        </div>
+      </div>
+    );
+  }
 
   // 🚀 FUNCIÓN PARA CONFIRMAR Y CONTINUAR AL PAGO (YA NO SE USA - MANEJADO EN CALENDARVISUALMODAL)
   // Esta función se mantiene por compatibilidad pero ya no se ejecuta
