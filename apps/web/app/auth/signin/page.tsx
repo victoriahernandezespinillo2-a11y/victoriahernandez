@@ -40,12 +40,18 @@ function SignInContent() {
 
     try {
       // Intentar autenticación con Firebase primero
-      await signInWithFirebase(data.email, data.password);
+      const firebaseUser = await signInWithFirebase(data.email, data.password);
       
+      if (!firebaseUser || !firebaseUser.email || !firebaseUser.uid) {
+        setError('No se pudo obtener la información de usuario de Firebase.');
+        setIsLoading(false);
+        return;
+      }
+
       // Si Firebase es exitoso, usar NextAuth con Firebase credentials
       const result = await signIn('firebase-credentials', {
-        email: data.email,
-        password: data.password,
+        email: firebaseUser.email,
+        password: firebaseUser.uid, // ¡Importante! Usar el UID de Firebase como "contraseña"
         action: 'signin',
         redirect: false,
       });

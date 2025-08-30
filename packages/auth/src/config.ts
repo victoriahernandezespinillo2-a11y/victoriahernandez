@@ -159,7 +159,7 @@ export const webAuthConfig: NextAuthConfig = {
         sameSite: 'none', // Cambiar a 'none' para permitir cookies cross-site
         path: '/',
         secure: true, // Siempre true para sameSite: 'none'
-        domain: process.env.NODE_ENV === 'development' ? 'localhost' : '.vercel.app', // Dominio compartido para Vercel
+        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined, // Dominio compartido para Vercel
       },
     },
     callbackUrl: {
@@ -168,7 +168,7 @@ export const webAuthConfig: NextAuthConfig = {
         sameSite: 'none',
         path: '/',
         secure: true,
-        domain: process.env.NODE_ENV === 'development' ? 'localhost' : '.vercel.app',
+        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
       },
     },
     csrfToken: {
@@ -178,7 +178,7 @@ export const webAuthConfig: NextAuthConfig = {
         sameSite: 'none',
         path: '/',
         secure: true,
-        domain: process.env.NODE_ENV === 'development' ? 'localhost' : '.vercel.app',
+        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
       },
     },
   },
