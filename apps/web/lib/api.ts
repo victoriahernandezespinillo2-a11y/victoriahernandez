@@ -61,7 +61,7 @@ const getJwtTokenSafe = async (): Promise<string | null> => {
       return lastJwtTokenCache.token;
     }
 
-    const response = await fetch('/api/auth/token', {
+    const response = await fetch(`${API_BASE_URL}/api/auth/token`, {
       method: 'POST',
       credentials: 'include',
     });

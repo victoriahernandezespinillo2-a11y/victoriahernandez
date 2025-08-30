@@ -253,7 +253,7 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
         try {
           const baseOpts = {
             req,
-            secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-secret-change-in-prod',
+            secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
             secureCookie: process.env.NODE_ENV === 'production',
           } as const;
 

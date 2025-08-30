@@ -82,7 +82,7 @@ const authConfig: NextAuthConfig = {
   },
   debug: process.env.NODE_ENV === 'development',
   // Asegurar secreto y confianza del host para evitar respuestas inconsistentes en /api/auth/session
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-secret-change-in-prod',
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   trustHost: true,
   // Log sencillo para detectar causas del 500 en /api/auth/session
   logger: {

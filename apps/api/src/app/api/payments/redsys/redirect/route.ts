@@ -32,10 +32,10 @@ export async function GET(request: NextRequest) {
     
     // Validar configuración de merchant
     const merchantKey = isTestMode 
-      ? (process.env.REDSYS_TEST_MERCHANT_KEY || process.env.REDSYS_MERCHANT_KEY || 'sq7HjrUOBfKmC576ILgskD5srU870gJ7')
-      : (process.env.REDSYS_MERCHANT_KEY || '');
+      ? (process.env.REDSYS_TEST_MERCHANT_KEY || process.env.REDSYS_MERCHANT_KEY)
+      : process.env.REDSYS_MERCHANT_KEY;
     
-    const validation = RedsysService.validateMerchantConfig(merchantCode || '', merchantKey);
+    const validation = RedsysService.validateMerchantConfig(merchantCode || '', merchantKey || '');
 
     console.log('🔍 [REDSYS-ENV] Variables de entorno:', {
       REDSYS_MERCHANT_CODE: configuredMerchantCode || 'Usando genérico 999008881',

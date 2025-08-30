@@ -4,23 +4,25 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack --port 3003",
-    "prebuild": "prisma generate --schema ../../packages/db/prisma/schema.prisma",
     "build": "next build",
+    "clean": "rm -rf .next",
+    "dev": "next dev --port 3001",
     "start": "next start",
-    "lint": "next lint --max-warnings 0",
+    "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.0",
     "@heroicons/react": "^2.2.0",
+    "@prisma/client": "^6.15.0",
     "@repo/auth": "workspace:*",
+    "@repo/db": "workspace:*",
     "@repo/ui": "workspace:*",
     "lucide-react": "^0.294.0",
-    "next": "^15.4.2",
-    "next-auth": "^5.0.0-beta.29",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "next": "15.4.7",
+    "next-auth": "5.0.0-beta.29",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "sonner": "^2.0.7"
   },
   "devDependencies": {

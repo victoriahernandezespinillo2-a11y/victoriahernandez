@@ -18,11 +18,18 @@ export default async function middleware(req: NextRequest) {
     '__Secure-next-auth.session-token',
   ].filter(Boolean) as string[];
 
+  // Evitar problema de "crypto" en middleware de Next.js
+  const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!secret) {
+    console.error('AUTH_SECRET no definido. La autenticación de middleware no puede continuar.');
+    return NextResponse.next();
+  }
+
   let token = null as Awaited<ReturnType<typeof getToken>> | null;
   // 1) Intento genérico (deja que Auth.js detecte el nombre)
   token = await getToken({
     req,
-    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-secret-change-in-prod',
+    secret,
     secureCookie: process.env.NODE_ENV === 'production',
   });
   // 2) Intentos específicos por nombre
@@ -30,11 +37,23 @@ export default async function middleware(req: NextRequest) {
     for (const name of candidateCookieNames) {
       const t = await getToken({
         req,
-        secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-secret-change-in-prod',
+        secret,
         secureCookie: process.env.NODE_ENV === 'production',
         cookieName: name,
       });
       if (t) { token = t; break; }
+    }
+  }
+
+  // Fallback por si la cookie tiene otro nombre
+  if (!token) {
+    const possibleToken = await getToken({
+      req,
+      cookieName: '__Secure-next-auth.session-token',
+      secret,
+    });
+    if (possibleToken) {
+      token = possibleToken;
     }
   }
 
