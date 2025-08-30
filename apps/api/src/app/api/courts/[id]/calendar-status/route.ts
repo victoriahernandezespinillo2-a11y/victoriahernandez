@@ -6,9 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { zonedTimeToUtc, utcToZonedTime, formatInTimeZone } from 'date-fns-tz';
-import { auth } from '@repo/auth';
 import { db } from '@repo/db';
-import { withReservationMiddleware, ApiResponse } from '@/lib/middleware';
+import { withJwtAuth, JwtUser } from '@/lib/middleware/jwt-auth';
 
 // Utilidad: normaliza '08:00 a.m.' | '10:00 p.m.' | '8:00 PM' -> 'HH:mm'
 function normalizeToHHmm(input: string): string {
@@ -37,29 +36,21 @@ function normalizeToHHmm(input: string): string {
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  return withReservationMiddleware(async (request: NextRequest) => {
+  return withJwtAuth(async (req, user: JwtUser) => {
     try {
-      const session = await auth();
-      if (!session?.user?.id) {
-        return NextResponse.json(
-          { error: 'No autorizado' },
-          { status: 401 }
-        );
-      }
+      const pathSegments = request.nextUrl.pathname.split('/');
+      const courtId = pathSegments[pathSegments.length - 2];
+      const { searchParams } = new URL(request.url);
+      const date = searchParams.get('date');
+      const duration = parseInt(searchParams.get('duration') || '60');
 
-    const pathSegments = request.nextUrl.pathname.split('/');
-    const courtId = pathSegments[pathSegments.length - 2];
-    const { searchParams } = new URL(request.url);
-    const date = searchParams.get('date');
-    const duration = parseInt(searchParams.get('duration') || '60');
-
-    // 🔍 LOGGING PARA DEBUGGING DE AUTENTICACIÓN
-    console.log(`🔍 [CALENDAR-AUTH] Usuario autenticado:`, {
-      userId: session.user.id,
-      email: session.user.email,
-      name: session.user.name,
-      timestamp: new Date().toISOString()
-    });
+      // 🔍 LOGGING PARA DEBUGGING DE AUTENTICACIÓN
+      console.log(`🔍 [CALENDAR-AUTH] Usuario autenticado:`, {
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        timestamp: new Date().toISOString()
+      });
 
     if (!date) {
       return NextResponse.json(
@@ -141,7 +132,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // 4. 🚀 NUEVO: Reservas del usuario en TODAS las canchas para el mismo día
       db.reservation.findMany({
         where: {
-          userId: session.user.id,
+          userId: user.id,
           startTime: { gte: startOfDay, lte: endOfDay },
           status: { in: ['PENDING', 'PAID', 'IN_PROGRESS'] }
         },
@@ -352,14 +343,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       currentTime.setMinutes(currentTime.getMinutes() + slotMinutes);
     }
 
-    return ApiResponse.success({
+    return NextResponse.json({
       courtId,
       date: targetDate.toISOString(),
       slots: calendarSlots
     });
     } catch (error) {
       console.error('❌ [CALENDAR-STATUS] Error:', error);
-      return ApiResponse.internalError('Error obteniendo estado del calendario');
+      return NextResponse.json(
+        { error: 'Error obteniendo estado del calendario' },
+        { status: 500 }
+      );
     }
   })(request);
 }

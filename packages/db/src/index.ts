@@ -91,9 +91,21 @@ export const db = globalForPrisma.prisma ??
             url: process.env.DATABASE_URL,
           },
         },
-        log: ['query'],
+        log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
         errorFormat: 'pretty',
       });
+      
+      // Configurar manejo de errores de conexión
+      client.$on('query', (e) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[DB-QUERY] ${e.query} - ${e.duration}ms`);
+        }
+      });
+      
+      client.$on('error', (e) => {
+        console.error('[DB-ERROR]', e);
+      });
+      
       if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = client;
       return client;
     } catch (e) {

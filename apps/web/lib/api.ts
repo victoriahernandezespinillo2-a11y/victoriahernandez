@@ -61,20 +61,36 @@ const getJwtTokenSafe = async (): Promise<string | null> => {
       return lastJwtTokenCache.token;
     }
 
+    // Obtener Firebase ID Token primero
+    const firebaseToken = await getFirebaseIdTokenSafe();
+    if (!firebaseToken) {
+      console.log('🔍 [API] No hay Firebase token disponible para obtener JWT');
+      return null;
+    }
+
+    // Usar Firebase ID Token para autenticarse con el endpoint de JWT
     const response = await fetch(`${API_BASE_URL}/api/auth/token`, {
       method: 'POST',
-      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${firebaseToken}`
+      },
+      // No usar credentials: 'include' ya que estamos usando Authorization header
     });
 
     if (response.ok) {
       const data = await response.json();
       if (data.token) {
         lastJwtTokenCache = { token: data.token, fetchedAt: Date.now() };
+        console.log('✅ [API] JWT obtenido exitosamente');
         return data.token;
       }
+    } else {
+      console.error('❌ [API] Error obteniendo JWT:', response.status, response.statusText);
     }
     return null;
   } catch (e) {
+    console.error('❌ [API] Error en getJwtTokenSafe:', e);
     // No romper el flujo si no se puede obtener el token
     return null;
   }
