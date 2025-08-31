@@ -58,51 +58,20 @@ export const authConfig: NextAuthConfig = {
   },
   callbacks: {
     async jwt({ token, user }) {
-      // Cuando hay `user`, estamos en el primer login del flujo.
+      // Al iniciar sesión (cuando 'user' está disponible), persistimos el ID y el rol en el token.
+      // Este token cifrado (JWE) se almacena en una cookie HttpOnly.
       if (user) {
-        // Intentar asegurar/obtener el usuario local (BD) por email para fijar el id correcto de Prisma.
-        try {
-          const base = (process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || '/api/backend').replace(/\/$/, '');
-          if (user.email) {
-            const resp = await fetch(`${base}/api/auth/oauth-sync`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                email: user.email,
-                name: user.name ?? null,
-                image: (user as any).image ?? null,
-                provider: 'oauth',
-              }),
-              cache: 'no-store',
-            });
-
-            if (resp.ok) {
-              const payload: any = await resp.json().catch(() => ({}));
-              const data = payload?.data || payload;
-              if (data && data.user) {
-                token.id = data.user.id as string;
-                token.role = (data.user.role as any) ?? user.role;
-                return token;
-              }
-            } else {
-              const info = await resp.text().catch(() => '');
-              console.log('❌ [AUTH] oauth-sync falló:', resp.status, info);
-            }
-          }
-        } catch (err) {
-          console.log('❌ [AUTH] Error llamando a oauth-sync:', err instanceof Error ? err.message : String(err));
-        }
-
-        // Fallback: mantener datos entregados por el proveedor
-        token.role = (user as any).role;
-        token.id = (user as any).id;
+        token.id = user.id;
+        token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
-      if (token) {
-        session.user.role = token.role as string;
+      // Hacemos que los datos del token (id y rol) estén disponibles en el objeto de sesión.
+      // Esto es lo que se obtiene al usar `auth()` o `useSession()`.
+      if (session.user) {
         session.user.id = token.id as string;
+        session.user.role = token.role as string;
       }
       return session;
     },
@@ -156,28 +125,28 @@ export const webAuthConfig: NextAuthConfig = {
       name: 'next-auth.session-token-web',
       options: {
         httpOnly: true,
-        sameSite: 'none', // Cambiar a 'none' para permitir cookies cross-site
+        sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
         path: '/',
-        secure: true, // Siempre true para sameSite: 'none'
-        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined, // Dominio compartido para Vercel
+        secure: process.env.NODE_ENV === 'production',
+        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
       },
     },
     callbackUrl: {
       name: 'next-auth.callback-url-web',
       options: {
-        sameSite: 'none',
+        sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
         path: '/',
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
         domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
       },
     },
     csrfToken: {
-      name: 'next-auth.csrf-token-web',
+      name: `next-auth.csrf-token-web`,
       options: {
         httpOnly: true,
-        sameSite: 'none',
+        sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
         path: '/',
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
         domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined,
       },
     },
@@ -210,12 +179,12 @@ declare module 'next-auth' {
   }
 }
 
-// Declaración de módulo JWT comentada para evitar errores de módulo no encontrado
-// declare module '@auth/core/jwt' {
-//   interface JWT {
-//     id?: string;
-//     role?: string;
-//     membershipType?: string;
-//     creditsBalance?: number;
-//   }
-// }
+// Declaración de módulo JWT para extender el token
+declare module 'next-auth/jwt' {
+  interface JWT {
+    id: string;
+    role: string;
+    membershipType?: string;
+    creditsBalance?: number;
+  }
+}

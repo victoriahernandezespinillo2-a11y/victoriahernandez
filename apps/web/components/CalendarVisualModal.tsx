@@ -5,6 +5,7 @@ import { X, Calendar, Clock, Check } from 'lucide-react';
 import { api } from '@/lib/api';
 import { CalendarData, CalendarSlot } from '@/types/calendar.types';
 import PaymentModal from '@/app/components/PaymentModal';
+import { useFirebaseAuth } from './auth/FirebaseAuthProvider';
 
 interface CalendarVisualModalProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export default function CalendarVisualModal({
   onClose,
   onReservationCreated
 }: CalendarVisualModalProps) {
+  const { firebaseUser, loading: authLoading } = useFirebaseAuth();
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +97,8 @@ export default function CalendarVisualModal({
   // 🔄 CARGAR DATOS DEL CALENDARIO
   useEffect(() => {
     const loadCalendarData = async () => {
-      if (!courtId || !date || !isOpen) return;
+      // 🔒 Esperar a que la autenticación de Firebase se complete y el modal esté abierto
+      if (!courtId || !date || !isOpen || authLoading || !firebaseUser) return;
       
       setLoading(true);
       setError(null);
@@ -112,7 +115,7 @@ export default function CalendarVisualModal({
     };
 
     loadCalendarData();
-  }, [courtId, date, duration, isOpen]);
+  }, [courtId, date, duration, isOpen, authLoading, firebaseUser]);
 
   // 🎨 FUNCIÓN PARA OBTENER ESTILOS DEL SLOT MÓVIL-OPTIMIZADO
   const getSlotStyles = (slot: CalendarSlot) => {

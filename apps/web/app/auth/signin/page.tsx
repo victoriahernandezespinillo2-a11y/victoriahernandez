@@ -88,23 +88,36 @@ function SignInContent() {
     setError(null);
     
     try {
-      // Usar el proveedor estándar de Google de NextAuth
-      const result = await signIn('google', { 
-        callbackUrl,
-        redirect: false 
+      // 1. Usar el proveedor de Firebase para el popup de Google
+      const firebaseUser = await signInWithGoogleFirebase();
+
+      if (!firebaseUser || !firebaseUser.email || !firebaseUser.uid) {
+        setError('No se pudo obtener la información de usuario de Google.');
+        setIsLoading(false);
+        return;
+      }
+      
+      // 2. Usar las credenciales de Firebase para sincronizar con NextAuth
+      const result = await signIn('firebase-credentials', {
+        email: firebaseUser.email,
+        password: firebaseUser.uid, // ¡Importante! Usar el UID de Firebase
+        action: 'signin',
+        redirect: false,
       });
 
       if (result?.error) {
-        setError('Error al iniciar sesión con Google.');
-        setIsLoading(false);
-      } else if (result?.url) {
-        // NextAuth manejará la redirección
-        window.location.href = result.url;
+        setError('Error al sincronizar la sesión con Google. Por favor, intenta nuevamente.');
       } else {
         router.push(callbackUrl);
       }
     } catch (err: any) {
-      setError(err.message || 'Error al iniciar sesión con Google.');
+      // Manejar errores comunes de Firebase (ej: popup cerrado)
+      if (err.code === 'auth/popup-closed-by-user') {
+        setError('El proceso de inicio de sesión fue cancelado.');
+      } else {
+        setError(err.message || 'Error al iniciar sesión con Google.');
+      }
+    } finally {
       setIsLoading(false);
     }
   };

@@ -82,50 +82,6 @@ const rateLimitCache = new RateLimitCache();
 setInterval(() => rateLimitCache.cleanup(), 5 * 60 * 1000);
 
 /**
- * Función auxiliar para añadir headers CORS
- */
-const addCorsHeaders = (response: NextResponse, origin?: string | null): NextResponse => {
-  // Orígenes permitidos configurables por entorno (unificado con withCors)
-  const envAllowed = (process.env.ALLOWED_ORIGINS || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const defaultProd = [
-    'https://polideportivo.com',
-    'https://admin.polideportivo.com',
-    'https://victoriahernandezweb.vercel.app',
-    'https://polideportivo-api.vercel.app',
-    'https://polideportivo-web.vercel.app',
-    'https://polideportivo-admin.vercel.app',
-    process.env.NEXT_PUBLIC_APP_URL || '',
-    process.env.FRONTEND_URL || '',
-  ].filter(Boolean) as string[];
-  const defaultDev = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
-  const allowedOrigins = envAllowed.length > 0
-    ? envAllowed
-    : (process.env.NODE_ENV === 'production' ? defaultProd : defaultDev);
-  
-  // Configurar headers CORS solo si no existen ya
-  if (!response.headers.has('Access-Control-Allow-Origin') && origin && allowedOrigins.includes(origin)) {
-    response.headers.set('Access-Control-Allow-Origin', origin);
-  }
-  if (!response.headers.has('Access-Control-Allow-Credentials')) {
-    response.headers.set('Access-Control-Allow-Credentials', 'true');
-  }
-  if (!response.headers.has('Access-Control-Allow-Methods')) {
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  }
-  if (!response.headers.has('Access-Control-Allow-Headers')) {
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With');
-  }
-  if (!response.headers.has('Access-Control-Expose-Headers')) {
-    response.headers.set('Access-Control-Expose-Headers', 'Set-Cookie');
-  }
-  
-  return response;
-};
-
-/**
  * Middleware de autenticación híbrido
  * Soporta tanto tokens JWT como cookies de NextAuth
  */
@@ -173,11 +129,11 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
   return async (req: NextRequest, context) => {
     const origin = req.headers.get('origin');
     
-    // Manejar preflight requests
-    if (req.method === 'OPTIONS') {
-      const response = new NextResponse(null, { status: 204 });
-      return addCorsHeaders(response, origin);
-    }
+    // El manejo de preflight y CORS ahora se delega a withCors
+    // if (req.method === 'OPTIONS') {
+    //   const response = new NextResponse(null, { status: 204 });
+    //   return addCorsHeaders(response, origin);
+    // }
     
     try {
       let user = null;
@@ -198,56 +154,13 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
           user = await authService.getUserFromToken(token);
           console.log('✅ [AUTH] Usuario autenticado con JWT:', user?.email);
         } catch (jwtError) {
-          console.log('❌ [AUTH] Error en autenticación JWT:', jwtError);
-        }
-
-        // Si no es un JWT propio, intentar como Firebase ID Token
-        if (!user) {
-          ensureFirebaseAdmin();
-          if (firebaseInitialized && firebaseAdmin) {
-            try {
-              console.log('🔥 [AUTH] Intentando verificar Firebase ID Token');
-              const decoded = await firebaseAdmin.auth().verifyIdToken(token, true);
-              const email = decoded.email || undefined;
-              const name = decoded.name || undefined;
-              const firebaseUid = decoded.uid;
-
-              // Buscar usuario por firebaseUid o email
-              let local = null as any;
-              if (firebaseUid) {
-                local = await db.user.findFirst({ where: { firebaseUid } });
-              }
-              if (!local && email) {
-                local = await db.user.findUnique({ where: { email } });
-              }
-
-              if (!local && email) {
-                // Auto-provisionar vía ensureUserByEmail
-                const ensured = await authService.ensureUserByEmail(email, name);
-                // Persistir el uid de Firebase
-                await db.user.update({ where: { id: ensured.id }, data: { firebaseUid } });
-                local = await db.user.findUnique({ where: { id: ensured.id } });
-              }
-
-              if (local && local.isActive) {
-                user = {
-                  id: local.id,
-                  email: local.email,
-                  role: (local.role || 'USER').toUpperCase(),
-                  centerId: undefined,
-                } as any;
-                console.log('✅ [AUTH] Usuario autenticado con Firebase:', user.email);
-              } else {
-                console.log('❌ [AUTH] Usuario local no encontrado o inactivo tras verificar Firebase');
-              }
-            } catch (fbErr) {
-              console.log('❌ [AUTH] Error verificando Firebase ID Token:', fbErr);
-            }
-          }
+          console.log('❌ [AUTH] Error en autenticación JWT, el token podría no ser nuestro o ser inválido:', jwtError);
+          // No hacemos nada aquí, dejamos que el flujo continúe para intentar la autenticación por cookie.
+          // Esto evita el error de intentar verificar un token de Firebase que no es un ID token.
         }
       }
       
-      // Si no hay token JWT/Firebase, intentar con cookies de NextAuth (Auth.js v5 - JWE)
+      // Si no hay token JWT válido, intentar con cookies de NextAuth (Auth.js v5 - JWE)
       if (!user) {
         console.log('🍪 [AUTH] Intentando autenticación con NextAuth (getToken)');
         try {
@@ -317,7 +230,8 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
           { error: 'No autorizado - Autenticación requerida' },
           { status: 401 }
         );
-        return addCorsHeaders(unauthorizedResponse, origin);
+        // withCors se encargará de los headers en la composición final
+        return unauthorizedResponse;
       }
       
       console.log('🎉 [AUTH] Autenticación exitosa para:', (user as any).email);
@@ -337,14 +251,16 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
       };
 
       const response = await handler(req, userContext);
-      return addCorsHeaders(response, origin);
+      // withCors se encargará de los headers en la composición final
+      return response;
     } catch (error) {
       console.error('Error en middleware de autenticación:', error);
       const errorResponse = NextResponse.json(
         { error: 'Error interno del servidor' },
         { status: 500 }
       );
-      return addCorsHeaders(errorResponse, origin);
+      // withCors se encargará de los headers en la composición final
+      return errorResponse;
     }
   };
 };
@@ -527,7 +443,7 @@ export const withCors = (handler: ApiHandler): ApiHandler => {
         process.env.NEXT_PUBLIC_APP_URL || '',
         process.env.FRONTEND_URL || '',
       ].filter(Boolean) as string[];
-      const defaultDev = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
+      const defaultDev = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003'];
       const allowedOrigins = envAllowed.length > 0
         ? envAllowed
         : (process.env.NODE_ENV === 'production' ? defaultProd : defaultDev);
@@ -558,7 +474,7 @@ export const withCors = (handler: ApiHandler): ApiHandler => {
       process.env.NEXT_PUBLIC_APP_URL || '',
       process.env.FRONTEND_URL || '',
     ].filter(Boolean) as string[];
-    const defaultDev = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'];
+    const defaultDev = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003'];
     const allowedOrigins = envAllowed.length > 0
       ? envAllowed
       : (process.env.NODE_ENV === 'production' ? defaultProd : defaultDev);

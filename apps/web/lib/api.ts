@@ -4,6 +4,8 @@
  */
 
 import { CalendarData } from '../types/calendar.types';
+import { getDownloadURL, getStorage, ref } from 'firebase/storage';
+import { ReservationStatus } from '@repo/db';
 
 // Base de la API: usar variable pública si está definida, sin barra final
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://polideportivo-api.vercel.app').replace(/\/$/, '');
@@ -19,33 +21,49 @@ const buildHeaders = (method: string): Record<string, string> => {
   return headers;
 };
 
-// Obtiene el Firebase ID Token si existe (solo en navegador) sin romper SSR
-let lastTokenCache: { token: string; fetchedAt: number } | null = null;
-const getFirebaseIdTokenSafe = async (): Promise<string | null> => {
+// 🕵️‍♂️ FUNCIÓN ROBUSTA PARA ESPERAR EL FIREBASE ID TOKEN
+// Esto resuelve la condición de carrera donde onAuthStateChanged se dispara
+// antes de que el token esté realmente disponible.
+const awaitFirebaseToken = (timeout = 10000): Promise<string | null> => {
+  return new Promise(async (resolve, reject) => {
+    const { getFirebaseAuth } = await import('@/lib/firebase');
+    const auth = getFirebaseAuth();
+    const startTime = Date.now();
+
+    const checkToken = async () => {
+      if (auth.currentUser) {
+        try {
+          const token = await auth.currentUser.getIdToken(false); // false: no forzar refresh si ya hay uno válido
+          if (token) {
+            console.log(`✅ [API] Firebase ID Token obtenido después de ${Date.now() - startTime}ms`);
+            return resolve(token);
+          }
+        } catch (e) {
+          console.warn('⚠️ [API] Pequeño error obteniendo token, reintentando...', e);
+        }
+      }
+
+      if (Date.now() - startTime > timeout) {
+        console.error('❌ [API] Timeout esperando Firebase ID Token.');
+        return resolve(null); // Resolve with null instead of rejecting
+      }
+
+      setTimeout(checkToken, 200); // Reintentar cada 200ms
+    };
+
+    checkToken();
+  });
+};
+
+
+// Obtiene el Firebase ID Token de forma segura
+export const getFirebaseIdTokenSafe = async (): Promise<string | null> => {
   try {
-    if (typeof window === 'undefined') return null; // SSR/Edge: no usar SDK web
-    // Verificar configuración mínima de Firebase
-    if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY || !process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) {
-      return null;
-    }
-    const firebaseModule = await import('./firebase');
-    const auth = (firebaseModule as any).auth as import('firebase/auth').Auth | undefined;
-    if (!auth || !auth.currentUser) return null;
-
-    // Pequeña caché en memoria para evitar llamadas repetidas en la misma tanda de render
-    if (lastTokenCache && Date.now() - lastTokenCache.fetchedAt < 5_000) {
-      return lastTokenCache.token;
-    }
-
-    const { getIdToken } = await import('firebase/auth');
-    const token = await getIdToken(auth.currentUser, false);
-    if (token) {
-      lastTokenCache = { token, fetchedAt: Date.now() };
-      return token;
-    }
-    return null;
-  } catch (e) {
-    // No romper el flujo si Firebase no está disponible
+    if (typeof window === 'undefined') return null;
+    // Usamos el nuevo mecanismo de espera
+    return await awaitFirebaseToken();
+  } catch (error) {
+    console.error('❌ [API] Error obteniendo Firebase ID Token:', error);
     return null;
   }
 };
@@ -72,7 +90,6 @@ const getJwtTokenSafe = async (): Promise<string | null> => {
     const response = await fetch(`${API_BASE_URL}/api/auth/token`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${firebaseToken}`
       },
       // No usar credentials: 'include' ya que estamos usando Authorization header
@@ -86,7 +103,11 @@ const getJwtTokenSafe = async (): Promise<string | null> => {
         return data.token;
       }
     } else {
-      console.error('❌ [API] Error obteniendo JWT:', response.status, response.statusText);
+      let bodyText = '';
+      try {
+        bodyText = await response.text();
+      } catch {}
+      console.error('❌ [API] Error obteniendo JWT:', response.status, response.statusText, bodyText);
     }
     return null;
   } catch (e) {
@@ -116,13 +137,9 @@ export async function apiRequest<T = any>(
 
   let authToken: string | null = null;
   if (!authHeaderFromOptions) {
-    // Primero intentar Firebase token
-    authToken = await getFirebaseIdTokenSafe();
-    
-    // Si no hay Firebase token, intentar JWT propio (especialmente para cross-domain)
-    if (!authToken) {
-      authToken = await getJwtTokenSafe();
-    }
+    // Para la comunicación cross-domain, siempre intentamos obtener nuestro propio JWT,
+    // que se basa en un token de Firebase válido.
+    authToken = await getJwtTokenSafe();
   }
 
   const baseConfig: RequestInit = {

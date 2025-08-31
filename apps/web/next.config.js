@@ -20,6 +20,7 @@ const nextConfig = {
     // 📊 LOGGING ENTERPRISE PARA DEBUGGING
     console.log('🚀 [NEXT-CONFIG] === POLIDEPORTIVO REWRITES CONFIGURATION ===');
     console.log('🔧 [NEXT-CONFIG] Backend API URL:', apiUrl);
+    console.log('🔴 [NEXT-CONFIG-DEBUG] NEXTAUTH_URL cargada:', process.env.NEXTAUTH_URL || 'NO DEFINIDA');
     console.log('🔧 [NEXT-CONFIG] Environment:', process.env.NODE_ENV);
     console.log('🔧 [NEXT-CONFIG] Timestamp:', new Date().toISOString());
     console.log('🔧 [NEXT-CONFIG] Strategy: beforeFiles + negative regex');

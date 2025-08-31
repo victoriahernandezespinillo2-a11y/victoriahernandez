@@ -21,34 +21,34 @@ const firebaseCredentialsSchema = z.object({
 const providersList: Provider[] = [];
 
 // Incluir Google solo si hay credenciales configuradas
-if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-  providersList.push(
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      profile(profile) {
-        if (!profile.email) {
-          throw new Error('Email requerido para autenticación con Google');
-        }
-        const role = determineUserRole(profile.email);
-        logSecurityEvent({
-          type: 'LOGIN_ATTEMPT',
-          email: profile.email,
-          role,
-          provider: 'google'
-        });
-        return {
-          id: profile.sub,
-          email: profile.email,
-          name: profile.name,
-          image: profile.picture,
-          role,
-          creditsBalance: role === 'admin' ? 1000 : (role === 'staff' ? 500 : 0),
-        };
-      },
-    })
-  );
-}
+// if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+//   providersList.push(
+//     Google({
+//       clientId: process.env.GOOGLE_CLIENT_ID,
+//       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+//       profile(profile) {
+//         if (!profile.email) {
+//           throw new Error('Email requerido para autenticación con Google');
+//         }
+//         const role = determineUserRole(profile.email);
+//         logSecurityEvent({
+//           type: 'LOGIN_ATTEMPT',
+//           email: profile.email,
+//           role,
+//           provider: 'google'
+//         });
+//         return {
+//           id: profile.sub,
+//           email: profile.email,
+//           name: profile.name,
+//           image: profile.picture,
+//           role,
+//           creditsBalance: role === 'admin' ? 1000 : (role === 'staff' ? 500 : 0),
+//         };
+//       },
+//     })
+//   );
+// }
 
 // Proveedor de credenciales (siempre disponible)
 providersList.push(
