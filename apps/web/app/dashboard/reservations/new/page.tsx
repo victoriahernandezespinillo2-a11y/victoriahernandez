@@ -112,6 +112,11 @@ export default function NewReservationPage() {
     
     setLoadingTimeSlots(true);
     try {
+      console.log('🔴 [FRONTEND-DEBUG] Llamando a getCalendarStatus con los siguientes datos:', {
+        courtId,
+        date,
+        duration
+      });
       const calendarData = await api.courts.getCalendarStatus(courtId, {
         date,
         duration

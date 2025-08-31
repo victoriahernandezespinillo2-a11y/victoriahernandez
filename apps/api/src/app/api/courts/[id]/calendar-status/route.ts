@@ -9,6 +9,9 @@ import { zonedTimeToUtc, utcToZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { db } from '@repo/db';
 import { withJwtAuth, JwtUser } from '@/lib/middleware/jwt-auth';
 
+// Forzar renderizado dinámico para deshabilitar el cacheo de esta ruta
+export const dynamic = 'force-dynamic';
+
 // Utilidad: normaliza '08:00 a.m.' | '10:00 p.m.' | '8:00 PM' -> 'HH:mm'
 function normalizeToHHmm(input: string): string {
   if (!input) return '00:00';
@@ -59,18 +62,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // 🕐 MANEJO MEJORADO DE FECHAS PARA EVITAR PROBLEMAS DE ZONA HORARIA
-    const targetDate = new Date(date + 'T00:00:00.000Z');
-    const startOfDay = new Date(targetDate);
-    startOfDay.setUTCHours(0, 0, 0, 0);
-    
-    const endOfDay = new Date(targetDate);
-    endOfDay.setUTCHours(23, 59, 59, 999);
+    // 1. Definir la zona horaria del centro como la fuente de verdad.
+    const centerTz = 'Europe/Madrid';
 
-    // 🔍 LOGGING PARA DEBUGGING DE FECHAS
-    console.log(`🔍 [CALENDAR-DATES] Fechas calculadas:`, {
+    // 2. Construir las fechas de inicio y fin del día EN LA ZONA HORARIA del centro.
+    // Esto asegura que "2025-09-01" se interprete como ese día completo en Madrid.
+    const startOfDay = zonedTimeToUtc(`${date}T00:00:00`, centerTz);
+    const endOfDay = zonedTimeToUtc(`${date}T23:59:59`, centerTz);
+    const targetDate = startOfDay; // Usar la fecha zificada como referencia
+
+    // 🔍 LOGGING PARA DEBUGGING DE FECHAS (AHORA ZONIFICADO)
+    console.log(`🔍 [CALENDAR-DATES] Fechas calculadas para zona horaria ${centerTz}:`, {
       inputDate: date,
-      targetDate: targetDate.toISOString(),
       startOfDay: startOfDay.toISOString(),
       endOfDay: endOfDay.toISOString(),
       timestamp: new Date().toISOString()
@@ -174,8 +177,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // 🕒 OBTENER HORARIOS DE OPERACIÓN DEL CENTRO
     let operatingStart = new Date(startOfDay);
     let operatingEnd = new Date(endOfDay);
-    // Determinar zona horaria del centro (default Europe/Madrid)
-    let centerTz = 'Europe/Madrid';
     
     const centerSettings = court?.center?.settings as any || {};
 
@@ -185,7 +186,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const operatingHours = settings.operatingHours || settings.business_hours;
       
       if (operatingHours && typeof operatingHours === 'object') {
-        const weekday = targetDate.getDay();
+        const localDate = utcToZonedTime(targetDate, centerTz); // Fecha en la zona horaria del centro
+        const weekday = localDate.getDay();
         const dayMap: Record<number, string> = { 
           0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 
           4: 'thursday', 5: 'friday', 6: 'saturday' 
@@ -207,35 +209,41 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         }
         
         if (dayConfig?.open && dayConfig?.close) {
-          const tzSetting = (centerSettings.timezone as string | undefined) ?? 'Europe/Madrid';
-          centerTz = tzSetting;
-
-          // Normalizar a HH:mm 24h
           const open24  = normalizeToHHmm(dayConfig.open);
           const close24 = normalizeToHHmm(dayConfig.close);
 
-          // Convertir HH:mm locales a UTC utilizando la zona horaria del centro
-          // Usar ISO completo para evitar ambigüedad al parsear (corrige desfase observado)
-          operatingStart = zonedTimeToUtc(`${date}T${open24}:00`, centerTz);
-          operatingEnd   = zonedTimeToUtc(`${date}T${close24}:00`, centerTz);
+          // --- CORRECCIÓN FINAL DE ZONA HORARIA ---
+          // Construir el string completo en la zona horaria local y LUEGO convertir a UTC.
+          // Esto evita el doble desfase y es la forma canónica de usar la librería.
+          const startDateString = `${date}T${open24}:00`;
+          const endDateString = `${date}T${close24}:00`;
+
+          operatingStart = zonedTimeToUtc(startDateString, centerTz);
+          operatingEnd   = zonedTimeToUtc(endDateString, centerTz);
           
-          console.log(`🕒 [CALENDAR] Horarios de operación para ${dayKey}:`, {
-            open: open24,
-            close: close24,
-            operatingStart: operatingStart.toISOString(),
-            operatingEnd: operatingEnd.toISOString(),
-            timezone: centerTz,
-            currentServerTime: new Date().toISOString()
+          console.log(`🕒 [CALENDAR-FINAL-FIX] Horarios de operación para ${dayKey}:`, {
+            date,
+            centerTz,
+            startDateString,
+            operatingStartUTC: operatingStart.toISOString(),
+            endDateString,
+            operatingEndUTC: operatingEnd.toISOString(),
           });
         }
       }
     }
 
-    const currentTime = new Date(operatingStart);
+    let currentTime = operatingStart.getTime(); // Usar timestamp para evitar mutaciones y problemas de TZ
+    const endTime = operatingEnd.getTime();
 
-    while (currentTime < operatingEnd) {
+    while (currentTime < endTime) {
       const slotStart = new Date(currentTime);
-      const slotEnd = new Date(currentTime.getTime() + duration * 60000);
+      const slotEnd = new Date(currentTime + duration * 60000);
+
+      // Si el slot termina después de la hora de cierre, no lo incluimos.
+      if (slotEnd.getTime() > endTime) {
+        break;
+      }
 
       // Representaciones en hora local del centro para mostrar al usuario
       const slotStartLocal = utcToZonedTime(slotStart, centerTz);
@@ -257,38 +265,49 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         slotColor = '#dc2626';
         slotMessage = 'Cancha inactiva';
       } else {
-        // Verificar mantenimiento
-        const maintenanceConflict = maintenanceSchedules.find((m: any) => {
-          const maintenanceStart = m.scheduledAt;
-          const maintenanceEnd = m.completedAt || new Date(maintenanceStart.getTime() + 2 * 60 * 60000); // 2h por defecto
-          return slotStart < maintenanceEnd && slotEnd > maintenanceStart;
+        // --- LÓGICA DE CONFLICTOS REFACTORIZADA ---
+        // 1. COMPROBAR PRIMERO SI EL USUARIO TIENE UNA RESERVA (MÁXIMA PRIORIDAD)
+        const userConflict = userReservations.find((r: any) => {
+          return slotStartCompare < r.endTime && slotEndCompare > r.startTime;
         });
 
-        if (maintenanceConflict) {
-          slotStatus = 'MAINTENANCE';
-          slotColor = '#f59e0b';
-          slotMessage = `Mantenimiento: ${maintenanceConflict.type}`;
+        if (userConflict) {
+          slotStatus = 'USER_BOOKED';
+          slotColor = '#6366f1'; // Indigo para reservas del usuario
+          slotMessage = `Ya tienes una reserva a esta hora en la cancha ${userConflict.court.name}`;
           conflicts.push({
-            type: 'maintenance',
-            description: maintenanceConflict.description,
-            start: maintenanceConflict.scheduledAt,
-            end: maintenanceConflict.completedAt
-          });        } else {
-            // Verificar reservas existentes en esta cancha
+            type: 'user_reservation',
+            id: userConflict.id,
+            court: userConflict.court.name,
+            start: userConflict.startTime,
+            end: userConflict.endTime,
+            status: userConflict.status
+          });
+        } else {
+          // 2. SI NO, COMPROBAR MANTENIMIENTO
+          const maintenanceConflict = maintenanceSchedules.find((m: any) => {
+            const maintenanceStart = m.scheduledAt;
+            const maintenanceEnd = m.completedAt || new Date(maintenanceStart.getTime() + 2 * 60 * 60000); // 2h por defecto
+            return slotStart < maintenanceEnd && slotEnd > maintenanceStart;
+          });
+
+          if (maintenanceConflict) {
+            slotStatus = 'MAINTENANCE';
+            slotColor = '#f59e0b';
+            slotMessage = `Mantenimiento: ${maintenanceConflict.type}`;
+            conflicts.push({
+              type: 'maintenance',
+              description: maintenanceConflict.description,
+              start: maintenanceConflict.scheduledAt,
+              end: maintenanceConflict.completedAt
+            });
+          } else {
+            // 3. SI NO, COMPROBAR OTRAS RESERVAS
             const reservationConflict = reservations.find((r: any) => {
               return slotStartCompare < r.endTime && slotEndCompare > r.startTime;
             });
 
             if (reservationConflict) {
-              // 🔍 LOGGING PARA DEBUGGING DE CONFLICTOS
-              console.log(`🔍 [CALENDAR-CONFLICT] Conflicto encontrado:`, {
-                slotTime: slotStart.toISOString(),
-                conflictReservationId: reservationConflict.id,
-                conflictStart: reservationConflict.startTime,
-                conflictEnd: reservationConflict.endTime,
-                conflictStatus: reservationConflict.status
-              });
-
               slotStatus = 'BOOKED';
               slotColor = '#ef4444';
               slotMessage = 'Reservado';
@@ -300,39 +319,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
                 status: reservationConflict.status
               });
             } else {
-              // Verificar si el usuario tiene reserva en otra cancha en el mismo horario
-              const userConflict = userReservations.find((r: any) => {
-                return slotStartCompare < r.endTime && slotEndCompare > r.startTime;
-              });
-
-              if (userConflict) {
-                slotStatus = 'USER_BOOKED';
-                slotColor = '#6366f1'; // Indigo para reservas del usuario
-                slotMessage = `Ya tienes una reserva a esta hora en la cancha ${userConflict.court.name}`;
-                conflicts.push({
-                  type: 'user_reservation',
-                  id: userConflict.id,
-                  court: userConflict.court.name,
-                  start: userConflict.startTime,
-                  end: userConflict.endTime,
-                  status: userConflict.status
-                });
-              } else {
-                // Si la hora ya pasó (en hora de Madrid/España)
-                const nowUtc = new Date(); // comparar en UTC, slotEndCompare ya está en UTC
-                if (slotEndCompare <= nowUtc) {
-                  slotStatus = 'PAST';
-                  slotColor = '#9ca3af'; // Gris para pasado
-                  slotMessage = 'Hora pasada';
-                }
+              // 4. FINALMENTE, VERIFICAR SI LA HORA YA PASÓ
+              const nowUtc = new Date();
+              if (slotEndCompare <= nowUtc) {
+                slotStatus = 'PAST';
+                slotColor = '#9ca3af'; // Gris para pasado
+                slotMessage = 'Hora pasada';
               }
             }
           }
+        }
       }
 
       calendarSlots.push({
-        startTime: formatInTimeZone(slotStartLocal, centerTz, 'HH:mm'),
-        endTime: formatInTimeZone(slotEndLocal,   centerTz, 'HH:mm'),
+        startTime: formatInTimeZone(slotStart, centerTz, 'HH:mm'),
+        endTime: formatInTimeZone(slotEnd,   centerTz, 'HH:mm'),
         status: slotStatus,
         message: slotMessage,
         color: slotColor,
@@ -340,7 +341,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         conflicts,
       });
 
-      currentTime.setMinutes(currentTime.getMinutes() + slotMinutes);
+      currentTime += slotMinutes * 60000; // Incrementar el timestamp
     }
 
     return NextResponse.json({

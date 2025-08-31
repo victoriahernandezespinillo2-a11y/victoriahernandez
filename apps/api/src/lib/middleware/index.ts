@@ -203,18 +203,23 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
           if (token) {
             const userId = (token as any).sub || (token as any).id;
             const email = (token as any).email;
-            const roleFromToken = (token as any).role || (token as any).user?.role;
+            
+            // --- LÓGICA DE BÚSQUEDA ROBUSTA ---
+            // 1. Intentar buscar por ID (el método preferido y más rápido).
             if (userId) {
-              user = await authService.getUserById(userId);
+              user = await db.user.findUnique({ where: { id: userId } });
             }
-            // Fallback: si no hay userId o no existe, usar email del token y auto-provisionar
+            
+            // 2. Si no se encuentra por ID (o el ID no estaba en el token),
+            //    intentar buscar por email como fallback.
             if (!user && email) {
-              user = await authService.ensureUserByEmail(email, (token as any).name, roleFromToken);
+              user = await db.user.findUnique({ where: { email: email } });
             }
+
             if (user) {
               console.log('✅ [AUTH] Usuario autenticado con NextAuth (getToken):', user.email, 'Rol:', user.role);
             } else {
-              console.log('❌ [AUTH] Usuario no encontrado/inactivo para token NextAuth');
+              console.log('❌ [AUTH] No se pudo encontrar al usuario ni por ID ni por Email del token NextAuth');
             }
           } else {
             console.log('❌ [AUTH] No se pudo decodificar token NextAuth con ningún nombre de cookie');

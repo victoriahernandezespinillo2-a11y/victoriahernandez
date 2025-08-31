@@ -419,9 +419,24 @@ export class AuthService {
     try {
       const decoded = jwt.verify(token, this.JWT_SECRET) as any;
       
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId }
-      });
+      const userId = decoded.userId || decoded.id || decoded.sub;
+      const email = decoded.email;
+
+      let user = null;
+
+      // 1. Intentar buscar por ID (método preferido)
+      if (userId) {
+        user = await prisma.user.findUnique({
+          where: { id: userId }
+        });
+      }
+      
+      // 2. Si no se encuentra por ID, intentar buscar por email (fallback)
+      if (!user && email) {
+        user = await prisma.user.findUnique({
+          where: { email: email }
+        });
+      }
 
       if (!user || !user.isActive) {
         return null;
@@ -429,6 +444,7 @@ export class AuthService {
 
       return this.formatUser(user);
     } catch (error) {
+      console.error('❌ [AUTH-SERVICE] Error al validar token JWT:', error);
       return null;
     }
   }

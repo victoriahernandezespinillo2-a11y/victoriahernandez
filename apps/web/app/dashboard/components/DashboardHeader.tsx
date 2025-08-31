@@ -5,6 +5,7 @@ import { signOut } from 'next-auth/react';
 import { Bell, Search, ChevronDown, LogOut, User, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { useUserProfile } from '@/lib/hooks';
+import { useFirebaseAuth } from '@/components/auth/FirebaseAuthProvider'; // Importar hook de Firebase
 
 interface DashboardHeaderProps {
   user: {
@@ -22,6 +23,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { profile, loading, getProfile } = useUserProfile();
+  const { signOutFirebase } = useFirebaseAuth(); // Obtener función signOut de Firebase
 
   // Obtener datos del perfil al cargar el componente
   useEffect(() => {
@@ -29,6 +31,9 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
   }, [getProfile]);
 
   const handleSignOut = async () => {
+    // 1. Cerrar sesión de Firebase para limpiar el estado del cliente.
+    await signOutFirebase();
+    // 2. Cerrar sesión de NextAuth para invalidar la cookie del servidor y redirigir.
     await signOut({ callbackUrl: '/' });
   };
 

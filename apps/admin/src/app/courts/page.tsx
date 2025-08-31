@@ -81,6 +81,11 @@ export default function CourtsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [courtToDelete, setCourtToDelete] = useState<{ id: string; name: string } | null>(null);
 
+  // Estado para el modal de edición
+  const [showEdit, setShowEdit] = useState(false);
+  const [editingCourt, setEditingCourt] = useState<Court | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Court>>({});
+
   const itemsPerPage = 8;
 
   // Modal crear cancha
@@ -181,6 +186,35 @@ export default function CourtsPage() {
   const cancelDeleteCourt = () => {
     setDeleteConfirmOpen(false);
     setCourtToDelete(null);
+  };
+
+  const handleEditCourt = (court: Court) => {
+    setEditingCourt(court);
+    // Poblar el estado del formulario de edición con los datos de la cancha seleccionada
+    setEditForm({
+      name: court.name,
+      hourlyRate: court.hourlyRate,
+      status: court.status,
+      // Se pueden añadir aquí todos los demás campos editables
+    });
+    setShowEdit(true);
+  };
+
+  const handleUpdateCourt = async () => {
+    if (!editingCourt || !editForm) return;
+
+    try {
+      setIsLoading(true);
+      await updateCourt(editingCourt.id, editForm);
+      toast.success(`Cancha "${editForm.name || editingCourt.name}" actualizada exitosamente.`);
+      setShowEdit(false);
+      setEditingCourt(null);
+    } catch (error) {
+      console.error('Error al actualizar la cancha:', error);
+      toast.error('Error al actualizar la cancha. Por favor, inténtalo de nuevo.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const totalRevenue = courts?.reduce((sum, court) => sum + court.hourlyRate, 0) || 0;
@@ -345,6 +379,59 @@ export default function CourtsPage() {
         </div>
       )}
 
+      {/* Modal Editar Cancha (Componente Controlado) */}
+      {showEdit && editingCourt && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-xl">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Editar Cancha: {editingCourt.name}</h3>
+              <button onClick={() => setShowEdit(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Nombre</label>
+                <input
+                  value={editForm.name || ''}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Tarifa por Hora (€)</label>
+                <input
+                  type="number"
+                  value={editForm.hourlyRate || 0}
+                  onChange={(e) => setEditForm({ ...editForm, hourlyRate: Number(e.target.value) })}
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Estado</label>
+                <select
+                  value={editForm.status || ''}
+                  onChange={(e) => setEditForm({ ...editForm, status: e.target.value as Court['status'] })}
+                  className="w-full border rounded px-3 py-2"
+                >
+                  <option value="AVAILABLE">Disponible</option>
+                  <option value="MAINTENANCE">Mantenimiento</option>
+                  <option value="INACTIVE">Inactiva</option>
+                </select>
+              </div>
+            </div>
+            <div className="p-4 border-t flex justify-end gap-2">
+              <button onClick={() => setShowEdit(false)} className="px-4 py-2 border rounded">Cancelar</button>
+              <button
+                onClick={handleUpdateCourt}
+                disabled={isLoading}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+              >
+                {isLoading ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filters and Search */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -437,7 +524,10 @@ export default function CourtsPage() {
                   <button className="text-blue-600 hover:text-blue-900 p-1">
                     <EyeIcon className="h-4 w-4" />
                   </button>
-                  <button className="text-green-600 hover:text-green-900 p-1">
+                  <button 
+                    className="text-green-600 hover:text-green-900 p-1"
+                    onClick={() => handleEditCourt(court)}
+                  >
                     <PencilIcon className="h-4 w-4" />
                   </button>
                   <button 

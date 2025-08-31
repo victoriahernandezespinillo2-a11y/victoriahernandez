@@ -105,6 +105,12 @@ export default function CalendarVisualModal({
       
       try {
         const data = await api.courts.getCalendarStatus(courtId, { date, duration });
+        
+        // --- LOG DE DIAGNÓSTICO FORENSE ---
+        if (data && data.slots && data.slots.length > 0) {
+          console.log('🔴 [FRONTEND-FORENSICS] Primer slot RECIBIDO de la API:', JSON.parse(JSON.stringify(data.slots[0])));
+        }
+        
         setCalendarData(data);
       } catch (err: any) {
         setError(err?.message || 'Error cargando calendario');
@@ -196,7 +202,9 @@ export default function CalendarVisualModal({
     }
   };
 
-  // 🕐 FUNCIÓN PARA FORMATEAR HORA
+  // 🕐 FUNCIÓN PARA FORMATEAR HORA (ELIMINADA)
+  // La API ahora envía el formato HH:mm directamente. No se requiere procesamiento en el cliente.
+  /*
   const formatTime = (timeString: string) => {
     // Si viene ya en formato HH:MM desde la API, devolver tal cual
     if (/^\d{2}:\d{2}$/.test(timeString)) {
@@ -226,6 +234,7 @@ export default function CalendarVisualModal({
     // Último recurso: devolver el string original
     return timeString;
   };
+  */
 
   // 🎯 FUNCIÓN PARA MANEJAR CLICK EN SLOT
   const handleSlotClick = (slot: CalendarSlot) => {
@@ -236,7 +245,8 @@ export default function CalendarVisualModal({
 
   // 🔍 FUNCIÓN PARA MOSTRAR TOOLTIP
   const getTooltipContent = (slot: CalendarSlot) => {
-    let content = `${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}\n${slot.message}`;
+    // Usar directamente los strings de la API
+    let content = `${slot.startTime} - ${slot.endTime}\n${slot.message}`;
     
     if (slot.conflicts.length > 0) {
       content += '\n\nDetalles:';
@@ -446,7 +456,8 @@ export default function CalendarVisualModal({
                </div>
                {selectedSlot && (
                  <p className="text-center text-sm text-gray-600 mt-3">
-                   📅 {formatTime(selectedSlot.startTime)} - {formatTime(selectedSlot.endTime)} • {duration} min
+                   {/* Usar directamente los strings de la API */}
+                   📅 {selectedSlot.startTime} - {selectedSlot.endTime} • {duration} min
                  </p>
                )}
              </div>
@@ -494,7 +505,8 @@ export default function CalendarVisualModal({
                          <div>
                            <p className="font-semibold text-green-800">Horario Seleccionado:</p>
                            <p className="text-green-700">
-                             {formatTime(selectedSlot.startTime)} - {formatTime(selectedSlot.endTime)}
+                             {/* Usar directamente los strings de la API */}
+                             {selectedSlot.startTime} - {selectedSlot.endTime}
                            </p>
                          </div>
                        </div>
@@ -540,11 +552,12 @@ export default function CalendarVisualModal({
                          className={`
                            min-h-[60px] sm:min-h-[50px] touch-manipulation
                            ${slot.available ? 'hover:scale-105 hover:shadow-md active:scale-95' : ''}
-                           ${selectedSlot?.time === slot.time ? 'ring-4 ring-blue-400 ring-opacity-75 scale-105 shadow-xl border-blue-400 animate-pulse' : ''}
+                           ${selectedSlot?.startTime === slot.startTime ? 'ring-4 ring-blue-400 ring-opacity-75 scale-105 shadow-xl border-blue-400 animate-pulse' : ''}
                          `}
                        >
                          <div className="font-medium text-sm sm:text-xs">
-                           {formatTime(slot.startTime)}
+                           {/* Usar directamente el string de la API */}
+                           {slot.startTime}
                          </div>
                          <div className="text-xs opacity-90 block sm:hidden truncate">
                            {slot.message}
@@ -610,7 +623,8 @@ export default function CalendarVisualModal({
                        <div>
                          <p className="text-sm font-medium text-gray-500">Horario</p>
                          <p className="text-lg font-semibold text-gray-900">
-                           {selectedSlot ? `${formatTime(selectedSlot.startTime)} - ${formatTime(selectedSlot.endTime)}` : ''}
+                           {/* Usar directamente los strings de la API */}
+                           {selectedSlot ? `${selectedSlot.startTime} - ${selectedSlot.endTime}` : ''}
                          </p>
                        </div>
                      </div>
