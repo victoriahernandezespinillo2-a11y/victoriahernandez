@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import api, { apiRequest } from '@/lib/api';
+import Link from 'next/link';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -48,6 +49,7 @@ export default function OrdersPage() {
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pago</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total €</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Artículos</th>
+                  <th className="px-4 py-2" />
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -59,6 +61,13 @@ export default function OrdersPage() {
                     <td className="px-4 py-2 text-sm text-gray-700">{Number(o.totalEuro || 0).toFixed(2)}</td>
                     <td className="px-4 py-2 text-sm text-gray-700">
                       {(o.items || []).map((it: any) => `${it.product?.name || 'Producto'} x${it.qty}`).join(', ')}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {o.status === 'PAID' && (
+                        <Link href={`/dashboard/orders/${o.id}/pass`} className="text-blue-600 hover:underline text-sm">
+                          Ver pase de retiro
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 ))}
