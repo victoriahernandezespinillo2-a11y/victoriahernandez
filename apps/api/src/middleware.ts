@@ -13,18 +13,23 @@ const publicRoutes = ['/api/auth/token', '/api/auth/firebase-sync', '/api/health
 
 /**
  * Función auxiliar para crear una respuesta y añadirle siempre las cabeceras CORS.
- * Esto asegura que tanto las respuestas exitosas como las de error sean compatibles con CORS.
  */
 function createCorsResponse(
   req: NextRequest,
   body: any,
   status: number
 ): NextResponse {
+  // Para un status 204, el cuerpo DEBE ser nulo. Para otros, lo convertimos a JSON.
+  const responseBody = status === 204 ? null : JSON.stringify(body);
+  const headers = { 'Content-Type': 'application/json' };
+
+  // Las respuestas 204 no deben llevar Content-Type.
+  if (status === 204) {
+    delete (headers as any)['Content-Type'];
+  }
+
   const origin = req.headers.get('origin');
-  const response = new NextResponse(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  const response = new NextResponse(responseBody, { status, headers });
 
   if (origin && allowedOrigins.includes(origin)) {
     response.headers.set('Access-Control-Allow-Origin', origin);
