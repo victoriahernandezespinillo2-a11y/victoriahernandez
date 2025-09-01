@@ -10,7 +10,11 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .filter(Boolean);
 
 // Rutas públicas que no requieren autenticación JWT
-const publicRoutes = ['/api/auth/token', '/api/health'];
+const publicRoutes = [
+  '/api/auth/token', 
+  '/api/auth/firebase-sync',
+  '/api/health'
+];
 
 /**
  * Middleware global para la API.
