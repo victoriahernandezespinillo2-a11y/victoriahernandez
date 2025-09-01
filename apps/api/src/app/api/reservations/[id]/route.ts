@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@repo/auth';
 import { reservationService } from '../../../../lib/services/reservation.service';
+import { withReservationMiddleware, ApiResponse } from '@/lib/middleware';
+import { db } from '@repo/db';
 import { z } from 'zod';
 
 // Esquema para actualizar reserva (normaliza estados a mayúsculas válidas)
@@ -37,61 +39,38 @@ interface RouteParams {
  * GET /api/reservations/[id]
  * Obtener detalles de una reserva específica
  */
-export async function GET(
-  request: NextRequest
-) {
-  try {
-    console.log('🔍 [GET-RESERVATION] Iniciando búsqueda de reserva');
-    
-    const session = await auth();
-    if (!session?.user?.id) {
-      console.log('❌ [GET-RESERVATION] Usuario no autenticado');
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 401 }
-      );
-    }
+export async function GET(request: NextRequest) {
+  return withReservationMiddleware(async (req: NextRequest) => {
+    try {
+      const reservationId = req.nextUrl.pathname.split('/').pop() as string;
+      if (!reservationId) {
+        return ApiResponse.badRequest('ID de reserva requerido');
+      }
 
-    const pathname = request.nextUrl.pathname;
-    const reservationId = pathname.split('/').pop() as string;
-    
-    console.log('🔍 [GET-RESERVATION] Buscando reserva:', reservationId, 'para usuario:', session.user.id);
-    
-    if (!reservationId) {
-      console.log('❌ [GET-RESERVATION] ID de reserva requerido');
-      return NextResponse.json(
-        { error: 'ID de reserva requerido' },
-        { status: 400 }
-      );
-    }
+      const user = (req as any).user;
+      if (!user?.id) {
+        return ApiResponse.unauthorized('No autorizado');
+      }
 
-    // Obtener reservas del usuario para verificar permisos
-    console.log('🔍 [GET-RESERVATION] Obteniendo reservas del usuario...');
-    const userReservations = await reservationService.getReservationsByUser(
-      session.user.id
-    );
-    
-    console.log('🔍 [GET-RESERVATION] Reservas del usuario encontradas:', userReservations.length);
-    
-    const reservation = userReservations.find(r => r.id === reservationId);
-    
-    if (!reservation) {
-      console.log('❌ [GET-RESERVATION] Reserva no encontrada para el usuario');
-      return NextResponse.json(
-        { error: 'Reserva no encontrada' },
-        { status: 404 }
-      );
+      const reservation = await db.reservation.findUnique({
+        where: { id: reservationId },
+        include: { user: true, court: { include: { center: true } } },
+      });
+
+      if (!reservation) {
+        return ApiResponse.notFound('Reserva');
+      }
+
+      if (user.role === 'USER' && reservation.userId !== user.id) {
+        return ApiResponse.forbidden('Solo puedes ver tus propias reservas');
+      }
+
+      return ApiResponse.success(reservation);
+    } catch (error) {
+      console.error('🚨 [GET-RESERVATION] Error obteniendo reserva:', error);
+      return ApiResponse.internalError('Error interno del servidor');
     }
-    
-    console.log('✅ [GET-RESERVATION] Reserva encontrada exitosamente:', reservation.id);
-    return NextResponse.json({ reservation });
-  } catch (error) {
-    console.error('🚨 [GET-RESERVATION] Error obteniendo reserva:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
+  })(request);
 }
 
 /**
