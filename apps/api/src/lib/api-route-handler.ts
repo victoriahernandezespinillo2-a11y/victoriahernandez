@@ -1,10 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Lista de orígenes permitidos obtenidos de env-var
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+// Lista de orígenes permitidos: usar env si existe; si no, fallback sensato
+const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
   .map(o => o.trim())
   .filter(Boolean);
+
+const defaultProdOrigins = [
+  'https://polideportivo.com',
+  'https://admin.polideportivo.com',
+  'https://victoriahernandezweb.vercel.app',
+  'https://polideportivo-api.vercel.app',
+  'https://polideportivo-web.vercel.app',
+  'https://polideportivo-admin.vercel.app',
+  process.env.NEXT_PUBLIC_APP_URL || '',
+  process.env.FRONTEND_URL || '',
+].filter(Boolean);
+
+const defaultDevOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://localhost:3003',
+];
+
+const allowedOrigins = envAllowedOrigins.length > 0
+  ? envAllowedOrigins
+  : (process.env.NODE_ENV === 'production' ? defaultProdOrigins : defaultDevOrigins);
 
 // Función reutilizable para añadir headers CORS
 function addCorsHeaders(response: NextResponse, origin?: string | null): NextResponse {

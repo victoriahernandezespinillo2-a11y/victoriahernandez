@@ -4,10 +4,33 @@ import * as jwt from 'jsonwebtoken';
 // ----------- CONFIGURACIÓN CENTRAL ------------
 const JWT_SECRET = process.env.JWT_SECRET;
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+// Orígenes permitidos: usar env si existe; si no, fallback sensato según entorno
+const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
+
+const defaultProdOrigins = [
+  'https://polideportivo.com',
+  'https://admin.polideportivo.com',
+  'https://victoriahernandezweb.vercel.app',
+  'https://polideportivo-api.vercel.app',
+  'https://polideportivo-web.vercel.app',
+  'https://polideportivo-admin.vercel.app',
+  process.env.NEXT_PUBLIC_APP_URL || '',
+  process.env.FRONTEND_URL || '',
+].filter(Boolean);
+
+const defaultDevOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://localhost:3003',
+];
+
+const allowedOrigins = envAllowedOrigins.length > 0
+  ? envAllowedOrigins
+  : (process.env.NODE_ENV === 'production' ? defaultProdOrigins : defaultDevOrigins);
 
 const publicRoutes = ['/api/auth/token', '/api/auth/firebase-sync', '/api/health'];
 
