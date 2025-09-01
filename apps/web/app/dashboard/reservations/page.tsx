@@ -15,6 +15,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
+import { getFirebaseIdTokenSafe } from '@/lib/api';
 import { useReservations } from '@/lib/hooks';
 
 interface Reservation {
@@ -71,6 +72,50 @@ export default function ReservationsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
+  const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://polideportivo-api.vercel.app').replace(/\/$/, '');
+
+  const openReservationPdf = async (id: string, kind: 'receipt' | 'pass') => {
+    try {
+      const jwtToken = await (async () => {
+        // Reutilizar la obtención de JWT propio desde api.ts
+        const { default: apiModule } = await import('@/lib/api');
+        // apiModule expone funciones; tomamos el helper interno a través de import dinámico
+        const token = await (apiModule as any).getFirebaseIdTokenSafe?.();
+        // Si tenemos ID token, pedimos nuestro JWT
+        let jwt = null;
+        try {
+          const res = await fetch(`${API_BASE}/api/auth/token`, {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (res.ok) {
+            const data = await res.json();
+            jwt = data?.token || null;
+          }
+        } catch {}
+        return jwt;
+      })();
+
+      const headers: Record<string, string> = {};
+      if (jwtToken) headers['Authorization'] = `Bearer ${jwtToken}`;
+
+      const response = await fetch(`${API_BASE}/api/reservations/${id}/${kind}`, {
+        method: 'GET',
+        headers,
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `HTTP ${response.status}`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e: any) {
+      alert(e?.message || 'No se pudo abrir el documento');
+    }
+  };
 
   // Filtrar reservas
   const applyFilters = () => {
@@ -381,35 +426,30 @@ export default function ReservationsPage() {
                         Ver
                       </button>
                       
-                      {/* Descargar Pase QR - disponible para reservas confirmadas */}
                       {(reservation.status === 'confirmed' || reservation.paymentStatus === 'paid') && (
-                         <a
-                           href={`/api/reservations/${reservation.id}/pass`}
-                           target="_blank"
-                           rel="noreferrer"
-                           className="inline-flex items-center px-3 py-1.5 border border-emerald-300 rounded-md text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors"
-                           title="Descargar pase de acceso con código QR"
-                         >
-                           <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 16h4.01M4 8h4m0 0V4m0 4L4 8l4 4m6-4h2.01M8 16H4.01" />
-                           </svg>
-                           Pase QR
-                         </a>
-                       )}
+                        <button
+                          onClick={() => openReservationPdf(reservation.id, 'pass')}
+                          className="inline-flex items-center px-3 py-1.5 border border-emerald-300 rounded-md text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors"
+                          title="Descargar pase de acceso con código QR"
+                        >
+                          <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 16h4.01M4 8h4m0 0V4m0 4L4 8l4 4m6-4h2.01M8 16H4.01" />
+                          </svg>
+                          Pase QR
+                        </button>
+                      )}
                       
                       {/* Descargar recibo si está pagado */}
                       {reservation.paymentStatus === 'paid' && (
-                        <a
-                          href={`/api/reservations/${reservation.id}/receipt`}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          onClick={() => openReservationPdf(reservation.id, 'receipt')}
                           className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
                           <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
                           Recibo
-                        </a>
+                        </button>
                       )}
                       
                       {(reservation.status === 'confirmed' || reservation.status === 'pending') && (
