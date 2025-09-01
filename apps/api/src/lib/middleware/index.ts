@@ -469,7 +469,7 @@ export const withCors = (handler: ApiHandler): ApiHandler => {
         pre.headers.set('Access-Control-Allow-Origin', origin);
       }
       pre.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      pre.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      pre.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key');
       pre.headers.set('Access-Control-Allow-Credentials', 'true');
       return pre;
     }
@@ -505,7 +505,7 @@ export const withCors = (handler: ApiHandler): ApiHandler => {
       response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     }
     if (!response.headers.has('Access-Control-Allow-Headers')) {
-      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key');
     }
     if (!response.headers.has('Access-Control-Allow-Credentials')) {
       response.headers.set('Access-Control-Allow-Credentials', 'true');

@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { useUserProfile } from '@/lib/hooks';
 import { 
   CreditCard, 
   Wallet, 
@@ -24,14 +25,15 @@ import {
 } from 'lucide-react';
 
 export default function WalletPage() {
-  const { data: session } = useSession();
+  const router = useRouter();
+  const { profile, loading: profileLoading, getProfile } = useUserProfile();
   const [loading, setLoading] = useState(false);
   const [ledger, setLedger] = useState<{ items: any[]; pagination: any } | null>(null);
   const [creditsToTopup, setCreditsToTopup] = useState<number>(50);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [showErrorMessage, setShowErrorMessage] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState('');
-  const userCredits = useMemo(() => (session?.user as any)?.creditsBalance ?? 0, [session]);
+  const userCredits = useMemo(() => Number(profile?.creditsBalance ?? 0), [profile]);
 
   const loadLedger = async () => {
     try {
@@ -43,38 +45,40 @@ export default function WalletPage() {
   };
 
   useEffect(() => {
+    // Cargar saldo actual y ledger
+    getProfile().catch(() => {});
     loadLedger();
-    
+
     // Verificar parámetros de URL para mostrar mensajes de pago
     const urlParams = new URLSearchParams(window.location.search);
     const payment = urlParams.get('payment');
     const orderId = urlParams.get('orderId');
-    
+
     if (payment === 'success') {
       setShowSuccessMessage(true);
       setPaymentMessage('¡Recarga completada con éxito! Tus créditos han sido añadidos a tu monedero.');
-      
-      // Recargar la sesión para obtener el balance actualizado
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
-      
-      // Limpiar la URL
-      window.history.replaceState({}, '', '/dashboard/wallet');
+
+      // Refrescar perfil para reflejar el nuevo saldo (sin recargar toda la página)
+      getProfile()
+        .then(() => loadLedger())
+        .catch(() => {});
+
+      // Limpiar la query en la URL manteniendo la ruta
+      router.replace('/dashboard/wallet');
     } else if (payment === 'cancel') {
       setShowErrorMessage(true);
       setPaymentMessage('Recarga cancelada. No se realizó ningún cargo.');
-      
-      // Limpiar la URL
-      window.history.replaceState({}, '', '/dashboard/wallet');
+
+      router.replace('/dashboard/wallet');
     }
-    
+
     // Ocultar mensajes después de 5 segundos
-    setTimeout(() => {
+    const t = setTimeout(() => {
       setShowSuccessMessage(false);
       setShowErrorMessage(false);
     }, 5000);
-  }, []);
+    return () => clearTimeout(t);
+  }, [getProfile, router]);
 
   const handleTopup = async () => {
     try {
@@ -145,7 +149,7 @@ export default function WalletPage() {
                <CheckCircle className="h-4 w-4" />
              </div>
           </div>
-          <div className="text-3xl sm:text-4xl font-bold mb-2">{userCredits}</div>
+          <div className="text-3xl sm:text-4xl font-bold mb-2">{profileLoading ? '…' : userCredits}</div>
           <div className="text-sm opacity-90">créditos disponibles</div>
         </div>
 

@@ -2,22 +2,24 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import api from '@/lib/api';
+import { useUserProfile } from '@/lib/hooks';
 
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
+  const { profile, loading: profileLoading, getProfile } = useUserProfile();
   const [product, setProduct] = useState<any | null>(null);
   const [qty, setQty] = useState<number>(1);
   const [loading, setLoading] = useState(false);
 
-  const userCredits = useMemo(() => (session?.user as any)?.creditsBalance ?? 0, [session]);
+  const userCredits = useMemo(() => Number(profile?.creditsBalance ?? 0), [profile]);
 
   useEffect(() => {
     (async () => {
       try {
+        // Asegurar que el perfil esté cargado para mostrar saldo correcto
+        getProfile().catch(() => {});
         const id = (params?.id as string) || '';
         const res = await api.shop.detail(id);
         setProduct(res);
@@ -25,7 +27,7 @@ export default function ProductDetailPage() {
         setProduct(null);
       }
     })();
-  }, [params?.id]);
+  }, [params?.id, getProfile]);
 
   const handleBuyWithCredits = async () => {
     if (!product) return;
@@ -109,7 +111,7 @@ export default function ProductDetailPage() {
             </button>
           </div>
 
-          <div className="text-xs text-gray-500">Saldo actual: {userCredits} créditos</div>
+          <div className="text-xs text-gray-500">Saldo actual: {profileLoading ? '…' : userCredits} créditos</div>
         </div>
       </div>
     </div>

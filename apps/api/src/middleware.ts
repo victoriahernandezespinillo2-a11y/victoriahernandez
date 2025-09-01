@@ -59,7 +59,7 @@ function createCorsResponse(
   }
   
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key');
   response.headers.set('Access-Control-Allow-Credentials', 'true');
   
   return response;
@@ -98,7 +98,7 @@ export async function middleware(req: NextRequest) {
     passResponse.headers.set('Access-Control-Allow-Origin', origin);
   }
   passResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  passResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  passResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key');
   passResponse.headers.set('Access-Control-Allow-Credentials', 'true');
 
   // Si no hay Authorization o no hay secreto, dejar que las rutas manejen la auth (Node runtime)
@@ -123,7 +123,7 @@ export async function middleware(req: NextRequest) {
       response.headers.set('Access-Control-Allow-Origin', origin);
     }
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key');
     response.headers.set('Access-Control-Allow-Credentials', 'true');
     return response;
 
