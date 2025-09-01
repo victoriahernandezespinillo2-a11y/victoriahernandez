@@ -76,25 +76,20 @@ export default function ReservationsPage() {
 
   const openReservationPdf = async (id: string, kind: 'receipt' | 'pass') => {
     try {
-      const jwtToken = await (async () => {
-        // Reutilizar la obtención de JWT propio desde api.ts
-        const { default: apiModule } = await import('@/lib/api');
-        // apiModule expone funciones; tomamos el helper interno a través de import dinámico
-        const token = await (apiModule as any).getFirebaseIdTokenSafe?.();
-        // Si tenemos ID token, pedimos nuestro JWT
-        let jwt = null;
-        try {
-          const res = await fetch(`${API_BASE}/api/auth/token`, {
-            method: 'POST',
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
-          if (res.ok) {
-            const data = await res.json();
-            jwt = data?.token || null;
-          }
-        } catch {}
-        return jwt;
-      })();
+      // 1) Obtener Firebase ID Token
+      const idToken = await getFirebaseIdTokenSafe();
+      let jwtToken: string | null = null;
+      if (idToken) {
+        // 2) Intercambiar por nuestro JWT
+        const res = await fetch(`${API_BASE}/api/auth/token`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          jwtToken = data?.token || null;
+        }
+      }
 
       const headers: Record<string, string> = {};
       if (jwtToken) headers['Authorization'] = `Bearer ${jwtToken}`;
