@@ -29,14 +29,10 @@ export const UpdateMembershipSchema = z.object({
 export const GetMembershipsSchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
-  userId: z
-    .union([
-      z.string().uuid(),          // UUID válido
-      z.literal(''),              // Cadena vacía (sin filtro)
-      z.undefined(),              // no enviado
-    ])
-    .transform((val) => (val ? val : undefined))
-    .optional(),
+  // El ID de usuario se obtiene normalmente del JWT; el parámetro sólo es
+  // útil para roles STAFF/ADMIN.  Por robustez lo hacemos opcional y sólo se
+  // valida si se envía.
+  userId: z.string().uuid('ID de usuario inválido').optional(),
   // centerId no existe en el modelo Membership; se ignora si llega
   centerId: z.string().uuid().optional(),
   type: z.enum(['BASIC', 'PREMIUM', 'VIP']).optional(),
