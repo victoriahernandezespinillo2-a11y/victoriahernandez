@@ -82,7 +82,8 @@ export async function GET(request: NextRequest) {
   // Importación dinámica de PDFDocument (Node.js runtime)
   const { createRequire } = await import('module');
   const require = createRequire(import.meta.url);
-  const PDFDocument = require('pdfkit');
+  const PDFKitImport = require('pdfkit');
+  const PDFDocument = (PDFKitImport as any)?.default || PDFKitImport;
 
   const doc = new PDFDocument({ margin: 50 });
   const chunks: any[] = [];

@@ -140,7 +140,8 @@ export async function GET(request: NextRequest) {
   // 9) Importación dinámica de PDFDocument
   const { createRequire } = await import('module');
   const require = createRequire(import.meta.url);
-  const PDFDocument = require('pdfkit');
+  const PDFKitImport = require('pdfkit');
+  const PDFDocument = (PDFKitImport as any)?.default || PDFKitImport;
 
   // 10) Crear documento PDF con pdfkit
   const doc = new PDFDocument({ 
