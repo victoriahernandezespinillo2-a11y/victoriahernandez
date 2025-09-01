@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server';
 import { ApiResponse } from '@/lib/middleware';
 import { paymentService } from '@repo/payments';
 import { db } from '@repo/db';
+import { NotificationService } from '@/lib/services/notification.service';
 
 // Forzar runtime Node.js para poder leer cuerpo/form-data correctamente
 export const runtime = 'nodejs';
@@ -121,8 +122,65 @@ export async function POST(request: NextRequest) {
         if (merchantData?.type === 'reservation' && merchantData?.reservationId) {
           if (result.success) {
             try {
+              // 1) Marcar como pagada (idempotente)
               await db.reservation.update({ where: { id: merchantData.reservationId }, data: { status: 'PAID' } });
               await db.outboxEvent.create({ data: { eventType: 'RESERVATION_PAID', eventData: { reservationId: merchantData.reservationId, provider: 'REDSYS' } as any } });
+
+              // 2) Enviar email con links a recibo y pase (idempotente por outbox)
+              const alreadySent = await db.outboxEvent.findFirst({
+                where: {
+                  eventType: 'RESERVATION_EMAIL_SENT',
+                  eventData: { path: ['reservationId'], equals: merchantData.reservationId } as any,
+                } as any,
+              });
+
+              if (!alreadySent) {
+                const reservation = await db.reservation.findUnique({
+                  where: { id: merchantData.reservationId },
+                  include: { user: true, court: { include: { center: true } } },
+                });
+
+                if (reservation?.user?.email) {
+                  const jwt = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
+                  const jwtSecret = process.env.JWT_SECRET || '';
+                  const expiresIn = Math.max(1, Number(process.env.RECEIPT_LINK_TTL_MIN || '120')); // 120 min por defecto
+                  const expSeconds = Math.floor(Date.now() / 1000) + expiresIn * 60;
+
+                  const receiptToken = jwt.sign({ type: 'receipt-access', userId: reservation.userId, exp: expSeconds }, jwtSecret);
+                  const passToken = jwt.sign({ type: 'pass-access', userId: reservation.userId, exp: expSeconds }, jwtSecret);
+
+                  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002').replace(/\/$/, '');
+                  const receiptUrl = `${apiUrl}/api/reservations/${reservation.id}/receipt?token=${encodeURIComponent(receiptToken)}`;
+                  const passUrl = `${apiUrl}/api/reservations/${reservation.id}/pass?token=${encodeURIComponent(passToken)}`;
+
+                  const centerName = reservation.court?.center?.name || 'Polideportivo';
+                  const start = reservation.startTime.toLocaleString('es-ES');
+                  const courtName = reservation.court?.name || '';
+
+                  const notifier = new NotificationService();
+                  await notifier.sendEmail({
+                    to: reservation.user.email,
+                    subject: `Confirmación de pago - Reserva ${courtName}`,
+                    html: `
+                      <h2>Pago confirmado</h2>
+                      <p>Tu reserva en <strong>${centerName}</strong> ha sido confirmada.</p>
+                      <p><strong>Cancha:</strong> ${courtName}<br/>
+                      <strong>Fecha y hora:</strong> ${start}</p>
+                      <p>
+                        <a href="${receiptUrl}">Descargar recibo (PDF)</a><br/>
+                        <a href="${passUrl}">Descargar pase con QR (PDF)</a>
+                      </p>
+                    `.trim(),
+                  });
+
+                  await db.outboxEvent.create({
+                    data: {
+                      eventType: 'RESERVATION_EMAIL_SENT',
+                      eventData: { reservationId: reservation.id, provider: 'REDSYS' } as any,
+                    },
+                  });
+                }
+              }
             } catch (e) {
               // idempotencia: si ya está marcado, ignorar
             }

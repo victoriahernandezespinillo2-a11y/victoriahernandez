@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
 
     // 🔍 DEBUG: Verificar variables de entorno Redsys
-    const isTestMode = process.env.NODE_ENV !== 'production';
+    const testFlag = String(process.env.REDSYS_TEST_MODE || '').trim().toLowerCase();
+    const forceFlag = String(searchParams.get('sandbox') || searchParams.get('test') || '').trim().toLowerCase();
+    const isTestMode = ['true', '1', 'yes', 'on'].includes(forceFlag) || ['true', '1', 'yes', 'on'].includes(testFlag) || process.env.NODE_ENV !== 'production';
     const configuredMerchantCode = process.env.REDSYS_MERCHANT_CODE || process.env.NEXT_PUBLIC_REDSYS_MERCHANT_CODE;
     
     // Configuración robusta con fallback a merchant genérico para test

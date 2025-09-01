@@ -66,7 +66,8 @@ export class RedsysService {
   private testMode: boolean;
 
   constructor() {
-    this.testMode = process.env.NODE_ENV !== 'production';
+    const testFlag = String(process.env.REDSYS_TEST_MODE || '').trim().toLowerCase();
+    this.testMode = ['true', '1', 'yes', 'on'].includes(testFlag) || process.env.NODE_ENV !== 'production';
     
     // Configuración robusta con fallback a valores genéricos de test
     const testKey = process.env.REDSYS_TEST_MERCHANT_KEY;

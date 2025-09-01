@@ -26,7 +26,8 @@
         "REDSYS_TERMINAL",
         "REDSYS_CURRENCY",
         "REDSYS_TEST_MERCHANT_KEY",
-        "REDSYS_MERCHANT_KEY"
+        "REDSYS_MERCHANT_KEY",
+        "REDSYS_TEST_MODE"
       ]
     },
     "lint": {
