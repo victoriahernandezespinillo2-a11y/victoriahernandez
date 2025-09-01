@@ -138,10 +138,17 @@ export async function GET(request: NextRequest) {
   const code = reservation.id.slice(0, 10).toUpperCase();
 
   // 9) Importación dinámica de PDFDocument
-  const { createRequire } = await import('module');
-  const require = createRequire(import.meta.url);
-  const PDFKitImport = require('pdfkit');
-  const PDFDocument = (PDFKitImport as any)?.default || PDFKitImport;
+  // Importación robusta de pdfkit (ESM/CJS)
+  let PDFDocument: any;
+  try {
+    const mod = await import('pdfkit');
+    PDFDocument = (mod as any)?.default || (mod as any);
+  } catch {
+    const { createRequire } = await import('module');
+    const require = createRequire(import.meta.url);
+    const PDFKitImport = require('pdfkit');
+    PDFDocument = (PDFKitImport as any)?.default || PDFKitImport;
+  }
 
   // 10) Crear documento PDF con pdfkit
   const doc = new PDFDocument({ 

@@ -80,10 +80,17 @@ export async function GET(request: NextRequest) {
   }
 
   // Importación dinámica de PDFDocument (Node.js runtime)
-  const { createRequire } = await import('module');
-  const require = createRequire(import.meta.url);
-  const PDFKitImport = require('pdfkit');
-  const PDFDocument = (PDFKitImport as any)?.default || PDFKitImport;
+  // Importación robusta de pdfkit (ESM/CJS)
+  let PDFDocument: any;
+  try {
+    const mod = await import('pdfkit');
+    PDFDocument = (mod as any)?.default || (mod as any);
+  } catch {
+    const { createRequire } = await import('module');
+    const require = createRequire(import.meta.url);
+    const PDFKitImport = require('pdfkit');
+    PDFDocument = (PDFKitImport as any)?.default || PDFKitImport;
+  }
 
   const doc = new PDFDocument({ margin: 50 });
   const chunks: any[] = [];
