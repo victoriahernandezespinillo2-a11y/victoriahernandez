@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo detalles del centro:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 /**
@@ -211,7 +211,7 @@ export async function PUT(request: NextRequest) {
       console.error('Error actualizando centro:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 /**
@@ -276,7 +276,7 @@ export async function DELETE(request: NextRequest) {
       console.error('Error eliminando centro:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 /**

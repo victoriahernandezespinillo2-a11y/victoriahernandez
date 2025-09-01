@@ -17,7 +17,7 @@ const tournamentService = new TournamentService();
 export async function POST(
   request: NextRequest
 ) {
-  return withAdminMiddleware(async (req, context: any) => {
+  return withAdminMiddleware(async (req) => {
     try {
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').slice(-2, -1)[0] as string;

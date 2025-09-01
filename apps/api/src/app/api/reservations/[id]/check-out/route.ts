@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     } catch (e) {
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 export async function OPTIONS() { return ApiResponse.success(null); }

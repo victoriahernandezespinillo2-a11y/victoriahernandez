@@ -162,5 +162,5 @@ export async function GET(request: NextRequest) {
       });
       return res;
     }
-  })(request, {} as any);
+  })(request);
 }

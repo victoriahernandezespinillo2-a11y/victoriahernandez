@@ -18,9 +18,9 @@ const maintenanceService = new MaintenanceService();
 export async function POST(
   request: NextRequest
 ) {
-  return withStaffMiddleware(async (req, context) => {
+  return withStaffMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').slice(-2, -1)[0] as string;
       

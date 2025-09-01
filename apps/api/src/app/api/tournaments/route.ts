@@ -1,5 +1,5 @@
-/**
- * API Routes para gestión de torneos
+﻿/**
+ * API Routes para gestiÃ³n de torneos
  * GET /api/tournaments - Obtener lista de torneos
  * POST /api/tournaments - Crear nuevo torneo
  */
@@ -22,20 +22,20 @@ export async function OPTIONS() {
 /**
  * GET /api/tournaments
  * Obtener lista de torneos
- * Acceso: Público (solo torneos públicos) / STAFF+ (todos)
+ * Acceso: PÃºblico (solo torneos pÃºblicos) / STAFF+ (todos)
  */
 export async function GET(request: NextRequest) {
-  return withPublicMiddleware(async (req, context: any) => {
+  return withPublicMiddleware(async (req) => {
     try {
       const { searchParams } = new URL(req.url);
       const rawParams = Object.fromEntries(searchParams.entries());
       
-      // Si no hay usuario autenticado, solo mostrar torneos públicos
-      if (!(context as any)?.user) {
+      // Si no hay usuario autenticado, solo mostrar torneos pÃºblicos
+      if (!(req as any).user) {
         rawParams.isPublic = 'true';
       }
       
-      // Validar y convertir parámetros usando el schema
+      // Validar y convertir parÃ¡metros usando el schema
       const params = GetTournamentsSchema.parse(rawParams);
       
       const result = await tournamentService.getTournaments(params);
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
  * Acceso: ADMIN
  */
 export async function POST(request: NextRequest) {
-  return withAdminMiddleware(async (req, context: any) => {
+  return withAdminMiddleware(async (req) => {
     try {
       const body = await req.json();
       

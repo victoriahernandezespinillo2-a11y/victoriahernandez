@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
       console.error('Error admin reservations:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 export async function OPTIONS() {
@@ -344,7 +344,7 @@ export async function POST(request: NextRequest) {
       console.error('Error creando reserva manual:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 

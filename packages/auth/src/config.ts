@@ -61,8 +61,13 @@ export const authConfig: NextAuthConfig = {
       // Al iniciar sesión (cuando 'user' está disponible), persistimos el ID y el rol en el token.
       // Este token cifrado (JWE) se almacena en una cookie HttpOnly.
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
+        // Asegurarse de que el id del usuario existe y es un string antes de asignarlo
+        if (typeof user.id === 'string') {
+          token.id = user.id;
+        }
+        if (typeof user.role === 'string') {
+          token.role = user.role;
+        }
       }
       return token;
     },

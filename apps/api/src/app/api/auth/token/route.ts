@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withPublicMiddleware } from '../../../../lib/middleware';
 import * as jwt from 'jsonwebtoken';
 import { db } from '@repo/db';
 
@@ -27,7 +26,6 @@ const ensureFirebaseAdmin = async () => {
         process.env.FIREBASE_CLIENT_EMAIL &&
         process.env.FIREBASE_PRIVATE_KEY
       ) {
-        // Credenciales divididas en variables individuales
         const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
         initializeApp({
           credential: cert({
@@ -38,7 +36,6 @@ const ensureFirebaseAdmin = async () => {
           projectId: process.env.FIREBASE_PROJECT_ID,
         });
       } else {
-        // Fallback que mostrará error al verificar tokens
         initializeApp({
           projectId: process.env.FIREBASE_PROJECT_ID,
         });
@@ -56,52 +53,59 @@ const ensureFirebaseAdmin = async () => {
   return firebaseAdmin;
 };
 
-export const POST = withPublicMiddleware(async (req: NextRequest) => {
+// Helper para añadir headers CORS
+function addCorsHeaders(response: NextResponse, origin?: string | null): NextResponse {
+  // Lista de orígenes permitidos
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001', 
+    'http://localhost:3002',
+    'https://polideportivo-web.vercel.app',
+    'https://polideportivo-admin.vercel.app'
+  ];
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    response.headers.set('Access-Control-Allow-Origin', origin);
+  }
+  
+  response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  response.headers.set('Access-Control-Allow-Credentials', 'true');
+  
+  return response;
+}
+
+export async function POST(req: NextRequest) {
+  const origin = req.headers.get('origin');
+  
   try {
-    // Obtener el Firebase ID Token del header Authorization
     const authHeader = req.headers.get('authorization');
-    console.log('🔐 [AUTH-TOKEN] Authorization header:', authHeader ? 'presente' : 'ausente');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { error: 'No autorizado - Token de Firebase requerido' },
+      const response = NextResponse.json(
+        { error: 'No autorizado - Token de Firebase requerido' }, 
         { status: 401 }
       );
+      return addCorsHeaders(response, origin);
     }
 
     const firebaseIdToken = authHeader.replace('Bearer ', '');
-    console.log('🔐 [AUTH-TOKEN] Firebase token length:', firebaseIdToken.length);
-    
-    // Verificar el token de Firebase
     await ensureFirebaseAdmin();
     const decoded = await firebaseAdmin.verifyIdToken(firebaseIdToken, true);
-    console.log('✅ [AUTH-TOKEN] Decoded token UID:', decoded?.uid, 'Email:', decoded?.email);
     
     if (!decoded.email || !decoded.uid) {
-      return NextResponse.json(
-        { error: 'No autorizado - Token de Firebase inválido' },
+      const response = NextResponse.json(
+        { error: 'No autorizado - Token de Firebase inválido' }, 
         { status: 401 }
       );
+      return addCorsHeaders(response, origin);
     }
 
-    // Buscar o crear usuario en la base de datos
-    let user = await db.user.findFirst({
-      where: { firebaseUid: decoded.uid }
-    });
-
+    let user = await db.user.findFirst({ where: { firebaseUid: decoded.uid } });
     if (!user) {
-      // Buscar por email como fallback
-      user = await db.user.findUnique({
-        where: { email: decoded.email }
-      });
-      
+      user = await db.user.findUnique({ where: { email: decoded.email } });
       if (user) {
-        // Actualizar el firebaseUid si no lo tenía
-        await db.user.update({
-          where: { id: user.id },
-          data: { firebaseUid: decoded.uid }
-        });
+        await db.user.update({ where: { id: user.id }, data: { firebaseUid: decoded.uid } });
       } else {
-        // Crear nuevo usuario
         user = await db.user.create({
           data: {
             email: decoded.email,
@@ -117,24 +121,25 @@ export const POST = withPublicMiddleware(async (req: NextRequest) => {
     }
 
     if (!user.isActive) {
-      return NextResponse.json(
-        { error: 'No autorizado - Usuario inactivo' },
+      const response = NextResponse.json(
+        { error: 'No autorizado - Usuario inactivo' }, 
         { status: 401 }
       );
+      return addCorsHeaders(response, origin);
     }
 
-    // Generar JWT para comunicación cross-domain
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
       console.error('JWT_SECRET no está configurado');
-      return NextResponse.json(
-        { error: 'Error de configuración del servidor' },
+      const response = NextResponse.json(
+        { error: 'Error de configuración del servidor' }, 
         { status: 500 }
       );
+      return addCorsHeaders(response, origin);
     }
 
     const payload = {
-      id: user.id, // Cambiado de userId a id para consistencia con el middleware
+      id: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
@@ -144,40 +149,41 @@ export const POST = withPublicMiddleware(async (req: NextRequest) => {
     };
 
     const jwtToken = jwt.sign(payload, jwtSecret, { algorithm: 'HS256' });
-
     console.log('✅ [AUTH-TOKEN] JWT generado exitosamente para:', user.email);
     
-    return NextResponse.json({ 
+    const response = NextResponse.json({ 
       token: jwtToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role
-      }
+      user: { id: user.id, email: user.email, name: user.name, role: user.role }
     });
+    return addCorsHeaders(response, origin);
+
   } catch (error: any) {
     console.error('❌ [AUTH-TOKEN] Error generando JWT:', error);
     
+    let errorResponse;
     if (error?.code === 'auth/id-token-expired') {
-      return NextResponse.json(
-        { error: 'No autorizado - Token de Firebase expirado' },
+      errorResponse = NextResponse.json(
+        { error: 'No autorizado - Token de Firebase expirado' }, 
         { status: 401 }
+      );
+    } else if (error?.code === 'auth/id-token-revoked') {
+      errorResponse = NextResponse.json(
+        { error: 'No autorizado - Token de Firebase revocado' }, 
+        { status: 401 }
+      );
+    } else {
+      errorResponse = NextResponse.json(
+        { error: 'Error interno del servidor', message: error?.message, code: error?.code }, 
+        { status: 500 }
       );
     }
     
-    if (error?.code === 'auth/id-token-revoked') {
-      return NextResponse.json(
-        { error: 'No autorizado - Token de Firebase revocado' },
-        { status: 401 }
-      );
-    }
-    
-    return NextResponse.json(
-      { error: 'Error interno del servidor', message: (error as any)?.message, code: (error as any)?.code },
-      { status: 500 }
-    );
+    return addCorsHeaders(errorResponse, origin);
   }
-});
+}
 
-export const OPTIONS = withPublicMiddleware(() => new NextResponse(null, { status: 204 }));
+export async function OPTIONS(req: NextRequest) {
+  const origin = req.headers.get('origin');
+  const response = new NextResponse(null, { status: 204 });
+  return addCorsHeaders(response, origin);
+}

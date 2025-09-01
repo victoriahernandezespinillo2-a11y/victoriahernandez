@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       console.error('Error availability:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 export async function OPTIONS() { return ApiResponse.success(null); }

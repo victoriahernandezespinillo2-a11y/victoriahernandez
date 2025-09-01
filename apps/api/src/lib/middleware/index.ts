@@ -1,17 +1,48 @@
-/**
+﻿/**
  * Middleware centralizado para la API
- * Maneja autenticación, autorización, rate limiting y validación
+ * Maneja autenticaciÃ³n, autorizaciÃ³n, rate limiting y validaciÃ³n
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { AppError, formatErrorResponse, ValidationAppError } from '../errors';
 import { AuthService } from '../services/auth.service';
-
-const authService = new AuthService();
 import { RouteUtils, RATE_LIMITS } from '../routes';
 import { z } from 'zod';
 import { getToken } from 'next-auth/jwt';
 import { db } from '@repo/db';
+
+// Crear instancia de AuthService
+const authService = new AuthService();
+
+// --- NUEVA ESTRUCTURA DE TIPOS ROBUSTA ---
+
+// 1. Contexto base que Next.js pasa a las rutas
+export type RouteContext = {
+  params?: Record<string, string>;
+};
+
+// 2. Nuestro tipo de handler de API simplificado
+export type ApiHandler = (
+  req: NextRequest
+) => Promise<NextResponse>;
+
+// 3. Contexto enriquecido para rutas autenticadas
+export type AuthenticatedContext = RouteContext & {
+  user: {
+    id: string;
+    email: string;
+    role: 'USER' | 'STAFF' | 'ADMIN';
+    centerId?: string;
+  };
+};
+
+// 4. Contexto enriquecido para rutas con datos validados
+export type ValidatedContext<T = any> = AuthenticatedContext & {
+  validatedData: T;
+};
+
+// --- FIN DE LA NUEVA ESTRUCTURA DE TIPOS ---
+
 
 /**
  * Interfaz para el contexto de middleware
@@ -34,13 +65,6 @@ export type MiddlewareHandler = (
   context: MiddlewareContext
 ) => Promise<NextResponse | void>;
 
-/**
- * Tipo para handlers de API
- */
-export type ApiHandler = (
-  req: NextRequest,
-  context?: { params?: Record<string, string> }
-) => Promise<NextResponse>;
 
 /**
  * Cache simple para rate limiting
@@ -82,7 +106,7 @@ const rateLimitCache = new RateLimitCache();
 setInterval(() => rateLimitCache.cleanup(), 5 * 60 * 1000);
 
 /**
- * Middleware de autenticación híbrido
+ * Middleware de autenticaciÃ³n hÃ­brido
  * Soporta tanto tokens JWT como cookies de NextAuth
  */
 // Firebase Admin (carga perezosa para evitar fallos si no hay credenciales)
@@ -91,7 +115,7 @@ let firebaseInitialized = false;
 const ensureFirebaseAdmin = () => {
   if (firebaseInitialized) return;
   try {
-    // Import dinámico para evitar carga en entornos sin credenciales
+    // Import dinÃ¡mico para evitar carga en entornos sin credenciales
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     firebaseAdmin = require('firebase-admin');
 
@@ -121,12 +145,14 @@ const ensureFirebaseAdmin = () => {
     }
     firebaseInitialized = true;
   } catch (e) {
-    console.warn('⚠️ Firebase Admin no inicializado:', e);
+    console.warn('âš ï¸ Firebase Admin no inicializado:', e);
     firebaseInitialized = false;
   }
 };
-export const withAuth = (handler: ApiHandler): ApiHandler => {
-  return async (req: NextRequest, context) => {
+
+// --- MIDDLEWARE `withAuth` SIMPLIFICADO ---
+export const withAuth = (handler: (req: NextRequest) => Promise<NextResponse>) => {
+  return async (req: NextRequest) => {
     const origin = req.headers.get('origin');
     
     // El manejo de preflight y CORS ahora se delega a withCors
@@ -138,31 +164,31 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
     try {
       let user = null;
       
-      console.log('🔍 [AUTH] Iniciando autenticación híbrida');
-      console.log('🔍 [AUTH] Origin:', origin);
-      console.log('🔍 [AUTH] Method:', req.method);
-      console.log('🔍 [AUTH] URL:', req.nextUrl.pathname);
+      console.log('ðŸ” [AUTH] Iniciando autenticaciÃ³n hÃ­brida');
+      console.log('ðŸ” [AUTH] Origin:', origin);
+      console.log('ðŸ” [AUTH] Method:', req.method);
+      console.log('ðŸ” [AUTH] URL:', req.nextUrl.pathname);
       
-      // Intentar autenticación con token JWT primero
+      // Intentar autenticaciÃ³n con token JWT primero
       const authHeader = req.headers.get('authorization');
-      console.log('🔑 [AUTH] Authorization header:', authHeader ? 'Presente' : 'Ausente');
+      console.log('ðŸ”‘ [AUTH] Authorization header:', authHeader ? 'Presente' : 'Ausente');
       
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
-        console.log('🎫 [AUTH] Intentando autenticación JWT');
+        console.log('ðŸŽ« [AUTH] Intentando autenticaciÃ³n JWT');
         try {
           user = await authService.getUserFromToken(token);
-          console.log('✅ [AUTH] Usuario autenticado con JWT:', user?.email);
+          console.log('âœ… [AUTH] Usuario autenticado con JWT:', user?.email);
         } catch (jwtError) {
-          console.log('❌ [AUTH] Error en autenticación JWT, el token podría no ser nuestro o ser inválido:', jwtError);
-          // No hacemos nada aquí, dejamos que el flujo continúe para intentar la autenticación por cookie.
+          console.log('âŒ [AUTH] Error en autenticaciÃ³n JWT, el token podrÃ­a no ser nuestro o ser invÃ¡lido:', jwtError);
+          // No hacemos nada aquÃ­, dejamos que el flujo continÃºe para intentar la autenticaciÃ³n por cookie.
           // Esto evita el error de intentar verificar un token de Firebase que no es un ID token.
         }
       }
       
-      // Si no hay token JWT válido, intentar con cookies de NextAuth (Auth.js v5 - JWE)
+      // Si no hay token JWT vÃ¡lido, intentar con cookies de NextAuth (Auth.js v5 - JWE)
       if (!user) {
-        console.log('🍪 [AUTH] Intentando autenticación con NextAuth (getToken)');
+        console.log('ðŸª [AUTH] Intentando autenticaciÃ³n con NextAuth (getToken)');
         try {
           const baseOpts = {
             req,
@@ -173,7 +199,7 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
           const configuredCookieName = process.env.NEXTAUTH_COOKIE_NAME;
           const candidateNames = [
             configuredCookieName,
-            // Cookies específicas por app (añadimos explícitamente las de la Web)
+            // Cookies especÃ­ficas por app (aÃ±adimos explÃ­citamente las de la Web)
             'next-auth.session-token-web',
             '__Secure-next-auth.session-token-web',
             // Otras variantes comunes
@@ -191,7 +217,7 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
             }
           }
 
-          // Último recurso: detectar cualquier cookie next-auth.session-token-<sufijo>
+          // Ãšltimo recurso: detectar cualquier cookie next-auth.session-token-<sufijo>
           if (!token) {
             const all = (req.cookies as any).getAll?.() || [];
             const candidate = all.find((c: any) => typeof c?.name === 'string' && c.name.startsWith('next-auth.session-token'))?.name;
@@ -204,8 +230,8 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
             const userId = (token as any).sub || (token as any).id;
             const email = (token as any).email;
             
-            // --- LÓGICA DE BÚSQUEDA ROBUSTA ---
-            // 1. Intentar buscar por ID (el método preferido y más rápido).
+            // --- LÃ“GICA DE BÃšSQUEDA ROBUSTA ---
+            // 1. Intentar buscar por ID (el mÃ©todo preferido y mÃ¡s rÃ¡pido).
             if (userId) {
               user = await db.user.findUnique({ where: { id: userId } });
             }
@@ -217,66 +243,57 @@ export const withAuth = (handler: ApiHandler): ApiHandler => {
             }
 
             if (user) {
-              console.log('✅ [AUTH] Usuario autenticado con NextAuth (getToken):', user.email, 'Rol:', user.role);
+              console.log('âœ… [AUTH] Usuario autenticado con NextAuth (getToken):', user.email, 'Rol:', user.role);
             } else {
-              console.log('❌ [AUTH] No se pudo encontrar al usuario ni por ID ni por Email del token NextAuth');
+              console.log('âŒ [AUTH] No se pudo encontrar al usuario ni por ID ni por Email del token NextAuth');
             }
           } else {
-            console.log('❌ [AUTH] No se pudo decodificar token NextAuth con ningún nombre de cookie');
+            console.log('âŒ [AUTH] No se pudo decodificar token NextAuth con ningÃºn nombre de cookie');
           }
         } catch (authError) {
-          console.log('❌ [AUTH] Error usando getToken de NextAuth:', authError);
+          console.log('âŒ [AUTH] Error usando getToken de NextAuth:', authError);
         }
       }
       
       if (!user) {
-        console.log('🚫 [AUTH] Autenticación fallida - No se encontró usuario válido');
+        console.log('ðŸš« [AUTH] AutenticaciÃ³n fallida - No se encontrÃ³ usuario vÃ¡lido');
         const unauthorizedResponse = NextResponse.json(
-          { error: 'No autorizado - Autenticación requerida' },
+          { error: 'No autorizado - AutenticaciÃ³n requerida' },
           { status: 401 }
         );
-        // withCors se encargará de los headers en la composición final
+        // withCors se encargarÃ¡ de los headers en la composiciÃ³n final
         return unauthorizedResponse;
       }
       
-      console.log('🎉 [AUTH] Autenticación exitosa para:', (user as any).email);
+      console.log('ðŸŽ‰ [AUTH] AutenticaciÃ³n exitosa para:', (user as any).email);
 
       // Convertir rol a formato esperado
       const userRole = (user as any).role?.toUpperCase() as 'USER' | 'STAFF' | 'ADMIN';
       
-      // Agregar usuario al contexto
-      const userContext = {
-        ...context,
-        user: {
-          id: (user as any).id,
-          email: (user as any).email,
-          role: userRole,
-          centerId: undefined
-        },
+      // Agregar usuario a la request como propiedad personalizada
+      (req as any).user = {
+        id: (user as any).id,
+        email: (user as any).email,
+        role: userRole,
       };
 
-      const response = await handler(req, userContext);
-      // withCors se encargará de los headers en la composición final
-      return response;
+      // Llamar al handler final
+      return handler(req);
+
     } catch (error) {
-      console.error('Error en middleware de autenticación:', error);
-      const errorResponse = NextResponse.json(
-        { error: 'Error interno del servidor' },
-        { status: 500 }
-      );
-      // withCors se encargará de los headers en la composición final
-      return errorResponse;
+      console.error('Error en middleware de autenticaciÃ³n:', error);
+      return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
     }
   };
 };
 
 /**
- * Middleware de autorización por rol
+ * Middleware de autorizaciÃ³n por rol
  */
 export const withRole = (requiredRole: 'USER' | 'STAFF' | 'ADMIN') => {
-  return (handler: ApiHandler): ApiHandler => {
-    return withAuth(async (req: NextRequest, context) => {
-      const user = (context as any)?.user as { role: 'USER' | 'STAFF' | 'ADMIN' } | undefined;
+  return (handler: (req: NextRequest) => Promise<NextResponse>) => {
+    return withAuth(async (req: NextRequest) => {
+      const user = (req as any)?.user as { role: 'USER' | 'STAFF' | 'ADMIN' } | undefined;
       
       if (!user) {
         return NextResponse.json(
@@ -285,7 +302,7 @@ export const withRole = (requiredRole: 'USER' | 'STAFF' | 'ADMIN') => {
         );
       }
 
-      // Verificar jerarquía de roles
+      // Verificar jerarquÃ­a de roles
       const roleHierarchy = { USER: 0, STAFF: 1, ADMIN: 2 } as const;
       const userRole = (user.role as keyof typeof roleHierarchy);
       const userLevel = roleHierarchy[userRole];
@@ -298,7 +315,7 @@ export const withRole = (requiredRole: 'USER' | 'STAFF' | 'ADMIN') => {
         );
       }
 
-      return handler(req, context);
+      return handler(req);
     });
   };
 };
@@ -307,12 +324,12 @@ export const withRole = (requiredRole: 'USER' | 'STAFF' | 'ADMIN') => {
  * Middleware de rate limiting
  */
 export const withRateLimit = (handler: ApiHandler): ApiHandler => {
-  return async (req: NextRequest, context) => {
+  return async (req: NextRequest) => {
     try {
       const pathname = req.nextUrl.pathname;
       const rateLimit = RouteUtils.getRateLimit(pathname);
       
-      // Usar IP como identificador (en producción usar algo más robusto)
+      // Usar IP como identificador (en producciÃ³n usar algo mÃ¡s robusto)
       const identifier = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
       const key = `${identifier}:${pathname}`;
       
@@ -339,23 +356,23 @@ export const withRateLimit = (handler: ApiHandler): ApiHandler => {
         );
       }
 
-      return handler(req, context);
+      return handler(req);
     } catch (error) {
       console.error('Error en middleware de rate limiting:', error);
-      return handler(req, context); // Continuar sin rate limiting en caso de error
+      return handler(req); // Continuar sin rate limiting en caso de error
     }
   };
 };
 
 /**
- * Middleware de validación de esquemas Zod
+ * Middleware de validaciÃ³n de esquemas Zod
  */
 export const withValidation = <T>(
   schema: z.ZodSchema<T>,
   source: 'body' | 'query' | 'params' = 'body'
 ) => {
   return (handler: ApiHandler): ApiHandler => {
-    return async (req: NextRequest, context) => {
+    return async (req: NextRequest) => {
       try {
         let data: any;
         
@@ -367,7 +384,7 @@ export const withValidation = <T>(
             data = Object.fromEntries(req.nextUrl.searchParams.entries());
             break;
           case 'params':
-            data = (context as any)?.params || {};
+            data = (req as any)?.params || {};
             break;
         }
 
@@ -376,7 +393,7 @@ export const withValidation = <T>(
         if (!result.success) {
           return NextResponse.json(
             {
-              error: 'Datos de entrada inválidos',
+              error: 'Datos de entrada invÃ¡lidos',
               details: result.error.errors.map(err => ({
                 field: err.path.join('.'),
                 message: err.message,
@@ -386,15 +403,11 @@ export const withValidation = <T>(
           );
         }
 
-        // Agregar datos validados al contexto
-        const validatedContext = {
-          ...context,
-          validatedData: result.data,
-        };
-
-        return handler(req, validatedContext);
+        // Agregar datos validados a la request
+        (req as any).validatedData = result.data;
+        return handler(req);
       } catch (error) {
-        console.error('Error en middleware de validación:', error);
+        console.error('Error en middleware de validaciÃ³n:', error);
         return NextResponse.json(
           { error: 'Error al procesar los datos de entrada' },
           { status: 400 }
@@ -408,13 +421,13 @@ export const withValidation = <T>(
  * Middleware de manejo de errores
  */
 export const withErrorHandling = (handler: ApiHandler): ApiHandler => {
-  return async (req: NextRequest, context) => {
+  return async (req: NextRequest) => {
     try {
-      return await handler(req, context);
+      return await handler(req);
     } catch (error) {
       console.error('Error no manejado en API:', error);
       if (error instanceof z.ZodError) {
-        return formatErrorResponse(new ValidationAppError('Datos de entrada inválidos', error.errors));
+        return formatErrorResponse(new ValidationAppError('Datos de entrada invÃ¡lidos', error.errors));
       }
       if (error instanceof AppError) {
         return formatErrorResponse(error);
@@ -428,12 +441,12 @@ export const withErrorHandling = (handler: ApiHandler): ApiHandler => {
  * Middleware de CORS
  */
 export const withCors = (handler: ApiHandler): ApiHandler => {
-  return async (req: NextRequest, context) => {
+  return async (req: NextRequest) => {
     // Manejo de preflight: responder antes de pasar al handler
     if (req.method === 'OPTIONS') {
       const pre = new NextResponse(null, { status: 204 });
       const origin = req.headers.get('origin');
-      // Orígenes permitidos configurables por entorno
+      // OrÃ­genes permitidos configurables por entorno
       const envAllowed = (process.env.ALLOWED_ORIGINS || '')
         .split(',')
         .map((s) => s.trim())
@@ -461,7 +474,7 @@ export const withCors = (handler: ApiHandler): ApiHandler => {
       return pre;
     }
 
-    const response = await handler(req, context);
+    const response = await handler(req);
     
     // Configurar headers CORS
     const origin = req.headers.get('origin');
@@ -506,7 +519,7 @@ export const withCors = (handler: ApiHandler): ApiHandler => {
  * Middleware de logging
  */
 export const withLogging = (handler: ApiHandler): ApiHandler => {
-  return async (req: NextRequest, context) => {
+  return async (req: NextRequest) => {
     const start = Date.now();
     const method = req.method;
     const url = req.nextUrl.pathname;
@@ -514,7 +527,7 @@ export const withLogging = (handler: ApiHandler): ApiHandler => {
     console.log(`[${new Date().toISOString()}] ${method} ${url} - Iniciado`);
     
     try {
-      const response = await handler(req, context);
+      const response = await handler(req);
       const duration = Date.now() - start;
       
       console.log(
@@ -534,7 +547,7 @@ export const withLogging = (handler: ApiHandler): ApiHandler => {
 };
 
 /**
- * Composición de middlewares
+ * ComposiciÃ³n de middlewares
  */
 export const compose = (...middlewares: Array<(handler: ApiHandler) => ApiHandler>) => {
   return (handler: ApiHandler): ApiHandler => {
@@ -546,7 +559,7 @@ export const compose = (...middlewares: Array<(handler: ApiHandler) => ApiHandle
 };
 
 /**
- * Middleware completo para rutas públicas
+ * Middleware completo para rutas pÃºblicas
  */
 export const withPublicMiddleware = compose(
   withErrorHandling,
@@ -579,17 +592,17 @@ export const withStaffMiddleware = compose(
 );
 
 /**
- * Middleware de limpieza automática de reservas expiradas
+ * Middleware de limpieza automÃ¡tica de reservas expiradas
  */
 export const withReservationCleanup = (handler: ApiHandler): ApiHandler => {
-  return async (req: NextRequest, context?: { params?: Record<string, string> }) => {
+  return async (req: NextRequest) => {
     // Solo ejecutar limpieza en rutas de reservas
     const isReservationRoute = req.nextUrl.pathname.includes('/reservations') || 
                               req.nextUrl.pathname.includes('/availability');
     
     if (isReservationRoute) {
       try {
-        // Limpiar reservas PENDING expiradas de forma asíncrona
+        // Limpiar reservas PENDING expiradas de forma asÃ­ncrona
         const now = new Date();
         const expiredReservations = await db.reservation.findMany({
           where: {
@@ -627,19 +640,19 @@ export const withReservationCleanup = (handler: ApiHandler): ApiHandler => {
                 }
               });
               
-              console.log(`🧹 [AUTO-CLEANUP] Canceladas ${expiredReservations.length} reservas expiradas`);
+              console.log(`ðŸ§¹ [AUTO-CLEANUP] Canceladas ${expiredReservations.length} reservas expiradas`);
             } catch (error) {
-              console.error('❌ [AUTO-CLEANUP] Error:', error);
+              console.error('âŒ [AUTO-CLEANUP] Error:', error);
             }
           });
         }
       } catch (error) {
         // No fallar el request si hay error en la limpieza
-        console.error('❌ [AUTO-CLEANUP] Error verificando reservas expiradas:', error);
+        console.error('âŒ [AUTO-CLEANUP] Error verificando reservas expiradas:', error);
       }
     }
     
-    return handler(req, context);
+    return handler(req);
   };
 };
 
@@ -656,7 +669,7 @@ export const withAdminMiddleware = compose(
 );
 
 /**
- * Middleware completo para rutas de reservas (con limpieza automática)
+ * Middleware completo para rutas de reservas (con limpieza automÃ¡tica)
  */
 export const withReservationMiddleware = compose(
   withErrorHandling,
@@ -740,7 +753,7 @@ export const ApiResponse = {
     return NextResponse.json(
       {
         success: false,
-        error: 'Datos de entrada inválidos',
+        error: 'Datos de entrada invÃ¡lidos',
         details: errors,
       },
       { status: 400 }
@@ -767,20 +780,4 @@ export const ApiResponse = {
       { status: 409 }
     );
   },
-};
-
-/**
- * Tipos exportados
- */
-export type ValidatedContext<T = any> = MiddlewareContext & {
-  validatedData: T;
-};
-
-export type AuthenticatedContext = MiddlewareContext & {
-  user: {
-    id: string;
-    email: string;
-    role: 'USER' | 'STAFF' | 'ADMIN';
-    centerId?: string;
-  };
 };

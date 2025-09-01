@@ -1,7 +1,7 @@
-/**
- * API Routes para gestión de pagos
+﻿/**
+ * API Routes para gestiÃ³n de pagos
  * GET /api/payments - Obtener lista de pagos
- * POST /api/payments - Crear nueva intención de pago
+ * POST /api/payments - Crear nueva intenciÃ³n de pago
  */
 
 import { NextRequest } from 'next/server';
@@ -17,9 +17,9 @@ const paymentService = new PaymentService();
  * Acceso: STAFF o superior (usuarios pueden ver solo sus pagos)
  */
 export async function GET(request: NextRequest) {
-  return withAuthMiddleware(async (req, context: any) => {
+  return withAuthMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const { searchParams } = req.nextUrl;
       const params = Object.fromEntries(searchParams.entries());
       
@@ -49,13 +49,13 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/payments
- * Crear nueva intención de pago
+ * Crear nueva intenciÃ³n de pago
  * Acceso: Usuario autenticado
  */
 export async function POST(request: NextRequest) {
-  return withAuthMiddleware(async (req, context: any) => {
+  return withAuthMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const body = await req.json();
       
       // Asegurar que el pago es para el usuario autenticado (excepto ADMIN)
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      console.error('Error creando intención de pago:', error);
+      console.error('Error creando intenciÃ³n de pago:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
   })(request);

@@ -1,7 +1,7 @@
-/**
- * API Routes para gestión de notificaciones
+﻿/**
+ * API Routes para gestiÃ³n de notificaciones
  * GET /api/notifications - Obtener lista de notificaciones
- * POST /api/notifications - Crear nueva notificación
+ * POST /api/notifications - Crear nueva notificaciÃ³n
  */
 
 // Forzar runtime Node.js para compatibilidad con Prisma
@@ -42,10 +42,10 @@ export async function OPTIONS() {
 }
 
 export async function GET(request: NextRequest) {
-  return withAuthMiddleware(async (req: NextRequest, context: any) => {
+  return withAuthMiddleware(async (req: NextRequest) => {
     try {
-      const user = (context as any)?.user;
-      console.log('🔍 [NOTIFICATIONS] Usuario autenticado:', { 
+      const user = (req as any).user;
+      console.log('ðŸ” [NOTIFICATIONS] Usuario autenticado:', { 
         id: user?.id, 
         role: user?.role, 
         email: user?.email,
@@ -58,16 +58,16 @@ export async function GET(request: NextRequest) {
 
       const parsed = QuerySchema.parse(params);
       
-      // Validar que el user.id sea un UUID válido antes de usarlo
+      // Validar que el user.id sea un UUID vÃ¡lido antes de usarlo
       let effectiveParams = { ...parsed } as any;
       if (user?.role === 'USER' && user?.id) {
         try {
-          // Validar que el userId sea un UUID válido
+          // Validar que el userId sea un UUID vÃ¡lido
           z.string().uuid().parse(user.id);
           effectiveParams.userId = user.id;
         } catch (uuidError) {
-          console.warn('Usuario con ID inválido:', user.id, uuidError);
-          // No agregar userId si no es válido, fallback a búsqueda general
+          console.warn('Usuario con ID invÃ¡lido:', user.id, uuidError);
+          // No agregar userId si no es vÃ¡lido, fallback a bÃºsqueda general
         }
       }
 
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
       try {
         result = await notificationService.getNotifications(effectiveParams);
       } catch (innerErr) {
-        console.warn('Fallo getNotifications, devolviendo lista vacía:', innerErr);
+        console.warn('Fallo getNotifications, devolviendo lista vacÃ­a:', innerErr);
         result = { notifications: [], pagination: { page: Number(parsed.page || 1), limit: Number(parsed.limit || 20), total: 0, pages: 0 } };
       }
 
@@ -97,16 +97,16 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/notifications
- * Crear nueva notificación
+ * Crear nueva notificaciÃ³n
  * Acceso: STAFF o superior
  */
 export async function POST(request: NextRequest) {
-  return withStaffMiddleware(async (req, context: any) => {
+  return withStaffMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const body = await req.json();
       
-      // Agregar información del creador
+      // Agregar informaciÃ³n del creador
       const notificationData = {
         ...body,
         createdBy: user.id
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      console.error('Error creando notificación:', error);
+      console.error('Error creando notificaciÃ³n:', error);
       return API.internalError('Error interno del servidor');
     }
   })(request);

@@ -61,5 +61,5 @@ export async function POST(request: NextRequest) {
       console.error('Error generando token de prueba:', error);
       return ApiResponse.internalError('No se pudo generar el token de prueba');
     }
-  })(request, {} as any);
+  })(request);
 }

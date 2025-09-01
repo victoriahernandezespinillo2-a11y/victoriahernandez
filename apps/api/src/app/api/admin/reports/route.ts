@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
       console.error('Error generando reporte:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 /**
@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
  * Acceso: ADMIN únicamente
  */
 export async function POST(request: NextRequest) {
-  return withAdminMiddleware(async (req, context) => {
+  return withAdminMiddleware(async (req) => {
     try {
       const body = await req.json();
       const reportData = CreateReportSchema.parse(body);
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
         ...reportData,
         status: 'ACTIVE',
         createdAt: new Date().toISOString(),
-        createdBy: (context as any)?.user?.id,
+        createdBy: (req as any)?.user?.id,
       } as any;
       return ApiResponse.success(newReport, 201);
     } catch (error) {
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
       console.error('Error creando reporte programado:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 // Funciones auxiliares para generar diferentes tipos de reportes

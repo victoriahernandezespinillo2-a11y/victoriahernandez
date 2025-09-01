@@ -15,17 +15,17 @@ const AddMethodSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  return withAuthMiddleware(async (_req, ctx: any) => {
-    const user = (ctx as any).user;
+  return withAuthMiddleware(async (_req) => {
+    const user = (_req as any).user;
     const methods = await paymentService.listPaymentMethods(user.id);
     return ApiResponse.success({ methods });
   })(req);
 }
 
 export async function POST(req: NextRequest) {
-  return withAuthMiddleware(async (request: NextRequest, ctx: any) => {
+  return withAuthMiddleware(async (request: NextRequest) => {
     try {
-      const user = (ctx as any).user;
+      const user = (request as any).user;
       const body = await request.json();
       const data = AddMethodSchema.parse(body);
       const created = await paymentService.addPaymentMethod(user.id, data);
@@ -42,9 +42,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  return withAuthMiddleware(async (request: NextRequest, ctx: any) => {
+  return withAuthMiddleware(async (request: NextRequest) => {
     try {
-      const user = (ctx as any).user;
+      const user = (request as any).user;
       const id = request.nextUrl.searchParams.get('id') || '';
       if (!id) return ApiResponse.badRequest('id requerido');
       await paymentService.deletePaymentMethod(user.id, id);

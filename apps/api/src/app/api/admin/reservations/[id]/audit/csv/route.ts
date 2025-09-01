@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     res.headers.set('Content-Type', 'text/csv; charset=utf-8');
     res.headers.set('Content-Disposition', `attachment; filename=${filename}`);
     return res;
-  })(request, {} as any);
+  })(request);
 }
 
 function summarize(type: string, data: any): string {

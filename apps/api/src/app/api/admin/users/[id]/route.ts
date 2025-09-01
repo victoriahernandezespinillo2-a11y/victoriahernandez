@@ -159,9 +159,9 @@ export async function GET(request: NextRequest) {
  * Acceso: ADMIN únicamente
  */
 export async function PUT(request: NextRequest) {
-  return withAdminMiddleware(async (req, context) => {
+  return withAdminMiddleware(async (req) => {
     try {
-      const adminUser = (context as any)?.user;
+      const adminUser = (req as any).user;
       const pathname = req.nextUrl.pathname;
       const userId = pathname.split('/').pop() as string;
       const body = await req.json();
@@ -249,9 +249,9 @@ export async function PUT(request: NextRequest) {
  * Acceso: ADMIN únicamente
  */
 export async function DELETE(request: NextRequest) {
-  return withAdminMiddleware(async (req, context) => {
+  return withAdminMiddleware(async (req) => {
     try {
-      const adminUser = (context as any)?.user;
+      const adminUser = (req as any).user;
       const pathname = req.nextUrl.pathname;
       const userId = pathname.split('/').pop() as string;
       

@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       console.error('Admin check-in error:', error);
       return ApiResponse.internalError('Error realizando check-in');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 

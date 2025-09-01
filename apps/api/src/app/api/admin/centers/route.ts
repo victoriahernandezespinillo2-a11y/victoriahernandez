@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo centros:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 /**
@@ -204,7 +204,7 @@ export async function POST(request: NextRequest) {
       console.error('Error creando centro:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 // Función auxiliar para calcular ocupación promedio

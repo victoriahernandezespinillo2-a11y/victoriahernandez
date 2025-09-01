@@ -201,7 +201,7 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo detalles de la cancha:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 /**
@@ -292,7 +292,7 @@ export async function PUT(request: NextRequest) {
       console.error('Error actualizando cancha:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 /**
@@ -358,7 +358,7 @@ export async function DELETE(request: NextRequest) {
       console.error('Error eliminando cancha:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 /**

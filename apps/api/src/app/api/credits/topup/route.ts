@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+﻿import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { withAuthMiddleware, ApiResponse } from '@/lib/middleware';
 import { PaymentService } from '../../../../lib/services/payment.service';
@@ -10,7 +10,7 @@ const paymentServiceLocal = new PaymentService();
 const TopupSchema = z.object({
   credits: z.number().int().positive(),
   currency: z.string().optional().default('EUR'),
-  description: z.string().optional().default('Recarga de créditos'),
+  description: z.string().optional().default('Recarga de crÃ©ditos'),
   checkout: z.boolean().optional().default(true),
   paymentMethod: z.enum(['card','bizum']).optional().default('card'),
   successUrl: z.string().url().optional(),
@@ -18,15 +18,15 @@ const TopupSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  return withAuthMiddleware(async (req, context: any) => {
+  return withAuthMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const body = await req.json();
       const data = TopupSchema.parse(body);
 
       // Obtener euroPerCredit desde cualquier centro asociado a las reservas (fallback a 1)
-      // Para Fase 1: simple -> 1 crédito = 1 EUR si no hay config
-      const euroPerCredit = 1; // Fase 1: simple -> 1 crédito = 1 EUR (puede leerse de center.settings.credits en futuras mejoras)
+      // Para Fase 1: simple -> 1 crÃ©dito = 1 EUR si no hay config
+      const euroPerCredit = 1; // Fase 1: simple -> 1 crÃ©dito = 1 EUR (puede leerse de center.settings.credits en futuras mejoras)
       const amount = Math.ceil(data.credits * euroPerCredit);
 
       if (data.checkout) {
@@ -34,14 +34,14 @@ export async function POST(request: NextRequest) {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
         
-        // Crear un ID único para la transacción de recarga
+        // Crear un ID Ãºnico para la transacciÃ³n de recarga
         const topupId = `TOPUP_${user.id}_${Date.now()}`;
         
-        // Generar número de pedido para Redsys
+        // Generar nÃºmero de pedido para Redsys
         const orderNumber = paymentService.generateRedsysOrderNumber();
         const isBizum = data.paymentMethod === 'bizum';
-        // El enum OrderPaymentMethod sólo admite 'CARD', 'CREDITS' o 'MIXED'.
-        // Para recargas vía Redsys (tarjeta o Bizum) registramos la operación como 'CARD'.
+        // El enum OrderPaymentMethod sÃ³lo admite 'CARD', 'CREDITS' o 'MIXED'.
+        // Para recargas vÃ­a Redsys (tarjeta o Bizum) registramos la operaciÃ³n como 'CARD'.
         const paymentMethodEnum: 'CARD' = 'CARD';
         // Crear orden especial para la recarga del monedero (sin items)
         const order = await db.order.create({
@@ -51,13 +51,13 @@ export async function POST(request: NextRequest) {
             status: 'PENDING',
             totalEuro: amount,
             paymentMethod: paymentMethodEnum,
-            creditsUsed: data.credits, // Guardamos los créditos aquí para referencia
-            paymentIntentId: orderNumber, // Usamos este campo para almacenar el número de Redsys
+            creditsUsed: data.credits, // Guardamos los crÃ©ditos aquÃ­ para referencia
+            paymentIntentId: orderNumber, // Usamos este campo para almacenar el nÃºmero de Redsys
             // No creamos items para las recargas - es un tipo especial de orden
           }
         });
         
-        // Crear URL de redirección que generará el formulario de Redsys
+        // Crear URL de redirecciÃ³n que generarÃ¡ el formulario de Redsys
         const bizumFlag = isBizum ? '&bizum=1' : '';
         const redirectUrl = `${apiUrl}/api/payments/redsys/redirect?oid=${encodeURIComponent(order.id)}${bizumFlag}`;
         
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
         }, 201);
       }
 
-      // Para pagos sin checkout, también usar Redsys
+      // Para pagos sin checkout, tambiÃ©n usar Redsys
       const intent = await paymentServiceLocal.createPaymentIntent({
         amount,
         currency: data.currency,

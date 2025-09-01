@@ -1,18 +1,18 @@
-import { NextRequest } from 'next/server';
+﻿import { NextRequest } from 'next/server';
 import { withAuthMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 
 export async function GET(request: NextRequest) {
-  return withAuthMiddleware(async (req, context: any) => {
+  return withAuthMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const { searchParams } = req.nextUrl;
       const page = Math.max(1, Number(searchParams.get('page') || '1'));
       const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') || '20')));
       const skip = (page - 1) * limit;
 
       const where: any = {};
-      // Si es USER, solo sus pedidos; STAFF/ADMIN podrían ver todos (futuro: filtros por center)
+      // Si es USER, solo sus pedidos; STAFF/ADMIN podrÃ­an ver todos (futuro: filtros por center)
       if (user.role === 'USER') where.userId = user.id;
       else if (searchParams.get('userId')) where.userId = searchParams.get('userId');
 

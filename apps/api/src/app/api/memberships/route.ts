@@ -1,7 +1,7 @@
-/**
- * API Routes para gestión de membresías
- * GET /api/memberships - Obtener lista de membresías
- * POST /api/memberships - Crear nueva membresía
+﻿/**
+ * API Routes para gestiÃ³n de membresÃ­as
+ * GET /api/memberships - Obtener lista de membresÃ­as
+ * POST /api/memberships - Crear nueva membresÃ­a
  */
 
 import { NextRequest } from 'next/server';
@@ -13,17 +13,17 @@ const membershipService = new MembershipService();
 
 /**
  * GET /api/memberships
- * Obtener lista de membresías con filtros y paginación
- * Los usuarios pueden ver solo sus membresías, STAFF/ADMIN pueden ver todas
+ * Obtener lista de membresÃ­as con filtros y paginaciÃ³n
+ * Los usuarios pueden ver solo sus membresÃ­as, STAFF/ADMIN pueden ver todas
  */
 export async function GET(req: NextRequest) {
-  return withAuthMiddleware(async (request: NextRequest, context) => {
+  return withAuthMiddleware(async (request: NextRequest) => {
   try {
-    const { user } = (context as any) || {};
+    const { user } = (req as any) || {};
     const { searchParams } = request.nextUrl;
     const params = GetMembershipsSchema.parse(Object.fromEntries(searchParams.entries()));
     
-    // Si es usuario normal, solo puede ver sus propias membresías
+    // Si es usuario normal, solo puede ver sus propias membresÃ­as
     if (user.role === 'USER') {
       params.userId = user.id;
     }
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     
     return ApiResponse.success(result);
   } catch (error) {
-    console.error('Error obteniendo membresías:', error);
+    console.error('Error obteniendo membresÃ­as:', error);
     
     if (error instanceof z.ZodError) {
       return ApiResponse.validation(
@@ -53,30 +53,30 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/memberships
- * Crear una nueva membresía
- * Los usuarios pueden crear sus propias membresías, ADMIN puede crear para cualquier usuario
+ * Crear una nueva membresÃ­a
+ * Los usuarios pueden crear sus propias membresÃ­as, ADMIN puede crear para cualquier usuario
  */
 export async function POST(req: NextRequest) {
-  return withAuthMiddleware(async (request: NextRequest, context) => {
+  return withAuthMiddleware(async (request: NextRequest) => {
   try {
-    const { user } = (context as any) || {};
+    const { user } = (req as any) || {};
     const body = await request.json();
     
-    // Si es usuario normal, solo puede crear membresías para sí mismo
+    // Si es usuario normal, solo puede crear membresÃ­as para sÃ­ mismo
     if (user.role === 'USER') {
       body.userId = user.id;
     }
     
-    // Verificar que el usuario puede crear membresías para el userId especificado
+    // Verificar que el usuario puede crear membresÃ­as para el userId especificado
     if (user.role !== 'ADMIN' && body.userId !== user.id) {
-      return ApiResponse.forbidden('Solo puedes crear membresías para ti mismo');
+      return ApiResponse.forbidden('Solo puedes crear membresÃ­as para ti mismo');
     }
     
     const membership = await membershipService.createMembership(body);
     
     return ApiResponse.success(membership, 201);
   } catch (error) {
-    console.error('Error creando membresía:', error);
+    console.error('Error creando membresÃ­a:', error);
     
     if (error instanceof z.ZodError) {
       return ApiResponse.validation(
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
       if (error.message.includes('Usuario no encontrado')) {
         return ApiResponse.notFound('Usuario');
       }
-      if (error.message.includes('ya tiene una membresía activa')) {
+      if (error.message.includes('ya tiene una membresÃ­a activa')) {
         return ApiResponse.error(error.message, 409);
       }
       if (error.message.includes('Error al procesar el pago')) {

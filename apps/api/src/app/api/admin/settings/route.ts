@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
  * Acceso: ADMIN únicamente
  */
 export async function PUT(request: NextRequest) {
-  return withAdminMiddleware(async (req, context) => {
+  return withAdminMiddleware(async (req) => {
     try {
       const body = await req.json();
       const settingsData = UpdateSettingsSchema.parse(body);

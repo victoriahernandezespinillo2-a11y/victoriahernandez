@@ -15,7 +15,7 @@ const tournamentService = new TournamentService();
  * Acceso: STAFF o superior
  */
 export async function GET(request: NextRequest) {
-  return withStaffMiddleware(async (req, context) => {
+  return withStaffMiddleware(async (req) => {
     try {
       const { searchParams } = new URL(req.url);
       const centerId = searchParams.get('centerId') || undefined;
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo estadísticas de torneos:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {});
+  })(request);
 }
 
 /**

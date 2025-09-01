@@ -1,6 +1,6 @@
-/**
+﻿/**
  * DELETE /api/users/delete
- * Eliminación (soft delete) de la cuenta del usuario autenticado (GDPR)
+ * EliminaciÃ³n (soft delete) de la cuenta del usuario autenticado (GDPR)
  */
 
 import { NextRequest } from 'next/server';
@@ -10,9 +10,9 @@ import { UserService } from '../../../../lib/services/user.service';
 const userService = new UserService();
 
 export async function DELETE(req: NextRequest) {
-  return withAuthMiddleware(async (_request: NextRequest, context: any) => {
+  return withAuthMiddleware(async (_request: NextRequest) => {
     try {
-      const { user } = (context as any);
+      const { user } = (req as any);
       const result = await userService.deleteUser(user.id);
       return ApiResponse.success(result, 200);
     } catch (error: any) {
@@ -28,6 +28,7 @@ export async function DELETE(req: NextRequest) {
 export async function OPTIONS() {
   return new Response(null, { status: 200 });
 }
+
 
 
 

@@ -18,9 +18,9 @@ const tournamentService = new TournamentService();
 export async function POST(
   request: NextRequest
 ) {
-  return withAuthMiddleware(async (req, context: any) => {
+  return withAuthMiddleware(async (req) => {
     try {
-      const user = (context as any).user;
+      const user = (req as any).user;
       const pathname = req.nextUrl.pathname;
       const tournamentId = pathname.split('/').slice(-2, -1)[0] as string;
       

@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo logs de auditoría:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 /**

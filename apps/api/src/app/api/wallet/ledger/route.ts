@@ -1,4 +1,4 @@
-export const runtime = 'nodejs';
+﻿export const runtime = 'nodejs';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { withAuthMiddleware, ApiResponse } from '@/lib/middleware';
@@ -10,9 +10,9 @@ const QuerySchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  return withAuthMiddleware(async (req, context: any) => {
+  return withAuthMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const params = Object.fromEntries(req.nextUrl.searchParams.entries());
       const { page, limit } = QuerySchema.parse(params);
 

@@ -40,7 +40,7 @@ const GetUserReservationsSchema = z.object({
  * Los usuarios pueden ver sus propias reservas, STAFF/ADMIN pueden ver cualquier usuario
  */
 export async function GET(req: NextRequest) {
-  return withReservationMiddleware(async (request: NextRequest, context: any) => {
+  return withReservationMiddleware(async (request: NextRequest) => {
   try {
     const pathname = request.nextUrl.pathname;
     // Extract userId from path: /api/users/[id]/reservations -> get the [id] part
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       return ApiResponse.badRequest('ID de usuario no válido');
     }
     
-    const { user } = (context as any);
+    const user = (request as any).user;
     
     // Verificar permisos: usuarios solo pueden ver sus propias reservas
     if (user.role === 'USER' && user.id !== userId) {

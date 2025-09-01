@@ -11,8 +11,8 @@ const paymentService = new PaymentService();
  * Acceso: usuario autenticado propietario de la reserva
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withReservationMiddleware(async (_req, context: any) => {
-    const user = (context as any)?.user;
+  return withReservationMiddleware(async (_req) => {
+    const user = (_req as any).user;
     const { id: reservationId } = await params;
 
     // Validar existencia y propiedad de la reserva

@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
       const res = API.success({ activities: [], meta: { total: 0, period: '24 horas', lastUpdate: new Date().toISOString() } });
       return res;
     }
-  })(request, {} as any);
+  })(request);
 }
 
 function getTimeAgo(date: Date): string {

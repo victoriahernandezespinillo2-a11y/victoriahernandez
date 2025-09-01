@@ -1,6 +1,6 @@
-/**
- * API Route para mantenimientos próximos
- * GET /api/maintenance/upcoming - Obtener mantenimientos próximos a vencer
+﻿/**
+ * API Route para mantenimientos prÃ³ximos
+ * GET /api/maintenance/upcoming - Obtener mantenimientos prÃ³ximos a vencer
  */
 
 import { NextRequest } from 'next/server';
@@ -16,13 +16,13 @@ const GetUpcomingSchema = z.object({
 
 /**
  * GET /api/maintenance/upcoming
- * Obtener mantenimientos próximos a vencer
+ * Obtener mantenimientos prÃ³ximos a vencer
  * Acceso: STAFF o superior
  */
 export async function GET(request: NextRequest) {
-  return withStaffMiddleware(async (req, context) => {
+  return withStaffMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const { searchParams } = new URL(req.url);
       const params = Object.fromEntries(searchParams.entries());
       
@@ -37,10 +37,10 @@ export async function GET(request: NextRequest) {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return ApiResponse.badRequest('Parámetros inválidos');
+        return ApiResponse.badRequest('ParÃ¡metros invÃ¡lidos');
       }
       
-      console.error('Error obteniendo mantenimientos próximos:', error);
+      console.error('Error obteniendo mantenimientos prÃ³ximos:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
   })(request);

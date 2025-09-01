@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       console.error('Admin check-out error:', error);
       return ApiResponse.internalError('Error realizando check-out');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 

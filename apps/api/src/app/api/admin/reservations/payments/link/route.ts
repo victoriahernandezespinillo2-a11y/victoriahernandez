@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       }
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 

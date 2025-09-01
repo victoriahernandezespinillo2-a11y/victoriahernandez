@@ -1,4 +1,4 @@
-/**
+﻿/**
  * API Routes para reservas del usuario autenticado
  * GET /api/users/reservations - Obtener reservas del usuario actual
  */
@@ -10,7 +10,7 @@ import { withReservationMiddleware, ApiResponse } from '@/lib/middleware';
 
 const userService = new UserService();
 
-// Esquema de validación para parámetros de consulta
+// Esquema de validaciÃ³n para parÃ¡metros de consulta
 const GetCurrentUserReservationsSchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
@@ -36,16 +36,16 @@ const GetCurrentUserReservationsSchema = z.object({
 
 /**
  * GET /api/users/reservations
- * Obtener reservas del usuario autenticado con filtros y paginación
+ * Obtener reservas del usuario autenticado con filtros y paginaciÃ³n
  */
 export async function GET(req: NextRequest) {
-  return withReservationMiddleware(async (request: NextRequest, context: any) => {
+  return withReservationMiddleware(async (request: NextRequest) => {
     try {
-      const { user } = (context as any);
+      const { user } = (req as any);
       const { searchParams } = request.nextUrl;
       const queryParams = Object.fromEntries(searchParams.entries());
       
-      // Validar parámetros de consulta
+      // Validar parÃ¡metros de consulta
       const validatedParams = GetCurrentUserReservationsSchema.parse(queryParams);
       
       const reservations = await userService.getUserReservations(user.id, validatedParams);

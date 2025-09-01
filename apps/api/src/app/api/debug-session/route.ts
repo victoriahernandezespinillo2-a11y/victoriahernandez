@@ -1,13 +1,13 @@
-import { NextRequest } from 'next/server';
+﻿import { NextRequest } from 'next/server';
 import { withAuthMiddleware, ApiResponse } from '@/lib/middleware';
 
 export async function GET(request: NextRequest) {
-  return withAuthMiddleware(async (req: NextRequest, context: any) => {
+  return withAuthMiddleware(async (req: NextRequest) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       
-      console.log('🔍 [DEBUG-SESSION] Context completo:', context);
-      console.log('🔍 [DEBUG-SESSION] Usuario:', user);
+      console.log('ðŸ” [DEBUG-SESSION] Context completo:', req);
+      console.log('ðŸ” [DEBUG-SESSION] Usuario:', user);
       
       if (!user) {
         return ApiResponse.unauthorized('Usuario no autenticado');
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       });
     } catch (error) {
       console.error('Error en debug-session:', error);
-      return ApiResponse.internalError('Error verificando sesión');
+      return ApiResponse.internalError('Error verificando sesiÃ³n');
     }
   })(request);
 }

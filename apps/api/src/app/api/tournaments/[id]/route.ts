@@ -20,7 +20,7 @@ const tournamentService = new TournamentService();
 export async function GET(
   request: NextRequest
 ) {
-  return withPublicMiddleware(async (req, context: any) => {
+  return withPublicMiddleware(async (req) => {
     try {
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').pop() as string;
@@ -32,7 +32,7 @@ export async function GET(
       const tournament = await tournamentService.getTournamentById(id);
       
       // Si no hay usuario autenticado y el torneo no es público, denegar acceso
-      if (!(context as any)?.user && !tournament.isPublic) {
+      if (!(req as any)?.user && !tournament.isPublic) {
         return ApiResponse.notFound('Torneo no encontrado');
       }
       
@@ -56,7 +56,7 @@ export async function GET(
 export async function PUT(
   request: NextRequest
 ) {
-  return withAdminMiddleware(async (req, context: any) => {
+  return withAdminMiddleware(async (req) => {
     try {
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').pop() as string;
@@ -112,7 +112,7 @@ export async function PUT(
 export async function DELETE(
   request: NextRequest
 ) {
-  return withAdminMiddleware(async (req, context: any) => {
+  return withAdminMiddleware(async (req) => {
     try {
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').pop() as string;

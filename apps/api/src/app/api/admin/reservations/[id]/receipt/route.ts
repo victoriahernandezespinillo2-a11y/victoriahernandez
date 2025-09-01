@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
     res.headers.set('Content-Type', 'application/pdf');
     res.headers.set('Content-Disposition', `inline; filename=recibo-${reservation.id}.pdf`);
     return res;
-  })(request, {} as any);
+  })(request);
 }
 
 

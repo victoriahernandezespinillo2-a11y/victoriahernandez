@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
     res.headers.set('Content-Type', `multipart/mixed; boundary=${boundary}`);
     res.headers.set('Content-Disposition', `attachment; filename="reserva-${reservation.id}-documentos.mime"`);
     return res;
-  })(request, {} as any);
+  })(request);
 }
 
 function summarize(type: string, data: any): string {

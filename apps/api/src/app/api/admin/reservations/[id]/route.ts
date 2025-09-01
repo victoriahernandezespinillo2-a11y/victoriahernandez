@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       console.error('Admin GET reservation error:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 export async function PUT(request: NextRequest) {
@@ -66,7 +66,7 @@ export async function PUT(request: NextRequest) {
       console.error('Admin PUT reservation error:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 export async function DELETE(request: NextRequest) {
@@ -85,7 +85,7 @@ export async function DELETE(request: NextRequest) {
       console.error('Admin DELETE reservation error:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 export async function OPTIONS() {

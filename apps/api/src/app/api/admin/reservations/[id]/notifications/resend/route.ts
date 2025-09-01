@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       console.error('Error al reenviar notificación:', error);
       return ApiResponse.internalError('No se pudo reenviar la notificación');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 

@@ -19,8 +19,8 @@ const notificationService = new NotificationService();
 export async function GET(
   request: NextRequest
 ) {
-  return withAuthMiddleware(async (req, context) => {
-    const user = (context as any)?.user as { id: string; role: 'USER'|'STAFF'|'ADMIN' };
+  return withAuthMiddleware(async (req) => {
+    const user = (req as any).user as { id: string; role: 'USER'|'STAFF'|'ADMIN' };
     try {
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').pop() as string;
@@ -58,8 +58,8 @@ export async function GET(
 export async function PUT(
   request: NextRequest
 ) {
-  return withAuthMiddleware(async (req, context) => {
-    const user = (context as any)?.user as { id: string; role: 'USER'|'STAFF'|'ADMIN' };
+  return withAuthMiddleware(async (req) => {
+    const user = (req as any).user as { id: string; role: 'USER'|'STAFF'|'ADMIN' };
     try {
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').pop() as string;

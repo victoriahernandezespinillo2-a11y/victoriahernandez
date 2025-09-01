@@ -1,6 +1,6 @@
-/**
- * API Route para cierre de sesión
- * POST /api/auth/signout - Cerrar sesión
+﻿/**
+ * API Route para cierre de sesiÃ³n
+ * POST /api/auth/signout - Cerrar sesiÃ³n
  */
 
 import { NextRequest } from 'next/server';
@@ -12,13 +12,13 @@ const authService = new AuthService();
 
 /**
  * POST /api/auth/signout
- * Cerrar sesión
+ * Cerrar sesiÃ³n
  * Acceso: Usuario autenticado
  */
 export async function POST(request: NextRequest) {
-  return withAuthMiddleware(async (req, context) => {
+  return withAuthMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const body = await req.json();
       
       // Validar que se proporcione el refresh token
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         );
       }
       
-      console.error('Error en cierre de sesión:', error);
+      console.error('Error en cierre de sesiÃ³n:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
   })(request);

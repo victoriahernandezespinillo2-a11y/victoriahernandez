@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
       console.error('Cron reminders error:', e);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 

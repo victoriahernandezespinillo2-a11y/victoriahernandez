@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@repo/auth';
 import { reservationService } from '../../../lib/services/reservation.service';
 import AuthService from '../../../lib/services/auth.service';
@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { db } from '@repo/db';
 import { withReservationMiddleware, ApiResponse } from '@/lib/middleware';
 
-// Función de autenticación simplificada
+// FunciÃ³n de autenticaciÃ³n simplificada
 async function getAuthenticatedUser(request: NextRequest) {
   try {
     const session = await auth();
@@ -15,7 +15,7 @@ async function getAuthenticatedUser(request: NextRequest) {
     }
     return session.user;
   } catch (error) {
-    console.error('❌ [AUTH] Error en autenticación:', error);
+    console.error('âŒ [AUTH] Error en autenticaciÃ³n:', error);
     return null;
   }
 }
@@ -36,7 +36,7 @@ const CreateReservationSchema = z.object({
   notes: z.string().optional(),
 });
 
-// Esquema para filtros de búsqueda (acepta IDs genéricos)
+// Esquema para filtros de bÃºsqueda (acepta IDs genÃ©ricos)
 const GetReservationsSchema = z.object({
   status: z.string().optional(),
   startDate: z.string().datetime().optional(),
@@ -51,13 +51,13 @@ const GetReservationsSchema = z.object({
  * Obtener reservas del usuario autenticado
  */
 export async function GET(request: NextRequest) {
-  return withReservationMiddleware(async (req: NextRequest, context: any) => {
+  return withReservationMiddleware(async (req: NextRequest) => {
     // Declarar finalUserId al inicio para evitar errores de referencia
     let finalUserId: string | undefined;
     
     try {
       // 1) Intentar con usuario provisto por middleware (JWT Bearer)
-      const contextUser = context?.user;
+      const contextUser = (req as any).user;
       let session: any = contextUser ? { id: contextUser.id, email: contextUser.email } : null;
 
       // 2) Si no hay usuario en contexto, intentar con NextAuth
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
           { status: 401 }
         );
       }
-    // Alinear ID de sesión con usuario real en BD (autoprovisionado por OAuth)
+    // Alinear ID de sesiÃ³n con usuario real en BD (autoprovisionado por OAuth)
     const authService = new AuthService();
     finalUserId = session.id as string;
     try {
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
         finalUserId = ensured.id;
       }
     } catch {
-      // continuar con el ID de sesión si falla la comprobación
+      // continuar con el ID de sesiÃ³n si falla la comprobaciÃ³n
     }
 
     const { searchParams } = new URL(request.url);
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
       filters.endDate = new Date(validatedParams.endDate);
     }
     
-    // Delegar a UserService que ya está probado en /api/users/reservations
+    // Delegar a UserService que ya estÃ¡ probado en /api/users/reservations
     const { UserService } = await import('../../../lib/services/user.service');
     const userService = new UserService();
     const result = await userService.getUserReservations(finalUserId, {
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
     return ApiResponse.success(result);
   } catch (error) {
     console.error('Error obteniendo reservas:', error);
-    // Soporte de depuración: si ?debug=1 incluir detalles en la respuesta
+    // Soporte de depuraciÃ³n: si ?debug=1 incluir detalles en la respuesta
     const debug = request.nextUrl.searchParams.get('debug');
     if (debug) {
       return NextResponse.json(
@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Parámetros inválidos', details: error.errors },
+        { error: 'ParÃ¡metros invÃ¡lidos', details: error.errors },
         { status: 400 }
       );
     }
@@ -141,14 +141,14 @@ export async function GET(request: NextRequest) {
  * Crear nueva reserva
  */
 export async function POST(request: NextRequest) {
-  return withReservationMiddleware(async (req: NextRequest, context: any) => {
+  return withReservationMiddleware(async (req: NextRequest) => {
     // Declarar finalUserId al inicio para evitar errores de referencia
   let finalUserId: string | undefined;
   let body: any;
   
   try {
       // 1) Intentar con usuario provisto por middleware (JWT Bearer)
-      const contextUser = context?.user;
+      const contextUser = (req as any).user;
       let session: any = contextUser ? { id: contextUser.id, email: contextUser.email } : null;
 
       // 2) Si no hay usuario en contexto, intentar con NextAuth
@@ -176,20 +176,20 @@ export async function POST(request: NextRequest) {
         finalUserId = ensured.id;
       }
     } catch {
-      // Si algo falla en la comprobación/creación, continuamos y dejaremos que Prisma reporte con claridad
+      // Si algo falla en la comprobaciÃ³n/creaciÃ³n, continuamos y dejaremos que Prisma reporte con claridad
     }
 
     body = await req.json();
-    console.log('🔍 [RESERVATION-DEBUG] Datos recibidos:', {
+    console.log('ðŸ” [RESERVATION-DEBUG] Datos recibidos:', {
       body,
       finalUserId,
       session: session?.email
     });
     
     const validatedData = CreateReservationSchema.parse(body);
-    console.log('✅ [RESERVATION-DEBUG] Datos validados:', validatedData);
+    console.log('âœ… [RESERVATION-DEBUG] Datos validados:', validatedData);
     
-    // Mapear método de pago para persistencia
+    // Mapear mÃ©todo de pago para persistencia
     const mappedPaymentMethod = validatedData.paymentMethod === 'redsys_bizum'
       ? 'redsys'
       : validatedData.paymentMethod === 'redsys'
@@ -201,11 +201,11 @@ export async function POST(request: NextRequest) {
       paymentMethod: mappedPaymentMethod,
       userId: finalUserId,
     });
-    console.log('🎉 [RESERVATION-DEBUG] Reserva creada exitosamente:', reservation.id);
+    console.log('ðŸŽ‰ [RESERVATION-DEBUG] Reserva creada exitosamente:', reservation.id);
 
-    // Si el método de pago solicitado es 'credits', realizar cargo de créditos y marcar como pagado
+    // Si el mÃ©todo de pago solicitado es 'credits', realizar cargo de crÃ©ditos y marcar como pagado
     if (validatedData.paymentMethod === 'credits') {
-      // Obtener configuración euroPerCredit desde el centro de la cancha
+      // Obtener configuraciÃ³n euroPerCredit desde el centro de la cancha
       const court = await db.court.findUnique({
         where: { id: reservation.courtId },
         include: { center: true },
@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
       const euroPerCredit: number | undefined = typeof creditsCfg.euroPerCredit === 'number' ? creditsCfg.euroPerCredit : undefined;
       if (!euroPerCredit || euroPerCredit <= 0) {
         return NextResponse.json(
-          { error: 'Configuración de créditos no definida en el centro' },
+          { error: 'ConfiguraciÃ³n de crÃ©ditos no definida en el centro' },
           { status: 400 }
         );
       }
@@ -226,13 +226,13 @@ export async function POST(request: NextRequest) {
       // Idempotency-Key para evitar dobles cargos
       const idemKey = request.headers.get('Idempotency-Key') || undefined;
 
-      // Transacción atómica: validar saldo, debitar, actualizar reserva, registrar ledger y outbox
+      // TransacciÃ³n atÃ³mica: validar saldo, debitar, actualizar reserva, registrar ledger y outbox
       await (db as any).$transaction(async (tx: any) => {
         // Idempotencia: si ya existe movimiento con el mismo idempotencyKey, no repetir
         if (idemKey) {
           const existing = await tx.walletLedger.findUnique({ where: { idempotency_key: idemKey } }).catch(() => null);
           if (existing) {
-            // En caso idempotente, asegurar que la reserva esté marcada pagada
+            // En caso idempotente, asegurar que la reserva estÃ© marcada pagada
             await tx.reservation.update({ where: { id: reservation.id }, data: { status: 'PAID', paymentMethod: 'CREDITS' } });
             return;
           }
@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
         const user = await tx.user.findUnique({ where: { id: finalUserId }, select: { creditsBalance: true } });
         if (!user) throw new Error('Usuario no encontrado');
         if ((user.creditsBalance || 0) < creditsNeeded) {
-          throw new Error('Saldo de créditos insuficiente');
+          throw new Error('Saldo de crÃ©ditos insuficiente');
         }
 
         await tx.user.update({ where: { id: finalUserId }, data: { creditsBalance: { decrement: creditsNeeded } } });
@@ -253,7 +253,7 @@ export async function POST(request: NextRequest) {
             reservationId: reservation.id,
             amount: -creditsNeeded,
             type: 'DEBIT',
-            description: 'Pago de reserva con créditos',
+            description: 'Pago de reserva con crÃ©ditos',
             idempotency_key: idemKey,
           }
         });
@@ -275,7 +275,7 @@ export async function POST(request: NextRequest) {
 
     return ApiResponse.success({ reservation }, 201);
   } catch (error) {
-    console.error('🚨 [RESERVATION-DEBUG] Error detallado:', {
+    console.error('ðŸš¨ [RESERVATION-DEBUG] Error detallado:', {
       error: error instanceof Error ? error.message : error,
       stack: error instanceof Error ? error.stack : undefined,
       body,
@@ -285,7 +285,7 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Datos inválidos', details: error.errors },
+        { error: 'Datos invÃ¡lidos', details: error.errors },
         { status: 400 }
       );
     }
@@ -296,7 +296,7 @@ export async function POST(request: NextRequest) {
       'Horario no disponible',
       'El usuario ya tiene una reserva',
       'Cancha en mantenimiento',
-      'El horario está siendo procesado'
+      'El horario estÃ¡ siendo procesado'
     ];
     if (conflictPhrases.some((m) => message.includes(m))) {
       return NextResponse.json(

@@ -175,7 +175,7 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo canchas:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 /**
@@ -274,7 +274,7 @@ export async function POST(request: NextRequest) {
       console.error('Error creando cancha:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 // Función auxiliar para calcular tasa de ocupación de una cancha

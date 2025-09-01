@@ -15,7 +15,7 @@ const userService = new UserService();
  * Los usuarios pueden ver sus propias estadísticas, STAFF/ADMIN pueden ver cualquier usuario
  */
 export async function GET(req: NextRequest) {
-  return withAuthMiddleware(async (request: NextRequest, context: any) => {
+  return withAuthMiddleware(async (request: NextRequest) => {
   try {
     const pathname = request.nextUrl.pathname;
     // Extraer el userId como el segmento anterior a 'stats'
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       return ApiResponse.badRequest('ID de usuario no válido');
     }
     
-    const { user } = (context as any);
+    const user = (request as any).user;
     
     // Verificar permisos: usuarios solo pueden ver sus propias estadísticas
     if (user.role === 'USER' && user.id !== userId) {

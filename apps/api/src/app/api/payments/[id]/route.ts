@@ -19,9 +19,9 @@ const paymentService = new PaymentService();
 export async function GET(
   request: NextRequest
 ) {
-  return withAuthMiddleware(async (req, context: any) => {
+  return withAuthMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').pop() as string;
       
@@ -58,9 +58,9 @@ export async function GET(
 export async function POST(
   request: NextRequest
 ) {
-  return withAuthMiddleware(async (req, context: any) => {
+  return withAuthMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').pop() as string;
       const body = await req.json();

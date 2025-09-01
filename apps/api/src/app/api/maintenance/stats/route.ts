@@ -1,6 +1,6 @@
-/**
- * API Route para estadísticas de mantenimiento
- * GET /api/maintenance/stats - Obtener estadísticas de mantenimiento
+﻿/**
+ * API Route para estadÃ­sticas de mantenimiento
+ * GET /api/maintenance/stats - Obtener estadÃ­sticas de mantenimiento
  */
 
 import { NextRequest } from 'next/server';
@@ -11,13 +11,13 @@ const maintenanceService = new MaintenanceService();
 
 /**
  * GET /api/maintenance/stats
- * Obtener estadísticas de mantenimiento
+ * Obtener estadÃ­sticas de mantenimiento
  * Acceso: STAFF o superior
  */
 export async function GET(request: NextRequest) {
-  return withStaffMiddleware(async (req, context) => {
+  return withStaffMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const { searchParams } = new URL(req.url);
       const centerId = searchParams.get('centerId') || undefined;
       
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       
       return ApiResponse.success(stats);
     } catch (error) {
-      console.error('Error obteniendo estadísticas de mantenimiento:', error);
+      console.error('Error obteniendo estadÃ­sticas de mantenimiento:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
   })(request);

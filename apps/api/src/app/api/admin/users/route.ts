@@ -1,5 +1,5 @@
-/**
- * API Routes para gestión de usuarios desde administración
+﻿/**
+ * API Routes para gestiÃ³n de usuarios desde administraciÃ³n
  * GET /api/admin/users - Obtener lista de usuarios con filtros avanzados
  * POST /api/admin/users - Crear nuevo usuario
  */
@@ -25,8 +25,8 @@ const GetUsersQuerySchema = z.object({
 });
 
 const CreateUserSchema = z.object({
-  email: z.string().email('Email inválido'),
-  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
+  email: z.string().email('Email invÃ¡lido'),
+  password: z.string().min(8, 'La contraseÃ±a debe tener al menos 8 caracteres'),
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
   phone: z.string().optional(),
   role: z.enum(['USER', 'STAFF', 'ADMIN']).default('USER'),
@@ -38,7 +38,7 @@ const CreateUserSchema = z.object({
 /**
  * GET /api/admin/users
  * Obtener lista de usuarios con filtros avanzados
- * Acceso: ADMIN únicamente
+ * Acceso: ADMIN Ãºnicamente
  */
 export async function GET(request: NextRequest) {
   return withAdminMiddleware(async (req) => {
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
         db.user.count({ where })
       ]);
       
-      // Calcular estadísticas adicionales para cada usuario
+      // Calcular estadÃ­sticas adicionales para cada usuario
       const usersWithStats = await Promise.all(
         users.map(async (user: any) => {
           const [totalSpent, activeReservations, activeMemberships] = await Promise.all([
@@ -192,31 +192,31 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo usuarios:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 /**
  * POST /api/admin/users
- * Crear nuevo usuario desde administración
- * Acceso: ADMIN únicamente
+ * Crear nuevo usuario desde administraciÃ³n
+ * Acceso: ADMIN Ãºnicamente
  */
 export async function POST(request: NextRequest) {
-  return withAdminMiddleware(async (req, context) => {
+  return withAdminMiddleware(async (req) => {
     try {
-      const adminUser = (context as any)?.user;
+      const adminUser = (req as any).user;
       const body = await req.json();
       const userData = CreateUserSchema.parse(body);
       
-      // Verificar que el email no esté en uso
+      // Verificar que el email no estÃ© en uso
       const existingUser = await db.user.findUnique({
         where: { email: userData.email }
       });
       
       if (existingUser) {
-        return ApiResponse.conflict('El email ya está registrado');
+        return ApiResponse.conflict('El email ya estÃ¡ registrado');
       }
       
-      // Hashear contraseña
+      // Hashear contraseÃ±a
       const hashedPassword = await hashPassword(userData.password);
       
       // Crear usuario
@@ -246,9 +246,9 @@ export async function POST(request: NextRequest) {
         }
       });
       
-      // TODO: Enviar email de bienvenida si está habilitado
+      // TODO: Enviar email de bienvenida si estÃ¡ habilitado
       if (userData.sendWelcomeEmail) {
-        // Aquí se integraría con el servicio de notificaciones
+        // AquÃ­ se integrarÃ­a con el servicio de notificaciones
         console.log(`Enviando email de bienvenida a ${newUser.email}`);
       }
       
@@ -266,7 +266,7 @@ export async function POST(request: NextRequest) {
       console.error('Error creando usuario:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 /**

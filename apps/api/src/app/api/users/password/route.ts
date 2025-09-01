@@ -1,6 +1,6 @@
-/**
- * API Routes para cambio de contraseña
- * PUT /api/users/password - Cambiar contraseña del usuario autenticado
+﻿/**
+ * API Routes para cambio de contraseÃ±a
+ * PUT /api/users/password - Cambiar contraseÃ±a del usuario autenticado
  */
 
 import { NextRequest } from 'next/server';
@@ -12,19 +12,19 @@ const userService = new UserService();
 
 /**
  * PUT /api/users/password
- * Cambiar contraseña del usuario autenticado
+ * Cambiar contraseÃ±a del usuario autenticado
  */
 export async function PUT(req: NextRequest) {
-  return withAuthMiddleware(async (request: NextRequest, context: any) => {
+  return withAuthMiddleware(async (request: NextRequest) => {
     try {
       const body = await request.json();
-      const user = (context as any).user;
+      const user = (req as any).user;
       
       const result = await userService.updatePassword(user.id, body);
       
       return ApiResponse.success(result);
     } catch (error) {
-      console.error('Error cambiando contraseña:', error);
+      console.error('Error cambiando contraseÃ±a:', error);
       
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(
@@ -39,7 +39,7 @@ export async function PUT(req: NextRequest) {
         if (error.message === 'Usuario no encontrado') {
           return ApiResponse.notFound('Usuario');
         }
-        if (error.message === 'Contraseña actual incorrecta') {
+        if (error.message === 'ContraseÃ±a actual incorrecta') {
           return ApiResponse.error(error.message, 400);
         }
       }

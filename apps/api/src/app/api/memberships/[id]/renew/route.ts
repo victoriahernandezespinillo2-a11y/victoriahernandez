@@ -16,11 +16,11 @@ const membershipService = new MembershipService();
  * Los usuarios pueden renovar sus propias membresías, ADMIN puede renovar cualquier membresía
  */
 export async function POST(req: NextRequest) {
-  return withAuthMiddleware(async (request: NextRequest, context) => {
+  return withAuthMiddleware(async (request: NextRequest) => {
     try {
       const pathname = request.nextUrl.pathname;
       const membershipId = pathname.split('/').slice(-2, -1)[0] as string;
-      const { user } = (context as any) || {};
+      const { user } = (request as any) || {};
       
       // Obtener la membresía para verificar permisos
       const membership = await membershipService.getMembershipById(membershipId);

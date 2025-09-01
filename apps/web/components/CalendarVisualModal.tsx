@@ -362,6 +362,89 @@ export default function CalendarVisualModal({
 
   const closePaymentModal = () => setPaymentInfo(null);
 
+  // --- 🎨 SUBCOMPONENTES VISUALES ---
+
+  // LEYENDA DE ESTADOS DEL CALENDARIO
+  const CalendarLegend = () => (
+    <div className="mt-4 pt-4 border-t border-gray-200">
+      <h3 className="text-sm font-semibold text-gray-600 mb-2 text-center">Leyenda</h3>
+      <div className="flex flex-wrap justify-center items-center gap-x-4 gap-y-2 text-xs text-gray-500">
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-green-200 border border-green-300"></span>
+          <span>Disponible</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-blue-500 border border-blue-600"></span>
+          <span>Seleccionado</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-gray-300 border border-gray-400"></span>
+          <span>Reservado</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-purple-200 border border-purple-300"></span>
+          <span>Mi Reserva</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-yellow-200 border border-yellow-300"></span>
+          <span>Mantenimiento</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  // BOTÓN DE HORARIO INDIVIDUAL
+  function TimeSlot({ slot, onSelect, isSelected }: { slot: CalendarSlot; onSelect: (s: CalendarSlot) => void; isSelected: boolean }) {
+    // 🎨 Determinar estilos basados en el estado y si está seleccionado
+    const getSlotStyles = (): string => {
+      if (isSelected) {
+        return 'bg-blue-500 text-white border-blue-700 shadow-lg scale-105';
+      }
+      switch (slot.status) {
+        case 'AVAILABLE':
+          return 'bg-green-100 text-green-800 hover:bg-green-200 border-green-300';
+        case 'BOOKED':
+          return 'bg-gray-200 text-gray-500 border-gray-300 cursor-not-allowed';
+        case 'USER_BOOKED':
+          return 'bg-purple-200 text-purple-800 border-purple-400 cursor-not-allowed';
+        case 'MAINTENANCE':
+          return 'bg-yellow-100 text-yellow-800 border-yellow-300 cursor-not-allowed';
+        case 'PAST':
+        case 'UNAVAILABLE':
+          return 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed';
+        default:
+          return 'bg-gray-100 text-gray-800 border-gray-300';
+      }
+    };
+
+    const getStatusLabel = (): string => {
+      switch (slot.status) {
+        case 'AVAILABLE': return 'Disponible';
+        case 'BOOKED': return 'Reservado';
+        case 'USER_BOOKED': return 'Mi Reserva';
+        case 'MAINTENANCE': return 'Mantenimiento';
+        case 'PAST': return 'Pasado';
+        case 'UNAVAILABLE': return 'No Disponible';
+        default: return slot.status;
+      }
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => slot.status === 'AVAILABLE' && onSelect(slot)}
+        disabled={slot.status !== 'AVAILABLE'}
+        className={`w-full p-2 rounded-lg border text-center transition-all duration-200 ease-in-out transform focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${getSlotStyles()}`}
+      >
+        <div className="font-semibold text-sm">{slot.time}</div>
+        <div className="text-xs capitalize mt-1">
+          {getStatusLabel()}
+        </div>
+      </button>
+    );
+  }
+
+  // --- RENDERIZADO PRINCIPAL DEL MODAL ---
   if (!isOpen) return null;
 
   return (

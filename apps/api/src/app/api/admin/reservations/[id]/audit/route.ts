@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       console.error('Admin audit error:', error);
       return ApiResponse.internalError('Error obteniendo auditoría');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 function summarizeEvent(type: string, data: any): string {

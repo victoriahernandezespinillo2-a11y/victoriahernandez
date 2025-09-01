@@ -1,6 +1,6 @@
-/**
- * API Routes para envío directo de notificaciones
- * POST /api/notifications/send - Enviar notificación directamente (sin guardar)
+﻿/**
+ * API Routes para envÃ­o directo de notificaciones
+ * POST /api/notifications/send - Enviar notificaciÃ³n directamente (sin guardar)
  */
 
 import { NextRequest } from 'next/server';
@@ -10,7 +10,7 @@ import { z } from 'zod';
 
 const notificationService = new NotificationService();
 
-// Schema para determinar el tipo de envío
+// Schema para determinar el tipo de envÃ­o
 const SendDirectSchema = z.object({
   type: z.enum(['email', 'sms', 'push']),
   data: z.union([SendEmailSchema, SendSMSSchema, SendPushSchema])
@@ -18,13 +18,13 @@ const SendDirectSchema = z.object({
 
 /**
  * POST /api/notifications/send
- * Enviar notificación directamente (sin guardar en base de datos)
+ * Enviar notificaciÃ³n directamente (sin guardar en base de datos)
  * Acceso: STAFF o superior
  */
 export async function POST(request: NextRequest) {
-  return withStaffMiddleware(async (req, context: any) => {
+  return withStaffMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const body = await req.json();
       const { type, data } = SendDirectSchema.parse(body);
       
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
           result = await notificationService.sendPush(data as z.infer<typeof SendPushSchema>);
           break;
         default:
-          return ApiResponse.badRequest('Tipo de notificación no válido');
+          return ApiResponse.badRequest('Tipo de notificaciÃ³n no vÃ¡lido');
       }
       
       return ApiResponse.success(result);
@@ -59,12 +59,12 @@ export async function POST(request: NextRequest) {
         if (error.message.includes('no encontrado')) {
           return ApiResponse.notFound(error.message);
         }
-        if (error.message.includes('inválido')) {
+        if (error.message.includes('invÃ¡lido')) {
           return ApiResponse.badRequest(error.message);
         }
       }
       
-      console.error('Error enviando notificación directa:', error);
+      console.error('Error enviando notificaciÃ³n directa:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
   })(request);

@@ -20,9 +20,9 @@ const maintenanceService = new MaintenanceService();
 export async function GET(
   request: NextRequest
 ) {
-  return withStaffMiddleware(async (req, context) => {
+  return withStaffMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').pop() as string;
       
@@ -52,9 +52,9 @@ export async function GET(
 export async function PUT(
   request: NextRequest
 ) {
-  return withAdminMiddleware(async (req, context) => {
+  return withAdminMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').pop() as string;
       
@@ -98,9 +98,9 @@ export async function PUT(
 export async function DELETE(
   request: NextRequest
 ) {
-  return withAdminMiddleware(async (req, context) => {
+  return withAdminMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').pop() as string;
       

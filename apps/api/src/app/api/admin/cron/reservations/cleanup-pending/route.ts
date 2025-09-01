@@ -125,5 +125,5 @@ export async function GET(request: NextRequest) {
       console.error('❌ [CRON] Error en limpieza automática de reservas PENDING:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }

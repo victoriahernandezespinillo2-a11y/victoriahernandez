@@ -1,6 +1,6 @@
-/**
- * API Route para gestión de sesión
- * GET /api/auth/session - Obtener sesión actual
+﻿/**
+ * API Route para gestiÃ³n de sesiÃ³n
+ * GET /api/auth/session - Obtener sesiÃ³n actual
  * POST /api/auth/session - Renovar tokens
  */
 
@@ -13,19 +13,19 @@ const authService = new AuthService();
 
 /**
  * GET /api/auth/session
- * Obtener información de la sesión actual
+ * Obtener informaciÃ³n de la sesiÃ³n actual
  * Acceso: Usuario autenticado
  */
 export async function GET(request: NextRequest) {
-  return withAuthMiddleware(async (req, context) => {
+  return withAuthMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       return ApiResponse.success({
         user,
         isAuthenticated: true
       });
     } catch (error) {
-      console.error('Error obteniendo sesión:', error);
+      console.error('Error obteniendo sesiÃ³n:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
   })(request);
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/auth/session
  * Renovar tokens de acceso
- * Acceso: Público (requiere refresh token válido)
+ * Acceso: PÃºblico (requiere refresh token vÃ¡lido)
  */
 export async function POST(request: NextRequest) {
   return withPublicMiddleware(async (req) => {
@@ -55,8 +55,8 @@ export async function POST(request: NextRequest) {
       }
       
       if (error instanceof Error) {
-        if (error.message.includes('inválido') || error.message.includes('expirado')) {
-          return ApiResponse.unauthorized('Token de renovación inválido o expirado');
+        if (error.message.includes('invÃ¡lido') || error.message.includes('expirado')) {
+          return ApiResponse.unauthorized('Token de renovaciÃ³n invÃ¡lido o expirado');
         }
         if (error.message.includes('desactivado')) {
           return ApiResponse.forbidden('Usuario desactivado');

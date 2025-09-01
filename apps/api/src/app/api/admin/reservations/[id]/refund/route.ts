@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       console.error('Error al reembolsar reserva:', error);
       return ApiResponse.internalError('No se pudo procesar el reembolso');
     }
-  })(request, {} as any);
+  })(request);
 }
 
 

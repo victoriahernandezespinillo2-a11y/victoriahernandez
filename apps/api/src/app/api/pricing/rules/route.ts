@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
       const res = API.success({ pricingRules: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 }, filters: {} });
       return res;
     }
-  })(request, {} as any);
+  })(request);
 }
 
 /**
@@ -126,5 +126,5 @@ export async function POST(request: NextRequest) {
       }
       return API.internalError('Error interno del servidor');
     }
-  })(request, {} as any);
+  })(request);
 }

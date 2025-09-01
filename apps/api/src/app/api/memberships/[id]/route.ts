@@ -18,11 +18,11 @@ const membershipService = new MembershipService();
  * Los usuarios pueden ver sus propias membresías, STAFF/ADMIN pueden ver cualquier membresía
  */
 export async function GET(req: NextRequest) {
-  return withAuthMiddleware(async (request: NextRequest, context) => {
+  return withAuthMiddleware(async (request: NextRequest) => {
     try {
       const pathname = request.nextUrl.pathname;
       const membershipId = pathname.split('/').pop() as string;
-      const { user } = (context as any) || {};
+      const user = (request as any).user;
       
       const membership = await membershipService.getMembershipById(membershipId);
       
@@ -92,11 +92,11 @@ export async function PUT(req: NextRequest) {
  * Los usuarios pueden cancelar sus propias membresías, ADMIN puede cancelar cualquier membresía
  */
 export async function DELETE(req: NextRequest) {
-  return withAuthMiddleware(async (request: NextRequest, context) => {
+  return withAuthMiddleware(async (request: NextRequest) => {
     try {
       const pathname = request.nextUrl.pathname;
       const membershipId = pathname.split('/').pop() as string;
-      const { user } = (context as any) || {};
+      const user = (request as any).user;
       
       // Obtener la membresía para verificar permisos
       const membership = await membershipService.getMembershipById(membershipId);

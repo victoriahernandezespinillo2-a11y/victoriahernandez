@@ -146,5 +146,5 @@ export async function GET(request: NextRequest) {
       console.error('[DB/SYNC] Error:', error);
       return ApiResponse.internalError('Error al sincronizar BD');
     }
-  })(request, {} as any);
+  })(request);
 }

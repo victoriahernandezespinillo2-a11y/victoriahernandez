@@ -1,5 +1,5 @@
-/**
- * API Routes para gestión de mantenimiento
+﻿/**
+ * API Routes para gestiÃ³n de mantenimiento
  * GET /api/maintenance - Obtener lista de mantenimientos
  * POST /api/maintenance - Crear nuevo mantenimiento
  */
@@ -17,9 +17,9 @@ const maintenanceService = new MaintenanceService();
  * Acceso: STAFF o superior
  */
 export async function GET(request: NextRequest) {
-  return withStaffMiddleware(async (req, context) => {
+  return withStaffMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const { searchParams } = new URL(req.url);
       const params = Object.fromEntries(searchParams.entries());
 
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       return ApiResponse.success(result);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return ApiResponse.badRequest('Parámetros de consulta inválidos');
+        return ApiResponse.badRequest('ParÃ¡metros de consulta invÃ¡lidos');
       }
       
       console.error('Error obteniendo mantenimientos:', error);
@@ -59,9 +59,9 @@ export async function GET(request: NextRequest) {
  * Acceso: ADMIN
  */
 export async function POST(request: NextRequest) {
-  return withAdminMiddleware(async (req, context) => {
+  return withAdminMiddleware(async (req) => {
     try {
-      const user = (context as any)?.user;
+      const user = (req as any).user;
       const body = await req.json();
       
       const maintenance = await maintenanceService.createMaintenance(body);
@@ -69,11 +69,11 @@ export async function POST(request: NextRequest) {
       return ApiResponse.success(maintenance, 201);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return ApiResponse.badRequest('Datos de mantenimiento inválidos');
+        return ApiResponse.badRequest('Datos de mantenimiento invÃ¡lidos');
       }
       
       if (error instanceof Error) {
-        if (error.message.includes('no encontrada') || error.message.includes('no válido')) {
+        if (error.message.includes('no encontrada') || error.message.includes('no vÃ¡lido')) {
           return ApiResponse.badRequest(error.message);
         }
         if (error.message.includes('conflicto')) {

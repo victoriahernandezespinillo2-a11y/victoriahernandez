@@ -19,9 +19,9 @@ const GetCourtsSchema = z.object({
  * Obtener lista de canchas con filtros
  */
 export async function GET(request: NextRequest) {
-  return withAuthMiddleware(async (req: NextRequest, context: any) => {
+  return withAuthMiddleware(async (req: NextRequest) => {
     try {
-      const sessionUser = context?.user;
+      const sessionUser = (req as any).user;
       if (!sessionUser?.id) {
         return NextResponse.json(
           { error: 'No autorizado' },
