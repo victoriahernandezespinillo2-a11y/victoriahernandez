@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
         const token = authHeader.substring(7);
         const jwt = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
         const payload = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any;
-        userId = payload.uid || payload.userId;
+        userId = payload.uid || payload.userId || payload.id;
         console.log('✅ [PASS] Usuario autenticado por JWT header:', userId);
       } catch (jwtError) {
         console.log('❌ [PASS] Error en autenticación JWT header:', jwtError);
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         
         // Verificar que es un token de acceso al pase
         if (payload.type === 'pass-access') {
-          userId = payload.userId;
+          userId = payload.userId || payload.id || payload.uid;
           console.log('✅ [PASS] Usuario autenticado por token query:', userId);
         } else {
           console.log('❌ [PASS] Token no es de tipo pass-access');
