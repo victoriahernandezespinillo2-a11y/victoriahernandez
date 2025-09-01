@@ -1,4 +1,6 @@
 import { NextRequest } from 'next/server';
+// Forzar Node.js runtime: pdfkit no funciona en Edge
+export const runtime = 'nodejs';
 import { auth } from '@repo/auth';
 import { db } from '@repo/db';
 
@@ -77,7 +79,7 @@ export async function GET(request: NextRequest) {
     return new Response('No autorizado', { status: 401 });
   }
 
-  // Importación dinámica de PDFDocument para evitar errores de build
+  // Importación dinámica de PDFDocument (Node.js runtime)
   const { createRequire } = await import('module');
   const require = createRequire(import.meta.url);
   const PDFDocument = require('pdfkit');
