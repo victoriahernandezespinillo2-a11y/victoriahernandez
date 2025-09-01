@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import {
-  ChatBubbleLeftRightIcon,
   PlusIcon,
   PencilIcon,
   TrashIcon,
@@ -220,11 +220,13 @@ export default function TestimonialsPage() {
             <div className="p-4 border-b border-gray-100">
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center overflow-hidden">
                     {testimonial.imageUrl ? (
-                      <img
+                      <Image
                         src={testimonial.imageUrl}
                         alt={testimonial.name}
+                        width={48}
+                        height={48}
                         className="w-full h-full rounded-full object-cover"
                       />
                     ) : (

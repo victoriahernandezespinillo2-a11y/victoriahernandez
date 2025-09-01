@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as jwt from 'jsonwebtoken';
 import { db } from '@repo/db';
+import { createApiRoute } from '@/lib/api-route-handler';
 
 // Inicialización lazy de Firebase Admin
 let firebaseAdmin: any = null;
@@ -75,17 +76,14 @@ function addCorsHeaders(response: NextResponse, origin?: string | null): NextRes
   return response;
 }
 
-export async function POST(req: NextRequest) {
-  const origin = req.headers.get('origin');
-  
+async function postHandler(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      const response = NextResponse.json(
+      return NextResponse.json(
         { error: 'No autorizado - Token de Firebase requerido' }, 
         { status: 401 }
       );
-      return addCorsHeaders(response, origin);
     }
 
     const firebaseIdToken = authHeader.replace('Bearer ', '');
@@ -93,11 +91,10 @@ export async function POST(req: NextRequest) {
     const decoded = await firebaseAdmin.verifyIdToken(firebaseIdToken, true);
     
     if (!decoded.email || !decoded.uid) {
-      const response = NextResponse.json(
+      return NextResponse.json(
         { error: 'No autorizado - Token de Firebase inválido' }, 
         { status: 401 }
       );
-      return addCorsHeaders(response, origin);
     }
 
     let user = await db.user.findFirst({ where: { firebaseUid: decoded.uid } });
@@ -121,21 +118,19 @@ export async function POST(req: NextRequest) {
     }
 
     if (!user.isActive) {
-      const response = NextResponse.json(
+      return NextResponse.json(
         { error: 'No autorizado - Usuario inactivo' }, 
         { status: 401 }
       );
-      return addCorsHeaders(response, origin);
     }
 
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
       console.error('JWT_SECRET no está configurado');
-      const response = NextResponse.json(
+      return NextResponse.json(
         { error: 'Error de configuración del servidor' }, 
         { status: 500 }
       );
-      return addCorsHeaders(response, origin);
     }
 
     const payload = {
@@ -151,39 +146,33 @@ export async function POST(req: NextRequest) {
     const jwtToken = jwt.sign(payload, jwtSecret, { algorithm: 'HS256' });
     console.log('✅ [AUTH-TOKEN] JWT generado exitosamente para:', user.email);
     
-    const response = NextResponse.json({ 
+    return NextResponse.json({ 
       token: jwtToken,
       user: { id: user.id, email: user.email, name: user.name, role: user.role }
     });
-    return addCorsHeaders(response, origin);
 
   } catch (error: any) {
     console.error('❌ [AUTH-TOKEN] Error generando JWT:', error);
     
-    let errorResponse;
     if (error?.code === 'auth/id-token-expired') {
-      errorResponse = NextResponse.json(
+      return NextResponse.json(
         { error: 'No autorizado - Token de Firebase expirado' }, 
         { status: 401 }
       );
-    } else if (error?.code === 'auth/id-token-revoked') {
-      errorResponse = NextResponse.json(
+    }
+    if (error?.code === 'auth/id-token-revoked') {
+      return NextResponse.json(
         { error: 'No autorizado - Token de Firebase revocado' }, 
         { status: 401 }
       );
-    } else {
-      errorResponse = NextResponse.json(
-        { error: 'Error interno del servidor', message: error?.message, code: error?.code }, 
-        { status: 500 }
-      );
     }
-    
-    return addCorsHeaders(errorResponse, origin);
+    return NextResponse.json(
+      { error: 'Error interno del servidor', message: error?.message, code: error?.code }, 
+      { status: 500 }
+    );
   }
 }
 
-export async function OPTIONS(req: NextRequest) {
-  const origin = req.headers.get('origin');
-  const response = new NextResponse(null, { status: 204 });
-  return addCorsHeaders(response, origin);
-}
+export const { POST, OPTIONS } = createApiRoute({
+  POST: postHandler
+});

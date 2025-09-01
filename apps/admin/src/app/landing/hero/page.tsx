@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import {
   PhotoIcon,
   PlusIcon,
@@ -232,11 +233,13 @@ export default function HeroSlidesPage() {
         {heroSlides.map((slide) => (
           <div key={slide.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             {/* Image Preview */}
-            <div className="h-48 bg-gradient-to-br from-blue-500 to-purple-600 relative">
+            <div className="h-48 bg-gradient-to-br from-blue-500 to-purple-600 relative overflow-hidden">
               {slide.imageUrl ? (
-                <img
+                <Image
                   src={slide.imageUrl}
                   alt={slide.title}
+                  width={400}
+                  height={192}
                   className="w-full h-full object-cover"
                 />
               ) : (

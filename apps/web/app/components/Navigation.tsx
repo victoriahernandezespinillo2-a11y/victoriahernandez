@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { 
   Home, 
@@ -198,9 +199,11 @@ export function Navigation() {
             {/* Logo */}
             <div className="flex items-center space-x-2 sm:space-x-3">
               <div className="relative">
-                <img 
+                <Image 
                   src="/images/logo.png" 
                   alt="Polideportivo Victoria Hernandez" 
+                  width={48}
+                  height={48}
                   className="w-8 h-8 sm:w-12 sm:h-12 object-contain rounded-lg sm:rounded-xl shadow-lg"
                   onError={(e) => {
                     // Fallback al diseño original si no carga la imagen

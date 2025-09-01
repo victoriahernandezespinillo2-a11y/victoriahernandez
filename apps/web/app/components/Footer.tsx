@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 
 export function Footer() {
@@ -180,9 +181,11 @@ export function Footer() {
             <div className="lg:col-span-2">
               <div className="flex items-center space-x-3 mb-6">
                 <div className="relative">
-                  <img 
+                  <Image 
                     src="/images/logo.png" 
                     alt="Polideportivo Victoria Hernandez" 
+                    width={64}
+                    height={64}
                     className="w-16 h-16 object-contain rounded-2xl shadow-2xl hover:scale-110 transition-transform duration-300"
                     onError={(e) => {
                       // Fallback al diseño original si no carga la imagen

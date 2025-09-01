@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import {
   StarIcon,
   PlusIcon,
@@ -251,11 +252,13 @@ export default function SponsorsPage() {
         {sponsors.map((sponsor) => (
           <div key={sponsor.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             {/* Logo */}
-            <div className="h-48 bg-gradient-to-br from-purple-500 to-pink-600 relative">
+            <div className="h-48 bg-gradient-to-br from-purple-500 to-pink-600 relative overflow-hidden">
               {sponsor.logoUrl ? (
-                <img
+                <Image
                   src={sponsor.logoUrl}
                   alt={sponsor.name}
+                  width={400}
+                  height={192}
                   className="w-full h-full object-cover"
                 />
               ) : (
