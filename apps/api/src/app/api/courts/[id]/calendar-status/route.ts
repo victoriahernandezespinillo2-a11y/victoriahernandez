@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { zonedTimeToUtc, utcToZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { db } from '@repo/db';
-import { withJwtAuth, JwtUser } from '@/lib/middleware/jwt-auth';
+import { JwtUser } from '@/lib/middleware/jwt-auth'; // Aún usamos la interfaz
 
 // Forzar renderizado dinámico para deshabilitar el cacheo de esta ruta
 export const dynamic = 'force-dynamic';
@@ -39,21 +39,28 @@ function normalizeToHHmm(input: string): string {
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  return withJwtAuth(async (req, user: JwtUser) => {
-    try {
-      const pathSegments = request.nextUrl.pathname.split('/');
-      const courtId = pathSegments[pathSegments.length - 2];
-      const { searchParams } = new URL(request.url);
-      const date = searchParams.get('date');
-      const duration = parseInt(searchParams.get('duration') || '60');
+  try {
+    // El middleware ya ha validado el JWT. Obtenemos los datos del usuario del header.
+    const userDataHeader = request.headers.get('x-user-data');
+    if (!userDataHeader) {
+      // Esto no debería ocurrir si el middleware está bien configurado
+      return NextResponse.json({ error: 'Usuario no autenticado' }, { status: 401 });
+    }
+    const user: JwtUser = JSON.parse(userDataHeader);
+    
+    const pathSegments = request.nextUrl.pathname.split('/');
+    const courtId = pathSegments[pathSegments.length - 2];
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get('date');
+    const duration = parseInt(searchParams.get('duration') || '60');
 
-      // 🔍 LOGGING PARA DEBUGGING DE AUTENTICACIÓN
-      console.log(`🔍 [CALENDAR-AUTH] Usuario autenticado:`, {
-        userId: user.id,
-        email: user.email,
-        name: user.name,
-        timestamp: new Date().toISOString()
-      });
+    // 🔍 LOGGING PARA DEBUGGING DE AUTENTICACIÓN
+    console.log(`🔍 [CALENDAR-AUTH] Usuario autenticado:`, {
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      timestamp: new Date().toISOString()
+    });
 
     if (!date) {
       return NextResponse.json(
@@ -349,12 +356,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       date: targetDate.toISOString(),
       slots: calendarSlots
     });
-    } catch (error) {
-      console.error('❌ [CALENDAR-STATUS] Error:', error);
-      return NextResponse.json(
-        { error: 'Error obteniendo estado del calendario' },
-        { status: 500 }
-      );
-    }
-  })(request);
+  } catch (error) {
+    console.error('❌ [CALENDAR-STATUS] Error:', error);
+    return NextResponse.json(
+      { error: 'Error obteniendo estado del calendario' },
+      { status: 500 }
+    );
+  }
 }

@@ -32,7 +32,12 @@ export const GetMembershipsSchema = z.object({
   // El ID de usuario se obtiene normalmente del JWT; el parámetro sólo es
   // útil para roles STAFF/ADMIN.  Por robustez lo hacemos opcional y sólo se
   // valida si se envía.
-  userId: z.string().uuid('ID de usuario inválido').optional(),
+  userId: z
+    .preprocess((val) => {
+      if (typeof val === 'string' && val.trim() === '') return undefined;
+      return val;
+    }, z.string().uuid('ID de usuario inválido'))
+    .optional(),
   // centerId no existe en el modelo Membership; se ignora si llega
   centerId: z.string().uuid().optional(),
   type: z.enum(['BASIC', 'PREMIUM', 'VIP']).optional(),
