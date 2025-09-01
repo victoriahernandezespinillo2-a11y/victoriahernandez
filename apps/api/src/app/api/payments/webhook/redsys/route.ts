@@ -102,20 +102,14 @@ export async function POST(request: NextRequest) {
                     data: { creditsBalance: { increment: creditsToAdd } }
                   });
                   
-                  // Crear entrada en el ledger del monedero
+                  // Crear entrada en el ledger del monedero (formato unificado)
                   await db.walletLedger.create({
                     data: {
                       userId: order.userId,
+                      amount: creditsToAdd,
                       type: 'CREDIT',
-                      reason: 'TOPUP',
-                      credits: creditsToAdd,
-                      balanceAfter: updatedUser.creditsBalance,
-                      metadata: {
-                        orderId: order.id,
-                        provider: 'REDSYS',
-                        amount: Number(order.totalEuro),
-                        currency: 'EUR'
-                      }
+                      description: 'Recarga de monedero (Redsys)',
+                      idempotency_key: order.id,
                     }
                   });
                   
