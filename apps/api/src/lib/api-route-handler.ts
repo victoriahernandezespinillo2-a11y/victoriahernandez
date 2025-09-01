@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Lista de orígenes permitidos
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3001', 
-  'http://localhost:3002',
-  'https://polideportivo-web.vercel.app',
-  'https://polideportivo-admin.vercel.app'
-];
+// Lista de orígenes permitidos obtenidos de env-var
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
 
 // Función reutilizable para añadir headers CORS
 function addCorsHeaders(response: NextResponse, origin?: string | null): NextResponse {
