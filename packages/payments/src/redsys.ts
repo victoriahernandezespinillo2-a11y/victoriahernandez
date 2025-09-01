@@ -256,7 +256,16 @@ export class RedsysService {
         merchantParameters
       );
 
-      const isValid = signature === expectedSignature;
+      // Redsys suele enviar la firma en base64 URL-safe ("-"/"_" y sin padding)
+      const normalizeB64 = (s: string) => {
+        const replaced = s.replace(/-/g, '+').replace(/_/g, '/');
+        const padLen = (4 - (replaced.length % 4)) % 4;
+        return replaced + '='.repeat(padLen);
+      };
+
+      const incoming = normalizeB64(signature);
+      const expected = normalizeB64(expectedSignature);
+      const isValid = incoming === expected;
 
       if (isValid) {
         // Registrar respuesta exitosa
