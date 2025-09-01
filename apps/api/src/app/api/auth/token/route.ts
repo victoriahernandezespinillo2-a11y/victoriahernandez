@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as jwt from 'jsonwebtoken';
 import { db } from '@repo/db';
-import { createApiRoute } from '@/lib/api-route-handler';
+import { createApiRoute } from '../../../lib/api-route-handler';
 
 // Inicialización lazy de Firebase Admin
 let firebaseAdmin: any = null;
