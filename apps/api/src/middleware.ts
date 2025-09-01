@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as jwt from 'jsonwebtoken';
+import { jwtVerify } from 'jose';
 
 // ----------- CONFIGURACIÓN CENTRAL ------------
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -102,10 +102,11 @@ export async function middleware(req: NextRequest) {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+    const secretKey = new TextEncoder().encode(JWT_SECRET);
+    const { payload } = await jwtVerify(token, secretKey, { algorithms: ['HS256'] });
     
     const requestHeaders = new Headers(req.headers);
-    requestHeaders.set('x-user-data', JSON.stringify(decoded));
+    requestHeaders.set('x-user-data', JSON.stringify(payload));
 
     // Dejamos pasar la petición, pero añadimos el header CORS a la respuesta final
     const response = NextResponse.next({ request: { headers: requestHeaders } });

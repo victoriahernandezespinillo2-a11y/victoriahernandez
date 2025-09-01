@@ -26,6 +26,7 @@
     "iconv-lite": "0.6.x",
     "isomorphic-dompurify": "^2.26.0",
     "jsonwebtoken": "^9.0.2",
+    "jose": "^5.9.6",
     "lru-cache": "^11.1.0",
     "next": "15.4.7",
     "next-auth": "5.0.0-beta.29",
