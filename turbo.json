@@ -5,7 +5,29 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**"]
+      "outputs": [".next/**", "!.next/cache/**"],
+      "passThroughEnv": [
+        "NEXTAUTH_URL",
+        "FIREBASE_PROJECT_ID",
+        "FIREBASE_CLIENT_EMAIL",
+        "FIREBASE_PRIVATE_KEY",
+        "FIREBASE_SERVICE_ACCOUNT_JSON",
+        "FRONTEND_URL",
+        "ALLOWED_ORIGINS",
+        "JWT_SECRET",
+        "JWT_REFRESH_SECRET",
+        "DIRECT_DATABASE_URL",
+        "SUPABASE_USE_POOLER",
+        "AUTH_SECRET",
+        "EMAIL_PROVIDER",
+        "SENDGRID_API_KEY",
+        "EMAIL_FROM",
+        "REDSYS_MERCHANT_CODE",
+        "REDSYS_TERMINAL",
+        "REDSYS_CURRENCY",
+        "REDSYS_TEST_MERCHANT_KEY",
+        "REDSYS_MERCHANT_KEY"
+      ]
     },
     "lint": {
       "dependsOn": ["^lint"]
