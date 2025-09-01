@@ -154,22 +154,25 @@ export async function apiRequest<T = any>(
 
   try {
     let response: Response | null = null;
-    // 1) Intentar relativo para que pase por el proxy de Next (y lleve cookies de 3001)
+
+    const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+
+    // 1️⃣ Producción / Staging: siempre usar API_BASE_URL primero
+    //    Desarrollo: también, pero permitimos fallback al relativo si existe proxy
     try {
-      response = await fetch(relativeUrl, baseConfig);
-      // 2) Si 404 o 500 y hay base absoluta, intentar absoluto (algunos endpoints solo viven en API)
-      if ((response.status === 404 || response.status === 500) && API_BASE_URL) {
-        console.log(`🔄 [API-REQUEST] Fallback: ${relativeUrl} → ${absoluteUrl} (status: ${response.status})`);
-        response = await fetch(absoluteUrl, baseConfig);
+      response = await fetch(absoluteUrl, baseConfig);
+
+      // Fallback a relativo (proxy Next.js) solo cuando desarrollamos en localhost y la API remota devolvió 404
+      if (isLocalhost && response.status === 404) {
+        console.log(`🔄 [API-REQUEST] Local fallback: ${absoluteUrl} → ${relativeUrl}`);
+        response = await fetch(relativeUrl, baseConfig);
       }
     } catch (networkErr) {
-      // Fallback a absoluto si el relativo falla por red
-      if (API_BASE_URL) {
-        console.log(`🔄 [API-REQUEST] Network fallback: ${relativeUrl} → ${absoluteUrl}`);
-        console.log(`🔍 [API-REQUEST] Network error details:`, networkErr);
-        response = await fetch(absoluteUrl, baseConfig);
+      if (isLocalhost) {
+        console.log(`🔄 [API-REQUEST] Network fallback dev: ${absoluteUrl} → ${relativeUrl}`);
+        response = await fetch(relativeUrl, baseConfig);
       } else {
-        console.error(`🚨 [API-REQUEST] Network error without fallback URL:`, networkErr);
+        console.error(`🚨 [API-REQUEST] Network error en producción:`, networkErr);
         throw networkErr;
       }
     }
