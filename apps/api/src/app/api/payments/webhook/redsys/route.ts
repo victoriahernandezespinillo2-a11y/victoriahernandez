@@ -48,10 +48,39 @@ export async function POST(request: NextRequest) {
     try {
       const decoded = Buffer.from(Ds_MerchantParameters, 'base64').toString('utf8');
       const params = JSON.parse(decoded || '{}');
-      const merchantDataRaw: string | undefined = params?.Ds_MerchantData;
+      // Redsys puede devolver el campo como Ds_MerchantData (base64) o, segfn integracidn, como DS_MERCHANT_MERCHANTDATA
+      const merchantDataRaw: string | undefined = params?.Ds_MerchantData || params?.DS_MERCHANT_MERCHANTDATA;
       if (merchantDataRaw) {
-        const mdJson = Buffer.from(merchantDataRaw, 'base64').toString('utf8');
-        const merchantData = JSON.parse(mdJson || '{}');
+        const parseMerchantData = (raw: string): any | null => {
+          const candidates: string[] = [];
+          try {
+            candidates.push(Buffer.from(raw, 'base64').toString('utf8'));
+          } catch {}
+          candidates.push(raw);
+          for (const candidate of candidates) {
+            try {
+              return JSON.parse(candidate);
+            } catch {
+              // Intentar extraer primer objeto JSON bien formado si hay ruido extradido por el proveedor
+              const start = candidate.indexOf('{');
+              const end = candidate.lastIndexOf('}');
+              if (start !== -1 && end !== -1 && end > start) {
+                const slice = candidate.slice(start, end + 1);
+                try { return JSON.parse(slice); } catch {}
+              }
+              try {
+                const dec = decodeURIComponent(candidate);
+                return JSON.parse(dec);
+              } catch {}
+            }
+          }
+          return null;
+        };
+
+        const merchantData = parseMerchantData(merchantDataRaw);
+        if (!merchantData) {
+          console.warn('No se pudo parsear MerchantData de Redsys (robusto):', merchantDataRaw?.slice?.(0, 200));
+        }
         if ((merchantData?.type === 'shop_order' || merchantData?.type === 'wallet_topup') && merchantData?.orderId) {
           if (result.success) {
             try {
