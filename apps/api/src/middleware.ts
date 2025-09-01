@@ -88,40 +88,48 @@ export async function middleware(req: NextRequest) {
     return response;
   }
 
-  // --- 3. VERIFICACIÓN DE JWT PARA RUTAS PROTEGIDAS ---
+  // --- 3. INTENTO OPCIONAL DE VERIFICACIÓN JWT (NO BLOQUEANTE) ---
   const authHeader = req.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return createCorsResponse(req, { error: 'No autorizado - Token JWT requerido' }, 401);
+  const origin = req.headers.get('origin');
+
+  // Preparar respuesta por defecto (passthrough) con CORS
+  const passResponse = NextResponse.next();
+  if (origin && allowedOrigins.includes(origin)) {
+    passResponse.headers.set('Access-Control-Allow-Origin', origin);
+  }
+  passResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  passResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  passResponse.headers.set('Access-Control-Allow-Credentials', 'true');
+
+  // Si no hay Authorization o no hay secreto, dejar que las rutas manejen la auth (Node runtime)
+  if (!authHeader || !authHeader.startsWith('Bearer ') || !JWT_SECRET) {
+    if (!JWT_SECRET) {
+      console.error('❌ [MIDDLEWARE] JWT_SECRET no configurado (se delega verificación a la ruta)');
+    }
+    return passResponse;
   }
 
   const token = authHeader.replace('Bearer ', '');
-  
-  if (!JWT_SECRET) {
-    console.error('❌ [MIDDLEWARE] JWT_SECRET no configurado');
-    return createCorsResponse(req, { error: 'Error de configuración del servidor' }, 500);
-  }
 
   try {
     const secretKey = new TextEncoder().encode(JWT_SECRET);
     const { payload } = await jwtVerify(token, secretKey, { algorithms: ['HS256'] });
-    
+
     const requestHeaders = new Headers(req.headers);
     requestHeaders.set('x-user-data', JSON.stringify(payload));
 
-    // Dejamos pasar la petición, pero añadimos el header CORS a la respuesta final
     const response = NextResponse.next({ request: { headers: requestHeaders } });
-    const origin = req.headers.get('origin');
     if (origin && allowedOrigins.includes(origin)) {
       response.headers.set('Access-Control-Allow-Origin', origin);
     }
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
     return response;
 
   } catch (error: any) {
-    let errorMessage = 'No autorizado - Token inválido';
-    if (error.name === 'TokenExpiredError') {
-      errorMessage = 'No autorizado - Token expirado';
-    }
-    return createCorsResponse(req, { error: errorMessage }, 401);
+    // No bloquear desde middleware; la ruta devolverá 401 detallado si corresponde
+    return passResponse;
   }
 }
 
