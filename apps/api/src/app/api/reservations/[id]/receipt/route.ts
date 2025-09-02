@@ -79,46 +79,15 @@ export async function GET(request: NextRequest) {
     return new Response('No autorizado', { status: 401 });
   }
 
-  // Importación dinámica de PDFDocument (Node.js runtime)
-  // Importación robusta de pdfkit (ESM/CJS)
-  let PDFDocument: any;
-  try {
-    const mod = await import('pdfkit');
-    PDFDocument = (mod as any)?.default || (mod as any);
-  } catch {
-    const { createRequire } = await import('module');
-    const require = createRequire(import.meta.url);
-    const PDFKitImport = require('pdfkit');
-    PDFDocument = (PDFKitImport as any)?.default || PDFKitImport;
-  }
-
-  const doc = new PDFDocument({ margin: 50 });
-  const chunks: any[] = [];
-  doc.on('data', (c: any) => chunks.push(c));
-  const done = new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks as any))));
-
+  // Generar recibo usando React-PDF (sin dependencias nativas)
+  const { renderToBuffer } = await import('@react-pdf/renderer');
+  const { default: ReceiptPDF } = await import('../../../../components/ReceiptPDF');
+  
   // Configuración dinámica del centro
   const centerSettings: any = (reservation.court.center as any).settings || {};
   const receiptCfg: any = centerSettings.receipt || {};
-  const legalName: string | undefined = receiptCfg.legalName || centerSettings.legalName;
-  const taxId: string | undefined = receiptCfg.taxId || centerSettings.taxId;
-  const fiscalAddress: string | undefined = receiptCfg.fiscalAddress || centerSettings.fiscalAddress;
-  const contactEmail: string | undefined = receiptCfg.contactEmail || reservation.court.center.email || centerSettings.contactEmail;
-  const contactPhone: string | undefined = receiptCfg.contactPhone || reservation.court.center.phone || centerSettings.contactPhone;
-  const footerNotes: string | undefined = receiptCfg.footerNotes;
-
-  doc.fontSize(16).text(legalName || 'Recibo de Reserva', { align: 'center' });
-  if (taxId) doc.fontSize(9).text(`CIF/NIF: ${taxId}`, { align: 'center' });
-  if (fiscalAddress) doc.fontSize(9).text(fiscalAddress, { align: 'center' });
-  doc.moveDown(1);
-  doc.fontSize(10).text(`Centro: ${reservation.court.center.name}`);
-  doc.text(`Cancha: ${reservation.court.name}`);
-  doc.text(`Fecha: ${reservation.startTime.toLocaleDateString('es-ES')} ${reservation.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`);
-  doc.text(`Duración: ${Math.round((reservation.endTime.getTime() - reservation.startTime.getTime()) / 60000)} min`);
-  const paymentMethod = (reservation as any).paymentMethod || 'N/D';
-  doc.text(`Método de pago: ${paymentMethod}`);
-  doc.moveDown(1);
   
+  // Calcular overrides y ajustes
   let total = Number(reservation.totalPrice || 0);
   let sumOverrides = 0;
   let reasons: string[] = [];
@@ -133,46 +102,16 @@ export async function GET(request: NextRequest) {
       if (ev?.eventData?.reason) reasons.push(String(ev.eventData.reason));
     }
   } catch {}
-  const base = total - sumOverrides;
   
-  doc.fontSize(12).text(`Número: ${reservation.id.slice(0, 10).toUpperCase()}`, { align: 'right' });
-  doc.moveDown(1);
-  doc.fontSize(12).text(`Base: €${base.toFixed(2)}`, { align: 'right' });
-  if (sumOverrides !== 0) {
-    doc.text(`Ajustes: €${sumOverrides.toFixed(2)}`, { align: 'right' });
-    if (reasons.length > 0) doc.fontSize(9).text(`Motivos: ${reasons.join(' | ')}`, { align: 'right' });
-  }
-  // Impuestos dinámicos desde center.settings.taxes
-  try {
-    const settings: any = (reservation.court.center as any).settings || {};
-    const taxes: any = settings.taxes || {};
-    const rate = Number(taxes.rate || 0);
-    const included = !!taxes.included;
-    if (rate > 0) {
-      if (included) {
-        const net = Number(reservation.totalPrice || 0) / (1 + rate / 100);
-        const taxAmount = Number(reservation.totalPrice || 0) - net;
-        doc.text(`Impuestos incluidos (${rate}%): €${taxAmount.toFixed(2)}`, { align: 'right' });
-      } else {
-        const taxAmount = (Number(reservation.totalPrice || 0) - base) - sumOverrides; // aproximado
-        doc.text(`Impuestos (${rate}%): €${Math.max(0, taxAmount).toFixed(2)}`, { align: 'right' });
-      }
-    }
-  } catch {}
-  doc.fontSize(12).text(`Total: €${total.toFixed(2)}`, { align: 'right' });
-
-  if (contactEmail || contactPhone) {
-    doc.moveDown(1);
-    if (contactEmail) doc.fontSize(9).text(`Contacto: ${contactEmail}`);
-    if (contactPhone) doc.fontSize(9).text(`Teléfono: ${contactPhone}`);
-  }
-  if (footerNotes) {
-    doc.moveDown(1);
-    doc.fontSize(9).text(String(footerNotes));
-  }
-
-  doc.end();
-  const buffer = await done;
+  const buffer = await renderToBuffer(
+    ReceiptPDF({
+      reservation,
+      centerSettings: receiptCfg,
+      total,
+      sumOverrides,
+      reasons
+    })
+  );
   return new Response(buffer, {
     status: 200,
     headers: {
