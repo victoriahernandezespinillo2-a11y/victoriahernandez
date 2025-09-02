@@ -44,19 +44,56 @@ export async function POST(request: NextRequest) {
         // Para recargas vÃ­a Redsys (tarjeta o Bizum) registramos la operaciÃ³n como 'CARD'.
         const paymentMethodEnum: 'CARD' = 'CARD';
         // Crear orden especial para la recarga del monedero (sin items)
-        const order = await db.order.create({
-          data: {
-            id: topupId,
-            userId: user.id,
-            status: 'PENDING',
-            totalEuro: amount,
-            paymentMethod: paymentMethodEnum,
-            creditsUsed: data.credits, // Guardamos los crÃ©ditos aquÃ­ para referencia
-            paymentIntentId: orderNumber, // Usamos este campo para almacenar el número de Redsys
-            type: 'TOPUP',
-            // No creamos items para las recargas - es un tipo especial de orden
-          }
-        });
+        // Intento 1: con type
+        let order: any;
+        try {
+          order = await db.order.create({
+            data: {
+              id: topupId,
+              userId: user.id,
+              status: 'PENDING',
+              totalEuro: amount,
+              paymentMethod: paymentMethodEnum,
+              creditsUsed: data.credits,
+              paymentIntentId: orderNumber,
+              type: 'TOPUP',
+            },
+            select: {
+              id: true,
+              userId: true,
+              status: true,
+              totalEuro: true,
+              paymentMethod: true,
+              creditsUsed: true,
+              paymentIntentId: true,
+              createdAt: true,
+            },
+          });
+        } catch (e: any) {
+          // Fallback: si la columna 'type' no existe en BBDD
+          console.warn('[TOPUP] Fallback sin columna type en orders:', e?.code || e?.message || e);
+          order = await db.order.create({
+            data: {
+              id: topupId,
+              userId: user.id,
+              status: 'PENDING',
+              totalEuro: amount,
+              paymentMethod: paymentMethodEnum,
+              creditsUsed: data.credits,
+              paymentIntentId: orderNumber,
+            },
+            select: {
+              id: true,
+              userId: true,
+              status: true,
+              totalEuro: true,
+              paymentMethod: true,
+              creditsUsed: true,
+              paymentIntentId: true,
+              createdAt: true,
+            },
+          });
+        }
         
         // Crear URL de redirecciÃ³n que generarÃ¡ el formulario de Redsys
         const bizumFlag = isBizum ? '&bizum=1' : '';
