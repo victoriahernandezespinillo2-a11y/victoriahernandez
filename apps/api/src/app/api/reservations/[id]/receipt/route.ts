@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
 
   // Generar recibo usando React-PDF (sin dependencias nativas)
   const { renderToBuffer } = await import('@react-pdf/renderer');
-  const { default: ReceiptPDF } = await import('../../../../components/ReceiptPDF');
+  const { default: ReceiptPDF } = await import('../../../../../components/ReceiptPDF');
   
   // Configuración dinámica del centro
   const centerSettings: any = (reservation.court.center as any).settings || {};

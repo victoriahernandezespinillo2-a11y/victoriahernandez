@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
 
   // 9) Generar PDF usando React-PDF (sin dependencias nativas)
   const { renderToBuffer } = await import('@react-pdf/renderer');
-  const { default: PassPDF } = await import('../../../../components/PassPDF');
+  const { default: PassPDF } = await import('../../../../../components/PassPDF');
   
   const statusLabel = RESERVATION_STATUS_LABELS[reservation.status as keyof typeof RESERVATION_STATUS_LABELS] || reservation.status;
   
