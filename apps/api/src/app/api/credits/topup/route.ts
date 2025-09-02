@@ -52,7 +52,8 @@ export async function POST(request: NextRequest) {
             totalEuro: amount,
             paymentMethod: paymentMethodEnum,
             creditsUsed: data.credits, // Guardamos los crÃ©ditos aquÃ­ para referencia
-            paymentIntentId: orderNumber, // Usamos este campo para almacenar el nÃºmero de Redsys
+            paymentIntentId: orderNumber, // Usamos este campo para almacenar el número de Redsys
+            type: 'TOPUP',
             // No creamos items para las recargas - es un tipo especial de orden
           }
         });

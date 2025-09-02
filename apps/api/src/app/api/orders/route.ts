@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') || '20')));
       const skip = (page - 1) * limit;
 
-      const where: any = {};
+      const where: any = { type: 'ORDER' };
       // Si es USER, solo sus pedidos; STAFF/ADMIN podrÃ­an ver todos (futuro: filtros por center)
       if (user.role === 'USER') where.userId = user.id;
       else if (searchParams.get('userId')) where.userId = searchParams.get('userId');

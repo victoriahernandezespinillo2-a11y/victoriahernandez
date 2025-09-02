@@ -531,18 +531,15 @@ export default function ReservationsPage() {
             <div className="mt-6 flex flex-col space-y-3">
               {/* Botón prominente para descargar Pase QR */}
               {(selectedReservation.status === 'confirmed' || selectedReservation.paymentStatus === 'paid') && (
-                <a
-                  href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/reservations/${selectedReservation.id}/pass`}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  onClick={() => openReservationPdf(selectedReservation.id, 'pass')}
                   className="w-full inline-flex items-center justify-center px-4 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all duration-200"
-                  onClick={() => setSelectedReservation(null)}
                 >
                   <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 16h4.01M4 8h4m0 0V4m0 4L4 8l4 4m6-4h2.01M8 16H4.01" />
                   </svg>
                   📱 Descargar Pase de Acceso
-                </a>
+                </button>
               )}
               
               {/* Botones secundarios */}

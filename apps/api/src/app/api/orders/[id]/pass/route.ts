@@ -29,6 +29,10 @@ export async function GET(request: NextRequest) {
         return ApiResponse.forbidden('No puedes acceder al pase de este pedido');
       }
 
+      if (order.type && order.type !== 'ORDER') {
+        return ApiResponse.forbidden('No se genera pase para esta transacción');
+      }
+
       if (order.status !== 'PAID') {
         return ApiResponse.conflict('El pedido no está pagado o ya fue canjeado');
       }
