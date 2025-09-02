@@ -103,9 +103,26 @@ export async function GET(request: NextRequest) {
     }
   } catch {}
   
+  // Normalizar objeto de reserva para el componente PDF (evitar Decimal, nullability coherente)
+  const reservationForReceipt = {
+    id: reservation.id,
+    court: {
+      name: reservation.court.name,
+      center: {
+        name: reservation.court.center.name,
+        email: (reservation.court.center as any).email ?? null,
+        phone: (reservation.court.center as any).phone ?? null,
+      },
+    },
+    startTime: reservation.startTime,
+    endTime: reservation.endTime,
+    totalPrice: Number((reservation as any).totalPrice || 0),
+    paymentMethod: (reservation as any).paymentMethod ?? null,
+  };
+
   const buffer = await renderToBuffer(
     ReceiptPDF({
-      reservation,
+      reservation: reservationForReceipt,
       centerSettings: receiptCfg,
       total,
       sumOverrides,
