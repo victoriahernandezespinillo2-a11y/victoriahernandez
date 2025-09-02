@@ -1,2 +1,10 @@
 {
+  "functions": {
+    "apps/api/**/route.js": {
+      "includeFiles": [
+        "node_modules/pdfkit/js/data/*.afm",
+        "node_modules/pdfkit/js/data/*.json"
+      ]
+    }
+  }
 }
