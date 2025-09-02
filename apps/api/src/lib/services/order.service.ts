@@ -8,8 +8,9 @@ type CheckoutItem = { productId: string; qty: number };
 export class OrderService {
   private async calculateCreditsPerUnit(product: any, euroPerCredit: number): Promise<number> {
     const price = Number(product.priceEuro || 0);
-    const multiplier = Number(product.creditMultiplier || 1);
-    const credits = Math.ceil((price * (multiplier > 0 ? multiplier : 1)) / euroPerCredit);
+    // Simplificar: 1 crédito = 1 euro (por defecto)
+    // Si hay configuración específica del centro, usarla
+    const credits = Math.ceil(price / euroPerCredit);
     return Math.max(1, credits);
   }
 
@@ -102,14 +103,34 @@ export class OrderService {
 
     // Pagar
     if (paymentMethod === 'credits') {
+      // 🔧 DEBUG: Log de información de créditos
+      console.log('🔍 DEBUG CHECKOUT CREDITS:', {
+        userId,
+        totalEuro,
+        totalCredits,
+        euroPerCredit: ePerC,
+        items: items.map(i => ({ 
+          productId: i.productId, 
+          qty: i.qty,
+          product: byId.get(i.productId)?.name,
+          price: byId.get(i.productId)?.priceEuro
+        }))
+      });
+
       // Debitar créditos e idempotencia por Order.id
       await (db as any).$transaction(async (tx: any) => {
         if (idempotencyKey) {
           const existing = await tx.walletLedger.findUnique({ where: { idempotency_key: idempotencyKey } }).catch(() => null);
           if (existing) return;
         }
+        
         const user = await tx.user.findUnique({ where: { id: userId }, select: { creditsBalance: true } });
-        if (!user || (user.creditsBalance || 0) < totalCredits) throw new Error('Saldo de créditos insuficiente');
+        console.log('🔍 DEBUG USER CREDITS:', { userId, userBalance: user?.creditsBalance, requiredCredits: totalCredits });
+        
+        if (!user || (user.creditsBalance || 0) < totalCredits) {
+          throw new Error(`Saldo de créditos insuficiente. Disponible: ${user?.creditsBalance || 0}, Requerido: ${totalCredits}`);
+        }
+        
         await tx.user.update({ where: { id: userId }, data: { creditsBalance: { decrement: totalCredits } } });
         await tx.walletLedger.create({
           data: {
