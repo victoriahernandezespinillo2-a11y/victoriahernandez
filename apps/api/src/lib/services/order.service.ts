@@ -56,6 +56,7 @@ export class OrderService {
       }
 
       // Crear pedido PENDING
+      // Limitar columnas devueltas para evitar "RETURNING type" cuando la columna aún no existe en BBDD
       const created = await tx.order.create({
         data: {
           userId,
@@ -64,6 +65,16 @@ export class OrderService {
           paymentMethod: paymentMethod.toUpperCase(),
           creditsUsed: paymentMethod === 'credits' ? totalCredits : paymentMethod === 'mixed' ? Math.min(totalCredits, Number.MAX_SAFE_INTEGER) : 0,
           idempotencyKey: idempotencyKey || null,
+        },
+        select: {
+          id: true,
+          userId: true,
+          status: true,
+          totalEuro: true,
+          paymentMethod: true,
+          creditsUsed: true,
+          idempotencyKey: true,
+          createdAt: true,
         },
       });
 

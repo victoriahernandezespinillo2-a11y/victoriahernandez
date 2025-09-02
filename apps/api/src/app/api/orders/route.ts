@@ -16,22 +16,44 @@ export async function GET(request: NextRequest) {
       if (user.role === 'USER') where.userId = user.id;
       else if (searchParams.get('userId')) where.userId = searchParams.get('userId');
 
-      const [items, total] = await Promise.all([
-        (db as any).order.findMany({
-          where,
+      let items: any[] = [];
+      let total = 0;
+      try {
+        [items, total] = await Promise.all([
+          (db as any).order.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit,
+            include: {
+              items: {
+                include: {
+                  product: { select: { id: true, name: true, category: true } },
+                },
+              },
+            },
+          }),
+          (db as any).order.count({ where }),
+        ]);
+      } catch (e) {
+        // Fallback: si la columna type aún no existe en producción
+        const whereNoType: any = { ...where };
+        delete whereNoType.type;
+        const all = await (db as any).order.findMany({
+          where: whereNoType,
           orderBy: { createdAt: 'desc' },
           skip,
           take: limit,
           include: {
             items: {
-              include: {
-                product: { select: { id: true, name: true, category: true } },
-              },
+              include: { product: { select: { id: true, name: true, category: true } } },
             },
           },
-        }),
-        (db as any).order.count({ where }),
-      ]);
+        });
+        // Filtrar en memoria: si existe campo type lo usamos, si no, asumimos ORDER (para compatibilidad vieja)
+        items = all.filter((o: any) => (o?.type ? o.type === 'ORDER' : true));
+        total = items.length;
+      }
 
       return ApiResponse.success({
         items,
