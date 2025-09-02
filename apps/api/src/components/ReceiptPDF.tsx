@@ -58,14 +58,14 @@ interface ReceiptPDFProps {
       name: string;
       center: {
         name: string;
-        email?: string;
-        phone?: string;
+        email?: string | null;
+        phone?: string | null;
       };
     };
     startTime: Date;
     endTime: Date;
     totalPrice: number;
-    paymentMethod?: string;
+    paymentMethod?: string | null;
   };
   centerSettings: {
     legalName?: string;

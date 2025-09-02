@@ -135,11 +135,11 @@ interface PassPDFProps {
     court: {
       name: string;
       center: {
-        name?: string;
+        name?: string | null;
       };
     };
     user: {
-      name?: string;
+      name?: string | null;
     };
     startTime: Date;
     endTime: Date;
