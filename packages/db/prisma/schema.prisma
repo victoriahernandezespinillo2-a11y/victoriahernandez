@@ -469,6 +469,12 @@ enum OrderPaymentMethod {
   MIXED
 }
 
+/// Tipo de registro de la tabla orders
+enum OrderType {
+  ORDER    // Compra de productos
+  TOPUP    // Recarga de créditos
+}
+
 model Product {
   id              String   @id @default(cuid())
   centerId        String   @map("center_id")
@@ -499,6 +505,7 @@ model Order {
   userId          String   @map("user_id")
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   status          OrderStatus @default(PENDING)
+  type            OrderType @default(ORDER)
   totalEuro       Decimal  @map("total_euro")
   paymentMethod   OrderPaymentMethod @map("payment_method")
   creditsUsed     Int      @default(0) @map("credits_used")
