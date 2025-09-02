@@ -79,6 +79,13 @@ function SignUpContent() {
       }, 2000);
 
     } catch (err: any) {
+      // 1) Error devuelto por Firebase antes de llamar al backend
+      if (err?.code === 'auth/email-already-in-use') {
+        setError('Ese correo ya está registrado. Inicia sesión o recupera tu contraseña.');
+        setIsLoading(false);
+        return;
+      }
+
       // Fallback al método tradicional
       try {
         const response = await fetch('/api/auth/signup', {
@@ -99,6 +106,9 @@ function SignUpContent() {
         const result = await response.json();
 
         if (!response.ok) {
+          if (response.status === 409) {
+            throw new Error(result.error || 'Ese correo ya está registrado. Inicia sesión o recupera tu contraseña.');
+          }
           throw new Error(result.error || 'Error al registrar usuario');
         }
 
@@ -117,8 +127,8 @@ function SignUpContent() {
             router.push('/auth/signin?message=registered');
           }
         }, 2000);
-      } catch (fallbackErr) {
-        setError(err.message || 'Error de conexión. Por favor, intenta nuevamente.');
+      } catch (fallbackErr: any) {
+        setError(fallbackErr.message || err?.message || 'Error de conexión. Por favor, intenta nuevamente.');
       }
     } finally {
       setIsLoading(false);
