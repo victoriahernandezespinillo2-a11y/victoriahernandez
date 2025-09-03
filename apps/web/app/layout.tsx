@@ -4,9 +4,9 @@ import "./globals.css";
 import { Footer } from "./components/Footer";
 import { SessionWrapper } from "./components/SessionWrapper";
 import CookieBanner from "./components/CookieBanner";
-import { FirebaseAuthProvider } from "../components/auth/FirebaseAuthProvider";
+import { FirebaseAuthProvider } from "@/components/auth/FirebaseAuthProvider";
 import { ClientNavigation } from "./components/ClientNavigation";
-import { CartProvider } from "../lib/contexts/CartContext";
+import { CartProvider } from "@/lib/contexts/CartContext";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",

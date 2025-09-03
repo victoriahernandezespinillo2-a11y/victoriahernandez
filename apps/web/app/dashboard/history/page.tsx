@@ -54,9 +54,9 @@ const transformReservationToHistoryItem = (reservation: any): HistoryItem => {
   const endTime = new Date(reservation.endTime);
   const duration = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
   
-  const transformed = {
+  const transformed: HistoryItem = {
     id: reservation.id,
-    type: 'reservation', // Por ahora solo manejamos reservas
+    type: 'reservation' as const, // Por ahora solo manejamos reservas
     sport: reservation.court?.sportType || 'Desconocido',
     court: reservation.court?.name || 'Cancha desconocida',
     date: startTime.toISOString().substring(0, 10),
