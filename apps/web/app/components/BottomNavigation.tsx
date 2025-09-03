@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Home, Calendar, Plus, Activity, User, Wallet, Award } from 'lucide-react';
+import { ShoppingBagIcon } from '@heroicons/react/24/outline';
 import { useMobileDrawer } from '../hooks/useMobileDrawer';
 
 interface NavigationItem {
@@ -67,6 +68,12 @@ export default function BottomNavigation() {
       icon: Calendar,
       href: '/dashboard/reservations',
       badge: 2,
+    },
+    {
+      id: 'tienda',
+      label: 'Tienda',
+      icon: ShoppingBagIcon,
+      href: '/dashboard/shop',
     },
     {
       id: 'billetera',

@@ -106,7 +106,6 @@ export async function POST(req: NextRequest) {
       // Usuario no existe, crear nuevo si la acción lo permite
       if (action === 'signup' || action === 'signin') {
         const role = determineUserRole(email);
-        const creditsBalance = role === 'ADMIN' ? 1000 : role === 'STAFF' ? 500 : 100;
         
         // Generar contraseña temporal para usuarios de Firebase
         const tempPassword = await hashPassword(firebaseUid);
@@ -120,7 +119,7 @@ export async function POST(req: NextRequest) {
             password: tempPassword, // Contraseña temporal basada en firebaseUid
             role,
             membershipType: 'basic',
-            creditsBalance,
+            creditsBalance: 0,
             isActive: true,
             emailVerified: true, // Firebase ya verifica el email
             emailVerifiedAt: new Date(),

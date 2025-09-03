@@ -6,6 +6,7 @@ import { SessionWrapper } from "./components/SessionWrapper";
 import CookieBanner from "./components/CookieBanner";
 import { FirebaseAuthProvider } from "../components/auth/FirebaseAuthProvider";
 import { ClientNavigation } from "./components/ClientNavigation";
+import { CartProvider } from "../lib/contexts/CartContext";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -58,14 +59,16 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning={true}>
         <SessionWrapper>
           <FirebaseAuthProvider>
-            <div className="min-h-screen flex flex-col">
-              <ClientNavigation />
-              <main className="flex-1">
-                {children}
-              </main>
-              <Footer />
-              <CookieBanner />
-            </div>
+            <CartProvider>
+              <div className="min-h-screen flex flex-col">
+                <ClientNavigation />
+                <main className="flex-1">
+                  {children}
+                </main>
+                <Footer />
+                <CookieBanner />
+              </div>
+            </CartProvider>
           </FirebaseAuthProvider>
         </SessionWrapper>
       </body>

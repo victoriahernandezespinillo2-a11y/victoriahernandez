@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server';
 import { ApiResponse } from '@/lib/middleware';
 import { paymentService } from '@repo/payments';
 import { db } from '@repo/db';
+import { walletService } from '../../../../lib/services/wallet.service';
 import { NotificationService } from '@/lib/services/notification.service';
 
 // Forzar runtime Node.js para poder leer cuerpo/form-data correctamente
@@ -18,6 +19,13 @@ export const runtime = 'nodejs';
  * Acceso: Público (validado mediante firma Redsys)
  */
 export async function POST(request: NextRequest) {
+  console.log('🔔 [REDSYS-WEBHOOK] Webhook recibido:', {
+    method: request.method,
+    url: request.url,
+    headers: Object.fromEntries(request.headers.entries()),
+    timestamp: new Date().toISOString()
+  });
+  
   try {
     const contentType = request.headers.get('content-type') || '';
 
@@ -35,8 +43,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (!Ds_Signature || !Ds_MerchantParameters) {
+      console.log('❌ [REDSYS-WEBHOOK] Parámetros faltantes:', { Ds_Signature: !!Ds_Signature, Ds_MerchantParameters: !!Ds_MerchantParameters });
       return ApiResponse.badRequest('Parámetros Redsys requeridos');
     }
+
+    console.log('✅ [REDSYS-WEBHOOK] Parámetros recibidos:', { 
+      hasSignature: !!Ds_Signature, 
+      hasMerchantParameters: !!Ds_MerchantParameters,
+      signatureLength: Ds_Signature.length,
+      merchantParamsLength: Ds_MerchantParameters.length
+    });
 
     // Procesar la notificación con el servicio unificado de pagos (@repo/payments)
     const result = await paymentService.processRedsysNotification({
@@ -88,50 +104,47 @@ export async function POST(request: NextRequest) {
               
               // Verificar si es una recarga de monedero
               if (merchantData.type === 'wallet_topup') {
+                console.log('💰 [REDSYS-WEBHOOK] Procesando TOPUP:', { orderId: merchantData.orderId, type: merchantData.type });
+                
                 // Procesar la recarga del monedero
                 const order = await db.order.findUnique({ 
                   where: { id: merchantData.orderId }
                 });
                 
-                if (order && order.creditsUsed > 0) {
-                  const creditsToAdd = order.creditsUsed; // Los créditos están en creditsUsed
-                  
-                  // Actualizar el balance del usuario
-                  const updatedUser = await db.user.update({
-                    where: { id: order.userId },
-                    data: { creditsBalance: { increment: creditsToAdd } }
-                  });
-                  
-                  // Crear entrada en el ledger del monedero (según esquema Prisma)
-                  await db.walletLedger.create({
-                    data: {
-                      userId: order.userId,
-                      type: 'CREDIT',
-                      reason: 'TOPUP',
-                      credits: creditsToAdd,
-                      balanceAfter: updatedUser.creditsBalance,
-                      metadata: {
-                        orderId: order.id,
-                        provider: 'REDSYS',
-                        amount: Number(order.totalEuro),
-                        currency: 'EUR'
-                      },
-                      idempotencyKey: order.id,
-                    }
-                  });
-                  
-                  await db.outboxEvent.create({ 
-                    data: { 
-                      eventType: 'WALLET_TOPUP_COMPLETED', 
-                      eventData: { 
-                        orderId: merchantData.orderId, 
+                if (order) {
+                  // Validación robusta: interpretamos recarga por créditos especificados en la orden
+                  const creditsToAdd = Math.max(0, Number(order.creditsUsed || 0));
+                  if (creditsToAdd > 0) {
+                    try {
+                      const res = await walletService.credit({
                         userId: order.userId,
                         credits: creditsToAdd,
-                        amount: Number(order.totalEuro),
-                        provider: 'REDSYS' 
-                      } as any 
-                    } 
-                  });
+                        reason: 'TOPUP',
+                        metadata: {
+                          orderId: order.id,
+                          provider: 'REDSYS',
+                          amount: Number(order.totalEuro),
+                          currency: 'EUR'
+                        },
+                        idempotencyKey: `REDSYS:${order.id}`,
+                      });
+                      await db.outboxEvent.create({ 
+                        data: { 
+                          eventType: 'WALLET_TOPUP_COMPLETED', 
+                          eventData: { 
+                            orderId: merchantData.orderId, 
+                            userId: order.userId,
+                            credits: creditsToAdd,
+                            balanceAfter: res.balanceAfter,
+                            amount: Number(order.totalEuro),
+                            provider: 'REDSYS' 
+                          } as any 
+                        } 
+                      });
+                    } catch (e) {
+                      // idempotencia o error: no bloquear webhook, ya se registró evento o no corresponde
+                    }
+                  }
                 }
               } else {
                 await db.outboxEvent.create({ data: { eventType: 'ORDER_PAID', eventData: { orderId: merchantData.orderId, method: 'CARD', provider: 'REDSYS' } as any } });

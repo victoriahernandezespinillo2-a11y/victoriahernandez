@@ -452,7 +452,15 @@ export function useUserHistory() {
     startDate?: string;
     endDate?: string;
   }) => {
-    return execute(() => api.users.getUserHistory(userId, params));
+    return execute(async () => {
+      const response = await api.users.getUserHistory(userId, params);
+      // La API devuelve { reservations: [...], pagination: {...} }
+      // pero el componente espera { reservations: [...] }
+      return {
+        reservations: response.reservations || [],
+        pagination: response.pagination || { page: 1, limit: 20, total: 0, pages: 1 }
+      };
+    });
   }, [execute]);
 
   return {

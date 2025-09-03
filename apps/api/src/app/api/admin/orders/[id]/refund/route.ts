@@ -25,11 +25,14 @@ export async function POST(request: NextRequest) {
           await tx.inventoryMovement.create({ data: { productId: it.productId, type: 'IN', qty: it.qty, reason: `REFUND ${order.id}` } });
         }
 
-        // Si fue pagado con créditos, reabonar
+        // Si fue pagado con créditos, reabonar (idempotente por order.id)
         if (order.paymentMethod === 'CREDITS' && order.creditsUsed > 0) {
-          const user = await tx.user.findUnique({ where: { id: order.userId }, select: { creditsBalance: true } });
-          await tx.user.update({ where: { id: order.userId }, data: { creditsBalance: { increment: order.creditsUsed } } });
-          await tx.walletLedger.create({ data: { userId: order.userId, type: 'CREDIT', reason: 'REFUND', credits: order.creditsUsed, balanceAfter: (user.creditsBalance || 0) + order.creditsUsed, metadata: { orderId: order.id, reason } } });
+          const existing = await tx.walletLedger.findUnique({ where: { idempotency_key: `REFUND:${order.id}` } }).catch(() => null);
+          if (!existing) {
+            const user = await tx.user.findUnique({ where: { id: order.userId }, select: { creditsBalance: true } });
+            const updated = await tx.user.update({ where: { id: order.userId }, data: { creditsBalance: { increment: order.creditsUsed } }, select: { creditsBalance: true } });
+            await tx.walletLedger.create({ data: { userId: order.userId, type: 'CREDIT', reason: 'REFUND', credits: order.creditsUsed, balanceAfter: updated.creditsBalance, metadata: { orderId: order.id, reason }, idempotencyKey: `REFUND:${order.id}` } });
+          }
         }
 
         await tx.order.update({ where: { id }, data: { status: 'REFUNDED' } });
