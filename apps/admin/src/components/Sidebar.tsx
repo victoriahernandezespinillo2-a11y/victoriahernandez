@@ -1,146 +1,145 @@
 "use client";
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import {
   HomeIcon,
   UsersIcon,
-  BuildingOfficeIcon,
-  RectangleStackIcon,
-  CalendarDaysIcon,
-  TrophyIcon,
   CreditCardIcon,
-  IdentificationIcon,
-  CurrencyDollarIcon,
   WrenchScrewdriverIcon,
   ChartBarIcon,
   BellIcon,
   CogIcon,
   DocumentTextIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  Bars3Icon,
   QrCodeIcon,
   GlobeAltIcon,
   PhotoIcon,
   ChatBubbleLeftRightIcon,
   StarIcon,
   QuestionMarkCircleIcon,
-  DocumentTextIcon as BlogIcon,
-  TagIcon,
-  FolderIcon,
+  TrophyIcon,
   CalendarIcon,
   InformationCircleIcon,
+  FolderIcon,
+  TagIcon,
+  ChevronRightIcon,
+  ChevronLeftIcon,
 } from '@heroicons/react/24/outline';
+import { useAdminNotifications } from '@/lib/hooks';
 
+// Definir el tipo para los elementos del menú
 interface MenuItem {
   name: string;
   href: string;
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-  badge?: number;
-  submenu?: MenuItem[];
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: number | (() => number);
+  submenu?: Omit<MenuItem, 'submenu'>[];
 }
 
-const menuItems: MenuItem[] = [
-  {
-    name: 'Dashboard',
-    href: '/',
-    icon: HomeIcon,
-  },
-  {
-    name: 'Gestión',
-    href: '#',
-    icon: UsersIcon,
-    submenu: [
-      { name: 'Usuarios', href: '/users', icon: UsersIcon },
-      { name: 'Centros', href: '/centers', icon: BuildingOfficeIcon },
-      { name: 'Canchas', href: '/courts', icon: RectangleStackIcon },
-      { name: 'Reservas', href: '/reservations', icon: CalendarDaysIcon, badge: 5 },
-      { name: 'Torneos', href: '/tournaments', icon: TrophyIcon },
-    ],
-  },
-  {
-    name: 'Finanzas',
-    href: '#',
-    icon: CreditCardIcon,
-    submenu: [
-      { name: 'Pagos', href: '/payments', icon: CreditCardIcon },
-      { name: 'Membresías', href: '/memberships', icon: IdentificationIcon },
-      { name: 'Precios', href: '/pricing', icon: CurrencyDollarIcon },
-      { name: 'Productos', href: '/products', icon: RectangleStackIcon },
-      { name: 'Inventario', href: '/inventory', icon: BuildingOfficeIcon },
-      { name: 'Pedidos', href: '/orders', icon: CurrencyDollarIcon },
-    ],
-  },
-  {
-    name: 'Mantenimiento',
-    href: '/maintenance',
-    icon: WrenchScrewdriverIcon,
-    badge: 2,
-  },
-  {
-    name: 'Reportes',
-    href: '/reports',
-    icon: ChartBarIcon,
-  },
-  {
-    name: 'Notificaciones',
-    href: '/notifications',
-    icon: BellIcon,
-    badge: 12,
-  },
-  {
-    name: 'Configuración',
-    href: '/settings',
-    icon: CogIcon,
-  },
-  {
-    name: 'Auditoría',
-    href: '/audit',
-    icon: DocumentTextIcon,
-  },
-  {
-    name: 'Control de acceso',
-    href: '/access-control',
-    icon: QrCodeIcon,
-  },
-  {
-    name: 'Landing Page',
-    href: '#',
-    icon: GlobeAltIcon,
-    submenu: [
-      { name: 'Hero Slides', href: '/landing/hero', icon: PhotoIcon },
-      { name: 'Testimonios', href: '/landing/testimonials', icon: ChatBubbleLeftRightIcon },
-      { name: 'Patrocinadores', href: '/landing/sponsors', icon: StarIcon },
-      { name: 'Estadísticas', href: '/landing/stats', icon: ChartBarIcon },
-      { name: 'FAQ', href: '/landing/faqs', icon: QuestionMarkCircleIcon },
-      { name: 'Instalaciones Deportivas', href: '/landing/sports', icon: TrophyIcon },
-      { name: 'Actividades & Eventos', href: '/landing/activities', icon: CalendarIcon },
-      { name: 'Información General', href: '/landing/info-cards', icon: InformationCircleIcon },
-    ],
-  },
-  {
-    name: 'Blog',
-    href: '#',
-    icon: BlogIcon,
-    submenu: [
-      { name: 'Posts', href: '/blog/posts', icon: DocumentTextIcon },
-      { name: 'Categorías', href: '/blog/categories', icon: FolderIcon },
-      { name: 'Tags', href: '/blog/tags', icon: TagIcon },
-      { name: 'Comentarios', href: '/blog/comments', icon: ChatBubbleLeftRightIcon },
-    ],
-  },
-];
-
-interface SidebarProps {
-  isCollapsed: boolean;
-  onToggle: () => void;
-}
-
-export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
+export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolean; onToggle: () => void }) {
   const pathname = usePathname();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const { notifications } = useAdminNotifications();
+
+  // Calcular contadores dinámicos
+  const getNotificationCount = () => {
+    return (notifications || []).filter((n: any) => !n.readAt).length;
+  };
+
+  const getMaintenanceCount = () => {
+    // TODO: Implementar cuando tengamos el hook de mantenimiento
+    return 2; // Temporalmente hardcodeado hasta implementar
+  };
+
+  const menuItems: MenuItem[] = [
+    {
+      name: 'Dashboard',
+      href: '/',
+      icon: HomeIcon,
+    },
+    {
+      name: 'Gestión',
+      href: '#',
+      icon: UsersIcon,
+      submenu: [
+        { name: 'Usuarios', href: '/users', icon: UsersIcon },
+        { name: 'Centros', href: '/centers', icon: GlobeAltIcon },
+        { name: 'Canchas', href: '/courts', icon: TrophyIcon },
+        { name: 'Productos', href: '/products', icon: FolderIcon },
+        { name: 'Inventario', href: '/inventory', icon: FolderIcon },
+      ],
+    },
+    {
+      name: 'Finanzas',
+      href: '#',
+      icon: CreditCardIcon,
+      submenu: [
+        { name: 'Pagos', href: '/payments', icon: CreditCardIcon },
+        { name: 'Pedidos', href: '/orders', icon: DocumentTextIcon },
+        { name: 'Precios', href: '/pricing', icon: ChartBarIcon },
+        { name: 'Membresías', href: '/memberships', icon: UsersIcon },
+      ],
+    },
+    {
+      name: 'Mantenimiento',
+      href: '/maintenance',
+      icon: WrenchScrewdriverIcon,
+      badge: getMaintenanceCount,
+    },
+    {
+      name: 'Reportes',
+      href: '/reports',
+      icon: ChartBarIcon,
+    },
+    {
+      name: 'Notificaciones',
+      href: '/notifications',
+      icon: BellIcon,
+      badge: getNotificationCount,
+    },
+    {
+      name: 'Configuración',
+      href: '/settings',
+      icon: CogIcon,
+    },
+    {
+      name: 'Auditoría',
+      href: '/audit',
+      icon: DocumentTextIcon,
+    },
+    {
+      name: 'Control de acceso',
+      href: '/access-control',
+      icon: QrCodeIcon,
+    },
+    {
+      name: 'Landing Page',
+      href: '#',
+      icon: GlobeAltIcon,
+      submenu: [
+        { name: 'Hero Slides', href: '/landing/hero', icon: PhotoIcon },
+        { name: 'Testimonios', href: '/landing/testimonials', icon: ChatBubbleLeftRightIcon },
+        { name: 'Patrocinadores', href: '/landing/sponsors', icon: StarIcon },
+        { name: 'Estadísticas', href: '/landing/stats', icon: ChartBarIcon },
+        { name: 'FAQ', href: '/landing/faqs', icon: QuestionMarkCircleIcon },
+        { name: 'Instalaciones Deportivas', href: '/landing/sports', icon: TrophyIcon },
+        { name: 'Actividades & Eventos', href: '/landing/activities', icon: CalendarIcon },
+        { name: 'Información General', href: '/landing/info-cards', icon: InformationCircleIcon },
+      ],
+    },
+    {
+      name: 'Blog',
+      href: '#',
+      icon: DocumentTextIcon,
+      submenu: [
+        { name: 'Posts', href: '/blog/posts', icon: DocumentTextIcon },
+        { name: 'Categorías', href: '/blog/categories', icon: FolderIcon },
+        { name: 'Tags', href: '/blog/tags', icon: TagIcon },
+        { name: 'Comentarios', href: '/blog/comments', icon: ChatBubbleLeftRightIcon },
+      ],
+    },
+  ];
 
   const toggleSubmenu = (itemName: string) => {
     setExpandedItems(prev => 
@@ -228,9 +227,14 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                           <subItem.icon className="h-4 w-4" />
                           <span className="text-sm">{subItem.name}</span>
                         </div>
-                        {subItem.badge && (
+                        {typeof subItem.badge === 'number' && (
                           <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
                             {subItem.badge}
+                          </span>
+                        )}
+                        {typeof subItem.badge === 'function' && (
+                          <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                            {subItem.badge()}
                           </span>
                         )}
                       </Link>
@@ -254,9 +258,14 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                     <span className="font-medium">{item.name}</span>
                   )}
                 </div>
-                {!isCollapsed && item.badge && (
+                {typeof item.badge === 'number' && (
                   <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
                     {item.badge}
+                  </span>
+                )}
+                {typeof item.badge === 'function' && (
+                  <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                    {item.badge()}
                   </span>
                 )}
               </Link>

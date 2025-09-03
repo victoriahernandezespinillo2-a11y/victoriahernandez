@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import PWAInstaller from './PWAInstaller';
+import PWAManager from './PWAManager';
+import NotificationManager from './NotificationManager';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -98,6 +101,17 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           </div>
         </footer>
       </div>
+
+      {/* PWA Components */}
+      <PWAInstaller />
+      
+      {/* PWA Manager - Oculto visualmente pero funcional */}
+      <div className="fixed top-4 right-4 z-50 opacity-0 pointer-events-none">
+        <PWAManager />
+      </div>
+
+      {/* Notification Manager - Visible y funcional */}
+      <NotificationManager />
     </div>
   );
 }

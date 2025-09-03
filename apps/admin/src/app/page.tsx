@@ -102,7 +102,7 @@ export default function AdminHomePage() {
         console.error('Error cargando reporte de uso:', err);
       });
     }
-  }, [status, getDashboardStats]);
+  }, [status, getDashboardStats, getGeneralReport, fetchRecentActivity]);
 
   const handleSignOut = async () => {
     await signOut({ callbackUrl: '/auth/signin' });

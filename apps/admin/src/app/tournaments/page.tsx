@@ -98,11 +98,11 @@ export default function TournamentsPage() {
   }, [getTournaments]);
 
   // Filtrar torneos
-  const filteredTournaments = (tournaments || []).filter(tournament => {
+  const filteredTournaments = (tournaments || []).filter((tournament: any) => {
     const matchesSearch = 
-      tournament.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (tournament.rules || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (tournament.center?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+      (tournament.name as string)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ((tournament.rules as string) || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ((tournament.center?.name as string) || '').toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesSport = sportFilter === 'ALL' || tournament.sport === sportFilter;
     const matchesStatus = statusFilter === 'ALL' || tournament.status === statusFilter;
@@ -127,11 +127,11 @@ export default function TournamentsPage() {
   };
 
   // Calcular estadísticas
-  const totalPrizePool = (tournaments || []).reduce((sum, t) => sum + (t.prizePool || 0), 0);
-  const activeTournaments = (tournaments || []).filter(t => 
+  const totalPrizePool = (tournaments || []).reduce((sum, t: any) => sum + ((t.prizePool as number) || 0), 0);
+  const activeTournaments = (tournaments || []).filter((t: any) => 
     t.status === 'REGISTRATION_OPEN' || t.status === 'IN_PROGRESS'
   ).length;
-  const totalParticipants = (tournaments || []).reduce((sum, t) => sum + (t._count?.participants || 0), 0);
+  const totalParticipants = (tournaments || []).reduce((sum, t: any) => sum + ((t._count?.participants as number) || 0), 0);
 
   // Mostrar loading
   if (loading && !tournaments) {
@@ -283,25 +283,25 @@ export default function TournamentsPage() {
 
       {/* Tournaments Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {paginatedTournaments.map((tournament) => (
-          <div key={tournament.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+        {paginatedTournaments.map((tournament: any) => (
+          <div key={tournament.id as string} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
             <div className="p-6">
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    {tournament.name}
+                    {tournament.name as string}
                   </h3>
                   <div className="flex flex-wrap gap-2 mb-2">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      sportColors[tournament.sport]
+                      sportColors[tournament.sport as string]
                     }`}>
-                      {sportLabels[tournament.sport]}
+                      {sportLabels[tournament.sport as string]}
                     </span>
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      statusColors[tournament.status]
+                      statusColors[tournament.status as string]
                     }`}>
-                      {statusLabels[tournament.status] || tournament.status}
+                      {statusLabels[tournament.status as string] || tournament.status as string}
                     </span>
                   </div>
                 </div>
@@ -314,7 +314,7 @@ export default function TournamentsPage() {
                   </button>
                   <button 
                     className="text-red-600 hover:text-red-900 p-1"
-                    onClick={() => handleDeleteTournament(tournament.id)}
+                    onClick={() => handleDeleteTournament(tournament.id as string)}
                   >
                     <TrashIcon className="h-4 w-4" />
                   </button>
@@ -324,7 +324,7 @@ export default function TournamentsPage() {
               {/* Rules */}
               {tournament.rules && (
                 <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                  {tournament.rules}
+                  {tournament.rules as string}
                 </p>
               )}
 
@@ -333,18 +333,18 @@ export default function TournamentsPage() {
                 <div className="flex items-center text-gray-600 text-sm">
                   <CalendarDaysIcon className="h-4 w-4 mr-2" />
                   <span>
-                    {new Date(tournament.startDate).toLocaleDateString()} - {new Date(tournament.endDate).toLocaleDateString()}
+                    {new Date(tournament.startDate as string).toLocaleDateString()} - {new Date(tournament.endDate as string).toLocaleDateString()}
                   </span>
                 </div>
                 {tournament.center && (
                   <div className="flex items-center text-gray-600 text-sm">
                     <MapPinIcon className="h-4 w-4 mr-2" />
-                    <span>{tournament.center.name}</span>
+                    <span>{tournament.center.name as string}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Formato:</span>
-                  <span className="text-gray-900">{formatLabels[tournament.format] || tournament.format}</span>
+                  <span className="text-gray-900">{formatLabels[tournament.format as string] || tournament.format as string}</span>
                 </div>
 
               </div>
@@ -354,14 +354,14 @@ export default function TournamentsPage() {
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-gray-500">Participantes</span>
                   <span className="text-gray-900">
-                    {tournament._count?.participants || 0}/{tournament.maxParticipants}
+                    {(tournament._count?.participants as number) || 0}/{tournament.maxParticipants as number}
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
                     className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                     style={{ 
-                      width: `${((tournament._count?.participants || 0) / tournament.maxParticipants) * 100}%` 
+                      width: `${(((tournament._count?.participants as number) || 0) / (tournament.maxParticipants as number)) * 100}%` 
                     }}
                   ></div>
                 </div>
@@ -371,13 +371,13 @@ export default function TournamentsPage() {
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
                 <div className="text-center">
                   <p className="text-lg font-semibold text-green-600">
-                   €{tournament.registrationFee.toFixed(0)}
+                   €{(tournament.registrationFee as number).toFixed(0)}
                   </p>
                   <p className="text-xs text-gray-500">Inscripción</p>
                 </div>
                 <div className="text-center">
                   <p className="text-lg font-semibold text-purple-600">
-                   €{tournament.prizePool.toFixed(0)}
+                   €{(tournament.prizePool as number).toFixed(0)}
                   </p>
                   <p className="text-xs text-gray-500">Premio</p>
                 </div>

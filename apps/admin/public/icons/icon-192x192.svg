@@ -1,0 +1,16 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="192" height="192" rx="24" fill="#1f2937"/>
+  <rect x="16" y="16" width="160" height="160" rx="16" fill="#ffffff"/>
+  
+  <!-- Icono de administración -->
+  <circle cx="96" cy="80" r="24" fill="#1f2937"/>
+  <path d="M96 56c-13.25 0-24 10.75-24 24s10.75 24 24 24 24-10.75 24-24-10.75-24-24-24z" fill="#ffffff"/>
+  
+  <!-- Escudo de administración -->
+  <path d="M96 120c-8.84 0-16 7.16-16 16v16h32v-16c0-8.84-7.16-16-16-16z" fill="#1f2937"/>
+  
+  <!-- Herramientas -->
+  <rect x="64" y="140" width="8" height="20" rx="4" fill="#1f2937"/>
+  <rect x="120" y="140" width="8" height="20" rx="4" fill="#1f2937"/>
+  <rect x="88" y="140" width="16" height="8" rx="4" fill="#1f2937"/>
+</svg>

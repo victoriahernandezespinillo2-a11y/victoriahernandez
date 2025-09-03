@@ -442,9 +442,11 @@ export default function ReportsPage() {
           </div>
           <div className="space-y-3">
             {Array.isArray(revenueData?.byPeriod) && revenueData.byPeriod.length > 0 ? revenueData.byPeriod.map((item, index) => {
+              // Validación robusta de datos
+              const itemAmount = item?._sum?.amount || 0;
               const maxRevenue = Math.max(...(revenueData?.byPeriod || []).map(r => r?._sum?.amount || 0));
-              const percentage = maxRevenue > 0 ? ((item._sum.amount || 0) / maxRevenue) * 100 : 0;
-              const date = new Date(item.createdAt);
+              const percentage = maxRevenue > 0 ? (itemAmount / maxRevenue) * 100 : 0;
+              const date = new Date(item?.createdAt || new Date());
               const monthName = date.toLocaleDateString('es-ES', { month: 'short' });
               return (
                 <div key={index} className="flex items-center gap-3">
@@ -456,7 +458,7 @@ export default function ReportsPage() {
                     ></div>
                   </div>
                   <span className="text-sm font-medium text-gray-900 w-20 text-right">
-                    ${((item._sum.amount || 0) / 1000000).toFixed(1)}M
+                    ${(itemAmount / 1000000).toFixed(1)}M
                   </span>
                 </div>
               );

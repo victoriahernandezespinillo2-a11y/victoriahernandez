@@ -17,14 +17,14 @@ interface User {
   role: 'ADMIN' | 'USER' | 'STAFF';
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   createdAt: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface Center {
   id: string;
   name: string;
   address: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface Court {
@@ -49,28 +49,28 @@ interface Reservation {
   id: string;
   userId: string;
   courtId: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface Tournament {
   id: string;
   name: string;
   description: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface Payment {
   id: string;
   amount: number;
   status: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface MaintenanceRecord {
   id: string;
   courtId: string;
   status: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -153,14 +153,14 @@ export function useAdminDashboard() {
  */
 export function useAdminUsers() {
   const { data, loading, error, execute, reset, setData } = useApiState<User[]>([]);
-  const [pagination, setPagination] = useState<{ page: number; limit: number; total: number; pages: number } | null>(null as any);
+  const [pagination, setPagination] = useState<{ page: number; limit: number; total: number; pages: number } | null>(null);
 
-  const getUsers = useCallback(async (params?: any) => {
+  const getUsers = useCallback(async (params?: { page?: number; limit?: number; search?: string; role?: string; status?: string }) => {
     // Mapear a lista simple usando users.getAll; si en el futuro se requiere meta, se ampliará aquí
     const list = await adminApi.users.getAll(params);
-    setData(list as any);
-    setPagination({ page: params?.page || 1, limit: params?.limit || list.length, total: list.length, pages: 1 } as any);
-    return list as any;
+    setData(list as User[]);
+    setPagination({ page: params?.page || 1, limit: params?.limit || list.length, total: list.length, pages: 1 });
+    return list as User[];
   }, [setData]);
 
   const createUser = useCallback(async (userData: {
@@ -212,8 +212,16 @@ export function useAdminUsers() {
 export function useAdminCenters() {
   const { data, loading, error, execute, reset, setData } = useApiState<Center[]>([]);
 
-  const getCenters = useCallback((params?: any) => {
-    return execute(() => adminApi.centers.getAll(params) as Promise<Center[]>);
+  const getCenters = useCallback((params?: { 
+    search?: string; 
+    status?: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE'; 
+    page?: number; 
+    limit?: number;
+    sortBy?: 'name' | 'createdAt' | 'courtsCount' | 'reservationsCount';
+    sortOrder?: 'asc' | 'desc';
+    includeStats?: boolean;
+  }) => {
+    return execute(() => adminApi.centers.getAll(params) as unknown as Promise<Center[]>);
   }, [execute]);
 
   const createCenter = useCallback(async (centerData: {
@@ -228,7 +236,14 @@ export function useAdminCenters() {
       throw new Error('El nombre debe tener al menos 2 caracteres');
     }
 
-    const payload: any = { name: centerData.name.trim() };
+    const payload: { 
+      name: string; 
+      address?: string; 
+      phone?: string; 
+      email?: string; 
+      description?: string; 
+      website?: string; 
+    } = { name: centerData.name.trim() };
     if (centerData.address && centerData.address.trim().length > 0) payload.address = centerData.address.trim();
     if (centerData.phone && centerData.phone.trim().length > 0) payload.phone = centerData.phone.trim();
     if (centerData.email && centerData.email.trim().length > 0) {
@@ -274,7 +289,7 @@ export function useAdminCenters() {
   }, [setData]);
 
   return {
-    centers: data,
+    centers: data as Center[],
     loading,
     error,
     getCenters,
@@ -582,6 +597,56 @@ export function useAdminNotifications() {
     return adminApi.notifications.stats(params) as Promise<any>;
   }, []);
 
+  // Nuevas funcionalidades para crear y enviar notificaciones
+  const createNotification = useCallback(async (notificationData: {
+    userId?: string;
+    type: 'EMAIL' | 'SMS' | 'PUSH' | 'IN_APP';
+    title: string;
+    message: string;
+    category?: 'RESERVATION' | 'PAYMENT' | 'TOURNAMENT' | 'MAINTENANCE' | 'MEMBERSHIP' | 'SYSTEM' | 'MARKETING' | 'REMINDER';
+    priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+    scheduledFor?: string;
+    data?: Record<string, any>;
+    actionUrl?: string;
+  }) => {
+    const newNotification = await adminApi.notifications.create(notificationData);
+    // Actualizar la lista local si es una notificación IN_APP
+    if (notificationData.type === 'IN_APP') {
+      setData(prev => prev ? [newNotification, ...prev] : [newNotification]);
+    }
+    return newNotification;
+  }, [setData]);
+
+  const sendDirectNotification = useCallback(async (data: {
+    type: 'email' | 'sms' | 'push';
+    data: {
+      to?: string | string[];
+      userId?: string | string[];
+      subject?: string;
+      message?: string;
+      title?: string;
+      body?: string;
+      template?: string;
+      html?: string;
+      text?: string;
+      data?: Record<string, any>;
+      actionUrl?: string;
+    };
+  }) => {
+    return await adminApi.notifications.sendDirect(data);
+  }, []);
+
+  const sendBulkNotification = useCallback(async (data: {
+    type: 'email' | 'sms';
+    recipients: string[];
+    subject?: string;
+    message: string;
+    template?: string;
+    data?: Record<string, any>;
+  }) => {
+    return await adminApi.notifications.sendBulk(data);
+  }, []);
+
   return {
     notifications: data,
     loading,
@@ -590,6 +655,9 @@ export function useAdminNotifications() {
     markAsRead,
     markAllAsRead,
     getStats,
+    createNotification,
+    sendDirectNotification,
+    sendBulkNotification,
     reset,
   };
 }

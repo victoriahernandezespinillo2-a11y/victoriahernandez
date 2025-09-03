@@ -3,15 +3,69 @@
  * Maneja todas las llamadas HTTP a la API backend con funcionalidades administrativas
  */
 
-import { getSession } from 'next-auth/react';
-
 // Para evitar CORS en desarrollo, por defecto usamos rutas relativas
 // y dejamos que Next.js (rewrites) proxy a la API.
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
+// Tipos para la API
+interface ApiError extends Error {
+  code?: string;
+  traceId?: string;
+  details?: unknown;
+}
+
+interface ApiResponse<T> {
+  data?: T;
+  error?: string;
+  code?: string;
+  traceId?: string;
+  details?: unknown;
+}
+
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
+interface UserData {
+  id: string;
+  email: string;
+  name?: string;
+  firstName?: string;
+  givenName?: string;
+  lastName?: string;
+  familyName?: string;
+  isActive?: boolean;
+  role?: string;
+  membershipType?: string;
+  lastLoginAt?: string;
+  lastLogin?: string;
+  phone?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface Center {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  phone: string;
+  email: string;
+  description: string;
+  openingHours: string;
+  closingHours: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE';
+  courtsCount: number;
+  capacity: number;
+  createdAt: string;
+}
+
 class ApiClient {
   private baseURL: string;
-  private inFlight: Map<string, Promise<any>> = new Map();
+  private inFlight: Map<string, Promise<unknown>> = new Map();
 
   constructor(baseURL: string = API_BASE_URL) {
     this.baseURL = baseURL;
@@ -22,7 +76,7 @@ class ApiClient {
     const isGet = method.toUpperCase() === 'GET';
     const headers: HeadersInit = {};
     if (!isGet) {
-      (headers as any)['Content-Type'] = 'application/json';
+      headers['Content-Type'] = 'application/json';
     }
     return headers;
   }
@@ -65,39 +119,39 @@ class ApiClient {
         }
 
         if (!response.ok) {
-          let message = '';
-          let code = '';
-          let traceId = response.headers.get('x-request-id') || '';
-          let details: any = undefined;
-          try {
-            const asJson = await response.json();
-            message = asJson?.error || JSON.stringify(asJson);
-            code = asJson?.code || '';
-            details = asJson?.details;
-            traceId = asJson?.traceId || traceId;
-          } catch {
-            try { message = await response.text(); } catch { message = ''; }
-          }
-          if (response.status >= 400 && response.status < 500) {
-            console.warn('API 4xx', { method, endpoint, status: response.status, code, traceId, details, body: options.body });
-          }
-          let detailMsg = '';
-          if (Array.isArray(details) && details.length > 0) {
-            const d = details[0];
-            const field = (d?.field || d?.path || '').toString();
-            const dm = (d?.message || '').toString();
-            if (field || dm) detailMsg = ` (${[field, dm].filter(Boolean).join(': ')})`;
-          }
-          const err = new Error(`HTTP ${response.status} ${method} ${endpoint}: ${message || 'Unknown error'}${detailMsg}`) as any;
-          if (code) err.code = code;
-          if (traceId) err.traceId = traceId;
-          if (details) err.details = details;
-          throw err;
+                  let message = '';
+        let code = '';
+        let traceId = response.headers.get('x-request-id') || '';
+        let details: unknown = undefined;
+        try {
+          const asJson = await response.json() as ApiResponse<unknown>;
+          message = asJson?.error || JSON.stringify(asJson);
+          code = asJson?.code || '';
+          details = asJson?.details;
+          traceId = asJson?.traceId || traceId;
+        } catch {
+          try { message = await response.text(); } catch { message = ''; }
+        }
+        if (response.status >= 400 && response.status < 500) {
+          console.warn('API 4xx', { method, endpoint, status: response.status, code, traceId, details, body: options.body });
+        }
+        let detailMsg = '';
+        if (Array.isArray(details) && details.length > 0) {
+          const d = details[0] as { field?: string; path?: string; message?: string };
+          const field = (d?.field || d?.path || '').toString();
+          const dm = (d?.message || '').toString();
+          if (field || dm) detailMsg = ` (${[field, dm].filter(Boolean).join(': ')})`;
+        }
+        const err = new Error(`HTTP ${response.status} ${method} ${endpoint}: ${message || 'Unknown error'}${detailMsg}`) as ApiError;
+        if (code) err.code = code;
+        if (traceId) err.traceId = traceId;
+        if (details) err.details = details;
+        throw err;
         }
 
         try {
-          const data = await response.json();
-          return (data as any).data || data as T;
+          const data = await response.json() as ApiResponse<T>;
+          return data.data || data as T;
         } catch {
           const text = await response.text();
           return text as unknown as T;
@@ -117,7 +171,11 @@ class ApiClient {
       }
       const promise = doRequest();
       this.inFlight.set(key, promise);
-      try { return await promise; } finally { this.inFlight.delete(key); }
+      try { 
+        return await promise; 
+      } finally { 
+        this.inFlight.delete(key); 
+      }
     }
 
     return doRequest();
@@ -174,8 +232,8 @@ export const adminApi = {
         });
       }
       const q = sp.toString();
-      const doMap = (payload: any) => {
-        const raw = payload?.data || payload;
+      const doMap = (payload: unknown) => {
+        const raw = payload as { data?: unknown; users?: unknown; pagination?: PaginationMeta } || payload;
         const arr = Array.isArray(raw?.data)
           ? raw.data
           : Array.isArray(raw?.users)
@@ -189,7 +247,7 @@ export const adminApi = {
           total: arr.length,
           pages: Math.max(1, Math.ceil(arr.length / (params?.limit || arr.length || 1)))
         };
-        const mapped = arr.map((u: any) => {
+        const mapped = arr.map((u: UserData) => {
           const fullName: string = u.name || '';
           const [firstName, ...rest] = fullName.split(' ');
           const lastName = rest.join(' ');
@@ -345,7 +403,7 @@ export const adminApi = {
       const query = searchParams.toString();
       return apiClient
         .request(`/api/admin/centers${query ? `?${query}` : ''}`)
-        .then((res: any) => (Array.isArray(res?.data) ? res.data : res));
+        .then((res: unknown) => (Array.isArray(res && typeof res === 'object' && res !== null && 'data' in res && Array.isArray((res as { data: unknown }).data)) ? (res as { data: Center[] }).data : res as Center[]));
     },
     
     create: (data: {
@@ -894,6 +952,58 @@ export const adminApi = {
       const q = sp.toString();
       return apiClient.request(`/api/notifications/stats${q ? `?${q}` : ''}`);
     },
+
+    // Nuevas funcionalidades para crear y enviar notificaciones
+    create: (data: {
+      userId?: string;
+      type: 'EMAIL' | 'SMS' | 'PUSH' | 'IN_APP';
+      title: string;
+      message: string;
+      category?: 'RESERVATION' | 'PAYMENT' | 'TOURNAMENT' | 'MAINTENANCE' | 'MEMBERSHIP' | 'SYSTEM' | 'MARKETING' | 'REMINDER';
+      priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+      scheduledFor?: string;
+      data?: Record<string, any>;
+      actionUrl?: string;
+    }) =>
+      apiClient.request('/api/notifications', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    sendDirect: (data: {
+      type: 'email' | 'sms' | 'push';
+      data: {
+        to?: string | string[];
+        userId?: string | string[];
+        subject?: string;
+        message?: string;
+        title?: string;
+        body?: string;
+        template?: string;
+        html?: string;
+        text?: string;
+        data?: Record<string, any>;
+        actionUrl?: string;
+      };
+    }) =>
+      apiClient.request('/api/notifications/send', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    // Envío masivo de notificaciones
+    sendBulk: (data: {
+      type: 'email' | 'sms';
+      recipients: string[];
+      subject?: string;
+      message: string;
+      template?: string;
+      data?: Record<string, any>;
+    }) =>
+      apiClient.request('/api/notifications/bulk', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
 
   // Membresías

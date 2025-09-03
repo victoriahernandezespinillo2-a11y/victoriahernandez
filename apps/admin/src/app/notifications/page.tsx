@@ -9,13 +9,25 @@ import {
   XMarkIcon,
   EyeIcon,
   TrashIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline';
 
 import { useAdminNotifications } from '@/lib/hooks';
+import NotificationSender from '@/components/NotificationSender';
 
 export default function NotificationsPage() {
-  const { notifications, getNotifications, markAsRead, markAllAsRead } = useAdminNotifications();
+  const { 
+    notifications, 
+    getNotifications, 
+    markAsRead, 
+    markAllAsRead,
+    createNotification,
+    sendDirectNotification,
+    sendBulkNotification
+  } = useAdminNotifications();
+  
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
+  const [showSender, setShowSender] = useState(false);
 
   useEffect(() => {
     getNotifications({ limit: 100 }).catch(() => {});
@@ -79,6 +91,13 @@ export default function NotificationsPage() {
           </div>
         </div>
         <div className="flex items-center space-x-3">
+          <button 
+            onClick={() => setShowSender(true)}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+          >
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Enviar Notificación
+          </button>
           <button 
             onClick={markAllAsRead}
             className="text-blue-600 hover:text-blue-800 font-medium text-sm"
@@ -231,6 +250,15 @@ export default function NotificationsPage() {
           )}
         </div>
       </div>
+
+      {/* Modal de Envío de Notificaciones */}
+      <NotificationSender
+        isOpen={showSender}
+        onClose={() => setShowSender(false)}
+        onCreateNotification={createNotification}
+        onSendDirect={sendDirectNotification}
+        onSendBulk={sendBulkNotification}
+      />
     </div>
   );
 }

@@ -14,21 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useAdminCenters } from '@/lib/hooks';
 
-interface Center {
-  id: string;
-  name: string;
-  address: string;
-  city: string;
-  phone: string;
-  email: string;
-  description: string;
-  openingHours: string;
-  closingHours: string;
-  status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE';
-  courtsCount: number;
-  capacity: number;
-  createdAt: string;
-}
+// Usar la interfaz del hook en lugar de duplicar
 
 
 
@@ -163,7 +149,7 @@ export default function CentersPage() {
   }
 
   // Filtrar centros
-  const filteredCenters = centers?.filter(center => {
+  const filteredCenters = centers?.filter((center: any) => {
     const matchesSearch = 
       center.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       center.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -190,8 +176,8 @@ export default function CentersPage() {
     }
   };
 
-  const totalCourts = centers?.reduce((sum, center) => sum + center.courtsCount, 0) || 0;
-  const totalCapacity = centers?.reduce((sum, center) => sum + center.capacity, 0) || 0;
+  const totalCourts = centers?.reduce((sum, center: any) => sum + center.courtsCount, 0) || 0;
+  const totalCapacity = centers?.reduce((sum, center: any) => sum + center.capacity, 0) || 0;
 
   return (
     <div className="space-y-6">
@@ -387,7 +373,7 @@ export default function CentersPage() {
               <div className="flex items-center text-gray-600 mb-3">
                 <MapPinIcon className="h-4 w-4 mr-2" />
                 <span className="text-sm">
-                  {center.address}, {center.city}
+                  {(center as any).address}, {(center as any).city}
                 </span>
               </div>
 
@@ -395,26 +381,26 @@ export default function CentersPage() {
               <div className="flex items-center text-gray-600 mb-3">
                 <ClockIcon className="h-4 w-4 mr-2" />
                 <span className="text-sm">
-                  {center.openingHours} - {center.closingHours}
+                  {(center as any).openingHours} - {(center as any).closingHours}
                 </span>
               </div>
 
               {/* Description */}
               <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                {center.description}
+                {(center as any).description}
               </p>
 
               {/* Stats */}
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
                 <div className="text-center">
                   <p className="text-2xl font-semibold text-blue-600">
-                    {center.courtsCount}
+                    {(center as any).courtsCount}
                   </p>
                   <p className="text-xs text-gray-500">Canchas</p>
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-semibold text-green-600">
-                    {center.capacity}
+                    {(center as any).capacity}
                   </p>
                   <p className="text-xs text-gray-500">Capacidad</p>
                 </div>
@@ -423,8 +409,8 @@ export default function CentersPage() {
               {/* Contact Info */}
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <div className="text-xs text-gray-500 space-y-1">
-                  <p>📞 {center.phone}</p>
-                  <p>✉️ {center.email}</p>
+                  <p>📞 {(center as any).phone}</p>
+                  <p>✉️ {(center as any).email}</p>
                 </div>
               </div>
             </div>

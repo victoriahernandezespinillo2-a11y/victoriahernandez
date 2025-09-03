@@ -1,0 +1,21 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="64" fill="#1f2937"/>
+  <rect x="32" y="32" width="448" height="448" rx="32" fill="#ffffff"/>
+  
+  <!-- Icono de administración -->
+  <circle cx="256" cy="200" r="64" fill="#1f2937"/>
+  <path d="M256 120c-44.18 0-80 35.82-80 80s35.82 80 80 80 80-35.82 80-80-35.82-80-80-80z" fill="#ffffff"/>
+  
+  <!-- Escudo de administración -->
+  <path d="M256 320c-23.56 0-42.67 19.11-42.67 42.67v42.67h85.34v-42.67c0-23.56-19.11-42.67-42.67-42.67z" fill="#1f2937"/>
+  
+  <!-- Herramientas -->
+  <rect x="160" y="380" width="24" height="60" rx="12" fill="#1f2937"/>
+  <rect x="328" y="380" width="24" height="60" rx="12" fill="#1f2937"/>
+  <rect x="224" y="380" width="64" height="24" rx="12" fill="#1f2937"/>
+  
+  <!-- Elementos adicionales -->
+  <rect x="200" y="280" width="112" height="8" rx="4" fill="#1f2937"/>
+  <rect x="200" y="300" width="112" height="8" rx="4" fill="#1f2937"/>
+  <rect x="200" y="320" width="80" height="8" rx="4" fill="#1f2937"/>
+</svg>

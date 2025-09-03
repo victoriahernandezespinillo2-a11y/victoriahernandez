@@ -121,12 +121,12 @@ export default function ReservationsPage() {
   }
 
   // Filtrar reservas
-  const filteredReservations = reservations?.filter(reservation => {
+  const filteredReservations = reservations?.filter((reservation: any) => {
     const matchesSearch = 
-      reservation.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reservation.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reservation.courtName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reservation.centerName.toLowerCase().includes(searchTerm.toLowerCase());
+      (reservation.userName as string)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (reservation.userEmail as string)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (reservation.courtName as string)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (reservation.centerName as string)?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === 'ALL' || reservation.status === statusFilter;
     const matchesPayment = paymentFilter === 'ALL' || reservation.paymentStatus === paymentFilter;
@@ -211,10 +211,10 @@ export default function ReservationsPage() {
 
   // Calcular estadísticas
   const totalRevenue = reservations
-    ?.filter(r => r.paymentStatus === 'PAID')
-    .reduce((sum, r) => sum + r.totalAmount, 0) || 0;
+    ?.filter((r: any) => r.paymentStatus === 'PAID')
+    .reduce((sum, r: any) => sum + (r.totalAmount as number), 0) || 0;
   
-  const todayReservations = reservations?.filter(r => r.date === new Date().toISOString().split('T')[0]) || [];
+  const todayReservations = reservations?.filter((r: any) => r.date === new Date().toISOString().split('T')[0]) || [];
 
   return (
     <div className="space-y-6">
@@ -427,27 +427,27 @@ export default function ReservationsPage() {
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">
-                          {reservation.userName}
+                          {reservation.userName as string}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {reservation.userEmail}
+                          {reservation.userEmail as string}
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{reservation.courtName}</div>
-                    <div className="text-sm text-gray-500">{reservation.centerName}</div>
+                    <div className="text-sm text-gray-900">{reservation.courtName as string}</div>
+                    <div className="text-sm text-gray-500">{reservation.centerName as string}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {new Date(reservation.date).toLocaleDateString()}
+                      {new Date(reservation.date as string).toLocaleDateString()}
                     </div>
                     <div className="text-sm text-gray-500">
-                      {reservation.startTime} - {reservation.endTime}
+                      {reservation.startTime as string} - {reservation.endTime as string}
                     </div>
                     <div className="text-xs text-gray-400">
-                      {reservation.duration}h
+                      {reservation.duration as string}h
                     </div>
                     {(reservation as any).override && (
                       <div className="mt-1 text-xs inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-800" title={(reservation as any).override?.reason || ''}>
@@ -457,10 +457,10 @@ export default function ReservationsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <select
-                      value={reservation.status}
-                      onChange={(e) => handleStatusChange(reservation.id, e.target.value)}
+                      value={reservation.status as string}
+                      onChange={(e) => handleStatusChange(reservation.id as string, e.target.value)}
                       className={`text-xs font-semibold rounded-full px-2 py-1 border-0 focus:ring-2 focus:ring-blue-500 ${
-                        statusColors[reservation.status]
+                        statusColors[reservation.status as string]
                       }`}
                     >
                       <option value="PENDING">Pendiente</option>
@@ -472,13 +472,13 @@ export default function ReservationsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      paymentStatusColors[reservation.paymentStatus]
+                      paymentStatusColors[reservation.paymentStatus as string]
                     }`}>
-                      {paymentStatusLabels[reservation.paymentStatus]}
+                      {paymentStatusLabels[reservation.paymentStatus as string]}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                   €{reservation.totalAmount.toFixed(2)}
+                   €{(reservation.totalAmount as number).toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                     {(reservation as any).paymentMethod || '-'}
