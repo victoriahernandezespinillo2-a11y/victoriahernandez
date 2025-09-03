@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       // Validar el cuerpo de la petición
       const validatedData = BulkNotificationSchema.parse(body);
       
-      let result;
+      let results = [];
       
       if (validatedData.type === 'email') {
         // Validar que todos los destinatarios sean emails válidos
@@ -47,15 +47,27 @@ export async function POST(request: NextRequest) {
           return ApiResponse.badRequest('Algunos emails no son válidos');
         }
         
-        const emailData = {
-          to: validEmails,
-          subject: validatedData.subject || 'Notificación del Sistema',
-          message: validatedData.message,
-          template: validatedData.template,
-          data: validatedData.data,
-        };
-        
-        result = await notificationService.sendBulkEmail(emailData);
+        // Enviar emails individualmente (el servicio no tiene envío masivo)
+        for (const email of validEmails) {
+          try {
+            const emailData = {
+              to: email,
+              subject: validatedData.subject || 'Notificación del Sistema',
+              message: validatedData.message,
+              template: validatedData.template,
+              data: validatedData.data,
+            };
+            
+            const result = await notificationService.sendEmail(emailData);
+            results.push({ email, status: 'success', result });
+          } catch (error) {
+            results.push({ 
+              email, 
+              status: 'error', 
+              error: error instanceof Error ? error.message : 'Error desconocido' 
+            });
+          }
+        }
       } else if (validatedData.type === 'sms') {
         // Validar que todos los destinatarios sean números de teléfono válidos
         const validPhones = validatedData.recipients.filter(phone => {
@@ -67,21 +79,38 @@ export async function POST(request: NextRequest) {
           return ApiResponse.badRequest('Algunos números de teléfono no son válidos');
         }
         
-        const smsData = {
-          to: validPhones,
-          message: validatedData.message,
-          template: validatedData.template,
-          data: validatedData.data,
-        };
-        
-        result = await notificationService.sendBulkSms(smsData);
+        // Enviar SMS individualmente (el servicio no tiene envío masivo)
+        for (const phone of validPhones) {
+          try {
+            const smsData = {
+              to: phone,
+              message: validatedData.message,
+              template: validatedData.template,
+              data: validatedData.data,
+            };
+            
+            const result = await notificationService.sendSMS(smsData);
+            results.push({ phone, status: 'success', result });
+          } catch (error) {
+            results.push({ 
+              phone, 
+              status: 'error', 
+              error: error instanceof Error ? error.message : 'Error desconocido' 
+            });
+          }
+        }
       }
       
+      const successful = results.filter(r => r.status === 'success').length;
+      const failed = results.filter(r => r.status === 'error').length;
+      
       return ApiResponse.success({
-        message: `Notificaciones ${validatedData.type} enviadas exitosamente`,
+        message: `Notificaciones ${validatedData.type} procesadas`,
         type: validatedData.type,
         totalRecipients: validatedData.recipients.length,
-        result
+        successful,
+        failed,
+        results
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
