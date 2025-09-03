@@ -616,12 +616,53 @@ export class MembershipService {
   /**
    * Obtener tipos de membresía disponibles
    */
-  getMembershipTypes() {
-    return Object.entries(MEMBERSHIP_CONFIG).map(([key, config]) => ({
-      type: key,
-      name: config.name,
-      monthlyPrice: config.monthlyPrice,
-      benefits: config.benefits,
-    }));
+  async getMembershipTypes() {
+    try {
+      const plans = await db.membershipPlan.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
+        select: {
+          id: true,
+          type: true,
+          name: true,
+          monthlyPrice: true,
+          description: true,
+          benefits: true,
+          isPopular: true,
+        },
+      });
+
+      // Si no hay planes configurados, devolver array vacío
+      if (plans.length === 0) {
+        console.log('⚠️ [MEMBERSHIP-SERVICE] No hay planes de membresía configurados en la base de datos');
+        return [];
+      }
+
+      console.log(`✅ [MEMBERSHIP-SERVICE] Obtenidos ${plans.length} planes de membresía desde la base de datos`);
+      
+      return plans.map(plan => ({
+        id: plan.id,
+        type: plan.type,
+        name: plan.name,
+        monthlyPrice: Number(plan.monthlyPrice),
+        description: plan.description,
+        benefits: plan.benefits as Record<string, any>,
+        popular: plan.isPopular,
+      }));
+    } catch (error) {
+      console.error('❌ [MEMBERSHIP-SERVICE] Error obteniendo tipos de membresía:', error);
+      
+      // Fallback a configuración hardcodeada si hay error en la base de datos
+      console.log('🔄 [MEMBERSHIP-SERVICE] Usando configuración hardcodeada como fallback');
+      return Object.entries(MEMBERSHIP_CONFIG).map(([key, config]) => ({
+        id: `fallback-${key}`,
+        type: key,
+        name: config.name,
+        monthlyPrice: config.monthlyPrice,
+        description: null,
+        benefits: config.benefits,
+        popular: false,
+      }));
+    }
   }
 }

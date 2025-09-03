@@ -7,7 +7,7 @@ import { NextRequest } from 'next/server';
 import { ApiResponse } from '@/lib/middleware';
 import { paymentService } from '@repo/payments';
 import { db } from '@repo/db';
-import { walletService } from '../../../../lib/services/wallet.service';
+import { walletService } from '@/lib/services/wallet.service';
 import { NotificationService } from '@/lib/services/notification.service';
 
 // Forzar runtime Node.js para poder leer cuerpo/form-data correctamente

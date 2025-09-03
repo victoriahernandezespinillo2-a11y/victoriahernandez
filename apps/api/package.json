@@ -9,7 +9,8 @@
     "dev": "next dev --port 3002",
     "start": "next start",
     "lint": "eslint . --max-warnings 0",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "seed:membership-plans": "tsx src/scripts/seed-membership-plans.ts"
   },
   "dependencies": {
     "@prisma/client": "6.15.0",

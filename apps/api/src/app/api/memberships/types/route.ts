@@ -17,7 +17,7 @@ const membershipService = new MembershipService();
 export async function GET(req: NextRequest) {
   return withPublicMiddleware(async () => {
   try {
-    const types = membershipService.getMembershipTypes();
+    const types = await membershipService.getMembershipTypes();
     
     return ApiResponse.success(types);
   } catch (error) {

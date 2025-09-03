@@ -812,6 +812,5 @@ function BillingMethods() {
 }
 
 function BillingHistory() {
-  // TODO: si se expone /api/payments, consumir y listar pagos; por ahora muestra vacío si no hay
   return <div className="text-sm text-gray-500">Sin movimientos.</div>;
 }

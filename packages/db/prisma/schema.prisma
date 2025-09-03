@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,184 +9,190 @@ datasource db {
 }
 
 model User {
-  id                   String    @id @default(cuid())
-  email                String    @unique
-  // Nombre completo existente; añadimos nombres separados opcionales
-  name                 String?
-  firstName            String?   @map("first_name")
-  lastName             String?   @map("last_name")
-  phone                String?
-  password             String?
-  firebaseUid          String?   @unique @map("firebase_uid")
-  role                 UserRole  @default(USER)
-  dateOfBirth          DateTime? @map("date_of_birth")
-  membershipType       String?   @map("membership_type")
-  membershipExpiresAt  DateTime? @map("membership_expires_at")
-  creditsBalance       Int       @default(0) @map("credits_balance")
-  isActive             Boolean   @default(true) @map("is_active")
-  avatar               String?
-  lastLoginAt          DateTime? @map("last_login_at")
-  emailVerified        Boolean   @default(false) @map("email_verified")
-  emailVerifiedAt      DateTime? @map("email_verified_at")
-  gdprConsent          Boolean   @default(false) @map("gdpr_consent")
-  gdprConsentDate      DateTime? @map("gdpr_consent_date")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
-
-  // Relaciones
-  reservations         Reservation[]
-  memberships          Membership[]
-  tournamentUsers      TournamentUser[]
-  waitingLists         WaitingList[]
-  refreshTokens        RefreshToken[]
-  passwordResetTokens  PasswordResetToken[]
-  walletLedger         WalletLedger[]
-  orders               Order[]
-  notifications        Notification[]
-  posts                Post[]
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  name                String?
+  firstName           String?              @map("first_name")
+  lastName            String?              @map("last_name")
+  phone               String?
+  password            String?
+  firebaseUid         String?              @unique @map("firebase_uid")
+  role                UserRole             @default(USER)
+  dateOfBirth         DateTime?            @map("date_of_birth")
+  membershipType      String?              @map("membership_type")
+  membershipExpiresAt DateTime?            @map("membership_expires_at")
+  creditsBalance      Int                  @default(0) @map("credits_balance")
+  isActive            Boolean              @default(true) @map("is_active")
+  avatar              String?
+  lastLoginAt         DateTime?            @map("last_login_at")
+  emailVerified       Boolean              @default(false) @map("email_verified")
+  emailVerifiedAt     DateTime?            @map("email_verified_at")
+  gdprConsent         Boolean              @default(false) @map("gdpr_consent")
+  gdprConsentDate     DateTime?            @map("gdpr_consent_date")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  memberships         Membership[]
+  notifications       Notification[]
+  orders              Order[]
+  passwordResetTokens PasswordResetToken[]
+  posts               Post[]
+  refreshTokens       RefreshToken[]
+  reservations        Reservation[]
+  tournamentUsers     TournamentUser[]
+  waitingLists        WaitingList[]
+  walletLedger        WalletLedger[]
 
   @@map("users")
 }
 
 model Center {
-  id        String   @id @default(cuid())
-  name      String
-  address   String?
-  phone     String?
-  email     String?
-  settings  Json     @default("{}")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relaciones
+  id          String       @id @default(cuid())
+  name        String
+  address     String?
+  phone       String?
+  email       String?
+  settings    Json         @default("{}")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
   courts      Court[]
-  tournaments Tournament[]
   products    Product[]
+  tournaments Tournament[]
 
   @@map("centers")
 }
 
 model Court {
-  id                 String   @id @default(cuid())
-  centerId           String   @map("center_id")
-  name               String
-  sportType          String   @map("sport_type")
-  capacity           Int?
-  basePricePerHour   Decimal  @map("base_price_per_hour")
-  isActive           Boolean  @default(true) @map("is_active")
-  maintenanceStatus  String   @default("operational") @map("maintenance_status")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-
-  // Relaciones
-  center                Center                @relation(fields: [centerId], references: [id], onDelete: Cascade)
-  reservations          Reservation[]
-  maintenanceSchedules  MaintenanceSchedule[]
-  pricingRules          PricingRule[]
+  id                   String                @id @default(cuid())
+  centerId             String                @map("center_id")
+  name                 String
+  sportType            String                @map("sport_type")
+  capacity             Int?
+  basePricePerHour     Decimal               @map("base_price_per_hour")
+  isActive             Boolean               @default(true) @map("is_active")
+  maintenanceStatus    String                @default("operational") @map("maintenance_status")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+  center               Center                @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  maintenanceSchedules MaintenanceSchedule[]
+  pricingRules         PricingRule[]
+  reservations         Reservation[]
   waitingLists         WaitingList[]
 
   @@map("courts")
 }
 
 model Reservation {
-  id                 String    @id @default(cuid())
-  courtId            String    @map("court_id")
-  userId             String    @map("user_id")
-  startTime          DateTime  @map("start_time")
-  endTime            DateTime  @map("end_time")
-  status             ReservationStatus @default(PENDING)
-  totalPrice         Decimal   @map("total_price")
-  paymentMethod      String?   @map("payment_method")
-  paymentIntentId    String?   @map("payment_intent_id")
-  isRecurring        Boolean   @default(false) @map("is_recurring")
-  recurringParentId  String?   @map("recurring_parent_id")
-  checkInTime        DateTime? @map("check_in_time")
-  checkOutTime       DateTime? @map("check_out_time")
-  expiresAt          DateTime? @map("expires_at")
-  notes              String?
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
-
-  // Relaciones
-  court              Court     @relation(fields: [courtId], references: [id], onDelete: Cascade)
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  recurringParent    Reservation? @relation("RecurringReservations", fields: [recurringParentId], references: [id])
-  recurringChildren  Reservation[] @relation("RecurringReservations")
+  id                String            @id @default(cuid())
+  courtId           String            @map("court_id")
+  userId            String            @map("user_id")
+  startTime         DateTime          @map("start_time")
+  endTime           DateTime          @map("end_time")
+  status            ReservationStatus @default(PENDING)
+  totalPrice        Decimal           @map("total_price")
+  paymentMethod     String?           @map("payment_method")
+  paymentIntentId   String?           @map("payment_intent_id")
+  isRecurring       Boolean           @default(false) @map("is_recurring")
+  recurringParentId String?           @map("recurring_parent_id")
+  checkInTime       DateTime?         @map("check_in_time")
+  checkOutTime      DateTime?         @map("check_out_time")
+  expiresAt         DateTime?         @map("expires_at")
+  notes             String?
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  court             Court             @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  recurringParent   Reservation?      @relation("RecurringReservations", fields: [recurringParentId], references: [id])
+  recurringChildren Reservation[]     @relation("RecurringReservations")
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("reservations")
 }
 
 model Tournament {
-  id                     String   @id @default(cuid())
-  name                   String
-  description            String
-  sport                  String
-  centerId               String   @map("center_id")
-  type                   String   @default("SINGLE_ELIMINATION")
-  format                 String   @default("INDIVIDUAL")
-  category               String   @default("OPEN")
-  maxParticipants        Int      @map("max_participants")
-  registrationFee        Decimal  @map("registration_fee")
-  prizePool              Decimal? @map("prize_pool")
-  registrationStartDate  DateTime @map("registration_start_date")
-  registrationEndDate    DateTime @map("registration_end_date")
-  startDate              DateTime @map("start_date")
-  endDate                DateTime @map("end_date")
-  status                 String   @default("DRAFT")
-  rules                  String?
-  requirements           Json?    @default("[]")
-  prizes                 Json?    @default("[]")
-  organizer              String
-  contactEmail           String   @map("contact_email")
-  contactPhone           String?  @map("contact_phone")
-  isPublic               Boolean  @default(true) @map("is_public")
-  createdAt              DateTime @default(now()) @map("created_at")
-  updatedAt              DateTime @updatedAt @map("updated_at")
-
-  // Relaciones
-  center         Center           @relation(fields: [centerId], references: [id], onDelete: Cascade)
-  tournamentUsers TournamentUser[]
+  id                    String           @id @default(cuid())
+  name                  String
+  description           String
+  sport                 String
+  centerId              String           @map("center_id")
+  type                  String           @default("SINGLE_ELIMINATION")
+  format                String           @default("INDIVIDUAL")
+  category              String           @default("OPEN")
+  maxParticipants       Int              @map("max_participants")
+  registrationFee       Decimal          @map("registration_fee")
+  prizePool             Decimal?         @map("prize_pool")
+  registrationStartDate DateTime         @map("registration_start_date")
+  registrationEndDate   DateTime         @map("registration_end_date")
+  startDate             DateTime         @map("start_date")
+  endDate               DateTime         @map("end_date")
+  status                String           @default("DRAFT")
+  rules                 String?
+  requirements          Json?            @default("[]")
+  prizes                Json?            @default("[]")
+  organizer             String
+  contactEmail          String           @map("contact_email")
+  contactPhone          String?          @map("contact_phone")
+  isPublic              Boolean          @default(true) @map("is_public")
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+  tournamentUsers       TournamentUser[]
+  center                Center           @relation(fields: [centerId], references: [id], onDelete: Cascade)
 
   @@map("tournaments")
 }
 
 model TournamentUser {
-  id           String   @id @default(cuid())
-  tournamentId String   @map("tournament_id")
-  userId       String   @map("user_id")
-  status       String   @default("registered")
-  registeredAt DateTime @default(now()) @map("registered_at")
-  partnerId    String?  @map("partner_id")
-  teamName     String?  @map("team_name")
-  seedNumber   Int?     @map("seed_number")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  // Relaciones
-  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String     @id @default(cuid())
+  tournamentId String     @map("tournament_id")
+  userId       String     @map("user_id")
+  status       String     @default("registered")
+  registeredAt DateTime   @default(now()) @map("registered_at")
+  partnerId    String?    @map("partner_id")
+  teamName     String?    @map("team_name")
+  seedNumber   Int?       @map("seed_number")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, userId])
   @@map("tournament_users")
 }
 
 model Membership {
-  id            String   @id @default(cuid())
-  userId        String   @map("user_id")
-  type          MembershipType
-  status        String   @default("active")
-  validFrom     DateTime @map("valid_from")
-  validUntil    DateTime @map("valid_until")
-  price         Decimal
-  paymentMethod String?  @map("payment_method")
-  paymentIntentId String? @map("payment_intent_id")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  // Relaciones
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String          @id @default(cuid())
+  userId          String          @map("user_id")
+  type            MembershipType
+  status          String          @default("active")
+  validFrom       DateTime        @map("valid_from")
+  validUntil      DateTime        @map("valid_until")
+  price           Decimal
+  paymentMethod   String?         @map("payment_method")
+  paymentIntentId String?         @map("payment_intent_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  planId          String?         @map("plan_id")
+  plan            MembershipPlan? @relation(fields: [planId], references: [id], onUpdate: NoAction)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("memberships")
+}
+
+/// Planes de membresía configurables por el administrador
+model MembershipPlan {
+  id           String       @id @default(cuid())
+  name         String
+  type         String       @unique
+  monthlyPrice Decimal      @map("monthly_price")
+  description  String?
+  benefits     Json
+  isActive     Boolean      @default(true) @map("is_active")
+  isPopular    Boolean      @default(false) @map("is_popular")
+  sortOrder    Int          @default(0) @map("sort_order")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @default(now()) @updatedAt @map("updated_at")
+  memberships  Membership[]
+
+  @@index([isActive, sortOrder])
+  @@map("membership_plans")
 }
 
 /// Métodos de pago guardados (solo metadatos, nunca se almacena PAN ni CVC)
@@ -209,77 +212,499 @@ model PaymentMethod {
 }
 
 model WaitingList {
-  id           String   @id @default(cuid())
-  userId       String   @map("user_id")
-  courtId      String   @map("court_id")
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  courtId       String   @map("court_id")
   requestedTime DateTime @map("requested_time")
-  duration     Int      // en minutos
-  priority     Int      @default(0)
-  status       String   @default("waiting")
-  notified     Boolean  @default(false)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  // Relaciones
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  court Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  duration      Int
+  priority      Int      @default(0)
+  status        String   @default("waiting")
+  notified      Boolean  @default(false)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  court         Court    @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("waiting_lists")
 }
 
 model MaintenanceSchedule {
-  id          String   @id @default(cuid())
-  courtId     String   @map("court_id")
+  id          String            @id @default(cuid())
+  courtId     String            @map("court_id")
   type        MaintenanceType
   status      MaintenanceStatus @default(SCHEDULED)
-  scheduledAt DateTime @map("scheduled_at")
-  startedAt   DateTime? @map("started_at")
-  completedAt DateTime? @map("completed_at")
+  scheduledAt DateTime          @map("scheduled_at")
+  startedAt   DateTime?         @map("started_at")
+  completedAt DateTime?         @map("completed_at")
   description String
   notes       String?
   cost        Decimal?
-  assignedTo  String?  @map("assigned_to")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  // Relaciones
-  court Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  assignedTo  String?           @map("assigned_to")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  court       Court             @relation(fields: [courtId], references: [id], onDelete: Cascade)
 
   @@map("maintenance_schedules")
 }
 
 model PricingRule {
-  id          String   @id @default(cuid())
-  courtId     String?  @map("court_id")
-  name        String
-  description String?
-  type        String   // 'time_based', 'day_based', 'membership_discount', etc.
-  // Condiciones y ajustes genéricos
-  conditions  Json     // Condiciones para aplicar la regla
-  adjustment  Json     // Ajuste de precio (porcentaje, cantidad fija, etc.)
-
-  // Campos específicos usados por el servicio de precios
-  priceMultiplier Decimal  @default(1.0) @map("price_multiplier")
-  memberDiscount  Decimal  @default(0.0) @map("member_discount")
-  timeStart       String   @map("time_start")
-  timeEnd         String   @map("time_end")
-  daysOfWeek      Int[]    @map("days_of_week")
+  id              String    @id @default(cuid())
+  courtId         String?   @map("court_id")
+  name            String
+  description     String?
+  type            String
+  conditions      Json
+  adjustment      Json
+  priceMultiplier Decimal   @default(1.0) @map("price_multiplier")
+  memberDiscount  Decimal   @default(0.0) @map("member_discount")
+  timeStart       String    @map("time_start")
+  timeEnd         String    @map("time_end")
+  daysOfWeek      Int[]     @map("days_of_week")
   seasonStart     DateTime? @map("season_start")
   seasonEnd       DateTime? @map("season_end")
-  isActive    Boolean  @default(true) @map("is_active")
-  priority    Int      @default(0)
-  validFrom   DateTime @map("valid_from")
-  validUntil  DateTime @map("valid_until")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  // Relaciones
-  court Court? @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  isActive        Boolean   @default(true) @map("is_active")
+  priority        Int       @default(0)
+  validFrom       DateTime  @map("valid_from")
+  validUntil      DateTime  @map("valid_until")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  court           Court?    @relation(fields: [courtId], references: [id], onDelete: Cascade)
 
   @@map("pricing_rules")
 }
 
-// Enums
+/// Registros de eventos salientes (notificaciones, pagos, etc.)
+model OutboxEvent {
+  id          String    @id @default(cuid())
+  eventType   String    @map("event_type")
+  eventData   Json      @map("event_data")
+  processed   Boolean   @default(false)
+  processedAt DateTime? @map("processed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("outbox_events")
+}
+
+/// Notificaciones persistentes (in-app/email/sms/push)
+model Notification {
+  id           String               @id @default(cuid())
+  userId       String               @map("user_id")
+  type         NotificationType
+  category     String
+  title        String
+  message      String?
+  priority     NotificationPriority @default(MEDIUM)
+  status       NotificationStatus   @default(PENDING)
+  data         Json?                @default("{}")
+  actionUrl    String?              @map("action_url")
+  scheduledFor DateTime?            @map("scheduled_for")
+  sentAt       DateTime?            @map("sent_at")
+  readAt       DateTime?            @map("read_at")
+  externalId   String?              @map("external_id")
+  error        String?
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("notifications")
+}
+
+/// Registros de webhooks recibidos (Stripe, Redsys, etc.)
+model WebhookEvent {
+  id        String   @id @default(cuid())
+  provider  String
+  eventType String   @map("event_type")
+  eventId   String?  @map("event_id")
+  eventData Json     @map("event_data")
+  processed Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("webhook_events")
+}
+
+/// Almacenamiento de refresh tokens para sesiones JWT
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+/// Tokens de restablecimiento de contraseña
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String    @map("user_id")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+/// Libro mayor de monedero de créditos por usuario (auditoría e idempotencia)
+model WalletLedger {
+  id             String             @id @default(cuid())
+  userId         String             @map("user_id")
+  type           WalletLedgerType
+  reason         WalletLedgerReason
+  credits        Int
+  balanceAfter   Int                @map("balance_after")
+  metadata       Json?              @default("{}")
+  idempotencyKey String?            @unique @map("idempotency_key")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("wallet_ledger")
+}
+
+model Product {
+  id                 String              @id @default(cuid())
+  centerId           String              @map("center_id")
+  name               String
+  sku                String              @unique
+  category           String
+  priceEuro          Decimal             @map("price_euro")
+  taxRate            Decimal             @default(0.0) @map("tax_rate")
+  stockQty           Int                 @default(0) @map("stock_qty")
+  isActive           Boolean             @default(true) @map("is_active")
+  isPerishable       Boolean             @default(false) @map("is_perishable")
+  expiresAt          DateTime?           @map("expires_at")
+  creditMultiplier   Decimal?            @map("credit_multiplier")
+  media              Json?               @default("[]")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  inventoryMovements InventoryMovement[]
+  orderItems         OrderItem[]
+  center             Center              @relation(fields: [centerId], references: [id], onDelete: Cascade)
+
+  @@index([centerId, isActive])
+  @@map("products")
+}
+
+model Order {
+  id              String             @id @default(cuid())
+  userId          String             @map("user_id")
+  status          OrderStatus        @default(PENDING)
+  totalEuro       Decimal            @map("total_euro")
+  paymentMethod   OrderPaymentMethod @map("payment_method")
+  creditsUsed     Int                @default(0) @map("credits_used")
+  paymentIntentId String?            @map("payment_intent_id")
+  idempotencyKey  String?            @unique @map("idempotency_key")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  type            OrderType          @default(ORDER)
+  items           OrderItem[]
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String  @id @default(cuid())
+  orderId        String  @map("order_id")
+  productId      String  @map("product_id")
+  qty            Int
+  unitPriceEuro  Decimal @map("unit_price_euro")
+  taxRate        Decimal @map("tax_rate")
+  creditsPerUnit Int?    @map("credits_per_unit")
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model InventoryMovement {
+  id        String                @id @default(cuid())
+  productId String                @map("product_id")
+  type      InventoryMovementType
+  qty       Int
+  reason    String?
+  metadata  Json?
+  createdAt DateTime              @default(now()) @map("created_at")
+  product   Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, createdAt])
+  @@map("inventory_movements")
+}
+
+model Post {
+  id             String         @id @default(cuid())
+  title          String
+  slug           String         @unique
+  excerpt        String?
+  content        String
+  status         PostStatus     @default(DRAFT)
+  type           PostType       @default(NEWS)
+  publishedAt    DateTime?      @map("published_at")
+  isFeatured     Boolean        @default(false) @map("is_featured")
+  allowComments  Boolean        @default(true) @map("allow_comments")
+  seoKeywords    String[]       @default([]) @map("seo_keywords")
+  seoDescription String?        @map("seo_description")
+  featuredImage  String?        @map("featured_image")
+  authorId       String         @map("author_id")
+  viewCount      Int            @default(0) @map("view_count")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  comments       Comment[]
+  categories     PostCategory[]
+  tags           PostTag[]
+  author         User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([status, publishedAt])
+  @@index([authorId])
+  @@index([isFeatured])
+  @@map("posts")
+}
+
+model Category {
+  id          String         @id @default(cuid())
+  name        String
+  slug        String         @unique
+  description String?
+  color       String?
+  icon        String?
+  sortOrder   Int            @default(0) @map("sort_order")
+  isActive    Boolean        @default(true) @map("is_active")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  posts       PostCategory[]
+
+  @@index([slug])
+  @@map("categories")
+}
+
+model Tag {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  color       String?
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  posts       PostTag[]
+
+  @@index([slug])
+  @@map("tags")
+}
+
+model PostCategory {
+  id         String   @id @default(cuid())
+  postId     String   @map("post_id")
+  categoryId String   @map("category_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, categoryId])
+  @@map("post_categories")
+}
+
+model PostTag {
+  id        String   @id @default(cuid())
+  postId    String   @map("post_id")
+  tagId     String   @map("tag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, tagId])
+  @@map("post_tags")
+}
+
+model Comment {
+  id          String        @id @default(cuid())
+  postId      String        @map("post_id")
+  authorName  String        @map("author_name")
+  authorEmail String        @map("author_email")
+  content     String
+  status      CommentStatus @default(PENDING)
+  parentId    String?       @map("parent_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  parent      Comment?      @relation("CommentReplies", fields: [parentId], references: [id])
+  replies     Comment[]     @relation("CommentReplies")
+  post        Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([status])
+  @@map("comments")
+}
+
+model LandingHero {
+  id               String   @id @default(cuid())
+  title            String
+  subtitle         String?
+  description      String?
+  imageUrl         String?
+  ctaText          String?
+  ctaLink          String?
+  secondaryCtaText String?
+  secondaryCtaLink String?
+  isActive         Boolean  @default(true)
+  order            Int      @default(0)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_hero")
+}
+
+model LandingStat {
+  id          String   @id @default(cuid())
+  value       String
+  suffix      String?
+  label       String
+  description String?
+  icon        String?
+  color       String?
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_stats")
+}
+
+model LandingAchievement {
+  id           String   @id @default(cuid())
+  title        String
+  year         String?
+  organization String?
+  icon         String?
+  color        String?
+  isActive     Boolean  @default(true)
+  order        Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_achievements")
+}
+
+model LandingTestimonial {
+  id         String   @id @default(cuid())
+  name       String
+  role       String?
+  company    String?
+  content    String
+  rating     Int      @default(5)
+  imageUrl   String?
+  sport      String?
+  experience String?
+  highlight  String?
+  isActive   Boolean  @default(true)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_testimonials")
+}
+
+model LandingSponsor {
+  id          String      @id @default(cuid())
+  name        String
+  category    String?
+  logoUrl     String?
+  description String?
+  website     String?
+  partnership String?
+  since       String?
+  tier        SponsorTier @default(SILVER)
+  benefits    String[]    @default([])
+  isActive    Boolean     @default(true)
+  order       Int         @default(0)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  @@map("landing_sponsors")
+}
+
+model LandingActivity {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  icon        String
+  schedule    String
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  color       String   @default("from-emerald-500 to-blue-600")
+
+  @@map("landing_activities")
+}
+
+model LandingInfoCard {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  icon        String
+  content     String
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_info_cards")
+}
+
+model LandingFAQ {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_faqs")
+}
+
+model LandingSportCategory {
+  id          String                 @id @default(cuid())
+  name        String
+  slug        String                 @unique
+  icon        String
+  color       String
+  description String?
+  isActive    Boolean                @default(true)
+  order       Int                    @default(0)
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+  facilities  LandingSportFacility[]
+
+  @@map("landing_sport_categories")
+}
+
+model LandingSportFacility {
+  id           String               @id @default(cuid())
+  categoryId   String               @map("category_id")
+  name         String
+  description  String
+  imageUrl     String?              @map("image_url")
+  price        String
+  availability String
+  rating       Decimal              @default(0)
+  features     String[]
+  isActive     Boolean              @default(true)
+  order        Int                  @default(0)
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+  category     LandingSportCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("landing_sport_facilities")
+}
+
 enum UserRole {
   USER
   STAFF
@@ -341,85 +766,6 @@ enum MaintenanceStatus {
   CANCELLED
 }
 
-/// Registros de eventos salientes (notificaciones, pagos, etc.)
-model OutboxEvent {
-  id         String   @id @default(cuid())
-  eventType  String   @map("event_type")
-  eventData  Json     @map("event_data")
-  processed  Boolean  @default(false)
-  processedAt DateTime? @map("processed_at")
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  @@map("outbox_events")
-}
-
-/// Notificaciones persistentes (in-app/email/sms/push)
-model Notification {
-  id           String                @id @default(cuid())
-  userId       String                @map("user_id")
-  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  type         NotificationType
-  category     String
-  title        String
-  message      String?
-  priority     NotificationPriority  @default(MEDIUM)
-  status       NotificationStatus    @default(PENDING)
-
-  data         Json?                 @default("{}")
-  actionUrl    String?               @map("action_url")
-  scheduledFor DateTime?             @map("scheduled_for")
-  sentAt       DateTime?             @map("sent_at")
-  readAt       DateTime?             @map("read_at")
-  externalId   String?               @map("external_id")
-  error        String?
-
-  createdAt    DateTime              @default(now()) @map("created_at")
-  updatedAt    DateTime              @updatedAt @map("updated_at")
-
-  @@index([userId, createdAt])
-  @@index([status])
-  @@map("notifications")
-}
-
-/// Registros de webhooks recibidos (Stripe, Redsys, etc.)
-model WebhookEvent {
-  id         String   @id @default(cuid())
-  provider   String
-  eventType  String   @map("event_type")
-  eventId    String?  @map("event_id")
-  eventData  Json     @map("event_data")
-  processed  Boolean  @default(false)
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  @@map("webhook_events")
-}
-
-/// Almacenamiento de refresh tokens para sesiones JWT
-model RefreshToken {
-  id        String   @id @default(cuid())
-  token     String   @unique
-  userId    String   @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@map("refresh_tokens")
-}
-
-/// Tokens de restablecimiento de contraseña
-model PasswordResetToken {
-  id        String   @id @default(cuid())
-  token     String   @unique
-  userId    String   @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime @map("expires_at")
-  usedAt    DateTime? @map("used_at")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@map("password_reset_tokens")
-}
-
 /// Tipos de movimientos del monedero
 enum WalletLedgerType {
   CREDIT
@@ -433,27 +779,6 @@ enum WalletLedgerReason {
   REFUND
   ADJUST
 }
-
-/// Libro mayor de monedero de créditos por usuario (auditoría e idempotencia)
-model WalletLedger {
-  id              String             @id @default(cuid())
-  userId          String             @map("user_id")
-  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type            WalletLedgerType
-  reason          WalletLedgerReason
-  credits         Int
-  balanceAfter    Int                @map("balance_after")
-  metadata        Json?              @default("{}")
-  idempotencyKey  String?            @unique @map("idempotency_key")
-  createdAt       DateTime           @default(now()) @map("created_at")
-
-  @@index([userId, createdAt])
-  @@map("wallet_ledger")
-}
-
-// -----------------
-// Tienda (Productos / Pedidos / Inventario)
-// -----------------
 
 enum OrderStatus {
   PENDING
@@ -471,69 +796,8 @@ enum OrderPaymentMethod {
 
 /// Tipo de registro de la tabla orders
 enum OrderType {
-  ORDER    // Compra de productos
-  TOPUP    // Recarga de créditos
-}
-
-model Product {
-  id              String   @id @default(cuid())
-  centerId        String   @map("center_id")
-  center          Center   @relation(fields: [centerId], references: [id], onDelete: Cascade)
-  name            String
-  sku             String   @unique
-  category        String
-  priceEuro       Decimal  @map("price_euro")
-  taxRate         Decimal  @default(0.0) @map("tax_rate")
-  stockQty        Int      @default(0) @map("stock_qty")
-  isActive        Boolean  @default(true) @map("is_active")
-  isPerishable    Boolean  @default(false) @map("is_perishable")
-  expiresAt       DateTime? @map("expires_at")
-  creditMultiplier Decimal? @map("credit_multiplier")
-  media           Json?    @default("[]")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
-  orderItems      OrderItem[]
-  inventoryMovements InventoryMovement[]
-
-  @@index([centerId, isActive])
-  @@map("products")
-}
-
-model Order {
-  id              String   @id @default(cuid())
-  userId          String   @map("user_id")
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status          OrderStatus @default(PENDING)
-  type            OrderType @default(ORDER)
-  totalEuro       Decimal  @map("total_euro")
-  paymentMethod   OrderPaymentMethod @map("payment_method")
-  creditsUsed     Int      @default(0) @map("credits_used")
-  paymentIntentId String?  @map("payment_intent_id")
-  idempotencyKey  String?  @unique @map("idempotency_key")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
-  items           OrderItem[]
-
-  @@index([userId, createdAt])
-  @@map("orders")
-}
-
-model OrderItem {
-  id          String  @id @default(cuid())
-  orderId     String  @map("order_id")
-  productId   String  @map("product_id")
-  qty         Int
-  unitPriceEuro Decimal @map("unit_price_euro")
-  taxRate     Decimal  @map("tax_rate")
-  creditsPerUnit Int?   @map("credits_per_unit")
-
-  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@index([orderId])
-  @@map("order_items")
+  ORDER
+  TOPUP
 }
 
 enum InventoryMovementType {
@@ -543,317 +807,6 @@ enum InventoryMovementType {
   WASTE
 }
 
-model InventoryMovement {
-  id          String   @id @default(cuid())
-  productId   String   @map("product_id")
-  type        InventoryMovementType
-  qty         Int
-  reason      String?
-  metadata    Json?
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@index([productId, createdAt])
-  @@map("inventory_movements")
-}
-
-// ========================================
-// BLOG CONTENT MANAGEMENT
-// ========================================
-
-model Post {
-  id              String    @id @default(cuid())
-  title           String
-  slug            String    @unique
-  excerpt         String?
-  content         String
-  status          PostStatus @default(DRAFT)
-  type            PostType  @default(NEWS)
-  publishedAt     DateTime? @map("published_at")
-  isFeatured      Boolean   @default(false) @map("is_featured")
-  allowComments   Boolean   @default(true) @map("allow_comments")
-  seoKeywords     String[]  @default([]) @map("seo_keywords")
-  seoDescription  String?   @map("seo_description")
-  featuredImage   String?   @map("featured_image")
-  authorId        String    @map("author_id")
-  viewCount       Int       @default(0) @map("view_count")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-
-  // Relaciones
-  author          User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  categories      PostCategory[]
-  tags            PostTag[]
-  comments        Comment[]
-
-  @@index([status, publishedAt])
-  @@index([authorId])
-  @@index([isFeatured])
-  @@map("posts")
-}
-
-model Category {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  description String?
-  color       String?
-  icon        String?
-  sortOrder   Int      @default(0) @map("sort_order")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  // Relaciones
-  posts       PostCategory[]
-
-  @@index([slug])
-  @@map("categories")
-}
-
-model Tag {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  description String?
-  color       String?
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  // Relaciones
-  posts       PostTag[]
-
-  @@index([slug])
-  @@map("tags")
-}
-
-model PostCategory {
-  id         String   @id @default(cuid())
-  postId     String   @map("post_id")
-  categoryId String   @map("category_id")
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  // Relaciones
-  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, categoryId])
-  @@map("post_categories")
-}
-
-model PostTag {
-  id       String   @id @default(cuid())
-  postId   String   @map("post_id")
-  tagId    String   @map("tag_id")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  // Relaciones
-  post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, tagId])
-  @@map("post_tags")
-}
-
-model Comment {
-  id        String        @id @default(cuid())
-  postId    String        @map("post_id")
-  authorName String       @map("author_name")
-  authorEmail String      @map("author_email")
-  content   String
-  status    CommentStatus @default(PENDING)
-  parentId  String?       @map("parent_id")
-  createdAt DateTime      @default(now()) @map("created_at")
-  updatedAt DateTime      @updatedAt @map("updated_at")
-
-  // Relaciones
-  post      Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
-  parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id])
-  replies   Comment[]     @relation("CommentReplies")
-
-  @@index([postId])
-  @@index([status])
-  @@map("comments")
-}
-
-// ========================================
-// LANDING PAGE CONTENT MANAGEMENT
-// ========================================
-
-model LandingHero {
-  id          String   @id @default(cuid())
-  title       String
-  subtitle    String?
-  description String?
-  imageUrl    String?
-  ctaText     String?
-  ctaLink     String?
-  secondaryCtaText String?
-  secondaryCtaLink String?
-  isActive    Boolean  @default(true)
-  order       Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@map("landing_hero")
-}
-
-model LandingStat {
-  id          String   @id @default(cuid())
-  value       String
-  suffix      String?
-  label       String
-  description String?
-  icon        String?
-  color       String?
-  isActive    Boolean  @default(true)
-  order       Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@map("landing_stats")
-}
-
-model LandingAchievement {
-  id           String   @id @default(cuid())
-  title        String
-  year         String?
-  organization String?
-  icon         String?
-  color        String?
-  isActive     Boolean  @default(true)
-  order        Int      @default(0)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  @@map("landing_achievements")
-}
-
-model LandingTestimonial {
-  id        String   @id @default(cuid())
-  name      String
-  role      String?
-  company   String?
-  content   String
-  rating    Int      @default(5)
-  imageUrl  String?
-  sport     String?
-  experience String?
-  highlight String?
-  isActive  Boolean  @default(true)
-  order     Int      @default(0)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("landing_testimonials")
-}
-
-model LandingSponsor {
-  id          String   @id @default(cuid())
-  name        String
-  category    String?
-  logoUrl     String?
-  description String?
-  website     String?
-  partnership String?
-  since       String?
-  tier        SponsorTier @default(SILVER)
-  benefits    String[]  @default([])
-  isActive    Boolean  @default(true)
-  order       Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@map("landing_sponsors")
-}
-
-model LandingActivity {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  icon        String
-  schedule    String
-  color       String   @default("from-emerald-500 to-blue-600")
-  isActive    Boolean  @default(true)
-  order       Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@map("landing_activities")
-}
-
-model LandingInfoCard {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  icon        String
-  content     String
-  isActive    Boolean  @default(true)
-  order       Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@map("landing_info_cards")
-}
-
-model LandingFAQ {
-  id       String   @id @default(cuid())
-  question String
-  answer   String
-  isActive Boolean  @default(true)
-  order    Int      @default(0)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("landing_faqs")
-}
-
-// ========================================
-// INSTALACIONES DEPORTIVAS - LANDING PAGE
-// ========================================
-
-model LandingSportCategory {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  icon        String
-  color       String
-  description String?
-  isActive    Boolean  @default(true)
-  order       Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  // Relaciones
-  facilities LandingSportFacility[]
-
-  @@map("landing_sport_categories")
-}
-
-model LandingSportFacility {
-  id          String   @id @default(cuid())
-  categoryId  String   @map("category_id")
-  name        String
-  description String
-  imageUrl    String?  @map("image_url")
-  price       String
-  availability String
-  rating      Decimal  @default(0)
-  features    String[]
-  isActive    Boolean  @default(true)
-  order       Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  // Relaciones
-  category LandingSportCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  @@map("landing_sport_facilities")
-}
-
-// Enums para el sistema de blog
 enum PostStatus {
   DRAFT
   SCHEDULED
@@ -876,11 +829,9 @@ enum CommentStatus {
   SPAM
 }
 
-// Enums para el sistema de landing
 enum SponsorTier {
   PLATINUM
   GOLD
   SILVER
   BRONZE
 }
-

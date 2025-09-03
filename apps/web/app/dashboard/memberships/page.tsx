@@ -39,6 +39,7 @@ export default function MembershipsPage() {
   const [currentMembership, setCurrentMembership] = useState<ApiMembership | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingPlans, setLoadingPlans] = useState(true);
 
   const userCredits = (session?.user as any)?.creditsBalance ?? 0;
   const userId = (session?.user as any)?.id as string | undefined;
@@ -61,10 +62,18 @@ export default function MembershipsPage() {
 
   useEffect(() => {
     // Cargar tipos de membresía
+    setLoadingPlans(true);
     fetch('/api/memberships/types', { credentials: 'include' })
       .then(res => res.ok ? res.json() : Promise.reject(res))
-      .then(json => setPlanTypes((json.data || json) as ApiMembershipType[]))
-      .catch(() => setPlanTypes([]));
+      .then(json => {
+        const plans = (json.data || json) as ApiMembershipType[];
+        setPlanTypes(plans);
+      })
+      .catch((error) => {
+        console.error('Error cargando planes:', error);
+        setPlanTypes([]);
+      })
+      .finally(() => setLoadingPlans(false));
 
     // Cargar membresía actual
     fetch('/api/memberships?limit=1&sortBy=validUntil&sortOrder=desc', { credentials: 'include' })
@@ -187,78 +196,88 @@ export default function MembershipsPage() {
           </p>
         </div>
         <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {planTypes.map((plan) => {
-              const IconComponent = plan.type === 'VIP' ? Crown : plan.type === 'PREMIUM' ? Star : Shield;
-              const planKey = plan.type.toLowerCase() as 'basic' | 'premium' | 'vip';
-              const isCurrentPlan = currentMembership?.type === plan.type;
-              
-              return (
-                <div
-                  key={plan.type}
-                  className={`relative rounded-lg border-2 p-6 transition-all ${
-                    isCurrentPlan
-                      ? 'border-green-500 bg-green-50'
-                      : plan.popular
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  {plan.popular && !isCurrentPlan && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-medium">
-                        Más Popular
-                      </span>
-                    </div>
-                  )}
-                  
-                  {isCurrentPlan && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-medium">
-                        Plan Actual
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="text-center mb-4">
-                    <IconComponent className="h-8 w-8 mx-auto mb-2 text-gray-700" />
-                    <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
-                    <div className="mt-2">
-                      <span className="text-3xl font-bold text-gray-900">
-                        {formatCurrency(plan.monthlyPrice)}
-                      </span>
-                      <span className="text-gray-500">/mes</span>
-                    </div>
-                  </div>
-
-                  <ul className="space-y-2 mb-6">
-                    {Object.entries(plan.benefits || {}).map(([key, value]) => (
-                      <li key={key} className="flex items-start text-sm">
-                        <Check className="h-4 w-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                        <span className="text-gray-600">{key}: {String(value)}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <button
-                    onClick={() => !isCurrentPlan && handleUpgradePlan(planKey)}
-                    disabled={isCurrentPlan || isLoading}
-                    className={`w-full py-2 px-4 rounded-md font-medium transition-colors ${
+          {loadingPlans ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500">Cargando planes de membresía...</p>
+            </div>
+          ) : planTypes.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No hay planes de membresía configurados. Por favor, contacta al administrador.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {planTypes.map((plan) => {
+                const IconComponent = plan.type === 'VIP' ? Crown : plan.type === 'PREMIUM' ? Star : Shield;
+                const planKey = plan.type.toLowerCase() as 'basic' | 'premium' | 'vip';
+                const isCurrentPlan = currentMembership?.type === plan.type;
+                
+                return (
+                  <div
+                    key={plan.type}
+                    className={`relative rounded-lg border-2 p-6 transition-all ${
                       isCurrentPlan
-                        ? 'bg-green-100 text-green-800 cursor-not-allowed'
-                        : 'bg-gray-900 text-white hover:bg-gray-800'
+                        ? 'border-green-500 bg-green-50'
+                        : plan.popular
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    {isCurrentPlan ? 'Plan Actual' : isLoading ? 'Procesando...' : 'Seleccionar Plan'}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+                    {plan.popular && !isCurrentPlan && (
+                      <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                        <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-medium">
+                          Más Popular
+                        </span>
+                      </div>
+                    )}
+                    
+                    {isCurrentPlan && (
+                      <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                        <span className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-medium">
+                          Plan Actual
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="text-center mb-4">
+                      <IconComponent className="h-8 w-8 mx-auto mb-2 text-gray-700" />
+                      <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
+                      <div className="mt-2">
+                        <span className="text-3xl font-bold text-gray-900">
+                          {formatCurrency(plan.monthlyPrice)}
+                        </span>
+                        <span className="text-gray-500">/mes</span>
+                      </div>
+                    </div>
+
+                    <ul className="space-y-2 mb-6">
+                      {Object.entries(plan.benefits || {}).map(([key, value]) => (
+                        <li key={key} className="flex items-start text-sm">
+                          <Check className="h-4 w-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
+                          <span className="text-gray-600">{key}: {String(value)}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <button
+                      onClick={() => !isCurrentPlan && handleUpgradePlan(planKey)}
+                      disabled={isCurrentPlan || isLoading}
+                      className={`w-full py-2 px-4 rounded-md font-medium transition-colors ${
+                        isCurrentPlan
+                          ? 'bg-green-100 text-green-800 cursor-not-allowed'
+                          : 'bg-gray-900 text-white hover:bg-gray-800'
+                      }`}
+                    >
+                      {isCurrentPlan ? 'Plan Actual' : isLoading ? 'Procesando...' : 'Seleccionar Plan'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Paquetes de Créditos - pendiente de API real */}
+      {/* Paquetes de Créditos */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="p-6 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -270,8 +289,14 @@ export default function MembershipsPage() {
           </p>
         </div>
         <div className="p-6">
-          <div className="text-sm text-gray-500">
-            Próximamente: paquetes de créditos desde el backend.
+          <div className="text-center py-8">
+            <Zap className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Próximamente Disponible
+            </h3>
+            <p className="text-gray-500 text-sm">
+              Estamos preparando paquetes de créditos con descuentos especiales para que puedas reservar más canchas a mejor precio.
+            </p>
           </div>
         </div>
       </div>
