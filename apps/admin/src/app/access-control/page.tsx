@@ -229,8 +229,18 @@ export default function AccessControlPage() {
             </div>
           )}
 
-          <div className="aspect-video w-full bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden flex items-center justify-center">
+          <div className="relative aspect-video w-full bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden">
             <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+            {!cameraActive && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <button
+                  onClick={startCamera}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-600 text-white shadow-md"
+                >
+                  <CameraIcon className="h-4 w-4" /> Activar cámara
+                </button>
+              </div>
+            )}
           </div>
 
           {lastScanText && (
@@ -238,6 +248,9 @@ export default function AccessControlPage() {
               Último QR leído: <span className="font-mono">{lastScanText}</span>
             </div>
           )}
+          <p className="mt-3 text-xs text-slate-500">
+            Consejo: mantén el QR a 15-25 cm de la cámara y con buena iluminación.
+          </p>
         </div>
 
         {/* Columna de verificación/manual */}
