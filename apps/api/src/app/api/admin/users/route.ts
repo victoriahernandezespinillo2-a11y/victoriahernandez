@@ -117,43 +117,43 @@ export async function GET(request: NextRequest) {
         db.user.count({ where })
       ]);
       
-      // Calcular estadÃ­sticas adicionales para cada usuario
+      // Calcular estadísticas adicionales por usuario (tolerante a fallos)
       const usersWithStats = await Promise.all(
         users.map(async (user: any) => {
-          const [totalSpent, activeReservations, activeMemberships] = await Promise.all([
-            db.reservation.aggregate({
-              where: {
-                userId: user.id,
-                status: 'PAID'
+          try {
+            const [totalSpent, activeReservations, activeMemberships] = await Promise.all([
+              db.reservation.aggregate({
+                where: { userId: user.id, status: 'PAID' },
+                _sum: { totalPrice: true },
+              }),
+              db.reservation.count({
+                where: { userId: user.id, status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] } },
+              }),
+              db.membership.count({ where: { userId: user.id, status: 'active' } }),
+            ]);
+            return {
+              ...user,
+              stats: {
+                totalSpent: Number((totalSpent as any)?._sum?.totalPrice || 0),
+                activeReservations,
+                activeMemberships,
+                totalReservations: user._count?.reservations ?? 0,
+                totalMemberships: user._count?.memberships ?? 0,
               },
-              _sum: {
-                totalPrice: true
-              }
-            }),
-            db.reservation.count({
-              where: {
-                userId: user.id,
-                status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] }
-              }
-            }),
-            db.membership.count({
-              where: {
-                userId: user.id,
-                status: 'active'
-              }
-            })
-          ]);
-          
-          return {
-            ...user,
-            stats: {
-              totalSpent: Number((totalSpent as any)._sum.totalPrice || 0),
-              activeReservations,
-              activeMemberships,
-              totalReservations: user._count.reservations,
-              totalMemberships: user._count.memberships
-            }
-          };
+            };
+          } catch (e) {
+            console.error('Error calculando estadísticas de usuario', user?.id, e);
+            return {
+              ...user,
+              stats: {
+                totalSpent: 0,
+                activeReservations: 0,
+                activeMemberships: 0,
+                totalReservations: user._count?.reservations ?? 0,
+                totalMemberships: user._count?.memberships ?? 0,
+              },
+            };
+          }
         })
       );
       
@@ -189,8 +189,39 @@ export async function GET(request: NextRequest) {
         );
       }
       
-      console.error('Error obteniendo usuarios:', error);
-      return ApiResponse.internalError('Error interno del servidor');
+      // Fallback: si falla el bloque principal, devolver lista básica sin estadísticas
+      try {
+        console.error('Error obteniendo usuarios (principal). Aplicando fallback sin estadísticas:', error);
+        const { searchParams } = (request as any).nextUrl;
+        const params = GetUsersQuerySchema.parse(Object.fromEntries(searchParams.entries()));
+        const skip = (params.page - 1) * params.limit;
+        const where: any = {};
+        if (params.search) {
+          where.OR = [
+            { name: { contains: params.search, mode: 'insensitive' } },
+            { email: { contains: params.search, mode: 'insensitive' } },
+            { phone: { contains: params.search, mode: 'insensitive' } },
+          ];
+        }
+        if (params.role) where.role = params.role;
+        if (params.status) where.isActive = params.status === 'ACTIVE';
+        const orderBy: any = {}; orderBy[params.sortBy] = params.sortOrder;
+        const [users, total] = await Promise.all([
+          db.user.findMany({ where, skip, take: params.limit, orderBy, select: {
+            id: true, email: true, name: true, phone: true, role: true, isActive: true,
+            emailVerified: true, emailVerifiedAt: true, createdAt: true, updatedAt: true, lastLoginAt: true,
+          } }),
+          db.user.count({ where })
+        ]);
+        return ApiResponse.success({
+          data: users,
+          pagination: { page: params.page, limit: params.limit, total, pages: Math.ceil(total / params.limit) },
+          partial: true,
+        });
+      } catch (fallbackError) {
+        console.error('Fallback también falló en /admin/users:', fallbackError);
+        return ApiResponse.internalError('Error interno del servidor');
+      }
     }
   })(request);
 }
