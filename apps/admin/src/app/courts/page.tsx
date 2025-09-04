@@ -302,7 +302,7 @@ export default function CourtsPage() {
       {/* Modal Crear Cancha */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-xl">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-xl text-gray-900">
             <div className="p-4 border-b flex items-center justify-between">
               <h3 className="text-lg font-semibold">Nueva Cancha</h3>
               <button onClick={() => setShowCreate(false)} className="text-gray-500 hover:text-gray-700">✕</button>
@@ -310,21 +310,21 @@ export default function CourtsPage() {
             <div className="p-4 space-y-4">
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Nombre</label>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border rounded px-3 py-2" />
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border rounded px-3 py-2 text-gray-900 placeholder:text-gray-400" />
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Centro</label>
-                <select value={form.centerId} onChange={(e) => setForm({ ...form, centerId: e.target.value })} className="w-full border rounded px-3 py-2">
+                <select value={form.centerId} onChange={(e) => setForm({ ...form, centerId: e.target.value })} className="w-full border rounded px-3 py-2 text-gray-900">
                   <option value="">Selecciona un centro</option>
-                  {(centers || []).map((c: any) => (
+                  {Array.isArray(centers) ? centers.map((c: any) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+                  )) : null}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Deporte</label>
-                  <select value={form.sport} onChange={(e) => setForm({ ...form, sport: e.target.value })} className="w-full border rounded px-3 py-2">
+                  <select value={form.sport} onChange={(e) => setForm({ ...form, sport: e.target.value })} className="w-full border rounded px-3 py-2 text-gray-900">
                     <option value="FOOTBALL">Fútbol</option>
                     <option value="BASKETBALL">Básquet</option>
                     <option value="TENNIS">Tenis</option>
@@ -335,7 +335,7 @@ export default function CourtsPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Superficie</label>
-                  <input value={form.surface} onChange={(e) => setForm({ ...form, surface: e.target.value })} className="w-full border rounded px-3 py-2" />
+                  <input value={form.surface} onChange={(e) => setForm({ ...form, surface: e.target.value })} className="w-full border rounded px-3 py-2 text-gray-900 placeholder:text-gray-400" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -345,11 +345,11 @@ export default function CourtsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Máx. jugadores</label>
-                  <input type="number" min={1} value={form.maxPlayers} onChange={(e) => setForm({ ...form, maxPlayers: Number(e.target.value) })} className="w-full border rounded px-3 py-2" />
+                  <input type="number" min={1} value={form.maxPlayers} onChange={(e) => setForm({ ...form, maxPlayers: Number(e.target.value) })} className="w-full border rounded px-3 py-2 text-gray-900 placeholder:text-gray-400" />
                 </div>
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Precio por hora</label>
-                  <input type="number" min={0} value={form.hourlyRate} onChange={(e) => setForm({ ...form, hourlyRate: Number(e.target.value) })} className="w-full border rounded px-3 py-2" />
+                  <input type="number" min={0} value={form.hourlyRate} onChange={(e) => setForm({ ...form, hourlyRate: Number(e.target.value) })} className="w-full border rounded px-3 py-2 text-gray-900 placeholder:text-gray-400" />
                 </div>
               </div>
             </div>

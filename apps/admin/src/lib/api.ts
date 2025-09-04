@@ -408,7 +408,12 @@ export const adminApi = {
       const query = searchParams.toString();
       return apiClient
         .request(`/api/admin/centers${query ? `?${query}` : ''}`)
-        .then((res: unknown) => (Array.isArray(res && typeof res === 'object' && res !== null && 'data' in res && Array.isArray((res as { data: unknown }).data)) ? (res as { data: Center[] }).data : res as Center[]));
+        .then((res: any) => {
+          if (Array.isArray(res)) return res as Center[];
+          if (Array.isArray(res?.data)) return res.data as Center[];
+          if (Array.isArray(res?.items)) return res.items as Center[];
+          return [] as Center[];
+        });
     },
     
     create: (data: {

@@ -21,9 +21,10 @@ export default function Header({ onToggleSidebar, isSidebarCollapsed }: HeaderPr
   const userRole = (session?.user?.role || 'Administrador');
 
   useEffect(() => {
-    getNotifications({ limit: 10, read: false }).catch(() => {});
+    // Cargar últimas notificaciones (leídas y no leídas) para asegurar contenido visible
+    getNotifications({ limit: 10 }).catch(() => {});
     const i = setInterval(() => {
-      getNotifications({ limit: 10, read: false }).catch(() => {});
+      getNotifications({ limit: 10 }).catch(() => {});
     }, 30000);
     return () => clearInterval(i);
   }, [getNotifications]);
@@ -65,8 +66,60 @@ export default function Header({ onToggleSidebar, isSidebarCollapsed }: HeaderPr
 
         {/* Right side */}
         <div className="flex items-center space-x-4">
-          {/* Notifications */}
-          <div className="relative">
+          {/* Notificaciones móvil: botón simple que navega a /notifications */}
+          <div className="relative lg:hidden">
+            <button
+              onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+              className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              aria-label="Notificaciones"
+            >
+              <BellIcon className="h-6 w-6 text-gray-600" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+
+            {isNotificationsOpen && (
+              <div className="fixed left-2 right-2 top-14 z-50 bg-white rounded-xl shadow-xl border border-gray-200">
+                <div className="px-4 py-3 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">Notificaciones</h3>
+                </div>
+                <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
+                  {(notifications || []).length === 0 && (
+                    <div className="px-4 py-5 text-sm text-gray-500">No hay notificaciones</div>
+                  )}
+                  {(notifications || []).map((n: any) => (
+                    <button
+                      key={n.id}
+                      onClick={async () => { await markAsRead(n.id); if (n.actionUrl) location.href = n.actionUrl; setIsNotificationsOpen(false); }}
+                      className={`w-full text-left px-4 py-3 border-b border-gray-100 active:bg-gray-50 ${!n.readAt ? 'bg-blue-50/40' : ''}`}
+                    >
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="flex-1">
+                          <h4 className="text-[15px] font-medium text-gray-900 leading-snug">{n.title}</h4>
+                          <p className="text-[13px] text-gray-600 mt-1 leading-snug">{n.message}</p>
+                        </div>
+                        <span className="text-[11px] text-gray-500 ml-2 whitespace-nowrap">
+                          {new Date(n.createdAt).toLocaleString('es-ES')}
+                        </span>
+                      </div>
+                      {!n.readAt && <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>}
+                    </button>
+                  ))}
+                </div>
+                <div className="px-4 py-3 border-t border-gray-200">
+                  <Link href="/notifications" onClick={() => setIsNotificationsOpen(false)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                    Ver todas las notificaciones
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Notificaciones desktop: con dropdown */}
+          <div className="relative hidden lg:block">
             <button
               onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
               className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"

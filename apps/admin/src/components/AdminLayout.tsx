@@ -6,6 +6,7 @@ import Header from './Header';
 import PWAInstaller from './PWAInstaller';
 import PWAManager from './PWAManager';
 import NotificationManager from './NotificationManager';
+import BottomNav from './BottomNav';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -79,8 +80,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           </div>
         </main>
 
-        {/* Footer */}
-        <footer className="bg-white border-t border-gray-200 px-6 py-4">
+        {/* Footer (desktop) */}
+        <footer className="hidden lg:block bg-white border-t border-gray-200 px-6 py-4">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col sm:flex-row justify-between items-center text-sm text-gray-600">
               <div className="flex items-center space-x-4">
@@ -110,8 +111,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <PWAManager />
       </div>
 
-      {/* Notification Manager - Visible y funcional */}
-      <NotificationManager />
+      {/* Notification Manager (oculto para evitar duplicar UI de campana). Mantener desactivado. */}
+      {false && <NotificationManager />}
+
+      {/* Bottom navigation (mobile) */}
+      <BottomNav />
     </div>
   );
 }
