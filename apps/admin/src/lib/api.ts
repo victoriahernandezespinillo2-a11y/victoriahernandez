@@ -343,15 +343,20 @@ export const adminApi = {
       lastName: string;
       role: string;
       phone?: string;
+      password: string;
     }) => {
-      // Backend espera 'name' y 'isActive' en CreateUserSchema
+      // Backend espera 'password', 'name' y 'isActive' en CreateUserSchema
       const payload = {
         email: data.email,
+        password: data.password,
         name: `${data.firstName || ''} ${data.lastName || ''}`.trim(),
         role: data.role,
         phone: data.phone,
         isActive: true,
       };
+      
+
+      
       return apiClient.request('/api/admin/users', {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -1009,6 +1014,63 @@ export const adminApi = {
   // Membresías
   memberships: {
     getAll: (params?: {
+      page?: number;
+      limit?: number;
+      status?: string;
+      type?: string;
+      userId?: string;
+      centerId?: string;
+    }) => {
+      const sp = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([k, v]) => {
+          if (v === undefined || v === null) return;
+          if (k === 'limit') {
+            const n = Math.min(100, Math.max(1, Number(v)));
+            sp.append('limit', String(Number.isFinite(n) ? n : 20));
+            return;
+          }
+          if (k === 'page') {
+            const n = Math.max(1, Number(v));
+            sp.append('page', String(Number.isFinite(n) ? n : 1));
+            return;
+          }
+          sp.append(k, String(v));
+        });
+      }
+      const q = sp.toString();
+      return apiClient
+        .request(`/api/memberships${q ? `?${q}` : ''}`)
+        .then((res: any) => {
+          if (Array.isArray(res)) return res;
+          if (Array.isArray(res?.memberships)) return res.memberships;
+          if (Array.isArray(res?.data?.memberships)) return res.data.memberships;
+          return [];
+        });
+    },
+
+    create: (data: any) =>
+      apiClient.request('/api/memberships', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getById: (id: string) => apiClient.request(`/api/memberships/${id}`),
+
+    update: (id: string, data: any) =>
+      apiClient.request(`/api/memberships/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
+    delete: (id: string) =>
+      apiClient.request(`/api/memberships/${id}`, {
+        method: 'DELETE',
+      }),
+  },
+};
+
+export default adminApi;
       page?: number;
       limit?: number;
       status?: string;

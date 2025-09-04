@@ -13,7 +13,7 @@ import {
 import { useAdminDashboard, useAdminReports } from '@/lib/hooks';
 import { adminApi } from '@/lib/api';
 import { useSession, signOut } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface Activity {
@@ -39,7 +39,7 @@ export default function AdminHomePage() {
   const [loadingActivities, setLoadingActivities] = useState(true);
 
   // Función para obtener actividad reciente
-  const fetchRecentActivity = async () => {
+  const fetchRecentActivity = useCallback(async () => {
     try {
       console.log('🔄 Iniciando fetchRecentActivity...');
       setLoadingActivities(true);
@@ -72,7 +72,7 @@ export default function AdminHomePage() {
       setLoadingActivities(false);
       console.log('🏁 fetchRecentActivity completado');
     }
-  };
+  }, []);
 
   // Función para obtener el icono correcto
   const getActivityIcon = (iconName: string) => {
@@ -425,10 +425,10 @@ export default function AdminHomePage() {
                   
                   return (
                     <div className="flex items-end h-56 justify-around bg-gray-50 p-4 rounded">
-                      {bySport.map((s) => {
+                      {bySport.map((s, index) => {
                         const colors = getSportColor(s.sportType);
                         return (
-                          <div key={s.sportType} className="flex-1 flex flex-col items-center">
+                          <div key={`${s.sportType}-${index}`} className="flex-1 flex flex-col items-center">
                             <div
                               className={`w-12 ${colors.bg} ${colors.hover} transition-colors rounded-t-md shadow-md border ${colors.border}`}
                               style={{ 

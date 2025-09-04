@@ -11,21 +11,37 @@ export default function NewUserPage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<'USER' | 'STAFF' | 'ADMIN'>('USER');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  const canSubmit = firstName.trim().length >= 2 && emailRegex.test(email);
+  const canSubmit = firstName.trim().length >= 2 && 
+                   emailRegex.test(email) && 
+                   password.length >= 8 && 
+                   password === confirmPassword;
 
   const onSubmit = async () => {
     try {
       setError(null);
       setLoading(true);
-      await adminApi.users.create({ firstName, lastName, email, role, phone });
+      
+
+      
+      await adminApi.users.create({ 
+        firstName, 
+        lastName, 
+        email, 
+        role, 
+        phone,
+        password 
+      });
       router.push('/users');
     } catch (e: any) {
+
       setError(e?.message || 'Error creando usuario');
     } finally {
       setLoading(false);
@@ -101,6 +117,98 @@ export default function NewUserPage() {
               <option value="STAFF">Staff</option>
               <option value="ADMIN">Administrador</option>
             </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                password.length > 0 && password.length < 8 
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                  : password.length >= 8 
+                    ? 'border-green-300 focus:border-green-500 focus:ring-green-500' 
+                    : 'border-gray-300'
+              }`}
+              placeholder="Mínimo 8 caracteres"
+            />
+            {password.length > 0 && password.length < 8 && (
+              <p className="mt-1 text-sm text-red-600">La contraseña debe tener al menos 8 caracteres</p>
+            )}
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Contraseña</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                confirmPassword.length > 0 && password !== confirmPassword 
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                  : confirmPassword.length > 0 && password === confirmPassword 
+                    ? 'border-green-300 focus:border-green-500 focus:ring-green-500' 
+                    : 'border-gray-300'
+              }`}
+              placeholder="Repite la contraseña"
+            />
+            {confirmPassword.length > 0 && password !== confirmPassword && (
+              <p className="mt-1 text-sm text-red-600">Las contraseñas no coinciden</p>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-6 flex gap-2">
+          <button
+            onClick={() => router.push('/users')}
+            className="px-4 py-2 border rounded"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={!canSubmit || loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+          >
+            {loading ? 'Creando...' : 'Crear Usuario'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            />
+            {confirmPassword.length > 0 && password !== confirmPassword && (
+              <p className="mt-1 text-sm text-red-600">Las contraseñas no coinciden</p>
+            )}
           </div>
         </div>
 

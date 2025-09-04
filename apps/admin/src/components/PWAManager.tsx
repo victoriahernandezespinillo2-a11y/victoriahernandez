@@ -239,3 +239,85 @@ export default function PWAManager() {
     </div>
   );
 }
+
+      {/* Acciones PWA */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <button
+          onClick={sendTestNotification}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        >
+          🔔 Probar Notificación
+        </button>
+        
+        <button
+          onClick={triggerBackgroundSync}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        >
+          🔄 Sincronizar
+        </button>
+        
+        <button
+          onClick={clearCache}
+          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        >
+          🗑️ Limpiar Cache
+        </button>
+      </div>
+
+      {/* Información del Service Worker */}
+      {swRegistration && (
+        <div className="bg-gray-50 p-3 rounded-lg">
+          <h4 className="text-sm font-medium text-gray-900 mb-2">Estado del Service Worker</h4>
+          <div className="space-y-1 text-xs text-gray-600">
+            <div>Estado: {swRegistration.active ? 'Activo' : 'Inactivo'}</div>
+            <div>Actualización: {updateAvailable ? 'Disponible' : 'Al día'}</div>
+            <div>Notificaciones: {Notification.permission}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+    </div>
+  );
+}
+
+      {/* Acciones PWA */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <button
+          onClick={sendTestNotification}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        >
+          🔔 Probar Notificación
+        </button>
+        
+        <button
+          onClick={triggerBackgroundSync}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        >
+          🔄 Sincronizar
+        </button>
+        
+        <button
+          onClick={clearCache}
+          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        >
+          🗑️ Limpiar Cache
+        </button>
+      </div>
+
+      {/* Información del Service Worker */}
+      {swRegistration && (
+        <div className="bg-gray-50 p-3 rounded-lg">
+          <h4 className="text-sm font-medium text-gray-900 mb-2">Estado del Service Worker</h4>
+          <div className="space-y-1 text-xs text-gray-600">
+            <div>Estado: {swRegistration.active ? 'Activo' : 'Inactivo'}</div>
+            <div>Actualización: {updateAvailable ? 'Disponible' : 'Al día'}</div>
+            <div>Notificaciones: {Notification.permission}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

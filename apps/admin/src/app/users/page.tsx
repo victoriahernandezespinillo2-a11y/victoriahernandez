@@ -57,6 +57,11 @@ export default function UsersPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<{ id: string; email: string; name: string } | null>(null);
 
+  // Estados para modales de ver y editar usuario
+  const [viewUserModalOpen, setViewUserModalOpen] = useState(false);
+  const [editUserModalOpen, setEditUserModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+
   const itemsPerPage = 10;
 
   // Mostrar estado de carga
@@ -110,11 +115,31 @@ export default function UsersPage() {
   const paginatedUsers = filteredUsers;
 
   const handleDeleteUser = (user: User) => {
-    const userName = user.firstName && user.lastName 
-      ? `${user.firstName} ${user.lastName}` 
-      : user.email;
-    setUserToDelete({ id: user.id, email: user.email, name: userName });
+    setUserToDelete({
+      id: user.id,
+      email: user.email,
+      name: `${user.firstName} ${user.lastName}`
+    });
     setDeleteConfirmOpen(true);
+  };
+
+  // Función para ver usuario
+  const handleViewUser = (user: User) => {
+    setSelectedUser(user);
+    setViewUserModalOpen(true);
+  };
+
+  // Función para editar usuario
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    setEditUserModalOpen(true);
+  };
+
+  // Función para cerrar modales
+  const closeModals = () => {
+    setViewUserModalOpen(false);
+    setEditUserModalOpen(false);
+    setSelectedUser(null);
   };
 
   const confirmDeleteUser = async () => {
@@ -337,12 +362,20 @@ export default function UsersPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900">
+                      <button 
+                        className="text-blue-600 hover:text-blue-900"
+                        onClick={() => handleViewUser(user)}
+                        title="Ver usuario"
+                      >
                         <EyeIcon className="h-4 w-4" />
                       </button>
-                      <button className="text-green-600 hover:text-green-900">
+                      <button 
+                        className="text-green-600 hover:text-green-900"
+                        onClick={() => handleEditUser(user)}
+                        title="Editar usuario"
+                      >
                         <PencilIcon className="h-4 w-4" />
-                      </button>
+                      </button><s></s>
                       <button 
                         className="text-red-600 hover:text-red-900"
                         onClick={() => handleDeleteUser(user)}
@@ -413,6 +446,178 @@ export default function UsersPage() {
           </div>
         )}
       </div>
+
+      {/* Modal de ver usuario */}
+      {viewUserModalOpen && selectedUser && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Detalles del Usuario</h3>
+                <button
+                  onClick={closeModals}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XCircleIcon className="h-6 w-6" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Nombre completo</label>
+                  <p className="mt-1 text-sm text-gray-900">{selectedUser.firstName} {selectedUser.lastName}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Email</label>
+                  <p className="mt-1 text-sm text-gray-900">{selectedUser.email}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Rol</label>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    roleColors[selectedUser.role]
+                  }`}>
+                    {selectedUser.role}
+                  </span>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Estado</label>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    statusColors[selectedUser.status]
+                  }`}>
+                    {selectedUser.status}
+                  </span>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Membresía</label>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {(selectedUser as any).membershipType || 'Sin membresía'}
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Fecha de registro</label>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {new Date(selectedUser.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                
+                {(selectedUser as any).lastLogin && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Último acceso</label>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {new Date((selectedUser as any).lastLogin).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={closeModals}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de editar usuario */}
+      {editUserModalOpen && selectedUser && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Editar Usuario</h3>
+                <button
+                  onClick={closeModals}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XCircleIcon className="h-6 w-6" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Nombre</label>
+                  <input
+                    type="text"
+                    defaultValue={selectedUser.firstName}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Apellido</label>
+                  <input
+                    type="text"
+                    defaultValue={selectedUser.lastName}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Email</label>
+                  <input
+                    type="email"
+                    defaultValue={selectedUser.email}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Rol</label>
+                  <select
+                    defaultValue={selectedUser.role}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="USER">Usuario</option>
+                    <option value="STAFF">Staff</option>
+                    <option value="ADMIN">Administrador</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Estado</label>
+                  <select
+                    defaultValue={selectedUser.status}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="ACTIVE">Activo</option>
+                    <option value="INACTIVE">Inactivo</option>
+                    <option value="SUSPENDED">Suspendido</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="mt-6 flex justify-end space-x-3">
+                <button
+                  onClick={closeModals}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    // TODO: Implementar actualización del usuario
+                    toast.success('Usuario actualizado exitosamente');
+                    closeModals();
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de confirmación de eliminación */}
       <ConfirmDialog

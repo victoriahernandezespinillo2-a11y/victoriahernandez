@@ -68,6 +68,21 @@ const statusLabels = {
 
 export default function CentersPage() {
   const { centers, loading, error, createCenter, updateCenter, deleteCenter, getCenters } = useAdminCenters();
+  
+  // Inicializar centros al montar el componente
+  useEffect(() => {
+    getCenters().catch(console.error);
+  }, [getCenters]);
+  
+  // Helper function para asegurar que centers sea un array
+  const getSafeCenters = () => {
+    if (Array.isArray(centers)) return centers;
+    if (centers && typeof centers === 'object' && 'data' in centers && Array.isArray((centers as any).data)) {
+      return (centers as any).data;
+    }
+    return [];
+  };
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
@@ -149,7 +164,8 @@ export default function CentersPage() {
   }
 
   // Filtrar centros
-  const filteredCenters = centers?.filter((center: any) => {
+  const safeCenters = getSafeCenters();
+  const filteredCenters = safeCenters.filter((center: any) => {
     const matchesSearch = 
       center.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       center.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -158,7 +174,7 @@ export default function CentersPage() {
     const matchesStatus = statusFilter === 'ALL' || center.status === statusFilter;
     
     return matchesSearch && matchesStatus;
-  }) || [];
+  });
 
   // Paginación
   const totalPages = Math.ceil(filteredCenters.length / itemsPerPage);
@@ -176,8 +192,8 @@ export default function CentersPage() {
     }
   };
 
-  const totalCourts = centers?.reduce((sum, center: any) => sum + center.courtsCount, 0) || 0;
-  const totalCapacity = centers?.reduce((sum, center: any) => sum + center.capacity, 0) || 0;
+  const totalCourts = safeCenters.reduce((sum: number, center: any) => sum + (center.courtsCount || 0), 0);
+  const totalCapacity = safeCenters.reduce((sum: number, center: any) => sum + (center.capacity || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -212,7 +228,7 @@ export default function CentersPage() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total Centros</p>
-              <p className="text-2xl font-semibold text-gray-900">{centers?.length || 0}</p>
+              <p className="text-2xl font-semibold text-gray-900">{safeCenters.length}</p>
             </div>
           </div>
         </div>
@@ -226,7 +242,7 @@ export default function CentersPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Centros Activos</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {centers?.filter(c => c.status === 'ACTIVE').length || 0}
+                {safeCenters.filter((c: any) => c.status === 'ACTIVE').length}
               </p>
             </div>
           </div>
@@ -294,7 +310,7 @@ export default function CentersPage() {
 
       {/* Centers Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {paginatedCenters.map((center) => (
+        {paginatedCenters.map((center: any) => (
           <div key={center.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
             <div className="p-6">
               {/* Header */}
@@ -872,6 +888,22 @@ export default function CentersPage() {
                     key={page}
                     onClick={() => setCurrentPage(page)}
                     className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                      page === currentPage
+                        ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                        : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </nav>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
                       page === currentPage
                         ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
                         : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'

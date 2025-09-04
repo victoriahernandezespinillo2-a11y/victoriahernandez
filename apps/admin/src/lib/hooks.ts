@@ -169,6 +169,7 @@ export function useAdminUsers() {
     lastName: string;
     role: string;
     phone?: string;
+    password: string;
   }) => {
     const newUser = await adminApi.users.create(userData) as User;
     setData(prev => prev ? [newUser, ...prev] : [newUser]);
@@ -678,6 +679,60 @@ export function useAdminMaintenance() {
     description: string;
     scheduledDate: string;
     estimatedDuration: number;
+    priority: string;
+  }) => {
+    const newRecord = await adminApi.maintenance.create(recordData) as MaintenanceRecord;
+    setData(prev => prev ? [newRecord, ...prev] : [newRecord]);
+    return newRecord;
+  }, [setData]);
+
+  const getMaintenanceRecord = useCallback(async (id: string) => {
+    return await adminApi.maintenance.getById(id) as MaintenanceRecord;
+  }, []);
+
+  const updateMaintenanceRecord = useCallback(async (id: string, updateData: Partial<MaintenanceRecord>) => {
+    const updatedRecord = await adminApi.maintenance.update(id, updateData) as MaintenanceRecord;
+    setData(prev => 
+      prev ? prev.map(record => record.id === id ? updatedRecord : record) : [updatedRecord]
+    );
+    return updatedRecord;
+  }, [setData]);
+
+  const startMaintenance = useCallback(async (id: string) => {
+    const result = await adminApi.maintenance.start(id);
+    setData(prev => 
+      prev ? prev.map(record => record.id === id ? { ...record, status: 'IN_PROGRESS' } : record) : []
+    );
+    return result;
+  }, [setData]);
+
+  const completeMaintenance = useCallback(async (id: string, completionData: any) => {
+    const result = await adminApi.maintenance.complete(id, completionData);
+    setData(prev => 
+      prev ? prev.map(record => record.id === id ? { ...record, status: 'COMPLETED' } : record) : []
+    );
+    return result;
+  }, [setData]);
+
+  const deleteMaintenanceRecord = useCallback(async (id: string) => {
+    await adminApi.maintenance.delete(id);
+    setData(prev => prev ? prev.filter(record => record.id !== id) : []);
+  }, [setData]);
+
+  return {
+    maintenanceRecords: data,
+    loading,
+    error,
+    getMaintenanceRecords,
+    createMaintenanceRecord,
+    getMaintenanceRecord,
+    updateMaintenanceRecord,
+    startMaintenance,
+    completeMaintenance,
+    deleteMaintenanceRecord,
+    reset,
+  };
+}
     priority: string;
   }) => {
     const newRecord = await adminApi.maintenance.create(recordData) as MaintenanceRecord;

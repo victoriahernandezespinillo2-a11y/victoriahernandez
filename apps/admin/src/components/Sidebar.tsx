@@ -286,3 +286,12 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
     </aside>
   );
 }
+          <div className="text-xs text-gray-400">
+            <p>Polideportivo Victoria Hernandez</p>
+            <p>v1.0.0</p>
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
