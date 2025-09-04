@@ -262,31 +262,3 @@ export default function NotificationsPage() {
     </div>
   );
 }
-                        <button
-                          onClick={() => deleteNotification(notification.id)}
-                          className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                          title="Eliminar notificación"
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Modal de Envío de Notificaciones */}
-      <NotificationSender
-        isOpen={showSender}
-        onClose={() => setShowSender(false)}
-        onCreateNotification={createNotification}
-        onSendDirect={sendDirectNotification}
-        onSendBulk={sendBulkNotification}
-      />
-    </div>
-  );
-}

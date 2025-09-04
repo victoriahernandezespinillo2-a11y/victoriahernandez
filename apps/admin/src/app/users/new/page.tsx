@@ -28,9 +28,6 @@ export default function NewUserPage() {
     try {
       setError(null);
       setLoading(true);
-      
-
-      
       await adminApi.users.create({ 
         firstName, 
         lastName, 
@@ -41,7 +38,6 @@ export default function NewUserPage() {
       });
       router.push('/users');
     } catch (e: any) {
-
       setError(e?.message || 'Error creando usuario');
     } finally {
       setLoading(false);
@@ -151,60 +147,6 @@ export default function NewUserPage() {
                     : 'border-gray-300'
               }`}
               placeholder="Repite la contraseña"
-            />
-            {confirmPassword.length > 0 && password !== confirmPassword && (
-              <p className="mt-1 text-sm text-red-600">Las contraseñas no coinciden</p>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-6 flex gap-2">
-          <button
-            onClick={() => router.push('/users')}
-            className="px-4 py-2 border rounded"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={onSubmit}
-            disabled={!canSubmit || loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-          >
-            {loading ? 'Creando...' : 'Crear Usuario'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             />
             {confirmPassword.length > 0 && password !== confirmPassword && (
               <p className="mt-1 text-sm text-red-600">Las contraseñas no coinciden</p>
