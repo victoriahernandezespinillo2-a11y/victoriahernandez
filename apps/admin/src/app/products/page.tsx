@@ -685,8 +685,8 @@ export default function ProductsPage() {
 
       {/* Filters */}
       <Card className="p-4">
-        <div className="flex gap-4 items-center">
-          <div className="flex-1">
+        <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 sm:items-center">
+          <div className="w-full sm:flex-1">
             <div className="relative">
               <MagnifyingGlassIcon className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <Input
@@ -697,9 +697,9 @@ export default function ProductsPage() {
               />
             </div>
           </div>
-          <div className="relative">
+          <div className="relative w-full sm:w-48">
             <Select value={selectedCenter} onValueChange={setSelectedCenter}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Todos los centros">
                   {selectedCenter && Array.isArray(centers) ? centers.find(c => c.id === selectedCenter)?.name : "Todos los centros"}
                 </SelectValue>
@@ -728,7 +728,7 @@ export default function ProductsPage() {
 
       {/* Products Table */}
       <Card>
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
@@ -819,6 +819,48 @@ export default function ProductsPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Lista móvil (cards) */}
+        <div className="md:hidden divide-y divide-gray-200">
+          {loading ? (
+            <div className="p-4 text-center text-gray-500">Cargando productos...</div>
+          ) : products.length === 0 ? (
+            <div className="p-4 text-center text-gray-500">No se encontraron productos</div>
+          ) : (
+            products.map((product) => (
+              <div key={product.id} className="p-4 flex items-start justify-between">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-gray-900 truncate">{product.name}</div>
+                  <div className="text-xs text-gray-500 truncate">{centers.find(c => c.id === product.centerId)?.name}</div>
+                  <div className="mt-1 flex gap-2 text-xs text-gray-600">
+                    <span>SKU: {product.sku}</span>
+                    <span>•</span>
+                    <span>{product.category}</span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-3">
+                    <Badge variant={product.isActive ? 'default' : 'secondary'}>
+                      {product.isActive ? 'Activo' : 'Inactivo'}
+                    </Badge>
+                    <Badge variant={product.stockQty > 0 ? 'default' : 'destructive'}>
+                      Stock: {product.stockQty}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="text-base font-semibold text-gray-900">€{product.priceEuro.toFixed(2)}</div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => openEditDialog(product)}>
+                      <PencilIcon className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDelete(product)}>
+                      <TrashIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </Card>
 

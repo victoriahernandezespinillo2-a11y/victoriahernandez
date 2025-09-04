@@ -342,8 +342,8 @@ export default function InventoryPage() {
 
       {/* Filters */}
       <Card className="p-4">
-        <div className="flex gap-4 items-center">
-          <div className="flex-1">
+        <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 sm:items-center">
+          <div className="w-full sm:flex-1">
             <div className="relative">
               <MagnifyingGlassIcon className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <Input
@@ -354,9 +354,9 @@ export default function InventoryPage() {
               />
             </div>
           </div>
-          <div className="relative">
+          <div className="relative w-full sm:w-48">
             <Select value={selectedCenter} onValueChange={setSelectedCenter}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Todos los centros">
                   {selectedCenter && Array.isArray(centers) ? centers.find(c => c.id === selectedCenter)?.name : "Todos los centros"}
                 </SelectValue>
@@ -449,7 +449,7 @@ export default function InventoryPage() {
       <Card>
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Movimientos Recientes</h3>
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
@@ -518,6 +518,40 @@ export default function InventoryPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Lista móvil (cards) */}
+          <div className="md:hidden divide-y divide-gray-200">
+            {loading ? (
+              <div className="py-4 text-center text-gray-500">Cargando movimientos...</div>
+            ) : movements.length === 0 ? (
+              <div className="py-4 text-center text-gray-500">No se encontraron movimientos</div>
+            ) : (
+              movements.map((movement) => (
+                <div key={movement.id} className="py-3 flex items-start justify-between">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">{movement.product.name}</div>
+                    <div className="text-xs text-gray-500 truncate">{movement.product.sku}</div>
+                    <div className="mt-1 flex items-center gap-2">
+                      {getMovementBadge(movement.type)}
+                      <span className="text-xs text-gray-600">Cant.: {movement.qty}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-gray-500 truncate">
+                      {movement.reason || '-'}
+                    </div>
+                  </div>
+                  <div className="ml-3 shrink-0 text-xs text-gray-500">
+                    {new Date(movement.createdAt).toLocaleDateString('es-ES', {
+                      year: '2-digit',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </Card>

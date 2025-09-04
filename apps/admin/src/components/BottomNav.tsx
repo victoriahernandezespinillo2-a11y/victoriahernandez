@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import type { ComponentType } from 'react';
 import { usePathname } from 'next/navigation';
 import {
   HomeIcon,
@@ -13,7 +14,7 @@ import {
 interface NavItem {
   href: string;
   label: string;
-  icon: (props: { className?: string }) => JSX.Element;
+  icon: ComponentType<{ className?: string }>;
 }
 
 const items: NavItem[] = [
@@ -32,7 +33,7 @@ export default function BottomNav() {
       <ul className="grid grid-cols-5">
         {items.map((item) => {
           const active = pathname === item.href || pathname?.startsWith(item.href + '/');
-          const Icon = item.icon as any;
+          const Icon = item.icon;
           return (
             <li key={item.href} className="flex items-center justify-center py-2">
               <Link href={item.href} className="flex flex-col items-center gap-1">
