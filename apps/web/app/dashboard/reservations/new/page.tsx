@@ -185,55 +185,44 @@ export default function NewReservationPage() {
     getCourts({ isActive: true, centerId: selectedCenter.id } as any).catch(() => {});
   }, [selectedCenter, getCourts]);
 
-  // Deportes disponibles a partir de las canchas
+  // Deportes disponibles a partir de las canchas (ya normalizadas a CourtDTO[] por el hook)
   const sports = useMemo(() => {
-    console.log('🎯 [DEBUG] Procesando deportes, courts:', courts);
-    
-    // 🔧 EXTRAER EL ARRAY DE CANCHAS DEL OBJETO RESPONSE
-    let courtsArray: any[] = [];
-    const cAny: any = courts as any;
-    if (Array.isArray(cAny)) {
-      courtsArray = cAny;
-    } else if (cAny && typeof cAny === 'object' && Array.isArray(cAny.courts)) {
-      courtsArray = cAny.courts;
-    }
-    
-    console.log('📋 [DEBUG] Array de canchas extraído:', courtsArray);
-    
+    const courtsArray: any[] = Array.isArray(courts) ? (courts as any[]) : [];
     const unique = new Set<string>();
-    courtsArray.forEach((c: any) => {
-      if (c?.sportType) {
-        unique.add(c.sportType);
-        console.log('🏅 [DEBUG] Deporte encontrado:', c.sportType);
-      }
-    });
-    
-    const result = Array.from(unique);
-    console.log('📊 [DEBUG] Deportes finales:', result);
-    return result;
+    courtsArray.forEach((c: any) => { if (c?.sportType) unique.add(c.sportType); });
+    return Array.from(unique);
   }, [courts]);
 
   // Canchas filtradas por deporte y centro
   const filteredCourts: any[] = useMemo(() => {
-    // 🔧 EXTRAER EL ARRAY DE CANCHAS DEL OBJETO RESPONSE
-    let courtsArray: any[] = [];
-    const cAny: any = courts as any;
-    if (Array.isArray(cAny)) {
-      courtsArray = cAny;
-    } else if (cAny && typeof cAny === 'object' && Array.isArray(cAny.courts)) {
-      courtsArray = cAny.courts;
-    }
+    let courtsArray: any[] = Array.isArray(courts) ? (courts as any[]) : [];
     // Filtrar por centro si corresponde
     if (selectedCenter) {
       courtsArray = courtsArray.filter((c: any) => c.centerId === selectedCenter.id);
     }
     if (!selectedSport) return courtsArray; // mostrar todas si no se eligió deporte
-    return courtsArray.filter((c: any) => c.sportType === selectedSport);
+    const normalize = (s: string) => (s || '').toUpperCase().trim();
+    const selected = normalize(selectedSport);
+    return courtsArray.filter((c: any) => {
+      const type = normalize((c as any).sportType);
+      const allowed: string[] = Array.isArray((c as any).allowedSports) ? (c as any).allowedSports.map((x: string) => normalize(x)) : [];
+      // 1) Coincidencia exacta por tipo de cancha
+      if (type === selected) return true;
+      // 1.b) Compatibilidad familia fútbol: si el usuario eligió FOOTBALL, aceptar FOOTBALL7 y FUTSAL
+      if (selected === 'FOOTBALL' && (type === 'FOOTBALL7' || type === 'FUTSAL')) return true;
+      // 2) Cancha multiuso que permite el deporte seleccionado
+      if (type === 'MULTIPURPOSE' && allowed.includes(selected)) return true;
+      // 3) Compatibilidad familia fútbol: si usuario elige FOOTBALL y la cancha es FOOTBALL7 o Futsal no asumimos; sólo si coincide exactamente
+      //    pero si el usuario elige FOOTBALL7 o FUTSAL y cancha es MULTIPURPOSE con allowedSports, ya se cubre arriba.
+      return false;
+    });
   }, [courts, selectedSport, selectedCenter]);
 
   const getSportIcon = (sport: string) => {
     switch (sport) {
       case 'FOOTBALL':
+      case 'FOOTBALL7':
+      case 'FUTSAL':
         return '⚽';
       case 'BASKETBALL':
         return '🏀';
@@ -245,6 +234,8 @@ export default function NewReservationPage() {
         return '🏓';
       case 'SQUASH':
         return '🎾';
+      case 'MULTIPURPOSE':
+        return '🏟️';
       default:
         return '🏅';
     }
@@ -254,6 +245,10 @@ export default function NewReservationPage() {
     switch (sport) {
       case 'FOOTBALL':
         return 'Fútbol';
+      case 'FOOTBALL7':
+        return 'Fútbol 7';
+      case 'FUTSAL':
+        return 'Futsal';
       case 'BASKETBALL':
         return 'Básquet';
       case 'TENNIS':
@@ -264,6 +259,8 @@ export default function NewReservationPage() {
         return 'Pádel';
       case 'SQUASH':
         return 'Squash';
+      case 'MULTIPURPOSE':
+        return 'Multiuso';
       default:
         return sport;
     }

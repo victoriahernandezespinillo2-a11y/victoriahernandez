@@ -79,12 +79,57 @@ export function useCenters() {
 export function useCourts() {
   const { data, loading, error, execute, reset } = useApiState<any[]>([]);
 
+  // Normalizador robusto de Court desde cualquier shape legado
+  const normalizeCourt = (c: any) => {
+    if (!c) return null;
+    const toNumber = (v: any) => (v == null ? 0 : Number(v));
+    const amenities: string[] = Array.isArray((c as any).amenities)
+      ? (c as any).amenities
+      : [];
+    const allowedSports: string[] = Array.isArray((c as any).allowedSports)
+      ? (c as any).allowedSports
+      : [];
+    return {
+      id: c.id,
+      name: c.name,
+      centerId: (c.centerId ?? (c.center?.id)) || c.center_id || '',
+      sportType: (c.sportType ?? c.type ?? c.sport) || 'MULTIPURPOSE',
+      pricePerHour: toNumber(c.pricePerHour ?? c.hourlyRate ?? c.basePricePerHour),
+      capacity: toNumber(c.capacity),
+      amenities,
+      allowedSports,
+      isMultiuse: Boolean((c as any).isMultiuse),
+      lighting: Boolean((c as any).lighting ?? (c as any).hasLighting),
+      lightingExtraPerHour: toNumber((c as any).lightingExtraPerHour),
+      covered: Boolean((c as any).covered),
+      createdAt: c.createdAt,
+    };
+  };
+
+  const extractCourtsArray = (res: any): any[] => {
+    if (Array.isArray(res)) return res;
+    if (res && Array.isArray(res.data)) return res.data as any[];
+    if (res && Array.isArray(res.courts)) return res.courts as any[];
+    // Algunos endpoints devuelven { items: [] }
+    if (res && Array.isArray(res.items)) return res.items as any[];
+    return [];
+  };
+
   const getCourts = useCallback((params?: any) => {
-    return execute(() => api.courts.getAll(params) as Promise<any[]>);
+    return execute(async () => {
+      const res: any = await api.courts.getAll(params as any);
+      const raw = extractCourtsArray(res);
+      const mapped = raw.map(normalizeCourt).filter(Boolean) as any[];
+      return mapped;
+    });
   }, [execute]);
 
   const getCourt = useCallback((id: string) => {
-    return execute(() => api.courts.getById(id) as Promise<any>);
+    return execute(async () => {
+      const res: any = await api.courts.getById(id);
+      const mapped = normalizeCourt(res);
+      return mapped ? [mapped] : [];
+    });
   }, [execute]);
 
   const getCourtAvailability = useCallback((id: string, params?: any) => {

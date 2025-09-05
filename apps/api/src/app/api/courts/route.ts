@@ -92,9 +92,13 @@ export async function GET(request: NextRequest) {
       const formattedCourts = courts.map((court: any) => ({
         id: court.id,
         name: court.name,
+        centerId: (court as any).centerId,
         sportType: (court as any).sportType,
         capacity: (court as any).capacity ?? 0,
         pricePerHour: Number((court as any).basePricePerHour) || 0,
+        // Iluminación: exponer flags y precio extra por hora si existen en el modelo
+        hasLighting: Boolean((court as any).hasLighting),
+        lightingExtraPerHour: Number((court as any).lightingExtraPerHour ?? 0),
         isActive: court.isActive,
         amenities: [],
         images: [],

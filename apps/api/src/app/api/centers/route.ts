@@ -23,12 +23,23 @@ const GetCentersSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 401 }
-      );
+    // Seguridad robusta: aceptar sesión o JWT Bearer
+    let userId: string | null = null;
+    try {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const jwtLib = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
+        const token = authHeader.substring(7);
+        const payload = jwtLib.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any;
+        userId = payload?.id || payload?.userId || payload?.uid || null;
+      }
+    } catch {}
+    if (!userId) {
+      const session = await auth().catch(() => null);
+      userId = session?.user?.id || null;
+    }
+    if (!userId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -88,14 +99,23 @@ export async function GET(request: NextRequest) {
     const limit = validatedParams.limit;
     const skip = (page - 1) * limit;
     
-    // Obtener centros con información de canchas
+    // Obtener centros con información de canchas (solo select; no mezclar include+select)
     const centers = await db.center.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        phone: true,
+        email: true,
+        settings: true,
+        timezone: true,
+        dayStart: true,
+        nightStart: true,
+        createdAt: true,
+        updatedAt: true,
         courts: {
-          where: {
-            isActive: true,
-          },
+          where: { isActive: true },
           select: {
             id: true,
             name: true,
@@ -106,9 +126,7 @@ export async function GET(request: NextRequest) {
                 reservations: {
                   where: {
                     status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] },
-                    startTime: {
-                      gte: new Date(),
-                    },
+                    startTime: { gte: new Date() },
                   },
                 },
               },
@@ -117,23 +135,32 @@ export async function GET(request: NextRequest) {
         },
         _count: {
           select: {
-            courts: {
-              where: {
-                isActive: true,
-              },
-            },
+            courts: { where: { isActive: true } },
           },
         },
       },
       skip,
       take: limit,
-      orderBy: [
-        { name: 'asc' },
-      ],
+      orderBy: [{ name: 'asc' }],
     });
     
     // Formatear respuesta con estadísticas
     const formattedCenters = centers.map((center: any) => {
+      const s: any = center.settings || {};
+      const dayStart = (center as any).dayStart || s.dayStart || '';
+      const nightStart = (center as any).nightStart || s.nightStart || '';
+      let businessOpen = '';
+      let businessClose = '';
+      try {
+        const oh = s.operatingHours || {};
+        const map: Record<number, string> = { 0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday' };
+        const key = map[new Date().getDay()];
+        const cfg = key ? oh[key] : undefined;
+        if (cfg && cfg.closed !== true && cfg.open && cfg.close) {
+          businessOpen = cfg.open;
+          businessClose = cfg.close;
+        }
+      } catch {}
       const totalReservations = center.courts.reduce(
         (sum: number, court: any) => sum + court._count.reservations,
         0
@@ -152,6 +179,11 @@ export async function GET(request: NextRequest) {
         address: center.address,
         phone: center.phone,
         email: center.email,
+        // Campos adicionales para UI
+        dayStart: dayStart || '-',
+        nightStart: nightStart || '-',
+        businessOpen: businessOpen || '-',
+        businessClose: businessClose || '-',
         stats: {
           totalCourts: center._count.courts,
           activeReservations: totalReservations,
@@ -171,7 +203,7 @@ export async function GET(request: NextRequest) {
     });
     
     return NextResponse.json({
-      centers: formattedCenters,
+      data: formattedCenters,
       pagination: {
         page,
         limit,

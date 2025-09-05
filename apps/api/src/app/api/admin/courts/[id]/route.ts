@@ -18,6 +18,9 @@ const UpdateCourtSchema = z.object({
   capacity: z.number().int().min(2).max(50).optional(),
   hourlyRate: z.number().min(0).optional(),
   centerId: z.string().optional(),
+  // Iluminación (directo para facilitar desde Admin)
+  lighting: z.boolean().optional(),
+  lightingExtraPerHour: z.number().min(0).optional(),
   specifications: z.object({
     length: z.number().min(0).optional(),
     width: z.number().min(0).optional(),
@@ -276,6 +279,8 @@ export async function PUT(request: NextRequest) {
           ...(courtData.sport ? { sportType: courtData.sport } : {}),
           ...(typeof courtData.capacity !== 'undefined' ? { capacity: courtData.capacity } : {}),
           ...(typeof courtData.hourlyRate !== 'undefined' ? { basePricePerHour: courtData.hourlyRate as any } : {}),
+          ...(typeof courtData.lighting !== 'undefined' ? { hasLighting: courtData.lighting } : {}),
+          ...(typeof courtData.lightingExtraPerHour !== 'undefined' ? { lightingExtraPerHour: courtData.lightingExtraPerHour as any } : {}),
           ...(courtData.status ? {
             isActive: courtData.status === 'ACTIVE' ? true : (courtData.status === 'INACTIVE' ? false : existingCourt.isActive),
             maintenanceStatus: courtData.status === 'MAINTENANCE' ? 'maintenance' : existingCourt.maintenanceStatus

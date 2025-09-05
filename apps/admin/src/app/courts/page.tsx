@@ -30,6 +30,7 @@ interface Court {
   dimensions: string;
   surface: string;
   lighting: boolean;
+  lightingExtraPerHour?: number;
   covered: boolean;
   createdAt: string;
   isMultiuse?: boolean;
@@ -206,6 +207,8 @@ export default function CourtsPage() {
       status: court.status,
       isMultiuse: court.isMultiuse ?? false,
       allowedSports: (court.allowedSports ?? []) as any,
+      lighting: court.lighting as any,
+      lightingExtraPerHour: (court as any).lightingExtraPerHour ?? 0 as any,
       // Se pueden añadir aquí todos los demás campos editables
     });
     setShowEdit(true);
@@ -496,6 +499,29 @@ export default function CourtsPage() {
                   <option value="MAINTENANCE">Mantenimiento</option>
                   <option value="INACTIVE">Inactiva</option>
                 </select>
+              </div>
+              {/* Iluminación y extra */}
+              <div className="grid grid-cols-2 gap-4">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean((editForm as any).lighting)}
+                    onChange={(e) => setEditForm({ ...editForm, lighting: e.target.checked as any })}
+                  />
+                  Iluminación
+                </label>
+                {(editForm as any).lighting && (
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Precio adicional iluminación (por hora)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={Number((editForm as any).lightingExtraPerHour ?? 0)}
+                      onChange={(e) => setEditForm({ ...editForm, lightingExtraPerHour: Number(e.target.value) as any })}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Multiuso</label>

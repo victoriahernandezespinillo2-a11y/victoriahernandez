@@ -101,6 +101,12 @@ export default function ReservationsPage() {
       });
       if (!response.ok) {
         const text = await response.text();
+        const msg = text?.trim().toLowerCase();
+        if (response.status === 401) throw new Error('No autorizado. Inicia sesión para continuar.');
+        if (response.status === 404) throw new Error('La reserva no fue encontrada.');
+        if (response.status === 410 || (msg && msg.includes('expirada'))) {
+          throw new Error('Este pase ya no está disponible porque la reserva ha finalizado.');
+        }
         throw new Error(text || `HTTP ${response.status}`);
       }
       const blob = await response.blob();
@@ -345,6 +351,10 @@ export default function ReservationsPage() {
           <div className="divide-y divide-gray-200">
             {filteredReservations.map((reservation) => {
               const StatusIcon = statusConfig[reservation.status].icon;
+              const now = new Date();
+              const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              const reservationDate = new Date(reservation.date);
+              const isPastDate = reservationDate < today;
               return (
                 <div key={reservation.id} className="p-6 hover:bg-gray-50 transition-colors">
                   <div className="flex items-center justify-between">
@@ -421,7 +431,7 @@ export default function ReservationsPage() {
                         Ver
                       </button>
                       
-                      {(reservation.status === 'confirmed' || reservation.paymentStatus === 'paid') && (
+                      {(reservation.status === 'confirmed' || reservation.paymentStatus === 'paid') && !isPastDate && (
                         <button
                           onClick={() => openReservationPdf(reservation.id, 'pass')}
                           className="inline-flex items-center px-3 py-1.5 border border-emerald-300 rounded-md text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors"
