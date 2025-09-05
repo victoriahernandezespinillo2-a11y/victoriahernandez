@@ -25,6 +25,9 @@ const CreateCenterSchema = z.object({
   email: z.string().email('Email inválido').optional(),
   description: z.string().optional(),
   website: z.string().url('URL inválida').optional(),
+  timezone: z.string().optional(),
+  dayStart: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
+  nightStart: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
 });
 
 /**
@@ -72,6 +75,10 @@ export async function GET(request: NextRequest) {
             address: true,
             phone: true,
             email: true,
+            settings: true,
+            timezone: true,
+            dayStart: true,
+            nightStart: true,
             createdAt: true,
             updatedAt: true,
             _count: { select: { courts: true } },
@@ -80,18 +87,43 @@ export async function GET(request: NextRequest) {
         db.center.count({ where })
       ]);
 
-      const mapped = centers.map((c: any) => ({
-        id: c.id,
-        name: c.name,
-        address: c.address || '',
-        phone: c.phone || '',
-        email: c.email || '',
-        status: 'ACTIVE' as const,
-        courtsCount: c._count.courts,
-        capacity: 0,
-        createdAt: c.createdAt,
-        updatedAt: c.updatedAt,
-      }));
+      const mapped = centers.map((c: any) => {
+        const s: any = c.settings || {};
+        const dayStart = (c as any).dayStart || s.dayStart || '';
+        const nightStart = (c as any).nightStart || s.nightStart || '';
+        const timezone = (c as any).timezone || s.timezone || '';
+        // Calcular horario comercial del día actual desde operatingHours
+        let businessOpen = '';
+        let businessClose = '';
+        try {
+          const oh = s.operatingHours || {};
+          const map: Record<number, string> = { 0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday' };
+          const key = map[new Date().getDay()];
+          const cfg = key ? oh[key] : undefined;
+          if (cfg && cfg.closed !== true && cfg.open && cfg.close) {
+            businessOpen = cfg.open;
+            businessClose = cfg.close;
+          }
+        } catch {}
+        return {
+          id: c.id,
+          name: c.name,
+          address: c.address || '',
+          phone: c.phone || '',
+          email: c.email || '',
+          status: 'ACTIVE' as const,
+          courtsCount: c._count.courts,
+          capacity: 0,
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
+          // Campos para UI
+          dayStart: dayStart || '-',
+          nightStart: nightStart || '-',
+          businessOpen: businessOpen || '-',
+          businessClose: businessClose || '-',
+          timezone,
+        };
+      });
 
       const result = {
         data: mapped,
@@ -157,25 +189,60 @@ export async function POST(request: NextRequest) {
       if (centerData.description) settings.description = centerData.description;
       if (centerData.website) settings.website = centerData.website;
 
-      const newCenter = await db.center.create({
-        data: {
-          name: centerData.name,
-          address: centerData.address,
-          phone: centerData.phone,
-          email: centerData.email,
-          settings,
-        },
-        select: {
-          id: true,
-          name: true,
-          address: true,
-          phone: true,
-          email: true,
-          createdAt: true,
-          updatedAt: true,
-          _count: { select: { courts: true } },
-        }
-      });
+      // Intentar crear con columnas nuevas; si fallan (columna no existe), fallback a guardarlas en settings
+      let newCenter: any;
+      try {
+        newCenter = await (db.center as any).create({
+          data: {
+            name: centerData.name,
+            address: centerData.address,
+            phone: centerData.phone,
+            email: centerData.email,
+            // Campos nuevos pueden no existir aún en BD según despliegue
+            timezone: centerData.timezone ?? 'America/Bogota',
+            dayStart: centerData.dayStart ?? '06:00',
+            nightStart: centerData.nightStart ?? '18:00',
+            settings,
+          },
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            phone: true,
+            email: true,
+            createdAt: true,
+            updatedAt: true,
+            _count: { select: { courts: true } },
+          }
+        });
+      } catch (e) {
+        // Fallback: crear sin columnas nuevas y guardar en settings
+        const mergedSettings = {
+          ...settings,
+          timezone: centerData.timezone ?? 'America/Bogota',
+          dayStart: centerData.dayStart ?? '06:00',
+          nightStart: centerData.nightStart ?? '18:00',
+        };
+        newCenter = await db.center.create({
+          data: {
+            name: centerData.name,
+            address: centerData.address,
+            phone: centerData.phone,
+            email: centerData.email,
+            settings: mergedSettings,
+          },
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            phone: true,
+            email: true,
+            createdAt: true,
+            updatedAt: true,
+            _count: { select: { courts: true } },
+          }
+        });
+      }
       
       const mapped = {
         id: newCenter.id,

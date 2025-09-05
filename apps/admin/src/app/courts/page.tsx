@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 interface Court {
   id: string;
   name: string;
-  type: 'FOOTBALL' | 'BASKETBALL' | 'TENNIS' | 'VOLLEYBALL' | 'MULTIPURPOSE';
+  type: 'FOOTBALL7' | 'PADDLE' | 'TENNIS' | 'FUTSAL' | 'BASKETBALL' | 'VOLLEYBALL' | 'MULTIPURPOSE';
   centerId: string;
   centerName: string;
   description: string;
@@ -32,23 +32,29 @@ interface Court {
   lighting: boolean;
   covered: boolean;
   createdAt: string;
+  isMultiuse?: boolean;
+  allowedSports?: string[];
 }
 
 
 
 
 const typeColors: Record<string, string> = {
-  FOOTBALL: 'bg-green-100 text-green-800',
-  BASKETBALL: 'bg-orange-100 text-orange-800',
+  FOOTBALL7: 'bg-green-100 text-green-800',
+  PADDLE: 'bg-teal-100 text-teal-800',
   TENNIS: 'bg-yellow-100 text-yellow-800',
+  FUTSAL: 'bg-emerald-100 text-emerald-800',
+  BASKETBALL: 'bg-orange-100 text-orange-800',
   VOLLEYBALL: 'bg-purple-100 text-purple-800',
   MULTIPURPOSE: 'bg-blue-100 text-blue-800'
 };
 
 const typeLabels: Record<string, string> = {
-  FOOTBALL: 'Fútbol',
-  BASKETBALL: 'Básquetbol',
+  FOOTBALL7: 'Fútbol 7',
+  PADDLE: 'Pádel',
   TENNIS: 'Tenis',
+  FUTSAL: 'Fútbol Sala / Balonmano',
+  BASKETBALL: 'Baloncesto',
   VOLLEYBALL: 'Voleibol',
   MULTIPURPOSE: 'Multiusos'
 };
@@ -93,12 +99,15 @@ export default function CourtsPage() {
   const [form, setForm] = useState({
     name: '',
     centerId: '',
-    sport: 'FOOTBALL',
+    sport: 'FOOTBALL7',
     surface: 'synthetic',
     isIndoor: false,
     hasLighting: true,
+    lightingExtraPerHour: 0,
     maxPlayers: 10,
     hourlyRate: 20000,
+    isMultiuse: false,
+    allowedSports: [] as string[],
   });
 
   // Cargar datos al montar el componente (guard reentrada StrictMode)
@@ -195,6 +204,8 @@ export default function CourtsPage() {
       name: court.name,
       hourlyRate: court.hourlyRate,
       status: court.status,
+      isMultiuse: court.isMultiuse ?? false,
+      allowedSports: (court.allowedSports ?? []) as any,
       // Se pueden añadir aquí todos los demás campos editables
     });
     setShowEdit(true);
@@ -325,13 +336,21 @@ export default function CourtsPage() {
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Deporte</label>
                   <select value={form.sport} onChange={(e) => setForm({ ...form, sport: e.target.value })} className="w-full border rounded px-3 py-2 text-gray-900">
-                    <option value="FOOTBALL">Fútbol</option>
-                    <option value="BASKETBALL">Básquet</option>
-                    <option value="TENNIS">Tenis</option>
-                    <option value="VOLLEYBALL">Vóleibol</option>
+                    <option value="FOOTBALL7">Fútbol 7</option>
                     <option value="PADDLE">Pádel</option>
-                    <option value="SQUASH">Squash</option>
+                    <option value="TENNIS">Tenis</option>
+                    <option value="FUTSAL">Fútbol Sala / Balonmano</option>
+                    <option value="BASKETBALL">Baloncesto</option>
+                    <option value="VOLLEYBALL">Voleibol</option>
+                    <option value="MULTIPURPOSE">Multiusos</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Multiuso</label>
+                  <label className="inline-flex items-center gap-2">
+                    <input type="checkbox" checked={(form as any).isMultiuse || false} onChange={(e) => setForm({ ...form, isMultiuse: e.target.checked, allowedSports: e.target.checked ? ((form as any).allowedSports || []) : [] })} />
+                    Habilitar
+                  </label>
                 </div>
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Superficie</label>
@@ -345,19 +364,77 @@ export default function CourtsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Máx. jugadores</label>
-                  <input type="number" min={1} value={form.maxPlayers} onChange={(e) => setForm({ ...form, maxPlayers: Number(e.target.value) })} className="w-full border rounded px-3 py-2 text-gray-900 placeholder:text-gray-400" />
+                  <input
+                    type="number"
+                    min={1}
+                    value={(form as any).maxPlayers}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setForm({ ...form, maxPlayers: v === '' ? ('' as any) : Number(v) });
+                    }}
+                    className="w-full border rounded px-3 py-2 text-gray-900 placeholder:text-gray-400"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Precio por hora</label>
-                  <input type="number" min={0} value={form.hourlyRate} onChange={(e) => setForm({ ...form, hourlyRate: Number(e.target.value) })} className="w-full border rounded px-3 py-2 text-gray-900 placeholder:text-gray-400" />
+                  <input
+                    type="number"
+                    min={0}
+                    value={(form as any).hourlyRate}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setForm({ ...form, hourlyRate: v === '' ? ('' as any) : Number(v) });
+                    }}
+                    className="w-full border rounded px-3 py-2 text-gray-900 placeholder:text-gray-400"
+                  />
                 </div>
               </div>
+              {form.hasLighting && (
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Precio adicional iluminación (por hora)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={(form as any).lightingExtraPerHour ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setForm({ ...form, lightingExtraPerHour: v === '' ? ('' as any) : Number(v) });
+                    }}
+                    className="w-full border rounded px-3 py-2 text-gray-900 placeholder:text-gray-400"
+                  />
+                </div>
+              )}
+              {((form as any).isMultiuse) && (
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Deportes permitidos</label>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {['FOOTBALL7','PADDLE','TENNIS','FUTSAL','BASKETBALL','VOLLEYBALL'].map((code) => (
+                      <label key={code} className="inline-flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={(((form as any).allowedSports || []) as string[]).includes(code)}
+                          onChange={(e) => {
+                            const current = new Set<string>(((form as any).allowedSports || []) as string[]);
+                            if (e.target.checked) current.add(code); else current.delete(code);
+                            setForm({ ...form, allowedSports: Array.from(current) as any });
+                          }}
+                        />
+                        {typeLabels[code] || code}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="p-4 border-t flex justify-end gap-2">
               <button onClick={() => setShowCreate(false)} className="px-4 py-2 border rounded">Cancelar</button>
               <button
                 onClick={async () => {
                   if (!form.name || !form.centerId) return;
+                  // Normalizar números antes de enviar
+                  const maxPlayers = Number(((form as any).maxPlayers === '' ? 0 : (form as any).maxPlayers) || 0);
+                  const hourlyRate = Number(((form as any).hourlyRate === '' ? 0 : (form as any).hourlyRate) || 0);
+                  const lightingExtraPerHour = Number((((form as any).lightingExtraPerHour === '' ? 0 : (form as any).lightingExtraPerHour) || 0));
                   await createCourt({
                     name: form.name,
                     centerId: form.centerId,
@@ -365,8 +442,11 @@ export default function CourtsPage() {
                     surface: form.surface,
                     isIndoor: form.isIndoor,
                     hasLighting: form.hasLighting,
-                    maxPlayers: form.maxPlayers,
-                    hourlyRate: form.hourlyRate,
+                    lightingExtraPerHour,
+                    maxPlayers: maxPlayers as any,
+                    hourlyRate: hourlyRate as any,
+                    isMultiuse: (form as any).isMultiuse || false,
+                    allowedSports: (form as any).isMultiuse ? (((form as any).allowedSports || []) as string[]) : [],
                   });
                   setShowCreate(false);
                 }}
@@ -417,6 +497,38 @@ export default function CourtsPage() {
                   <option value="INACTIVE">Inactiva</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Multiuso</label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean((editForm as any).isMultiuse)}
+                    onChange={(e) => setEditForm({ ...editForm, isMultiuse: e.target.checked, allowedSports: e.target.checked ? ((editForm as any).allowedSports || []) : [] })}
+                  />
+                  Habilitar
+                </label>
+              </div>
+              {Boolean((editForm as any).isMultiuse) && (
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Deportes permitidos</label>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {['FOOTBALL7','PADDLE','TENNIS','FUTSAL','BASKETBALL','VOLLEYBALL'].map((code) => (
+                      <label key={code} className="inline-flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={Array.isArray((editForm as any).allowedSports) ? ((editForm as any).allowedSports as string[]).includes(code) : false}
+                          onChange={(e) => {
+                            const current = new Set<string>(Array.isArray((editForm as any).allowedSports) ? (((editForm as any).allowedSports) as string[]) : []);
+                            if (e.target.checked) current.add(code); else current.delete(code);
+                            setEditForm({ ...editForm, allowedSports: Array.from(current) as any });
+                          }}
+                        />
+                        {typeLabels[code] || code}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="p-4 border-t flex justify-end gap-2">
               <button onClick={() => setShowEdit(false)} className="px-4 py-2 border rounded">Cancelar</button>
@@ -457,10 +569,12 @@ export default function CourtsPage() {
               onChange={(e) => setTypeFilter(e.target.value)}
             >
               <option value="ALL">Todos los tipos</option>
-              <option value="FOOTBALL">Fútbol</option>
+              <option value="FOOTBALL7">Fútbol 7</option>
               <option value="BASKETBALL">Básquetbol</option>
               <option value="TENNIS">Tenis</option>
               <option value="VOLLEYBALL">Voleibol</option>
+              <option value="PADDLE">Pádel</option>
+              <option value="FUTSAL">Fútbol Sala / Balonmano</option>
               <option value="MULTIPURPOSE">Multiusos</option>
             </select>
           </div>

@@ -1,89 +1,38 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { getServerSession } from '@repo/auth';
-
+import { NextRequest } from 'next/server';
+import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
+import { db } from '@repo/db';
 import { z } from 'zod';
 
-// Schema de validación para crear/actualizar categoría
-const CategorySchema = z.object({
-  name: z.string().min(1, 'El nombre es requerido').max(100),
-  slug: z.string().min(1, 'El slug es requerido').max(100).regex(/^[a-z0-9-]+$/, 'El slug debe contener solo letras minúsculas, números y guiones'),
-  description: z.string().optional(),
-  color: z.string().regex(/^#[0-9A-F]{6}$/i, 'El color debe ser un código hexadecimal válido').optional(),
-  icon: z.string().optional(),
-  sortOrder: z.number().int().min(0).default(0),
-  isActive: z.boolean().default(true)
+const ListQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  search: z.string().optional(),
 });
 
-// GET - Obtener todas las categorías
-export async function GET() {
-  try {
-    const session = await getServerSession();
-    
-    if (!session?.user || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
+const Create = z.object({
+  name: z.string().min(2),
+  slug: z.string().min(2),
+  description: z.string().optional(),
+  color: z.string().optional(),
+  icon: z.string().optional(),
+  sortOrder: z.number().int().optional(),
+});
 
-    const categories = await prisma.category.findMany({
-      orderBy: [
-        { sortOrder: 'asc' },
-        { name: 'asc' }
-      ]
-    });
+export const GET = (request: NextRequest) => withAdminMiddleware(async (req) => {
+  const q = ListQuery.parse(Object.fromEntries(req.nextUrl.searchParams.entries()));
+  const skip = (q.page - 1) * q.limit;
+  const where: any = q.search ? { name: { contains: q.search, mode: 'insensitive' } } : {};
+  const [items, total] = await Promise.all([
+    db.category.findMany({ where, skip, take: q.limit, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, slug: true, color: true, icon: true, sortOrder: true } }),
+    db.category.count({ where }),
+  ]);
+  return ApiResponse.success({ items, pagination: { page: q.page, limit: q.limit, total, pages: Math.ceil(total / q.limit) } });
+})(request);
 
-    return NextResponse.json(categories);
-  } catch (error) {
-    console.error('Error al obtener categorías:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
-}
-
-// POST - Crear nueva categoría
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession();
-    
-    if (!session?.user || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const validatedData = CategorySchema.parse(body);
-
-    // Verificar si el slug ya existe
-    const existingCategory = await prisma.category.findUnique({
-      where: { slug: validatedData.slug }
-    });
-
-    if (existingCategory) {
-      return NextResponse.json(
-        { error: 'Ya existe una categoría con este slug' },
-        { status: 400 }
-      );
-    }
-
-    const category = await prisma.category.create({
-      data: validatedData
-    });
-
-    return NextResponse.json(category, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      );
-    }
-
-    console.error('Error al crear categoría:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
-}
-
-
+export const POST = (request: NextRequest) => withAdminMiddleware(async (req) => {
+  const data = Create.parse(await req.json());
+  const exists = await db.category.findUnique({ where: { slug: data.slug } });
+  if (exists) return ApiResponse.conflict('Slug de categoría ya existe');
+  const created = await db.category.create({ data, select: { id: true, name: true, slug: true, color: true, icon: true, sortOrder: true } });
+  return ApiResponse.success(created, 201);
+})(request);

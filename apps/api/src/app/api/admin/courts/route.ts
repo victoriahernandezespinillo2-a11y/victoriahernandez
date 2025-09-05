@@ -14,7 +14,7 @@ const GetCourtsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(1000).optional().default(20),
   search: z.string().optional(),
   centerId: z.string().optional(),
-  sport: z.enum(['FOOTBALL', 'BASKETBALL', 'TENNIS', 'VOLLEYBALL', 'PADDLE', 'SQUASH']).optional(),
+  sport: z.enum(['FOOTBALL', 'FOOTBALL7', 'FUTSAL', 'BASKETBALL', 'TENNIS', 'VOLLEYBALL', 'PADDLE', 'SQUASH']).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'MAINTENANCE']).optional(),
   sortBy: z.enum(['name', 'sport', 'createdAt', 'reservationsCount', 'revenue']).optional().default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
@@ -24,7 +24,7 @@ const GetCourtsQuerySchema = z.object({
 const CreateCourtSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
   description: z.string().optional(),
-  sport: z.enum(['FOOTBALL', 'BASKETBALL', 'TENNIS', 'VOLLEYBALL', 'PADDLE', 'SQUASH']),
+  sport: z.enum(['FOOTBALL', 'FOOTBALL7', 'FUTSAL', 'BASKETBALL', 'TENNIS', 'VOLLEYBALL', 'PADDLE', 'SQUASH']),
   centerId: z.string().min(1, 'Centro requerido'),
   status: z.enum(['ACTIVE', 'INACTIVE', 'MAINTENANCE']).default('ACTIVE'),
   capacity: z.number().int().min(1, 'La capacidad debe ser al menos 1'),
@@ -37,8 +37,12 @@ const CreateCourtSchema = z.object({
   }).optional(),
   surface: z.string().optional(),
   lighting: z.boolean().optional().default(true),
+  lightingExtraPerHour: z.number().min(0).optional().default(0),
   covered: z.boolean().optional().default(false),
-  equipment: z.array(z.string()).optional().default([])
+  equipment: z.array(z.string()).optional().default([]),
+  // Multiuso
+  isMultiuse: z.boolean().optional().default(false),
+  allowedSports: z.array(z.string()).optional().default([]),
 });
 
 /**
@@ -138,6 +142,9 @@ export async function GET(request: NextRequest) {
           lighting: true,
           covered: false,
           createdAt: c.createdAt,
+          // Campos opcionales: solo incluir si existen en el modelo
+          isMultiuse: typeof (c as any).isMultiuse === 'boolean' ? (c as any).isMultiuse : false,
+          allowedSports: Array.isArray((c as any).allowedSports) ? (c as any).allowedSports : [],
         };
       });
 
@@ -188,6 +195,9 @@ export async function POST(request: NextRequest) {
     try {
       const body = await req.json();
       const courtData = CreateCourtSchema.parse(body);
+      if (courtData.isMultiuse && (!courtData.allowedSports || courtData.allowedSports.length === 0)) {
+        return ApiResponse.badRequest('Debe especificar al menos un deporte permitido para una cancha multiuso');
+      }
       
       // Verificar que el centro existe
       const center = await db.center.findUnique({
@@ -198,47 +208,83 @@ export async function POST(request: NextRequest) {
         return ApiResponse.notFound('Centro no encontrado');
       }
       
-      // Verificar que no existe una cancha con el mismo nombre en el centro
-      const existingCourt = await db.court.findFirst({
-        where: {
-          name: {
-            equals: courtData.name,
-            mode: 'insensitive'
+      // Verificar duplicado con tolerancia (esquemas antiguos pueden fallar)
+      try {
+        const existingCourt = await db.court.findFirst({
+          where: {
+            name: { equals: courtData.name, mode: 'insensitive' },
+            centerId: courtData.centerId,
           },
-          centerId: courtData.centerId
+          select: { id: true }
+        });
+        if (existingCourt) {
+          return ApiResponse.conflict('Ya existe una cancha con ese nombre en este centro');
         }
-      });
-      
-      if (existingCourt) {
-        return ApiResponse.conflict('Ya existe una cancha con ese nombre en este centro');
+      } catch (e) {
+        // Si el check de duplicado falla por columnas ausentes en el esquema, lo omitimos para no bloquear la creación
+        console.warn('[ADMIN/COURTS] Duplicate check skipped due to schema mismatch:', e);
       }
       
-      // Mapear al esquema de Prisma
-      const createData: any = {
-        name: courtData.name,
-        centerId: courtData.centerId,
-        sportType: courtData.sport,
-        capacity: courtData.capacity,
-        basePricePerHour: courtData.pricePerHour,
-        isActive: courtData.status ? courtData.status === 'ACTIVE' : true,
-        maintenanceStatus: courtData.status === 'MAINTENANCE' ? 'maintenance' : 'operational',
-      };
-
-      const created = await db.court.create({
-        data: createData,
-        select: {
-          id: true,
-          name: true,
-          centerId: true,
-          sportType: true,
-          capacity: true,
-          basePricePerHour: true,
-          isActive: true,
-          maintenanceStatus: true,
-          createdAt: true,
-          center: { select: { id: true, name: true } },
-        }
-      });
+      // Crear cancha con tolerancia a esquemas antiguos (columnas nuevas pueden no existir)
+      let created: any;
+      try {
+        const createData: any = {
+          name: courtData.name,
+          centerId: courtData.centerId,
+          sportType: courtData.sport,
+          capacity: courtData.capacity,
+          basePricePerHour: courtData.pricePerHour,
+          hasLighting: courtData.lighting ?? false,
+          lightingExtraPerHour: courtData.lightingExtraPerHour ?? 0,
+          isActive: courtData.status ? courtData.status === 'ACTIVE' : true,
+          maintenanceStatus: courtData.status === 'MAINTENANCE' ? 'maintenance' : 'operational',
+          isMultiuse: courtData.isMultiuse ?? false,
+          allowedSports: (courtData.allowedSports ?? []),
+        };
+        created = await (db.court as any).create({
+          data: createData,
+          select: {
+            id: true,
+            name: true,
+            centerId: true,
+            sportType: true,
+            capacity: true,
+            basePricePerHour: true,
+            isActive: true,
+            maintenanceStatus: true,
+            createdAt: true,
+            center: { select: { id: true, name: true } },
+          }
+        });
+      } catch (e) {
+        // Fallback sin columnas nuevas
+        const fallbackData: any = {
+          name: courtData.name,
+          centerId: courtData.centerId,
+          sportType: courtData.sport,
+          capacity: courtData.capacity,
+          basePricePerHour: courtData.pricePerHour,
+          isActive: courtData.status ? courtData.status === 'ACTIVE' : true,
+          maintenanceStatus: courtData.status === 'MAINTENANCE' ? 'maintenance' : 'operational',
+          isMultiuse: courtData.isMultiuse ?? false,
+          allowedSports: (courtData.allowedSports ?? []),
+        };
+        created = await db.court.create({
+          data: fallbackData,
+          select: {
+            id: true,
+            name: true,
+            centerId: true,
+            sportType: true,
+            capacity: true,
+            basePricePerHour: true,
+            isActive: true,
+            maintenanceStatus: true,
+            createdAt: true,
+            center: { select: { id: true, name: true } },
+          }
+        });
+      }
 
       const mapped = {
         id: created.id,
@@ -255,9 +301,11 @@ export async function POST(request: NextRequest) {
         features: [],
         dimensions: '',
         surface: courtData.surface || '',
-        lighting: courtData.lighting ?? true,
-        covered: courtData.covered ?? false,
+        lighting: Boolean(courtData.lighting),
+        covered: Boolean(courtData.covered),
         createdAt: created.createdAt,
+        isMultiuse: Boolean(courtData.isMultiuse),
+        allowedSports: Array.isArray(courtData.allowedSports) ? courtData.allowedSports : [],
       };
       
       return ApiResponse.success(mapped);

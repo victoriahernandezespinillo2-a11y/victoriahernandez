@@ -8,6 +8,8 @@ export const CalculatePriceSchema = z.object({
   startTime: z.date(),
   duration: z.number().min(30).max(480), // 30 minutos a 8 horas
   userId: z.string().min(1).optional(),
+  // Selección de iluminación por parte del usuario (opcional)
+  lightingSelected: z.boolean().optional(),
 });
 
 export const CreatePricingRuleSchema = z.object({
@@ -40,6 +42,12 @@ export interface PriceCalculation {
     description: string;
     amount: number;
   }[];
+  // Desglose de iluminación
+  lighting?: {
+    selected: boolean;
+    extra: number;
+    policy: 'OPTIONAL_DAY' | 'INCLUDED_NIGHT' | 'UNAVAILABLE' | 'NO_SELECTION';
+  };
 }
 
 export class PricingService {
@@ -53,7 +61,7 @@ export class PricingService {
     const court = await db.court.findUnique({
       where: { id: validatedInput.courtId },
       include: {
-        center: { select: { settings: true } },
+        center: { select: { settings: true, timezone: true, dayStart: true, nightStart: true } },
         pricingRules: {
           where: { isActive: true },
           orderBy: [ { name: 'asc' as any } ],
@@ -178,6 +186,42 @@ export class PricingService {
       });
     }
     
+    // ===== Iluminación opcional/obligatoria =====
+    let lightingInfo: PriceCalculation['lighting'] = { selected: false, extra: 0, policy: 'UNAVAILABLE' };
+    try {
+      const hasLighting = (court as any).hasLighting ?? (court as any).lighting ?? false;
+      if (hasLighting) {
+        const perHourExtra = Number((court as any).lightingExtraPerHour ?? 0);
+        const tz = ((court as any).center?.timezone as string) || 'America/Bogota';
+        const dayStartStr = (((court as any).center?.dayStart as string) || '06:00');
+        const nightStartStr = (((court as any).center?.nightStart as string) || '18:00');
+
+        const dayStartMin = this.parseTimeString(dayStartStr);
+        const nightStartMin = this.parseTimeString(nightStartStr);
+        const start = validatedInput.startTime;
+        const end = new Date(start.getTime() + validatedInput.duration * 60000);
+
+        const { minutesInDay, startIsDay } = this.computeDayPortionMinutes(start, end, tz, dayStartMin, nightStartMin);
+        const userSelected = !!validatedInput.lightingSelected;
+        if (startIsDay) {
+          // Política: en día es opcional
+          const extra = userSelected ? (perHourExtra * (minutesInDay / 60)) : 0;
+          if (extra > 0) breakdown.push({ description: `Iluminación (${(minutesInDay/60).toFixed(2)}h × €${perHourExtra})`, amount: extra });
+          total += extra;
+          lightingInfo = { selected: userSelected, extra, policy: 'OPTIONAL_DAY' };
+        } else {
+          // Noche: incluida/obligatoria sin coste
+          breakdown.push({ description: 'Iluminación incluida (horario nocturno)', amount: 0 });
+          lightingInfo = { selected: true, extra: 0, policy: 'INCLUDED_NIGHT' };
+        }
+      } else {
+        lightingInfo = { selected: false, extra: 0, policy: 'UNAVAILABLE' };
+      }
+    } catch (e) {
+      // En caso de error, no afectar el total
+      lightingInfo = { selected: false, extra: 0, policy: 'NO_SELECTION' };
+    }
+
     return {
       basePrice,
       multiplier: finalMultiplier,
@@ -189,6 +233,7 @@ export class PricingService {
       taxAmount: taxAmount || undefined,
       appliedRules,
       breakdown,
+      lighting: lightingInfo,
     };
   }
   
@@ -287,6 +332,46 @@ export class PricingService {
     const timeParts = timeString.split(':').map(Number);
     const [hours = 0, minutes = 0] = timeParts;
     return hours * 60 + minutes;
+  }
+
+  /**
+   * Calcula minutos de una reserva que caen dentro del tramo diurno [dayStartMin, nightStartMin)
+   * según la zona horaria indicada. También indica si el inicio de la reserva cae en día.
+   */
+  private computeDayPortionMinutes(
+    startUTC: Date,
+    endUTC: Date,
+    timezone: string,
+    dayStartMin: number,
+    nightStartMin: number
+  ): { minutesInDay: number; startIsDay: boolean } {
+    // Helpers para obtener partes locales
+    const getLocal = (d: Date) => {
+      const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+      const parts = Object.fromEntries(fmt.formatToParts(d).map(p => [p.type, p.value]));
+      const dayStr = `${parts.year}-${parts.month}-${parts.day}`;
+      const minutes = Number(parts.hour) * 60 + Number(parts.minute);
+      return { dayStr, minutes };
+    };
+
+    const s = getLocal(startUTC);
+    const e = getLocal(endUTC);
+
+    const isInDayRange = (min: number) => min >= dayStartMin && min < nightStartMin;
+    const startIsDay = isInDayRange(s.minutes);
+
+    const overlap = (aStart: number, aEnd: number, bStart: number, bEnd: number) => Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
+
+    if (s.dayStr === e.dayStr) {
+      const minutesInDay = overlap(s.minutes, e.minutes, dayStartMin, nightStartMin);
+      return { minutesInDay, startIsDay };
+    }
+
+    // Cruza medianoche local: dividir en dos segmentos
+    const endOfDay = 24 * 60;
+    const firstPart = overlap(s.minutes, endOfDay, dayStartMin, nightStartMin);
+    const secondPart = overlap(0, e.minutes, dayStartMin, nightStartMin);
+    return { minutesInDay: firstPart + secondPart, startIsDay };
   }
   
   /**

@@ -30,7 +30,7 @@ interface Center {
 interface Court {
   id: string;
   name: string;
-  type: 'FOOTBALL' | 'BASKETBALL' | 'TENNIS' | 'VOLLEYBALL' | 'MULTIPURPOSE';
+  type: 'FOOTBALL7' | 'PADDLE' | 'FUTSAL' | 'BASKETBALL' | 'TENNIS' | 'VOLLEYBALL' | 'MULTIPURPOSE';
   centerId: string;
   centerName: string;
   description: string;
@@ -319,21 +319,35 @@ export function useAdminCourts() {
     surface: string;
     isIndoor: boolean;
     hasLighting: boolean;
+    lightingExtraPerHour?: number;
     maxPlayers: number;
     hourlyRate: number;
+    isMultiuse?: boolean;
+    allowedSports?: string[];
   }) => {
     // Mapear al esquema que espera el backend (CreateCourtSchema)
     const payload: any = {
       name: courtData.name.trim(),
       centerId: courtData.centerId,
-      sport: courtData.sport,
+      // Normalizar deportes al enum del backend
+      sport: (() => {
+        const map: Record<string, string> = {
+          FOOTBALL7: 'FOOTBALL',
+          FUTSAL: 'FOOTBALL',
+          MULTIPURPOSE: 'FOOTBALL',
+        };
+        const s = (courtData.sport || '').toUpperCase();
+        return map[s] || s;
+      })(),
       // Mapas
       capacity: Math.max(1, Number.isFinite(courtData.maxPlayers) ? Math.floor(courtData.maxPlayers) : 1),
       pricePerHour: Number(courtData.hourlyRate) || 0,
       surface: courtData.surface || undefined,
       lighting: !!courtData.hasLighting,
+      lightingExtraPerHour: Number(courtData.lightingExtraPerHour ?? 0) || 0,
       covered: !!courtData.isIndoor,
       status: 'ACTIVE',
+      ...(courtData.isMultiuse ? { isMultiuse: true, allowedSports: Array.isArray(courtData.allowedSports) ? courtData.allowedSports : [] } : { isMultiuse: false, allowedSports: [] }),
     };
 
     const newCourt = await adminApi.courts.create(payload) as Court;
@@ -346,7 +360,19 @@ export function useAdminCourts() {
   }, []);
 
   const updateCourt = useCallback(async (id: string, updateData: Partial<Court>) => {
-    const updatedCourt = await adminApi.courts.update(id, updateData) as Court;
+    // Adaptar campos a payload backend
+    const payload: any = { ...updateData };
+    if (payload.hourlyRate !== undefined) {
+      payload.pricePerHour = payload.hourlyRate;
+      delete payload.hourlyRate;
+    }
+    if (payload.capacity !== undefined) {
+      payload.capacity = Math.max(1, Math.floor(payload.capacity));
+    }
+    if (payload.isMultiuse === false) {
+      payload.allowedSports = [];
+    }
+    const updatedCourt = await adminApi.courts.update(id, payload) as Court;
     setData(prev => 
       prev ? prev.map(court => court.id === id ? updatedCourt : court) : [updatedCourt]
     );

@@ -17,6 +17,9 @@ const UpdateCenterSchema = z.object({
   phone: z.string().optional(),
   email: z.string().email('Email inválido').optional(),
   website: z.string().url('URL inválida').optional(),
+  timezone: z.string().optional(),
+  dayStart: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
+  nightStart: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'MAINTENANCE']).optional(),
   operatingHours: z.object({
     monday: z.object({ open: z.string(), close: z.string(), closed: z.boolean() }).optional(),
@@ -167,10 +170,9 @@ export async function PUT(request: NextRequest) {
       if (centerData.address) updateData.address = centerData.address;
       if (centerData.phone) updateData.phone = centerData.phone;
       if (centerData.email) updateData.email = centerData.email;
-
-      // Merge settings previos con nuevos metadatos
-      const current = await db.center.findUnique({ where: { id: centerId }, select: { settings: true } });
-      const currentSettings = (current?.settings as any) || {};
+      // Merge settings previos con nuevos metadatos (incluye timezone/dayStart/nightStart)
+      const currentCfg = await db.center.findUnique({ where: { id: centerId }, select: { settings: true } });
+      const currentSettings = (currentCfg?.settings as any) || {};
       const mergedSettings: Record<string, any> = {
         ...currentSettings,
         ...(centerData.description ? { description: centerData.description } : {}),
@@ -180,6 +182,9 @@ export async function PUT(request: NextRequest) {
         ...(centerData.policies ? { policies: centerData.policies } : {}),
         ...(centerData.location ? { location: centerData.location } : {}),
         ...(centerData.settings ? (centerData.settings as any) : {}),
+        ...(centerData.timezone ? { timezone: centerData.timezone } : {}),
+        ...(centerData.dayStart ? { dayStart: centerData.dayStart } : {}),
+        ...(centerData.nightStart ? { nightStart: centerData.nightStart } : {}),
       };
       updateData.settings = mergedSettings;
 

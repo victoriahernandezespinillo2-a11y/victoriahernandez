@@ -370,6 +370,8 @@ export const api = {
       duration: number;  // minutos
       paymentMethod?: 'stripe' | 'redsys' | 'credits' | 'CASH' | 'CARD' | 'TRANSFER';
       notes?: string;
+      sport?: string;
+      lightingSelected?: boolean;
     }) => 
       apiRequest('/api/reservations', {
         method: 'POST',

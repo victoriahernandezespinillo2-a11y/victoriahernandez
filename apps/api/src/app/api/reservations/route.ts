@@ -34,6 +34,8 @@ const CreateReservationSchema = z.object({
   }).optional(),
   paymentMethod: z.enum(['stripe', 'redsys', 'redsys_bizum', 'credits']).optional(),
   notes: z.string().optional(),
+  // Si la cancha es multiuso, sport es obligatorio
+  sport: z.string().optional(),
 });
 
 // Esquema para filtros de bÃºsqueda (acepta IDs genÃ©ricos)
@@ -195,6 +197,27 @@ export async function POST(request: NextRequest) {
       : validatedData.paymentMethod === 'redsys'
         ? 'redsys'
         : validatedData.paymentMethod || undefined;
+
+    // Validación multiuso: si la cancha es multiuso, sport debe estar en allowedSports
+    const court = await db.court.findUnique({
+      where: { id: validatedData.courtId },
+      select: { isMultiuse: true, allowedSports: true }
+    });
+    if (!court) {
+      return NextResponse.json({ error: 'Cancha no encontrada' }, { status: 404 });
+    }
+    if (court.isMultiuse) {
+      const sport = (validatedData.sport || '').trim();
+      if (!sport) {
+        return NextResponse.json({ error: 'Debe seleccionar un deporte para esta cancha multiuso' }, { status: 400 });
+      }
+      if (!Array.isArray(court.allowedSports) || court.allowedSports.length === 0) {
+        return NextResponse.json({ error: 'Configuración inválida: la cancha multiuso no tiene deportes permitidos' }, { status: 400 });
+      }
+      if (!court.allowedSports.includes(sport)) {
+        return NextResponse.json({ error: 'El deporte seleccionado no está permitido para esta cancha' }, { status: 400 });
+      }
+    }
 
     let reservation = await reservationService.createReservation({
       ...validatedData,

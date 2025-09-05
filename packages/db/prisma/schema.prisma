@@ -8,6 +8,16 @@ datasource db {
   directUrl = env("DIRECT_DATABASE_URL")
 }
 
+model Sport {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  isActive  Boolean  @default(true) @map("is_active")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
 model User {
   id                  String               @id @default(cuid())
   email               String               @unique
@@ -52,6 +62,12 @@ model Center {
   phone       String?
   email       String?
   settings    Json         @default("{}")
+  /// Zona horaria IANA del centro (para cálculos locales)
+  timezone    String?      @map("timezone")
+  /// Inicio de día local (HH:MM). El tramo [day_start, night_start) se considera día.
+  dayStart    String?      @map("day_start")
+  /// Inicio de noche local (HH:MM). El resto del día es noche.
+  nightStart  String?      @map("night_start")
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
   courts      Court[]
@@ -68,10 +84,17 @@ model Court {
   sportType            String                @map("sport_type")
   capacity             Int?
   basePricePerHour     Decimal               @map("base_price_per_hour")
+  /// Indica si la cancha dispone de iluminación artificial
+  hasLighting          Boolean               @default(false) @map("has_lighting")
+  /// Precio adicional por hora cuando el usuario elige iluminación en horario diurno
+  lightingExtraPerHour Decimal?              @map("lighting_extra_per_hour")
   isActive             Boolean               @default(true) @map("is_active")
   maintenanceStatus    String                @default("operational") @map("maintenance_status")
   createdAt            DateTime              @default(now()) @map("created_at")
   updatedAt            DateTime              @updatedAt @map("updated_at")
+  // Multiuso: permite varios deportes en la misma cancha
+  isMultiuse           Boolean               @default(false) @map("is_multiuse")
+  allowedSports        String[]              @default([]) @map("allowed_sports")
   center               Center                @relation(fields: [centerId], references: [id], onDelete: Cascade)
   maintenanceSchedules MaintenanceSchedule[]
   pricingRules         PricingRule[]
@@ -89,6 +112,10 @@ model Reservation {
   endTime           DateTime          @map("end_time")
   status            ReservationStatus @default(PENDING)
   totalPrice        Decimal           @map("total_price")
+  /// Si el usuario seleccionó iluminación al reservar (o se forzó por horario nocturno)
+  lightingSelected  Boolean           @default(false) @map("lighting_selected")
+  /// Monto total adicional cobrado por iluminación para esta reserva
+  lightingExtraTotal Decimal          @default(0) @map("lighting_extra_total")
   paymentMethod     String?           @map("payment_method")
   paymentIntentId   String?           @map("payment_intent_id")
   isRecurring       Boolean           @default(false) @map("is_recurring")
@@ -97,6 +124,8 @@ model Reservation {
   checkOutTime      DateTime?         @map("check_out_time")
   expiresAt         DateTime?         @map("expires_at")
   notes             String?
+  // Deporte seleccionado cuando la cancha es multiuso
+  sport             String?           @map("sport")
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
   court             Court             @relation(fields: [courtId], references: [id], onDelete: Cascade)

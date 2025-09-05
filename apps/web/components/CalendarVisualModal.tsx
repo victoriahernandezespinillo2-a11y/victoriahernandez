@@ -39,6 +39,8 @@ export default function CalendarVisualModal({
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
   const [currentStep, setCurrentStep] = useState<'selection' | 'confirmation'>('selection');
   const [isCreatingReservation, setIsCreatingReservation] = useState(false);
+  // 💡 Selección de iluminación por el usuario (opcional en horario diurno)
+  const [lightingSelected, setLightingSelected] = useState(false);
   
   // 🚀 GESTOS TÁCTILES PARA MÓVIL
   const [touchStart, setTouchStart] = useState<{ y: number; time: number } | null>(null);
@@ -283,7 +285,8 @@ export default function CalendarVisualModal({
         courtId,
         startTime: startISO,
         duration,
-        notes: notes || undefined
+        notes: notes || undefined,
+        sport: selectedCourt?.sportType === 'MULTIPURPOSE' ? (selectedSport || undefined) : undefined
       });
       
       const reservationData = {
@@ -291,13 +294,24 @@ export default function CalendarVisualModal({
         startTime: startISO,
         duration,
         paymentMethod: 'redsys' as 'redsys', // ⭐ AGREGAR método de pago por defecto con literal tipo
-        notes: notes || undefined
+        notes: notes || undefined,
+        sport: selectedCourt?.sportType === 'MULTIPURPOSE' ? (selectedSport || undefined) : undefined,
+        lightingSelected: lightingSelected || undefined,
       };
       
       const response = await api.reservations.create(reservationData);
       console.log('🔍 [REDSYS-DEBUG] Response API reserva:', response);
       // Extraer objeto de reserva: puede venir directo o en 'reservation'
       const reservation = (response as any)?.reservation ?? (response as any);
+      // Intentar construir desglose de precio si está disponible
+      try {
+        const base = Number((response as any)?.pricing?.basePrice ?? 0);
+        const lighting = Number((response as any)?.pricing?.lighting?.extra ?? (response as any)?.lighting?.extra ?? 0);
+        const total = Number((reservation as any)?.totalPrice ?? (response as any)?.pricing?.total ?? 0);
+        if (!isNaN(base) && !isNaN(lighting) && !isNaN(total)) {
+          setPriceSummary({ base, lighting, total });
+        }
+      } catch {}
       
       if (reservation?.id) {
         if (window.innerWidth >= 768) {
@@ -359,6 +373,7 @@ export default function CalendarVisualModal({
     dateLabel: string;
     timeLabel: string;
   } | null>(null);
+  const [priceSummary, setPriceSummary] = useState<{ base: number; lighting: number; total: number } | null>(null);
 
   const closePaymentModal = () => setPaymentInfo(null);
 
@@ -597,6 +612,23 @@ export default function CalendarVisualModal({
                          {duration} minutos
                        </div>
                      </div>
+                     {/* 💡 Estimación y toggle rápido */}
+                     <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                       <label className="inline-flex items-center gap-2">
+                         <input
+                           type="checkbox"
+                           checked={lightingSelected}
+                           onChange={(e) => setLightingSelected(e.target.checked)}
+                         />
+                         <span className="text-sm text-gray-700">Iluminación (estimación diurna)</span>
+                       </label>
+                       <div className="text-sm">
+                         <span className="text-gray-600 mr-3">Estimado:</span>
+                         <span className="mr-2">Base {(Number(selectedCourt?.pricePerHour || 0) * (duration/60)).toLocaleString('es-CO')}</span>
+                         <span className="mr-2">+ Iluminación {(lightingSelected ? (Number((selectedCourt as any)?.lightingExtraPerHour || 0) * (duration/60)) : 0).toLocaleString('es-CO')}</span>
+                         <span className="font-semibold">= {((Number(selectedCourt?.pricePerHour || 0) + (lightingSelected ? Number((selectedCourt as any)?.lightingExtraPerHour || 0) : 0)) * (duration/60)).toLocaleString('es-CO')}</span>
+                       </div>
+                     </div>
                    </div>
                  )}
 
@@ -733,6 +765,17 @@ export default function CalendarVisualModal({
                          <p className="text-lg font-semibold text-green-600">Disponible</p>
                        </div>
                      </div>
+                     {/* Iluminación (opcional en horario diurno) */}
+                     <div className="md:col-span-2">
+                       <label className="inline-flex items-center gap-2">
+                         <input
+                           type="checkbox"
+                           checked={lightingSelected}
+                           onChange={(e) => setLightingSelected(e.target.checked)}
+                         />
+                         <span className="text-sm text-gray-700">Iluminación (agrega coste solo en horario diurno)</span>
+                       </label>
+                     </div>
                    </div>
                  </div>
 
@@ -800,6 +843,15 @@ export default function CalendarVisualModal({
           timeLabel={paymentInfo.timeLabel}
           onSuccess={closePaymentModal}
         />
+      )}
+      {priceSummary && (
+        <div className="fixed top-4 right-4 bg-white border shadow-lg rounded-md p-4 z-[60] text-sm">
+          <div className="font-semibold mb-1">Resumen</div>
+          <div className="flex justify-between"><span>Base</span><span>{priceSummary.base.toLocaleString('es-CO')}</span></div>
+          <div className="flex justify-between"><span>Iluminación</span><span>{priceSummary.lighting.toLocaleString('es-CO')}</span></div>
+          <div className="border-t my-2"></div>
+          <div className="flex justify-between font-semibold"><span>Total</span><span>{priceSummary.total.toLocaleString('es-CO')}</span></div>
+        </div>
       )}
     </>
   );

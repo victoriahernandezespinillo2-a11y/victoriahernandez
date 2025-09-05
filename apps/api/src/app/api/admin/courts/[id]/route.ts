@@ -13,7 +13,7 @@ import { z } from 'zod';
 const UpdateCourtSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').optional(),
   description: z.string().optional(),
-  sport: z.enum(['FOOTBALL', 'BASKETBALL', 'TENNIS', 'VOLLEYBALL', 'PADDLE', 'SQUASH', 'BADMINTON', 'MULTIPURPOSE']).optional(),
+  sport: z.enum(['FOOTBALL', 'FOOTBALL7', 'FUTSAL', 'BASKETBALL', 'TENNIS', 'VOLLEYBALL', 'PADDLE', 'SQUASH', 'BADMINTON', 'MULTIPURPOSE']).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'MAINTENANCE', 'RESERVED']).optional(),
   capacity: z.number().int().min(2).max(50).optional(),
   hourlyRate: z.number().min(0).optional(),
@@ -29,6 +29,9 @@ const UpdateCourtSchema = z.object({
   equipment: z.array(z.string()).optional(),
   rules: z.array(z.string()).optional(),
   images: z.array(z.string().url()).optional(),
+  // Multiuso
+  isMultiuse: z.boolean().optional(),
+  allowedSports: z.array(z.string()).optional(),
   availability: z.object({
     monday: z.object({ open: z.string(), close: z.string(), closed: z.boolean() }).optional(),
     tuesday: z.object({ open: z.string(), close: z.string(), closed: z.boolean() }).optional(),
@@ -257,10 +260,29 @@ export async function PUT(request: NextRequest) {
         }
       }
       
+      // Validación multiuso: si isMultiuse true, require allowedSports no vacío
+      if (typeof courtData.isMultiuse === 'boolean' && courtData.isMultiuse) {
+        if (!courtData.allowedSports || courtData.allowedSports.length === 0) {
+          return ApiResponse.badRequest('Debe especificar al menos un deporte permitido para una cancha multiuso');
+        }
+      }
+
       // Actualizar cancha
       const updatedCourt = await db.court.update({
         where: { id: courtId },
-        data: courtData,
+        data: {
+          ...(courtData.name ? { name: courtData.name } : {}),
+          ...(courtData.centerId ? { centerId: courtData.centerId } : {}),
+          ...(courtData.sport ? { sportType: courtData.sport } : {}),
+          ...(typeof courtData.capacity !== 'undefined' ? { capacity: courtData.capacity } : {}),
+          ...(typeof courtData.hourlyRate !== 'undefined' ? { basePricePerHour: courtData.hourlyRate as any } : {}),
+          ...(courtData.status ? {
+            isActive: courtData.status === 'ACTIVE' ? true : (courtData.status === 'INACTIVE' ? false : existingCourt.isActive),
+            maintenanceStatus: courtData.status === 'MAINTENANCE' ? 'maintenance' : existingCourt.maintenanceStatus
+          } : {}),
+          ...(typeof courtData.isMultiuse === 'boolean' ? { isMultiuse: courtData.isMultiuse } : {}),
+          ...(Array.isArray(courtData.allowedSports) ? { allowedSports: courtData.allowedSports } : {}),
+        },
         include: {
           center: {
             select: {

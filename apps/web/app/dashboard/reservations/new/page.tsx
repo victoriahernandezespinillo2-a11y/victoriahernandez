@@ -261,6 +261,10 @@ export default function NewReservationPage() {
       alert('Por favor completa todos los campos requeridos');
       return;
     }
+    if ((selectedCourt as any)?.sportType === 'MULTIPURPOSE' && !selectedSport) {
+      alert('Selecciona el deporte para esta cancha multiuso.');
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -273,7 +277,8 @@ export default function NewReservationPage() {
         duration,
         // paymentMethod omitido para usar flujo predeterminado en backend
         notes,
-      });
+        sport: selectedSport || undefined,
+      } as any);
       const reservationId = res?.reservation?.id || res?.id;
       if (reservationId) {
         setCreatedReservationId(reservationId);

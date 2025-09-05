@@ -499,6 +499,8 @@ export const adminApi = {
       hasLighting: boolean;
       maxPlayers: number;
       hourlyRate: number;
+      isMultiuse?: boolean;
+      allowedSports?: string[];
     }) => 
       apiClient.request('/api/admin/courts', {
         method: 'POST',
@@ -520,6 +522,8 @@ export const adminApi = {
       maxPlayers: number;
       hourlyRate: number;
       isActive: boolean;
+      isMultiuse: boolean;
+      allowedSports: string[];
     }>) => 
       apiClient.request(`/api/admin/courts/${id}`, {
         method: 'PUT',

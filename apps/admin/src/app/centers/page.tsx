@@ -13,6 +13,7 @@ import {
   XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { useAdminCenters } from '@/lib/hooks';
+import { adminApi } from '@/lib/api';
 
 // Usar la interfaz del hook en lugar de duplicar
 
@@ -102,6 +103,9 @@ export default function CentersPage() {
       sunday: { open: '08:00', close: '20:00', closed: false },
     },
     exceptions: [] as Array<{ date: string; closed?: boolean; start?: string; end?: string }>,
+    timezone: 'Europe/Madrid',
+    dayStart: '06:00',
+    nightStart: '18:00',
   });
   const [receiptForm, setReceiptForm] = useState<{ 
     legalName?: string;
@@ -114,6 +118,15 @@ export default function CentersPage() {
   }>({});
   const [creditsForm, setCreditsForm] = useState<{ euroPerCredit?: string }>({});
   const [taxesForm, setTaxesForm] = useState<{ rate?: string; included?: boolean }>({});
+  // Datos básicos del centro (edición)
+  const [centerEditForm, setCenterEditForm] = useState<{ 
+    name: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    description?: string;
+    website?: string;
+  }>({ name: '' });
   const [form, setForm] = useState({
     name: '',
     address: '',
@@ -122,6 +135,9 @@ export default function CentersPage() {
     description: '',
     website: '',
   });
+  // Capacidad por centro calculada desde canchas
+  const [capacityByCenter, setCapacityByCenter] = useState<Record<string, number>>({});
+  const [totalCapacityComputed, setTotalCapacityComputed] = useState<number>(0);
 
   const itemsPerPage = 6;
 
@@ -131,6 +147,26 @@ export default function CentersPage() {
     if (loadedRef.current) return;
     loadedRef.current = true;
     getCenters({ page: 1, limit: 50 }).catch(() => {});
+    // Cargar capacidades desde canchas una sola vez
+    (async () => {
+      try {
+        const courts: any[] = await adminApi.courts.getAll({ page: 1, limit: 1000 });
+        const map: Record<string, number> = {};
+        let total = 0;
+        courts.forEach((court: any) => {
+          const centerId = court.centerId || court.center_id;
+          const cap = Number(court.capacity ?? court.maxPlayers ?? 0) || 0;
+          if (centerId) {
+            map[centerId] = (map[centerId] || 0) + cap;
+          }
+          total += cap;
+        });
+        setCapacityByCenter(map);
+        setTotalCapacityComputed(total);
+      } catch (e) {
+        // noop
+      }
+    })();
   }, [getCenters]);
 
   // Mostrar estado de carga
@@ -193,7 +229,7 @@ export default function CentersPage() {
   };
 
   const totalCourts = safeCenters.reduce((sum: number, center: any) => sum + (center.courtsCount || 0), 0);
-  const totalCapacity = safeCenters.reduce((sum: number, center: any) => sum + (center.capacity || 0), 0);
+  const totalCapacity = totalCapacityComputed || safeCenters.reduce((sum: number, center: any) => sum + (center.capacity || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -326,7 +362,41 @@ export default function CentersPage() {
                   </span>
                 </div>
                 <div className="flex space-x-1">
-                  <button className="text-blue-600 hover:text-blue-900 p-1">
+                  <button
+                    className="text-blue-600 hover:text-blue-900 p-1"
+                    title="Ver detalles"
+                    onClick={async () => {
+                      try {
+                        setIsLoading(true);
+                        const res = await fetch(`/api/admin/centers/${center.id}`, { credentials: 'include' });
+                        const data = await res.json();
+                        // Cargar datos en el modal de edición en modo sólo-lectura
+                        setEditingCenterId(center.id);
+                        setCenterEditForm({
+                          name: data?.name || center.name,
+                          address: data?.address || center.address,
+                          phone: data?.phone || center.phone,
+                          email: data?.email || center.email,
+                          description: data?.settings?.description || '',
+                          website: data?.settings?.website || '',
+                        });
+                        const s = (data?.settings || {}) as any;
+                        setOhForm((prev: any) => ({
+                          ...prev,
+                          timezone: data?.timezone || s.timezone || prev.timezone,
+                          dayStart: data?.dayStart || s.dayStart || prev.dayStart,
+                          nightStart: data?.nightStart || s.nightStart || prev.nightStart,
+                          operatingHours: s.operatingHours || prev.operatingHours,
+                          exceptions: Array.isArray(s.exceptions) ? s.exceptions : prev.exceptions,
+                        }));
+                        setShowEdit(true);
+                      } catch (e) {
+                        alert('No se pudieron cargar los detalles del centro');
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    }}
+                  >
                     <EyeIcon className="h-4 w-4" />
                   </button>
                   <button
@@ -342,6 +412,15 @@ export default function CentersPage() {
                         const res = await fetch(`/api/admin/centers/${center.id}`, { credentials: 'include' });
                         const json = await res.json();
                         const centerData = (json?.data || json);
+                        // Cargar datos básicos editables
+                        setCenterEditForm({
+                          name: centerData?.name || center?.name || '',
+                          address: centerData?.address || center?.address || '',
+                          phone: centerData?.phone || center?.phone || '',
+                          email: centerData?.email || center?.email || '',
+                          description: centerData?.description || center?.description || '',
+                          website: centerData?.website || center?.website || '',
+                        });
                         const settings = centerData?.settings || {};
                         // Mapear valores existentes
                         const slotMinutes = settings?.slot?.minutes || settings?.booking?.slotMinutes || 30;
@@ -393,11 +472,17 @@ export default function CentersPage() {
                 </span>
               </div>
 
-              {/* Hours */}
-              <div className="flex items-center text-gray-600 mb-3">
+              {/* Hours (apertura/cierre) */}
+              <div className="flex items-center text-gray-600 mb-1">
                 <ClockIcon className="h-4 w-4 mr-2" />
                 <span className="text-sm">
-                  {(center as any).openingHours} - {(center as any).closingHours}
+                  {(center as any).businessOpen || '-'} - {(center as any).businessClose || '-'}
+                </span>
+              </div>
+              {/* Tramo de iluminación (día/noche) */}
+              <div className="flex items-center text-gray-600 mb-3">
+                <span className="inline-flex items-center text-xs bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded">
+                  💡 Día: {(center as any).dayStart || '-'} · Noche: {(center as any).nightStart || '-'}
                 </span>
               </div>
 
@@ -416,7 +501,7 @@ export default function CentersPage() {
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-semibold text-green-600">
-                    {(center as any).capacity}
+                    {capacityByCenter[center.id] ?? (center as any).capacity ?? 0}
                   </p>
                   <p className="text-xs text-gray-500">Capacidad</p>
                 </div>
@@ -458,6 +543,24 @@ export default function CentersPage() {
                 <label className="block text-sm font-medium text-gray-900 mb-1">Nombre</label>
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border rounded px-3 py-2" />
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">Zona horaria</label>
+                  <select value={ohForm.timezone} onChange={(e) => setOhForm({ ...ohForm, timezone: e.target.value })} className="w-full border rounded px-3 py-2">
+                    <option value="America/Bogota">America/Bogota</option>
+                    <option value="Europe/Madrid">Europe/Madrid</option>
+                    <option value="America/Mexico_City">America/Mexico_City</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">Inicio del día</label>
+                  <input type="time" value={ohForm.dayStart} onChange={(e) => setOhForm({ ...ohForm, dayStart: e.target.value })} className="w-full border rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">Inicio de la noche</label>
+                  <input type="time" value={ohForm.nightStart} onChange={(e) => setOhForm({ ...ohForm, nightStart: e.target.value })} className="w-full border rounded px-3 py-2" />
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-900 mb-1">Dirección</label>
                 <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full border rounded px-3 py-2" />
@@ -495,6 +598,10 @@ export default function CentersPage() {
                       description: form.description,
                       website: form.website,
                     } as any);
+                    // Guardar TZ/horarios día-noche como actualización inmediata sobre el centro recién creado
+                    try {
+                      const latest = (await getCenters({ page: 1, limit: 1 })) as any;
+                    } catch {}
                     setShowCreate(false);
                     setForm({ name: '', address: '', city: '', phone: '', email: '', description: '', openingHours: '', closingHours: '', status: 'ACTIVE', courtsCount: 0, capacity: 0, createdAt: '' } as any);
                     getCenters({ page: 1, limit: 50 }).catch(() => {});
@@ -519,10 +626,61 @@ export default function CentersPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl">
             <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Configurar Horarios y Slots</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Editar Centro</h3>
               <button onClick={() => setShowEdit(false)} className="text-gray-500 hover:text-gray-700">✕</button>
             </div>
               <div className="p-4 space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* Datos básicos */}
+              <div className="border rounded p-4 space-y-3">
+                <h4 className="text-md font-semibold text-gray-900">Datos del centro</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-900 mb-1">Nombre</label>
+                    <input value={centerEditForm.name} onChange={(e)=>setCenterEditForm({ ...centerEditForm, name: e.target.value })} className="w-full border rounded px-3 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-1">Zona horaria</label>
+                    <select
+                      value={ohForm.timezone}
+                      onChange={(e)=>setOhForm({ ...ohForm, timezone: e.target.value })}
+                      className="w-full border rounded px-3 py-2"
+                    >
+                      <option value="Europe/Madrid">Europe/Madrid</option>
+                      <option value="America/Bogota">America/Bogota</option>
+                      <option value="America/Mexico_City">America/Mexico_City</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-1">Inicio del día</label>
+                    <input type="time" value={ohForm.dayStart || ''} onChange={(e)=>setOhForm({ ...ohForm, dayStart: e.target.value })} className="w-full border rounded px-3 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-1">Inicio de la noche</label>
+                    <input type="time" value={ohForm.nightStart || ''} onChange={(e)=>setOhForm({ ...ohForm, nightStart: e.target.value })} className="w-full border rounded px-3 py-2" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-900 mb-1">Dirección</label>
+                    <input value={centerEditForm.address || ''} onChange={(e)=>setCenterEditForm({ ...centerEditForm, address: e.target.value })} className="w-full border rounded px-3 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-1">Teléfono</label>
+                    <input value={centerEditForm.phone || ''} onChange={(e)=>setCenterEditForm({ ...centerEditForm, phone: e.target.value })} className="w-full border rounded px-3 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-1">Email</label>
+                    <input type="email" value={centerEditForm.email || ''} onChange={(e)=>setCenterEditForm({ ...centerEditForm, email: e.target.value })} className="w-full border rounded px-3 py-2" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-900 mb-1">Descripción</label>
+                    <textarea value={centerEditForm.description || ''} onChange={(e)=>setCenterEditForm({ ...centerEditForm, description: e.target.value })} className="w-full border rounded px-3 py-2" rows={2} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-900 mb-1">Sitio web</label>
+                    <input value={centerEditForm.website || ''} onChange={(e)=>setCenterEditForm({ ...centerEditForm, website: e.target.value })} className="w-full border rounded px-3 py-2" />
+                  </div>
+                </div>
+              </div>
+              {/* Configuración de horarios y slots */}
               {/* Slot size */}
               <div>
                 <label className="block text-sm font-medium text-gray-900 mb-1">Tamaño de slot (minutos)</label>
@@ -802,6 +960,16 @@ export default function CentersPage() {
                   try {
                     const normalizedHours = normalizeOperatingHours(ohForm.operatingHours, ohForm.operatingHours);
                     const payload: any = {
+                      // Datos básicos (opcionales si no cambian)
+                      name: centerEditForm.name?.trim(),
+                      address: centerEditForm.address?.trim() || undefined,
+                      phone: centerEditForm.phone?.trim() || undefined,
+                      email: centerEditForm.email?.trim() || undefined,
+                      description: centerEditForm.description?.trim() || undefined,
+                      website: centerEditForm.website?.trim() || undefined,
+                      timezone: ohForm.timezone,
+                      dayStart: ohForm.dayStart,
+                      nightStart: ohForm.nightStart,
                       operatingHours: normalizedHours, // <-- raíz para API
                       settings: {
                         // Normalizar antes de guardar para asegurar HH:mm
@@ -830,8 +998,7 @@ export default function CentersPage() {
                           rate: taxesForm.rate && Number(taxesForm.rate) >= 0 ? Number(taxesForm.rate) : undefined,
                           included: !!taxesForm.included,
                         },
-                        // Garantizar timezone para coherencia de slots
-                        timezone: 'Europe/Madrid',
+                        timezone: ohForm.timezone,
                       },
                     };
                     await updateCenter(editingCenterId, payload as any);

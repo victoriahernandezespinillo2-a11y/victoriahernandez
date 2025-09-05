@@ -21,6 +21,8 @@ export const CreateReservationSchema = z.object({
   }).optional(),
   paymentMethod: z.enum(['stripe', 'redsys', 'credits']).optional(),
   notes: z.string().optional(),
+  // Nueva bandera: selección de iluminación por el usuario
+  lightingSelected: z.boolean().optional(),
 });
 
 export const UpdateReservationSchema = z.object({
@@ -74,6 +76,7 @@ export class ReservationService {
         startTime: startTime,
         duration: validatedInput.duration,
         userId: validatedInput.userId,
+        lightingSelected: validatedInput.lightingSelected,
       });
       
       console.log('💰 [RESERVATION-PRICE] Precio calculado:', {
@@ -143,6 +146,8 @@ export class ReservationService {
             startTime: startTime,
             endTime: endTime,
             totalPrice: computedPrice.total,
+            lightingSelected: (computedPrice as any)?.lighting?.selected ?? false,
+            lightingExtraTotal: Number((computedPrice as any)?.lighting?.extra ?? 0),
             status: 'PENDING',
             expiresAt: expiresAt,
             isRecurring: validatedInput.isRecurring,
