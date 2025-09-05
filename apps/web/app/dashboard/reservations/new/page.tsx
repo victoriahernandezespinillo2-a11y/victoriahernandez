@@ -81,6 +81,8 @@ export default function NewReservationPage() {
   const [forceMobileView, setForceMobileView] = useState(false);
   const shouldUseMobileView = isMobile || forceMobileView;
   const [step, setStep] = useState(1);
+  const [centers, setCenters] = useState<any[]>([]);
+  const [selectedCenter, setSelectedCenter] = useState<any | null>(null);
   const [selectedSport, setSelectedSport] = useState<string>('');
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>('');
@@ -149,22 +151,39 @@ export default function NewReservationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCourt, selectedDate, duration, authLoading, firebaseUser]);
 
-  // Cargar canchas activas
+  // Cargar centros activos y preparar flujo dinámico
   useEffect(() => {
-    // 🔒 Solo cargar si la autenticación ha terminado y hay un usuario
-    if (!authLoading && firebaseUser) {
-      console.log('🔄 [DEBUG] Auth lista, iniciando carga de canchas...');
-      getCourts({ isActive: true })
-        .then((result) => {
-          console.log('✅ [DEBUG] Canchas cargadas exitosamente:', result);
-        })
-        .catch((error) => {
-          console.error('❌ [DEBUG] Error cargando canchas:', error);
-        });
-    } else {
-      console.log('⏳ [DEBUG] Esperando autenticación de Firebase para cargar canchas...');
-    }
-  }, [getCourts, authLoading, firebaseUser]);
+    if (authLoading || !firebaseUser) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const list: any = await api.centers.getAll?.({ includeStats: false } as any);
+        const arr = Array.isArray(list?.data) ? list.data : (Array.isArray(list) ? list : []);
+        if (!mounted) return;
+        setCenters(arr);
+        if (arr.length === 1) {
+          setSelectedCenter(arr[0]);
+          // Cargar canchas del centro único
+          await getCourts({ isActive: true, centerId: arr[0].id } as any);
+          // El flujo comienza en Deporte
+          setStep(1);
+        } else {
+          // Hay múltiples centros: el flujo comienza en Centro
+          setStep(1);
+        }
+      } catch (e) {
+        console.error('Error cargando centros:', e);
+        setCenters([]);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [authLoading, firebaseUser, getCourts]);
+
+  // Cargar canchas cuando se selecciona centro
+  useEffect(() => {
+    if (!selectedCenter) return;
+    getCourts({ isActive: true, centerId: selectedCenter.id } as any).catch(() => {});
+  }, [selectedCenter, getCourts]);
 
   // Deportes disponibles a partir de las canchas
   const sports = useMemo(() => {
@@ -194,7 +213,7 @@ export default function NewReservationPage() {
     return result;
   }, [courts]);
 
-  // Canchas filtradas por deporte
+  // Canchas filtradas por deporte y centro
   const filteredCourts: any[] = useMemo(() => {
     // 🔧 EXTRAER EL ARRAY DE CANCHAS DEL OBJETO RESPONSE
     let courtsArray: any[] = [];
@@ -204,10 +223,13 @@ export default function NewReservationPage() {
     } else if (cAny && typeof cAny === 'object' && Array.isArray(cAny.courts)) {
       courtsArray = cAny.courts;
     }
-    
+    // Filtrar por centro si corresponde
+    if (selectedCenter) {
+      courtsArray = courtsArray.filter((c: any) => c.centerId === selectedCenter.id);
+    }
     if (!selectedSport) return courtsArray; // mostrar todas si no se eligió deporte
     return courtsArray.filter((c: any) => c.sportType === selectedSport);
-  }, [courts, selectedSport]);
+  }, [courts, selectedSport, selectedCenter]);
 
   const getSportIcon = (sport: string) => {
     switch (sport) {
@@ -415,6 +437,8 @@ export default function NewReservationPage() {
     );
   }
 
+  const hasMultipleCenters = centers.length > 1;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -455,11 +479,18 @@ export default function NewReservationPage() {
         {shouldUseMobileView ? (
           // Vista móvil optimizada
           <div className="flex items-center justify-center space-x-4 mobile-fade-in-up">
-            {[
-              { number: 1, title: 'Deporte', completed: step > 1 },
-              { number: 2, title: 'Cancha', completed: step > 2 },
-              { number: 3, title: 'Fecha y Hora', completed: false }
-            ].map((stepItem, index) => (
+            {(hasMultipleCenters
+              ? [
+                  { number: 1, title: 'Centro', completed: step > 1 },
+                  { number: 2, title: 'Deporte', completed: step > 2 },
+                  { number: 3, title: 'Cancha', completed: step > 3 },
+                  { number: 4, title: 'Fecha y Hora', completed: false }
+                ]
+              : [
+                  { number: 1, title: 'Deporte', completed: step > 1 },
+                  { number: 2, title: 'Cancha', completed: step > 2 },
+                  { number: 3, title: 'Fecha y Hora', completed: false }
+                ]).map((stepItem, index) => (
               <div key={stepItem.number} className="flex flex-col items-center relative">
                 <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 mb-2 ${
                   stepItem.completed
@@ -492,11 +523,18 @@ export default function NewReservationPage() {
         ) : (
           // Vista escritorio original
           <div className="flex items-center justify-between">
-            {[
-              { number: 1, title: 'Deporte', completed: step > 1 },
-              { number: 2, title: 'Cancha', completed: step > 2 },
-              { number: 3, title: 'Fecha y Hora', completed: false }
-            ].map((stepItem, index) => (
+            {(hasMultipleCenters
+              ? [
+                  { number: 1, title: 'Centro', completed: step > 1 },
+                  { number: 2, title: 'Deporte', completed: step > 2 },
+                  { number: 3, title: 'Cancha', completed: step > 3 },
+                  { number: 4, title: 'Fecha y Hora', completed: false }
+                ]
+              : [
+                  { number: 1, title: 'Deporte', completed: step > 1 },
+                  { number: 2, title: 'Cancha', completed: step > 2 },
+                  { number: 3, title: 'Fecha y Hora', completed: false }
+                ]).map((stepItem, index) => (
               <div key={stepItem.number} className="flex items-center">
                 <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
                   stepItem.completed
@@ -531,8 +569,33 @@ export default function NewReservationPage() {
 
       {/* Step Content */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        {/* Step 1: Select Sport */}
-        {step === 1 && (
+        {/* Step 1 (opcional): Select Center */}
+        {hasMultipleCenters && step === 1 && (
+          <div className={shouldUseMobileView ? "p-4 mobile-fade-in-up" : "p-6"}>
+            <h2 className={`font-semibold text-gray-900 mb-4 ${
+              shouldUseMobileView ? "text-xl text-center" : "text-lg"
+            }`}>
+              Selecciona el Centro
+            </h2>
+            <div className={shouldUseMobileView ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 md:grid-cols-2 gap-4"}>
+              {centers.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => { setSelectedCenter(c); setSelectedSport(''); setSelectedCourt(null); setStep(2); }}
+                  className={`text-left p-4 rounded-lg border-2 transition-all ${selectedCenter?.id === c.id ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
+                >
+                  <div className="font-medium text-gray-900">{c.name}</div>
+                  <div className="text-sm text-gray-600 flex items-center mt-1"><MapPin className="h-4 w-4 mr-1" />{c.address || ''}</div>
+                  <div className="text-sm text-gray-600 flex items-center mt-1"><Clock className="h-4 w-4 mr-1" />{c.businessOpen || '-'} - {c.businessClose || '-'}</div>
+                  <div className="mt-1 text-xs text-yellow-700 bg-yellow-50 inline-flex px-2 py-0.5 rounded">💡 Día: {c.dayStart || '-'} · Noche: {c.nightStart || '-'}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step: Select Sport (paso 1 u 2 según centros) */}
+        {step === (hasMultipleCenters ? 2 : 1) && (
           <div className={shouldUseMobileView ? "p-4 mobile-fade-in-up" : "p-6"}>
             <h2 className={`font-semibold text-gray-900 mb-4 ${
               shouldUseMobileView ? "text-xl text-center" : "text-lg"
@@ -572,7 +635,7 @@ export default function NewReservationPage() {
                 shouldUseMobileView ? "justify-center" : "justify-end"
               }`}>
                 <button
-                  onClick={() => setStep(2)}
+                  onClick={() => setStep(hasMultipleCenters ? 3 : 2)}
                   className={`bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
                     shouldUseMobileView ? "px-8 py-3 text-lg font-medium" : "px-4 py-2"
                   }`}
@@ -584,8 +647,8 @@ export default function NewReservationPage() {
           </div>
         )}
 
-        {/* Step 2: Select Court */}
-        {step === 2 && (
+        {/* Step: Select Court */}
+        {step === (hasMultipleCenters ? 3 : 2) && (
           <div className={shouldUseMobileView ? "mobile-fade-in-up" : "p-6"}>
             {shouldUseMobileView ? (
               // Vista móvil con MobileCourtSelector
@@ -606,10 +669,10 @@ export default function NewReservationPage() {
                     Selecciona la Cancha de {selectedSport}
                   </h2>
                   <button
-                    onClick={() => setStep(1)}
+                    onClick={() => setStep(hasMultipleCenters ? 2 : 1)}
                     className="text-sm text-gray-500 hover:text-gray-700"
                   >
-                    Cambiar deporte
+                    Cambiar {hasMultipleCenters ? 'deporte' : 'deporte'}
                   </button>
                 </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -653,13 +716,13 @@ export default function NewReservationPage() {
                 {selectedCourt && (
                   <div className="mt-6 flex justify-between">
                     <button
-                      onClick={() => setStep(1)}
+                      onClick={() => setStep(hasMultipleCenters ? 2 : 1)}
                       className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
                       Anterior
                     </button>
                     <button
-                      onClick={() => setStep(3)}
+                      onClick={() => setStep(hasMultipleCenters ? 4 : 3)}
                       className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
                       Continuar
@@ -671,8 +734,8 @@ export default function NewReservationPage() {
           </div>
         )}
 
-        {/* Step 3: Select Date and Time with Visual Calendar */}
-        {step === 3 && (
+        {/* Step: Select Date and Time with Visual Calendar */}
+        {step === (hasMultipleCenters ? 4 : 3) && (
           <div className={shouldUseMobileView ? "mobile-fade-in-up" : "p-6"}>
             {shouldUseMobileView ? (
               // Vista móvil con MobileCalendar

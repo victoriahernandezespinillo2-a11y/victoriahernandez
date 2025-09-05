@@ -154,21 +154,8 @@ export default function PassPDF({ reservation, qrDataUrl, expiresAt, statusLabel
   const centerName = reservation.court.center?.name || 'POLIDEPORTIVO';
   const code = reservation.id.slice(0, 10).toUpperCase();
   
-  // Detectar tipo de deporte
-  const courtName = reservation.court.name.toLowerCase();
-  let sportType = 'DEPORTE';
-  
-  if (courtName.includes('futbol') || courtName.includes('fútbol')) {
-    sportType = 'FÚTBOL 7';
-  } else if (courtName.includes('tenis')) {
-    sportType = 'TENIS';
-  } else if (courtName.includes('padel') || courtName.includes('pádel')) {
-    sportType = 'PÁDEL';
-  } else if (courtName.includes('basquet') || courtName.includes('básquet')) {
-    sportType = 'BÁSQUET';
-  } else if (courtName.includes('voley') || courtName.includes('voleibol')) {
-    sportType = 'VOLEIBOL';
-  }
+  // Deporte real: usar el seleccionado en la reserva o el tipo de la cancha
+  const sportType = (reservation as any)?.sport || (reservation.court as any)?.sportType || 'DEPORTE';
 
   const dateStr = reservation.startTime.toLocaleDateString('es-ES', { 
     day: '2-digit', 
@@ -184,8 +171,7 @@ export default function PassPDF({ reservation, qrDataUrl, expiresAt, statusLabel
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>POLIDEPORTIVO</Text>
-            <Text style={styles.subtitle}>VICTORIA HERNANDEZ</Text>
+            <Text style={styles.title}>{String(centerName).toUpperCase()}</Text>
             <Text style={styles.passLabel}>PASE DE ACCESO</Text>
             <View style={styles.divider} />
           </View>
