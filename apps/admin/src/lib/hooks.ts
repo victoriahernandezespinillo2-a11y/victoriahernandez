@@ -308,6 +308,38 @@ export function useAdminCenters() {
 export function useAdminCourts() {
   const { data, loading, error, execute, reset, setData } = useApiState<Court[]>([]);
 
+  // Normalizador robusto de Court desde cualquier shape de backend
+  const normalizeCourt = (c: any): Court => {
+    const toNum = (v: any) => (v == null ? 0 : Number(v));
+    const statusBackend: string = (c?.status || '').toString().toUpperCase();
+    const status: Court['status'] =
+      statusBackend === 'ACTIVE' ? 'AVAILABLE'
+      : statusBackend === 'INACTIVE' ? 'INACTIVE'
+      : statusBackend === 'MAINTENANCE' ? 'MAINTENANCE'
+      : (c?.maintenanceStatus && c.maintenanceStatus !== 'operational') ? 'MAINTENANCE'
+      : (c?.isActive === false ? 'INACTIVE' : 'AVAILABLE');
+    return {
+      id: c.id,
+      name: c.name,
+      type: (c.type || c.sportType || 'MULTIPURPOSE') as Court['type'],
+      centerId: c.centerId,
+      centerName: c.center?.name || c.centerName || '',
+      description: c.description || '',
+      hourlyRate: toNum(c.hourlyRate ?? c.pricePerHour ?? c.basePricePerHour),
+      capacity: toNum(c.capacity),
+      status,
+      features: Array.isArray(c.features) ? c.features : [],
+      dimensions: c.dimensions || '',
+      surface: c.surface || '',
+      lighting: Boolean(c.lighting ?? c.hasLighting),
+      lightingExtraPerHour: toNum(c.lightingExtraPerHour),
+      covered: Boolean(c.covered ?? c.isIndoor),
+      createdAt: c.createdAt,
+      isMultiuse: Boolean(c.isMultiuse),
+      allowedSports: Array.isArray(c.allowedSports) ? c.allowedSports : [],
+    } as Court;
+  };
+
   const getCourts = useCallback((params?: any) => {
     return execute(() => adminApi.courts.getAll(params) as Promise<Court[]>);
   }, [execute]);
@@ -381,11 +413,10 @@ export function useAdminCourts() {
     if (payload.isMultiuse === false) {
       payload.allowedSports = [];
     }
-    const updatedCourt = await adminApi.courts.update(id, payload) as Court;
-    setData(prev => 
-      prev ? prev.map(court => court.id === id ? updatedCourt : court) : [updatedCourt]
-    );
-    return updatedCourt;
+    const updatedRaw = await adminApi.courts.update(id, payload);
+    const updatedCourt = normalizeCourt(updatedRaw);
+    setData(prev => prev ? prev.map(court => court.id === id ? updatedCourt : court) : [updatedCourt]);
+    return updatedCourt as any;
   }, [setData]);
 
   const deleteCourt = useCallback(async (id: string) => {

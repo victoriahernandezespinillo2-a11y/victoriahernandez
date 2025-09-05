@@ -740,7 +740,7 @@ export default function CourtsPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-500">Tarifa por hora</span>
                   <span className="text-2xl font-bold text-green-600">
-                    €{court.hourlyRate.toFixed(2)}
+                    €{Number(court.hourlyRate || 0).toFixed(2)}
                   </span>
                 </div>
               </div>
