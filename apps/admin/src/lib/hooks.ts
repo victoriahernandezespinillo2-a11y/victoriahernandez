@@ -369,6 +369,15 @@ export function useAdminCourts() {
     if (payload.capacity !== undefined) {
       payload.capacity = Math.max(1, Math.floor(payload.capacity));
     }
+    // Mapear estado UI -> backend
+    if (payload.status) {
+      const map: Record<string, string> = {
+        AVAILABLE: 'ACTIVE',
+        INACTIVE: 'INACTIVE',
+        MAINTENANCE: 'MAINTENANCE',
+      };
+      payload.status = map[payload.status as string] || payload.status;
+    }
     if (payload.isMultiuse === false) {
       payload.allowedSports = [];
     }
