@@ -26,6 +26,8 @@ const nextConfig = {
       process.env.NODE_ENV === 'production'
         ? "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net"
         : "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net",
+      // Permitir iframes necesarios para flujos de auth de Google/Firebase
+      "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://apis.google.com",
       // Images & media (permitir CDNs seguros y tiles de mapas)
       "img-src 'self' data: blob: https:",
       "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com",
