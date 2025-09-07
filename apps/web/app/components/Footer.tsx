@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import InstallPwaButton from './InstallPwaButton';
+import { useLandingData } from '@/src/hooks/useLandingData';
 
 export function Footer() {
   const pathname = usePathname();
@@ -13,6 +15,14 @@ export function Footer() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [email, setEmail] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const { sports, sportsList } = useLandingData();
+  const [showMap, setShowMap] = useState(false);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const [leafletReady, setLeafletReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+  // Coordenadas oficiales del centro (fallback si no hay variables de entorno)
+  const configuredLat = (Number(process.env.NEXT_PUBLIC_CENTER_LAT) || 40.3602693);
+  const configuredLng = (Number(process.env.NEXT_PUBLIC_CENTER_LNG) || -3.6861868);
 
   // Determinar si estamos en una ruta del dashboard
   const isDashboardRoute = pathname && (
@@ -33,6 +43,122 @@ export function Footer() {
     }, 60000);
     return () => clearInterval(timer);
   }, []);
+
+  // Auto-cargar mapa en desktop cuando entra en viewport
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isMobile = window.innerWidth < 768;
+    if (isMobile || showMap) return; // En mobile mantenemos click-to-load
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry && entry.isIntersecting) {
+          setShowMap(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.25 }
+    );
+
+    if (mapContainerRef.current) {
+      observer.observe(mapContainerRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [showMap]);
+
+  // Cargar Leaflet y renderizar mapa con OSM cuando showMap=true (evita bloqueos de Google)
+  useEffect(() => {
+    if (!showMap || leafletReady) return;
+    let cancelled = false;
+
+    const loadLeaflet = async () => {
+      try {
+        // Helper para cargar un recurso con fallback de CDN
+        const tryLoadResource = (createEl: () => HTMLLinkElement | HTMLScriptElement, urls: string[]) =>
+          new Promise<void>((resolve, reject) => {
+            const safeUrls: string[] = (urls || []).filter((u): u is string => typeof u === 'string' && u.length > 0);
+            const tryNext = (index: number) => {
+              if (index >= safeUrls.length) return reject(new Error('CDN falló'));
+              const el = createEl();
+              const url = safeUrls[index] as string;
+              if (el instanceof HTMLLinkElement) {
+                el.href = url;
+              } else {
+                (el as HTMLScriptElement).src = url;
+              }
+              (el as any).onload = () => resolve();
+              (el as any).onerror = () => {
+                el.remove();
+                tryNext(index + 1);
+              };
+              (el instanceof HTMLLinkElement ? document.head : document.body).appendChild(el);
+            };
+            tryNext(0);
+          });
+
+        // Cargar CSS (con fallback unpkg -> jsDelivr -> cdnjs)
+        if (!document.getElementById('leaflet-css')) {
+          await tryLoadResource(() => {
+            const link = document.createElement('link');
+            link.id = 'leaflet-css';
+            link.rel = 'stylesheet';
+            return link;
+          }, [
+            'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+            'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css',
+            'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css',
+          ]);
+        }
+
+        // Cargar JS (con fallback de CDN)
+        if (!(window as any).L) {
+          await tryLoadResource(() => {
+            const script = document.createElement('script');
+            script.async = true;
+            return script;
+          }, [
+            'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+            'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js',
+          ]);
+        }
+        if (cancelled) return;
+        setLeafletReady(true);
+      } catch (e) {
+        if (!cancelled) setMapError('No se pudo cargar el mapa.');
+      }
+    };
+
+    loadLeaflet();
+    return () => { cancelled = true; };
+  }, [showMap, leafletReady]);
+
+  // Dibujar mapa cuando Leaflet está listo (usa coordenadas configuradas)
+  useEffect(() => {
+    const render = async () => {
+      if (!leafletReady || !showMap) return;
+      try {
+        const lat = configuredLat;
+        const lon = configuredLng;
+        const L = (window as any).L;
+        const container = document.getElementById('osm-map');
+        if (!container) return;
+        const map = L.map(container).setView([lat, lon], 17);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors',
+          maxZoom: 19,
+        }).addTo(map);
+        const popupHtml = `\n          <div style=\"min-width:220px\">\n            <strong>Polideportivo Victoria Hernández</strong><br/>\n            ${contactInfo.address}<br/>\n            ${contactInfo.district || ''}<br/>\n            <a href=\"https://maps.google.com/?q=${lat},${lon}\" target=\"_blank\" rel=\"noopener\">Ver en Google Maps</a> ·\n            <a href=\"https://waze.com/ul?ll=${lat}%2C${lon}&navigate=yes\" target=\"_blank\" rel=\"noopener\">Waze</a>\n          </div>`;
+        L.marker([lat, lon]).addTo(map).bindPopup(popupHtml).openPopup();
+        setMapError(null);
+      } catch (e) {
+        setMapError('No se pudo mostrar el mapa.');
+      }
+    };
+    render();
+  }, [leafletReady, showMap]);
 
   // Scroll to top functionality
   useEffect(() => {
@@ -73,30 +199,36 @@ export function Footer() {
     return { status: 'Cerrado', color: 'text-red-400', icon: 'fas fa-circle' };
   };
 
+  const normalizeIcon = (icon?: string) => {
+    if (!icon) return 'fas fa-dumbbell';
+    return icon.includes('fa') ? icon : `fas fa-${icon}`;
+  };
+
+  // Preferir deportes reales derivados de canchas si están disponibles; si no, categorías de landing
+  const sportsLinks = (sportsList && sportsList.length > 0
+    ? sportsList.map((s) => ({ label: s, href: '#deportes', icon: 'fas fa-dumbbell' }))
+    : (sports || []).map((category) => ({
+        label: category.name,
+        href: '#deportes',
+        icon: normalizeIcon(category.icon || 'dumbbell'),
+      }))
+  );
+
   const footerSections = [
     {
       title: "Deportes & Instalaciones",
       icon: "fas fa-dumbbell",
-      links: [
-        { label: "Fútbol", href: "#futbol", icon: "fas fa-futbol", badge: "Popular" },
-        { label: "Baloncesto", href: "#baloncesto", icon: "fas fa-basketball-ball" },
-        { label: "Tenis", href: "#tenis", icon: "fas fa-table-tennis", badge: "Nuevo" },
-        { label: "Gimnasio", href: "#gimnasio", icon: "fas fa-dumbbell" },
-        { label: "Piscina", href: "#piscina", icon: "fas fa-swimmer", badge: "Premium" },
-        { label: "Yoga & Pilates", href: "#yoga", icon: "fas fa-leaf" },
-        { label: "Crossfit", href: "#crossfit", icon: "fas fa-fire" }
+      links: sportsLinks.length > 0 ? sportsLinks : [
+        // Fallback estático si aún no cargan los datos
+        { label: "Deportes", href: "#deportes", icon: "fas fa-dumbbell" }
       ]
     },
     {
       title: "Servicios Digitales",
       icon: "fas fa-mobile-alt",
       links: [
-        { label: "App Móvil", href: "#app", icon: "fas fa-mobile-alt", badge: "Gratis" },
-        { label: "Reservas Online", href: "#reservas", icon: "fas fa-calendar-check" },
-        { label: "Clases Virtuales", href: "#virtual", icon: "fas fa-video", badge: "Live" },
-        { label: "Entrenamiento Personal", href: "#entrenamiento", icon: "fas fa-user-tie" },
-        { label: "Nutrición Online", href: "#nutricion", icon: "fas fa-apple-alt" },
-        { label: "Seguimiento Fitness", href: "#tracking", icon: "fas fa-chart-line" }
+        { label: "App Móvil (PWA)", href: "#install-pwa", icon: "fas fa-mobile-alt", badge: "Gratis" },
+        { label: "Reservas Online", href: "/dashboard/reservations/new", icon: "fas fa-calendar-check" }
       ]
     },
     {
@@ -105,8 +237,6 @@ export function Footer() {
       links: [
         { label: "Sobre Nosotros", href: "#sobre", icon: "fas fa-building" },
         { label: "Horarios", href: "#horarios", icon: "fas fa-clock" },
-        { label: "Membresías", href: "#membresias", icon: "fas fa-crown", badge: "Ofertas" },
-        { label: "Reglamentos", href: "#reglamentos", icon: "fas fa-file-alt" },
         { label: "Blog Deportivo", href: "#blog", icon: "fas fa-blog" },
         { label: "Testimonios", href: "#testimonios", icon: "fas fa-star" },
         { label: "FAQ", href: "#faq", icon: "fas fa-question-circle" }
@@ -115,7 +245,8 @@ export function Footer() {
   ];
 
   const contactInfo = {
-    address: "Calle Principal #123, Victoria Hernandez, Andalucía, España",
+    address: "Polideportivo Victoria Hernández\nCALLE CONSENSO, 5, 28041 Madrid, España\nLos Rosales, Villaverde",
+    district: "Los Rosales, Villaverde",
     phone: "+34 (123) 456-7890",
     whatsapp: "+34 123 456 7890",
     email: "info@polideportivovictoriahernandez.com",
@@ -133,10 +264,10 @@ export function Footer() {
   ];
 
   const quickActions = [
-    { icon: "fas fa-calendar-plus", label: "Reservar Ahora", href: "#reservas", color: "from-emerald-500 to-green-600" },
-    { icon: "fas fa-mobile-alt", label: "Descargar App", href: "#app", color: "from-blue-500 to-indigo-600" },
-    { icon: "fab fa-whatsapp", label: "WhatsApp", href: `https://wa.me/34${contactInfo.whatsapp.replace(/\D/g, '')}`, color: "from-green-500 to-emerald-600" },
-    { icon: "fas fa-map-marker-alt", label: "Ubicación", href: "#mapa", color: "from-orange-500 to-red-600" }
+    { icon: "fas fa-calendar-plus", label: "Reservar Ahora", href: "/dashboard/reservations/new", color: "from-emerald-500 to-green-600", type: 'link' as const },
+    { icon: "fas fa-mobile-alt", label: "Descargar App", href: "#install-pwa", color: "from-blue-500 to-indigo-600", type: 'pwa' as const },
+    { icon: "fab fa-whatsapp", label: "WhatsApp", href: `https://wa.me/57${contactInfo.whatsapp.replace(/\D/g, '')}`, color: "from-green-500 to-emerald-600", type: 'link' as const },
+    { icon: "fas fa-map-marker-alt", label: "Ubicación", href: `https://maps.google.com/?q=${configuredLat},${configuredLng}` , color: "from-orange-500 to-red-600", type: 'link' as const }
   ];
 
   return (
@@ -155,19 +286,31 @@ export function Footer() {
       <div className="absolute bottom-20 right-20 w-32 h-32 bg-blue-500/10 rounded-full blur-xl animate-pulse delay-1000"></div>
 
       <div className="relative">
+        {/* Anchor for PWA install target */}
+        <div id="install-pwa" className="absolute -top-12" aria-hidden="true"></div>
+
         {/* Quick Actions Bar */}
         <div className="bg-gradient-to-r from-emerald-600/20 to-blue-600/20 border-b border-emerald-500/30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex flex-wrap items-center justify-center gap-4">
               {quickActions.map((action, index) => (
-                <a
-                  key={index}
-                  href={action.href}
-                  className={`flex items-center space-x-2 px-4 py-2 bg-gradient-to-r ${action.color} text-white rounded-lg font-semibold hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl`}
-                >
-                  <i className={`${action.icon} text-sm`}></i>
-                  <span className="text-sm">{action.label}</span>
-                </a>
+                action.type === 'pwa' ? (
+                  <InstallPwaButton
+                    key={index}
+                    className={`flex items-center space-x-2 px-4 py-2 bg-gradient-to-r ${action.color} text-white rounded-lg font-semibold hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl`}
+                    iconClassName={action.icon}
+                    label={action.label}
+                  />
+                ) : (
+                  <a
+                    key={index}
+                    href={action.href}
+                    className={`flex items-center space-x-2 px-4 py-2 bg-gradient-to-r ${action.color} text-white rounded-lg font-semibold hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl`}
+                  >
+                    <i className={`${action.icon} text-sm`}></i>
+                    <span className="text-sm">{action.label}</span>
+                  </a>
+                )
               ))}
             </div>
           </div>
@@ -186,7 +329,8 @@ export function Footer() {
                     alt="Polideportivo Victoria Hernandez" 
                     width={64}
                     height={64}
-                    className="w-16 h-16 object-contain rounded-2xl shadow-2xl hover:scale-110 transition-transform duration-300"
+                    className="rounded-2xl shadow-2xl hover:scale-110 transition-transform duration-300"
+                    style={{ width: '64px', height: '64px' }}
                     onError={(e) => {
                       // Fallback al diseño original si no carga la imagen
                       e.currentTarget.style.display = 'none';
@@ -206,7 +350,7 @@ export function Footer() {
                   </h2>
                     <div className="flex items-center space-x-2">
                     <p className="text-emerald-400 font-semibold">
-                      Centro Deportivo Premium
+                      Centro Deportivo
                     </p>
                       {mounted && (
                         <div className={`flex items-center space-x-1 ${getCurrentStatus().color}`} suppressHydrationWarning>
@@ -242,74 +386,7 @@ export function Footer() {
                 </div>
               </div>
 
-              {/* Enhanced Newsletter */}
-              <div className="bg-gradient-to-r from-emerald-500/20 to-blue-600/20 p-6 rounded-2xl border border-emerald-500/30 hover:border-emerald-500/50 transition-all duration-300">
-                <h3 className="text-lg font-semibold text-white mb-2">
-                  <i className="fas fa-envelope mr-2 text-emerald-400"></i>
-                  Newsletter Deportivo
-                </h3>
-                <p className="text-gray-300 text-sm mb-4">
-                  Recibe noticias, promociones exclusivas y eventos especiales
-                </p>
-                {isSubscribed ? (
-                  <div className="flex items-center space-x-2 text-green-400">
-                    <i className="fas fa-check-circle"></i>
-                    <span className="text-sm font-medium">¡Suscripción exitosa!</span>
-                  </div>
-                ) : (
-                  <form onSubmit={handleNewsletterSubmit} className="flex space-x-2">
-                    <input 
-                      type="email" 
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="tu@email.com"
-                      required
-                      className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300"
-                    />
-                    <button 
-                      type="submit"
-                      className="bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:from-emerald-600 hover:to-blue-700 transition-all duration-300 hover:scale-105 disabled:opacity-50"
-                      disabled={!email}
-                    >
-                      <i className="fas fa-paper-plane"></i>
-                    </button>
-                  </form>
-                )}
-                <div className="flex items-center justify-between mt-3 text-xs text-gray-400">
-                  <span>📧 +2.1K suscriptores</span>
-                  <span>🔒 Sin spam garantizado</span>
-                </div>
-              </div>
-
-              {/* Contact Card */}
-              <div className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 p-6 rounded-2xl border border-gray-600/30">
-                <h3 className="text-lg font-semibold text-white mb-4">
-                  <i className="fas fa-phone mr-2 text-emerald-400"></i>
-                  Contacto Directo
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3 text-sm">
-                    <i className="fas fa-map-marker-alt text-emerald-500 w-4"></i>
-                    <span className="text-gray-300">{contactInfo.address}</span>
-                  </div>
-                  <div className="flex items-center space-x-3 text-sm">
-                    <i className="fas fa-clock text-blue-500 w-4"></i>
-                    <span className="text-gray-300">{contactInfo.hours}</span>
-                  </div>
-                  <div className="flex items-center space-x-3 text-sm">
-                    <i className="fas fa-phone text-orange-500 w-4"></i>
-                    <a href={`tel:${contactInfo.phone}`} className="text-gray-300 hover:text-emerald-400 transition-colors duration-300">
-                      {contactInfo.phone}
-                    </a>
-                  </div>
-                  <div className="flex items-center space-x-3 text-sm">
-                    <i className="fab fa-whatsapp text-green-500 w-4"></i>
-                    <a href={`https://wa.me/57${contactInfo.whatsapp.replace(/\D/g, '')}`} className="text-gray-300 hover:text-emerald-400 transition-colors duration-300">
-                      WhatsApp: {contactInfo.whatsapp}
-                    </a>
-                  </div>
-                </div>
-              </div>
+              {/* Sección de Newsletter y Contacto removida por requerimiento */}
             </div>
 
             {/* Enhanced Links Sections */}
@@ -416,18 +493,39 @@ export function Footer() {
                     </div>
                   </div>
                 </div>
-                <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-600/30">
-                  <div className="aspect-video bg-gradient-to-br from-emerald-500/20 to-blue-600/20 rounded-lg flex items-center justify-center">
-                    <div className="text-center">
-                      <i className="fas fa-map text-4xl text-emerald-400 mb-2"></i>
-                      <p className="text-white font-medium">Mapa Interactivo</p>
-                      <p className="text-gray-400 text-sm">Haz clic para ver ubicación</p>
-                    </div>
+                <div ref={mapContainerRef} className="bg-gray-900/50 rounded-xl p-4 border border-gray-600/30">
+                  <div className="aspect-video rounded-lg overflow-hidden">
+                    {showMap ? (
+                      <div id="osm-map" className="w-full h-full"></div>
+                    ) : (
+                      <button
+                        onClick={() => setShowMap(true)}
+                        className="w-full h-full bg-gradient-to-br from-emerald-500/20 to-blue-600/20 flex items-center justify-center"
+                        aria-label="Cargar mapa interactivo"
+                      >
+                        <div className="text-center">
+                          <i className="fas fa-map text-4xl text-emerald-400 mb-2"></i>
+                          <p className="text-white font-medium">Mapa Interactivo</p>
+                          <p className="text-gray-400 text-sm">Haz clic para cargar el mapa</p>
+                        </div>
+                      </button>
+                    )}
                   </div>
-                  <button className="w-full mt-3 bg-gradient-to-r from-emerald-500 to-blue-600 text-white py-2 rounded-lg font-semibold hover:from-emerald-600 hover:to-blue-700 transition-all duration-300 hover:scale-105">
+                  {mapError && (
+                    <div className="text-red-400 text-sm mt-2">
+                      {mapError}. Puedes usar el botón «Cómo Llegar» para abrir la ubicación en Google Maps.
+                    </div>
+                  )}
+                  <a
+                    href={`https://maps.google.com/?q=${configuredLat},${configuredLng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full mt-3 bg-gradient-to-r from-emerald-500 to-blue-600 text-white py-2 rounded-lg font-semibold hover:from-emerald-600 hover:to-blue-700 transition-all duration-300 hover:scale-105 inline-flex items-center justify-center"
+                    aria-label="Abrir en Google Maps"
+                  >
                     <i className="fas fa-directions mr-2"></i>
                     Cómo Llegar
-                  </button>
+                  </a>
                 </div>
               </div>
             </div>

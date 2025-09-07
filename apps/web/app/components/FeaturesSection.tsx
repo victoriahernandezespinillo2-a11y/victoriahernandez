@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 
 export function FeaturesSection() {
   const [isVisible, setIsVisible] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
+  const router = useRouter();
 
   const features = [
     {
@@ -18,7 +20,7 @@ export function FeaturesSection() {
     },
     {
       icon: "fas fa-dumbbell",
-      title: "Instalaciones Premium",
+      title: "Instalaciones Modernas",
       description: "Canchas sintéticas de última generación, gimnasio completamente equipado y espacios diseñados para el máximo rendimiento.",
       color: "from-blue-500 to-indigo-600",
       bgColor: "bg-blue-50",
@@ -81,6 +83,20 @@ export function FeaturesSection() {
     return () => observer.disconnect();
   }, []);
 
+  // Navegación primaria para conversión directa
+  const handleStartNow = () => {
+    router.push('/dashboard/reservations/new');
+  };
+
+  // Scroll suave hacia información/contacto
+  const handleSmoothScroll = (targetId: string) => {
+    const targetElement = document.getElementById(targetId.replace('#', ''));
+    if (targetElement) {
+      const offsetTop = targetElement.offsetTop - 80;
+      window.scrollTo({ top: offsetTop, behavior: 'smooth' });
+    }
+  };
+
   return (
     <section ref={sectionRef} className="py-24 bg-gradient-to-br from-gray-50 to-white relative overflow-hidden">
       {/* Background Elements */}
@@ -96,7 +112,7 @@ export function FeaturesSection() {
         }`}>
           <div className="inline-flex items-center space-x-2 bg-emerald-100 text-emerald-800 rounded-full px-6 py-2 mb-6">
             <i className="fas fa-star text-emerald-600"></i>
-            <span className="font-semibold text-sm">Características Premium</span>
+            <span className="font-semibold text-sm">Características Destacadas</span>
           </div>
           
           <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-6">
@@ -149,11 +165,13 @@ export function FeaturesSection() {
                   ))}
                 </ul>
 
-                {/* Learn More Link */}
-                <button className={`group/btn flex items-center space-x-2 text-sm font-semibold ${feature.iconColor} hover:underline transition-all duration-300`}>
-                  <span>Conocer más</span>
-                  <i className="fas fa-arrow-right group-hover/btn:translate-x-1 transition-transform duration-300"></i>
-                </button>
+                {/* Learn More Link oculto por solicitud */}
+                {false && (
+                  <button className={`group/btn flex items-center space-x-2 text-sm font-semibold ${feature.iconColor} hover:underline transition-all duration-300`}>
+                    <span>Conocer más</span>
+                    <i className="fas fa-arrow-right group-hover/btn:translate-x-1 transition-transform duration-300"></i>
+                  </button>
+                )}
               </div>
 
               {/* Hover Effect Border */}
@@ -179,16 +197,22 @@ export function FeaturesSection() {
                 ¿Listo para comenzar tu experiencia deportiva?
               </h3>
               <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
-                Únete a miles de deportistas que ya disfrutan de nuestras instalaciones premium
+                Únete a miles de deportistas que ya disfrutan de nuestras instalaciones modernas
               </p>
               
               <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
-                <button className="bg-white text-emerald-600 px-8 py-4 rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 flex items-center space-x-3">
+                <button 
+                  onClick={handleStartNow}
+                  aria-label="Comenzar ahora reservando"
+                  className="bg-white text-emerald-600 px-8 py-4 rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 flex items-center space-x-3">
                   <i className="fas fa-rocket"></i>
                   <span>Comenzar Ahora</span>
                 </button>
                 
-                <button className="border-2 border-white/50 text-white px-8 py-4 rounded-2xl font-semibold text-lg hover:bg-white/10 transition-all duration-300 flex items-center space-x-3">
+                <button 
+                  onClick={() => handleSmoothScroll('#info')}
+                  aria-label="Ir a información de contacto"
+                  className="border-2 border-white/50 text-white px-8 py-4 rounded-2xl font-semibold text-lg hover:bg-white/10 transition-all duration-300 flex items-center space-x-3">
                   <i className="fas fa-phone"></i>
                   <span>Contactar</span>
                 </button>

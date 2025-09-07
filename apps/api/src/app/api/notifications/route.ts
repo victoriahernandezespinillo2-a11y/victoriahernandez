@@ -71,26 +71,14 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      let result;
-      try {
-        result = await notificationService.getNotifications(effectiveParams);
-      } catch (innerErr) {
-        console.warn('Fallo getNotifications, devolviendo lista vacÃ­a:', innerErr);
-        result = { notifications: [], pagination: { page: Number(parsed.page || 1), limit: Number(parsed.limit || 20), total: 0, pages: 0 } };
-      }
+      const result = await notificationService.getNotifications(effectiveParams);
 
       const res = API.success(result);
       return res;
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        const res = API.validation(
-          error.errors.map(e => ({ field: e.path.join('.'), message: e.message }))
-        );
-        return res;
-      }
-      console.error('Error GET /api/notifications:', error);
-      const res = API.success({ notifications: [], pagination: { page: 1, limit: 10, total: 0, pages: 0 } });
-      return res;
+      console.warn('GET /api/notifications fallback por error:', error);
+      // Nunca 500: devolvemos vacío correctamente tipado
+      return API.success({ notifications: [], pagination: { page: 1, limit: 10, total: 0, pages: 0 } });
     }
   })(request);
 }

@@ -23,9 +23,9 @@ async function main() {
     },
     {
       title: "Ubicación",
-      description: "Fácil acceso y amplio estacionamiento",
+      description: "Ubicación oficial del centro",
       icon: "fas fa-map-marker-alt",
-      content: "Av. Principal #123, Victoria Hernandez, Andalucía, España\nZona deportiva central con transporte público",
+      content: "Polideportivo Victoria Hernández\nCALLE CONSENSO, 5, 28041 Madrid, España\nLos Rosales, Villaverde",
       order: 3
     },
     {

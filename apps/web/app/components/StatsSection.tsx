@@ -39,7 +39,7 @@ export function StatsSection() {
       id: 'facilities',
       value: 15,
       suffix: '',
-      label: 'Instalaciones Premium',
+      label: 'Instalaciones Modernas',
       description: 'Espacios deportivos de alta calidad',
       icon: 'fas fa-building',
       color: 'from-purple-500 to-pink-600',

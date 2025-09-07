@@ -33,7 +33,7 @@ export default function AuthLayout({
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold">24/7</div>
-                  <div className="opacity-80">Acceso Premium</div>
+                  <div className="opacity-80">Acceso al Centro</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold">10+</div>

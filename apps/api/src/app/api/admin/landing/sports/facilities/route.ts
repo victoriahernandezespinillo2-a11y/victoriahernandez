@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from '@repo/auth';
-
 import { z } from 'zod';
 
-// Schema de validación para crear/actualizar instalación deportiva
+// Schema de validación para crear/actualizar instalación deportiva (único)
 const SportFacilitySchema = z.object({
   categoryId: z.string().min(1, 'La categoría es requerida'),
   name: z.string().min(1, 'El nombre es requerido').max(200),
@@ -18,6 +17,7 @@ const SportFacilitySchema = z.object({
   order: z.number().int().min(0).default(0)
 });
 
+// GET - Obtener todas las instalaciones deportivas
 // GET - Obtener todas las instalaciones deportivas
 export async function GET(request: NextRequest) {
   try {
@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST - Crear nueva instalación deportiva
 // POST - Crear nueva instalación deportiva
 export async function POST(request: NextRequest) {
   try {

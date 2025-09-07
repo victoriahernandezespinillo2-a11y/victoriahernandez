@@ -23,7 +23,7 @@ export function HeroSection() {
   const heroSlides = [
     {
       title: "Polideportivo Victoria Hernandez",
-      subtitle: "Centro Deportivo Premium",
+      subtitle: "Centro Deportivo Municipal",
       description: "Vive la pasión del deporte en nuestras instalaciones de clase mundial. Reserva, entrena y compite en el mejor ambiente deportivo de la región.",
       image: "bg-gradient-to-br from-emerald-600 via-blue-600 to-purple-700",
       cta: "Reservar Ahora",

@@ -44,7 +44,7 @@ export default function PrivacyPolicyPage() {
               📋 Responsable del Tratamiento: Polideportivo Victoria Hernández
             </p>
             <p className="text-blue-700 text-sm mt-1">
-              Dirección: Victoria Hernández, Cesar, Colombia<br/>
+              Dirección: Polideportivo Victoria Hernández, CALLE CONSENSO, 5, 28041 Madrid, España (Los Rosales, Villaverde)<br/>
               Email: protecciondatos@polideportivo.com<br/>
               Teléfono: +57 (xxx) xxx-xxxx
             </p>

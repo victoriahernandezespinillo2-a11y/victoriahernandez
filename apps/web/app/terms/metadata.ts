@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Términos y Condiciones | Polideportivo Victoria Hernández',
-  description: 'Condiciones de uso de la plataforma, pagos, cancelaciones, propiedad intelectual y responsabilidades conforme a la normativa de la UE.',
+  description: 'Condiciones de uso de la plataforma, pagos, cancelaciones, propiedad intelectual y responsabilidades. Sede: CALLE CONSENSO, 5, 28041 Madrid, España (Los Rosales, Villaverde).',
   robots: 'index, follow',
   alternates: { canonical: '/terms' },
   openGraph: {
@@ -12,6 +12,8 @@ export const metadata: Metadata = {
     locale: 'es_ES'
   }
 };
+
+
 
 
 

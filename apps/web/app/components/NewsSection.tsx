@@ -8,6 +8,10 @@ export function NewsSection() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [email, setEmail] = useState('');
   const [isSubscribing, setIsSubscribing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [categoriesApi, setCategoriesApi] = useState<Array<{ id: string; name: string }>>([]);
   const sectionRef = useRef<HTMLElement>(null);
   const router = useRouter();
 
@@ -15,12 +19,15 @@ export function NewsSection() {
   const handleNewsletterSubscription = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
-    
     setIsSubscribing(true);
     try {
-      // Aquí iría la lógica de suscripción al newsletter
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulación
-      alert('¡Suscripción exitosa! Recibirás nuestras noticias en tu email.');
+      const res = await fetch('/api/landing/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) throw new Error('No se pudo suscribir');
+      alert('¡Suscripción exitosa!');
       setEmail('');
     } catch (error) {
       alert('Error al suscribirse. Por favor intenta nuevamente.');
@@ -29,111 +36,91 @@ export function NewsSection() {
     }
   };
 
+  // Fallback icon/color map by slug
+  const iconMap: Record<string, { icon: string; color: string; label?: string }> = {
+    news: { icon: 'fas fa-newspaper', color: 'from-blue-500 to-indigo-600', label: 'Noticias' },
+    events: { icon: 'fas fa-calendar-alt', color: 'from-purple-500 to-pink-600', label: 'Eventos' },
+    tips: { icon: 'fas fa-lightbulb', color: 'from-yellow-500 to-orange-600', label: 'Consejos' },
+    results: { icon: 'fas fa-trophy', color: 'from-green-500 to-emerald-600', label: 'Resultados' },
+  };
+
   const categories = [
     { id: 'all', name: 'Todas', icon: 'fas fa-th-large', color: 'from-gray-500 to-gray-600' },
-    { id: 'news', name: 'Noticias', icon: 'fas fa-newspaper', color: 'from-blue-500 to-indigo-600' },
-    { id: 'events', name: 'Eventos', icon: 'fas fa-calendar-alt', color: 'from-purple-500 to-pink-600' },
-    { id: 'tips', name: 'Consejos', icon: 'fas fa-lightbulb', color: 'from-yellow-500 to-orange-600' },
-    { id: 'results', name: 'Resultados', icon: 'fas fa-trophy', color: 'from-green-500 to-emerald-600' }
+    ...categoriesApi.map((c) => ({
+      id: c.id,
+      name: c.name || iconMap[c.id]?.label || c.id,
+      icon: iconMap[c.id]?.icon || 'fas fa-tag',
+      color: iconMap[c.id]?.color || 'from-gray-400 to-gray-600',
+    })),
   ];
 
-  const newsItems = [
-    {
-      id: 1,
-      category: 'news',
-      title: 'Nueva Cancha de Tenis Inaugurada con Tecnología LED',
-      excerpt: 'Presentamos nuestra nueva cancha de tenis con iluminación LED de última generación que permite jugar en cualquier horario con la mejor visibilidad.',
-      image: '/api/placeholder/400/250',
-      author: 'María González',
-      authorRole: 'Directora de Instalaciones',
-      date: '2024-01-15',
-      readTime: '3 min',
-      tags: ['Instalaciones', 'Tenis', 'Tecnología'],
-      featured: true,
-      views: 1250,
-      likes: 89
-    },
-    {
-      id: 2,
-      category: 'events',
-      title: 'Torneo de Fútbol 7 - Inscripciones Abiertas',
-      excerpt: 'Únete al torneo más esperado del año. Equipos de toda la región competirán por el título y premios increíbles.',
-      image: '/api/placeholder/400/250',
-      author: 'Carlos Rodríguez',
-      authorRole: 'Coordinador Deportivo',
-      date: '2024-01-12',
-      readTime: '2 min',
-      tags: ['Torneo', 'Fútbol', 'Competencia'],
-      featured: false,
-      views: 890,
-      likes: 67
-    },
-    {
-      id: 3,
-      category: 'tips',
-      title: '5 Ejercicios Esenciales para Mejorar tu Rendimiento',
-      excerpt: 'Descubre los ejercicios que todo deportista debe incluir en su rutina para maximizar su rendimiento y prevenir lesiones.',
-      image: '/api/placeholder/400/250',
-      author: 'Ana Martínez',
-      authorRole: 'Entrenadora Personal',
-      date: '2024-01-10',
-      readTime: '5 min',
-      tags: ['Entrenamiento', 'Fitness', 'Salud'],
-      featured: false,
-      views: 2100,
-      likes: 156
-    },
-    {
-      id: 4,
-      category: 'results',
-      title: 'Resultados del Campeonato Regional de Natación',
-      excerpt: 'Nuestros nadadores brillaron en el campeonato regional, obteniendo múltiples medallas y estableciendo nuevos récords.',
-      image: '/api/placeholder/400/250',
-      author: 'Roberto Silva',
-      authorRole: 'Entrenador de Natación',
-      date: '2024-01-08',
-      readTime: '4 min',
-      tags: ['Natación', 'Competencia', 'Resultados'],
-      featured: false,
-      views: 750,
-      likes: 45
-    },
-    {
-      id: 5,
-      category: 'news',
-      title: 'Nuevos Horarios Extendidos para el Gimnasio',
-      excerpt: 'A partir del próximo mes, el gimnasio estará disponible desde las 5:00 AM hasta las 11:00 PM para mayor comodidad de nuestros usuarios.',
-      image: '/api/placeholder/400/250',
-      author: 'Laura Fernández',
-      authorRole: 'Gerente de Operaciones',
-      date: '2024-01-05',
-      readTime: '2 min',
-      tags: ['Gimnasio', 'Horarios', 'Servicios'],
-      featured: false,
-      views: 1450,
-      likes: 98
-    },
-    {
-      id: 6,
-      category: 'events',
-      title: 'Clase Magistral de Yoga con Instructor Internacional',
-      excerpt: 'No te pierdas esta oportunidad única de aprender con uno de los instructores de yoga más reconocidos a nivel mundial.',
-      image: '/api/placeholder/400/250',
-      author: 'Diego Morales',
-      authorRole: 'Coordinador de Clases',
-      date: '2024-01-03',
-      readTime: '3 min',
-      tags: ['Yoga', 'Clase Magistral', 'Bienestar'],
-      featured: false,
-      views: 980,
-      likes: 72
-    }
-  ];
+  // Carga de posts desde API
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const query = activeCategory !== 'all' ? `&category=${encodeURIComponent(activeCategory)}` : '';
+        const res = await fetch(`/api/blog?limit=9${query}`);
+        if (!res.ok) throw new Error('No se pudieron cargar las noticias');
+        const json = await res.json();
+        if (!cancelled) setPosts(json.posts || []);
+      } catch (e: any) {
+        if (!cancelled) setError(e.message || 'Error desconocido');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [activeCategory]);
 
-  // Nota: si se necesita filtrado dinámico en el futuro, reactivar la variable filtrada
+  // Cargar categorías desde API
+  useEffect(() => {
+    let cancelled = false;
+    const loadCategories = async () => {
+      try {
+        const res = await fetch('/api/blog/categories');
+        if (!res.ok) return; // mantener fallback
+        const json = await res.json();
+        const items = (json.categories || json || []).map((cat: any) => ({ id: cat.slug, name: cat.name }));
+        if (!cancelled) setCategoriesApi(items);
+      } catch {
+        // ignorar y usar fallback
+      }
+    };
+    loadCategories();
+    return () => { cancelled = true; };
+  }, []);
 
-  const featuredNews = newsItems.find(item => item.featured);
-  const regularNews = newsItems.filter(item => !item.featured);
+  // Transformar posts API → modelo de UI
+  const mapPost = (p: any) => ({
+    id: p.slug || p.id,
+    category: p.categories?.[0]?.category?.slug || 'news',
+    categoryName: p.categories?.[0]?.category?.name || 'Noticias',
+    title: p.title,
+    excerpt: p.excerpt,
+    image: p.featuredImage || '/api/placeholder/400/250',
+    author: p.author?.name || 'Equipo',
+    authorRole: '',
+    date: p.publishedAt || p.createdAt,
+    readTime: p.readTime || '',
+    tags: (p.tags || []).map((t: any) => t.tag?.name).filter(Boolean),
+    featured: p.isFeatured,
+    views: p.viewCount || 0,
+    likes: 0,
+  });
+
+  const uiPosts = posts.map(mapPost);
+
+  // Filtro por categoría activa
+  const filtered = activeCategory === 'all'
+    ? uiPosts
+    : uiPosts.filter((p) => (p.category || '').toLowerCase() === activeCategory);
+
+  const featuredNews = filtered.find((p) => p.featured) || filtered[0];
+  const regularNews = filtered.filter((p) => !p.featured || p.id !== featuredNews?.id);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -252,7 +239,7 @@ export function NewsSection() {
                   {/* Category & Date */}
                   <div className="flex items-center space-x-4 mb-4">
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold capitalize">
-                      {featuredNews.category}
+                      {featuredNews.categoryName || featuredNews.category}
                     </span>
                     <span className="text-gray-500 text-sm">{formatDate(featuredNews.date)}</span>
                   </div>
@@ -269,7 +256,7 @@ export function NewsSection() {
 
                   {/* Tags */}
                   <div className="flex flex-wrap gap-2 mb-6">
-                    {featuredNews.tags.map((tag, index) => (
+                    {(Array.isArray(featuredNews.tags) ? featuredNews.tags : []).map((tag: string, index: number) => (
                       <span key={index} className="bg-gray-100 text-gray-700 px-3 py-1 rounded-lg text-sm">
                         #{tag}
                       </span>
@@ -311,12 +298,12 @@ export function NewsSection() {
               {/* Image */}
               <div className="relative h-48 bg-gradient-to-br from-gray-200 to-gray-400 overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-                  <i className={`${categories.find(c => c.id === article.category)?.icon} text-4xl text-white opacity-50`}></i>
+                  <i className={`${categories.find(c => c.id === article.category)?.icon || 'fas fa-newspaper'} text-4xl text-white opacity-50`}></i>
                 </div>
                 
                 {/* Category Badge */}
                 <div className="absolute top-4 left-4">
-                  <span className={`bg-gradient-to-r ${categories.find(c => c.id === article.category)?.color} text-white px-3 py-1 rounded-full text-xs font-semibold capitalize`}>
+                  <span className={`bg-gradient-to-r ${categories.find(c => c.id === article.category)?.color || 'from-gray-400 to-gray-600'} text-white px-3 py-1 rounded-full text-xs font-semibold capitalize`}>
                     {article.category}
                   </span>
                 </div>
@@ -329,7 +316,7 @@ export function NewsSection() {
                 {/* Hover Overlay */}
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                   <button 
-                    onClick={() => router.push(`/news/${article.id}`)}
+                    onClick={() => router.push(`/blog/${article.id}`)}
                     className="bg-white text-gray-900 px-4 py-2 rounded-lg font-semibold transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300"
                   >
                     Leer Artículo

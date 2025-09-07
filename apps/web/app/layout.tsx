@@ -18,14 +18,19 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Polideportivo Victoria Hernandez - Centro Deportivo Premium",
+  title: "Polideportivo Victoria Hernandez - Centro Deportivo Municipal",
   description: "El mejor centro deportivo de Victoria Hernandez. Reserva canchas, participa en torneos y disfruta de instalaciones de primera clase.",
   keywords: "polideportivo, deportes, Victoria Hernandez, canchas, reservas, torneos, fútbol, básquet, tenis",
   authors: [{ name: "Polideportivo Victoria Hernandez" }],
+  applicationName: "Polideportivo Victoria Hernandez",
+  other: {
+    address: "Polideportivo Victoria Hernández, CALLE CONSENSO, 5, 28041 Madrid, España (Los Rosales, Villaverde)",
+    geo: "40.3602693,-3.6861868",
+  },
   robots: "index, follow",
   openGraph: {
-    title: "Polideportivo Victoria Hernandez - Centro Deportivo Premium",
-    description: "El mejor centro deportivo de Victoria Hernandez con instalaciones modernas y servicios de calidad.",
+    title: "Polideportivo Victoria Hernandez - Centro Deportivo Municipal",
+    description: "Polideportivo Victoria Hernández — CALLE CONSENSO, 5, 28041 Madrid (Los Rosales, Villaverde). Instalaciones modernas y servicios de calidad.",
     type: "website",
     locale: "es_ES",
   },

@@ -66,8 +66,8 @@ export default function Home() {
         <InfoSection />
       </section>
       
-      {/* Final CTA Section */}
-      <section id="tarifas">
+      {/* Contacto Section */}
+      <section id="contacto">
         <CTASection />
       </section>
     </div>

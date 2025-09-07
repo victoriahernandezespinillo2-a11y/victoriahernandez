@@ -140,13 +140,12 @@ export function MobileLandingMenu({ isOpen, onClose, handleSmoothScroll }: Mobil
   };
 
   const menuItems = [
-    { icon: Home, label: 'Inicio', action: () => { handleSmoothScroll('hero'); triggerHaptic('light'); } },
-    { icon: Info, label: 'Sobre Nosotros', action: () => { handleSmoothScroll('about'); triggerHaptic('light'); } },
-    { icon: Calendar, label: 'Instalaciones', action: () => { handleSmoothScroll('facilities'); triggerHaptic('light'); } },
-    { icon: Users, label: 'Comunidad', action: () => { handleSmoothScroll('community'); triggerHaptic('light'); } },
+    { icon: Home, label: 'Inicio', action: () => { handleSmoothScroll('inicio'); triggerHaptic('light'); } },
+    { icon: Info, label: 'Información', action: () => { handleSmoothScroll('info'); triggerHaptic('light'); } },
+    { icon: Calendar, label: 'Actividades', action: () => { handleSmoothScroll('actividades'); triggerHaptic('light'); } },
     { icon: Users, label: 'Patrocinadores', action: () => { handleSmoothScroll('patrocinadores'); triggerHaptic('light'); } },
-    { icon: MapPin, label: 'Ubicación', action: () => { handleSmoothScroll('location'); triggerHaptic('light'); } },
-    { icon: Phone, label: 'Contacto', action: () => { handleSmoothScroll('contact'); triggerHaptic('light'); } },
+    { icon: MapPin, label: 'Ubicación', action: () => { handleSmoothScroll('info'); triggerHaptic('light'); } },
+    { icon: Phone, label: 'Contacto', action: () => { handleSmoothScroll('contacto'); triggerHaptic('light'); } },
   ];
 
   if (!isVisible) return null;

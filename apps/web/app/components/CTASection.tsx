@@ -49,7 +49,7 @@ export function CTASection() {
       popular: false
     },
     {
-      name: 'Premium',
+      name: 'Avanzado',
       price: '80.000',
       period: '/mes',
       description: 'La opción más popular',
@@ -86,17 +86,17 @@ export function CTASection() {
   const urgencyFactors = [
     {
       icon: 'fas fa-fire',
-      text: '¡Solo quedan 15 cupos disponibles este mes!',
+      text: 'Alta demanda en tarde–noche',
       color: 'text-red-500'
     },
     {
-      icon: 'fas fa-gift',
-      text: 'Primer mes GRATIS para nuevos miembros',
-      color: 'text-green-500'
+      icon: 'fas fa-calendar-check',
+      text: 'Agenda flexible (según cupos)',
+      color: 'text-blue-500'
     },
     {
       icon: 'fas fa-clock',
-      text: 'Oferta válida hasta fin de mes',
+      text: 'Tarifas sujetas a actualización',
       color: 'text-orange-500'
     }
   ];
@@ -214,7 +214,8 @@ export function CTASection() {
           </div>
         </div>
 
-        {/* Pricing Plans */}
+        {/* Pricing Plans oculto por solicitud */}
+        {false && (
         <div className={`mb-16 transition-all duration-1000 delay-400 ${
           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
         }`}>
@@ -274,6 +275,7 @@ export function CTASection() {
             ))}
           </div>
         </div>
+        )}
 
         {/* Contact Form */}
         <div className={`transition-all duration-1000 delay-600 ${
@@ -317,8 +319,8 @@ export function CTASection() {
                       <i className="fas fa-map-marker-alt text-white"></i>
                     </div>
                     <div>
-                      <div className="text-white font-semibold">Calle 123 #45-67, Victoria Hernandez</div>
-                      <div className="text-gray-300 text-sm">A 5 min del centro de la ciudad</div>
+                      <div className="text-white font-semibold">Polideportivo Victoria Hernández</div>
+                      <div className="text-gray-300 text-sm">CALLE CONSENSO, 5, 28041 Madrid, España · Los Rosales, Villaverde</div>
                     </div>
                   </div>
                 </div>

@@ -1,6 +1,7 @@
 {
   "name": "Polideportivo Victoria Hernandez",
   "short_name": "PoliVH",
+  "description": "Polideportivo Victoria Hernández — CALLE CONSENSO, 5, 28041 Madrid, España (Los Rosales, Villaverde)",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -9,6 +10,15 @@
   "theme_color": "#0ea5e9",
   "lang": "es-ES",
   "dir": "ltr",
+  "shortcuts": [
+    {
+      "name": "Cómo llegar",
+      "short_name": "Llegar",
+      "description": "Abrir la dirección en Google Maps",
+      "url": "https://maps.google.com/?q=40.3602693,-3.6861868",
+      "icons": [{ "src": "/icons/map.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
   "icons": [
     {
       "src": "/images/logo.png",

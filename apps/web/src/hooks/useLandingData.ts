@@ -118,6 +118,7 @@ interface LandingData {
   stats: Stat[];
   faqs: FAQ[];
   sports: SportCategory[];
+  sportsList: string[];
   activities: Activity[];
   infoCards: InfoCard[];
 }
@@ -133,9 +134,22 @@ export function useLandingData() {
         setLoading(true);
         setError(null);
         
-        const response = await fetch('/api/landing');
-        
-        if (!response.ok) {
+        // Reintentos exponenciales (3 intentos)
+        let attempt = 0;
+        let response: Response | null = null;
+        let lastErr: unknown = null;
+        while (attempt < 3) {
+          try {
+            response = await fetch('/api/landing', { cache: 'no-cache' });
+            if (response.ok) break;
+            lastErr = new Error(`HTTP ${response.status}`);
+          } catch (e) {
+            lastErr = e;
+          }
+          attempt += 1;
+          await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** attempt, 4000)));
+        }
+        if (!response || !response.ok) {
           throw new Error('Error al cargar los datos de la landing page');
         }
         
@@ -162,6 +176,7 @@ export function useLandingData() {
     stats: data?.stats || [],
     faqs: data?.faqs || [],
     sports: data?.sports || [],
+    sportsList: data?.sportsList || [],
     activities: data?.activities || [],
     infoCards: data?.infoCards || [],
   };

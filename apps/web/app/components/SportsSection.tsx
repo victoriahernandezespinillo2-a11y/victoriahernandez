@@ -60,7 +60,7 @@ export function SportsSection() {
             
             <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-6">
               Descubre nuestras
-              <span className="gradient-text block">Instalaciones Premium</span>
+              <span className="gradient-text block">Instalaciones Modernas</span>
             </h2>
             
             <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
@@ -103,7 +103,7 @@ export function SportsSection() {
           
           <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-6">
             Descubre nuestras
-            <span className="gradient-text block">Instalaciones Premium</span>
+            <span className="gradient-text block">Instalaciones Modernas</span>
           </h2>
           
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">

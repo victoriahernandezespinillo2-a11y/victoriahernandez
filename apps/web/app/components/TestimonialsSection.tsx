@@ -1,11 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 export function TestimonialsSection() {
   const [isVisible, setIsVisible] = useState(false);
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const sectionRef = useRef<HTMLElement>(null);
+  const router = useRouter();
+  const { status } = useSession();
 
   const testimonials = [
     {
@@ -108,9 +112,11 @@ export function TestimonialsSection() {
   }, []);
 
   useEffect(() => {
+    // Aumentamos el tiempo de permanencia para facilitar la lectura
+    const AUTO_ADVANCE_MS = 9000;
     const interval = setInterval(() => {
       setCurrentTestimonial((prev) => (prev + 1) % testimonials.length);
-    }, 5000);
+    }, AUTO_ADVANCE_MS);
 
     return () => clearInterval(interval);
   }, []);
@@ -313,7 +319,13 @@ export function TestimonialsSection() {
             <p className="text-lg text-white/90 mb-6">
               Únete a nuestra comunidad y descubre por qué somos la primera opción
             </p>
-            <button className="bg-white text-purple-600 px-8 py-3 rounded-2xl font-bold hover:shadow-lg transition-all duration-300 hover:scale-105">
+            <button onClick={() => {
+              if (status === 'authenticated') {
+                router.push('/dashboard/reservations/new');
+              } else {
+                router.push('/auth/signin?callbackUrl=%2Fdashboard%2Freservations%2Fnew');
+              }
+            }} className="bg-white text-purple-600 px-8 py-3 rounded-2xl font-bold hover:shadow-lg transition-all duration-300 hover:scale-105">
               Comenzar Mi Experiencia
             </button>
           </div>

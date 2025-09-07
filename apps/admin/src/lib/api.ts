@@ -157,7 +157,12 @@ class ApiClient {
           return text as unknown as T;
         }
       } catch (error) {
-        console.error(`API Error [${method} ${endpoint}]:`, error);
+        // Reducir ruido: para notificaciones, degradar a warn (tenemos fallback en capas superiores)
+        if (typeof endpoint === 'string' && endpoint.startsWith('/api/notifications')) {
+          console.warn(`API Warning [${method} ${endpoint}]:`, (error as any)?.message || error);
+        } else {
+          console.error(`API Error [${method} ${endpoint}]:`, error);
+        }
         throw error;
       }
     };
@@ -947,6 +952,10 @@ export const adminApi = {
           if (Array.isArray(res?.notifications)) return res.notifications;
           if (Array.isArray(res?.data?.notifications)) return res.data.notifications;
           return [];
+        })
+        .catch((_err) => {
+          // Fallback duro: no romper la UI por notificaciones
+          return [] as any[];
         });
     },
 
@@ -964,7 +973,17 @@ export const adminApi = {
       const sp = new URLSearchParams();
       if (params?.userId) sp.append('userId', params.userId);
       const q = sp.toString();
-      return apiClient.request(`/api/notifications/stats${q ? `?${q}` : ''}`);
+      return apiClient
+        .request(`/api/notifications/stats${q ? `?${q}` : ''}`)
+        .catch(() => ({
+          total: 0,
+          unread: 0,
+          sent: 0,
+          failed: 0,
+          monthlyCount: 0,
+          byType: [],
+          byCategory: [],
+        }));
     },
 
     // Nuevas funcionalidades para crear y enviar notificaciones

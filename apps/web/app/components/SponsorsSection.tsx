@@ -1,21 +1,35 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useLandingData } from "@/src/hooks/useLandingData";
 
 export function SponsorsSection() {
   const [isVisible, setIsVisible] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
+  const { sponsors: sponsorsFromApi } = useLandingData();
 
-  // Datos de sponsors/patrocinadores
-  const sponsors = [
+  const handleSmoothScroll = (targetId: string) => {
+    const id = targetId.replace('#', '');
+    const el = document.getElementById(id);
+    if (el) {
+      const offsetTop = el.offsetTop - 80;
+      window.scrollTo({ top: offsetTop, behavior: 'smooth' });
+    } else {
+      // fallback: navegar con hash
+      window.location.hash = targetId;
+    }
+  };
+
+  // Datos de sponsors/patrocinadores (fallback estático si aún no hay en API)
+  const sponsorsFallback = [
     {
       id: 1,
       name: "Nike Sports",
       category: "Equipamiento Deportivo",
       logo: "/api/placeholder/200/100",
-      description: "Proveedor oficial de equipamiento deportivo premium para nuestras instalaciones.",
+      description: "Proveedor oficial de equipamiento deportivo de alta calidad para nuestras instalaciones.",
       website: "https://nike.com",
       partnership: "Patrocinador Principal",
       since: "2020",
@@ -44,7 +58,7 @@ export function SponsorsSection() {
       partnership: "Proveedor Tecnológico",
       since: "2021",
       tier: "platinum",
-      benefits: ["Equipos premium", "Mantenimiento especializado", "Actualizaciones tecnológicas"]
+      benefits: ["Equipos de alta calidad", "Mantenimiento especializado", "Actualizaciones tecnológicas"]
     },
     {
       id: 4,
@@ -108,27 +122,43 @@ export function SponsorsSection() {
     }
   ];
 
+  const sponsors = (sponsorsFromApi && sponsorsFromApi.length > 0)
+    ? sponsorsFromApi.map((s) => ({
+        id: s.id,
+        name: s.name,
+        category: s.category || '',
+        logo: s.logoUrl || '',
+        description: s.description || '',
+        website: s.website || '',
+        partnership: s.partnership || s.tier,
+        since: s.since || '',
+        tier: (s.tier || 'SILVER').toLowerCase(),
+        benefits: s.benefits || [],
+      }))
+    : sponsorsFallback;
+
+  // Colores alineados al resto de la landing (emerald/blue)
   const tierColors = {
     platinum: {
-      gradient: "from-gray-400 via-gray-300 to-gray-400",
-      border: "border-gray-300",
-      bg: "bg-gray-50",
-      text: "text-gray-800",
-      icon: "text-gray-600"
+      gradient: "from-emerald-500 to-blue-600",
+      border: "border-emerald-200",
+      bg: "bg-emerald-50",
+      text: "text-emerald-800",
+      icon: "text-emerald-600"
     },
     gold: {
-      gradient: "from-yellow-400 via-yellow-300 to-yellow-400",
-      border: "border-yellow-300",
-      bg: "bg-yellow-50",
-      text: "text-yellow-800",
-      icon: "text-yellow-600"
+      gradient: "from-emerald-400 to-blue-500",
+      border: "border-emerald-200",
+      bg: "bg-emerald-50",
+      text: "text-emerald-800",
+      icon: "text-emerald-600"
     },
     silver: {
-      gradient: "from-gray-300 via-gray-200 to-gray-300",
-      border: "border-gray-200",
-      bg: "bg-gray-50",
-      text: "text-gray-700",
-      icon: "text-gray-500"
+      gradient: "from-emerald-300 to-blue-400",
+      border: "border-emerald-100",
+      bg: "bg-emerald-50",
+      text: "text-emerald-700",
+      icon: "text-emerald-500"
     }
   };
 
@@ -183,7 +213,7 @@ export function SponsorsSection() {
   return (
     <section 
       ref={sectionRef} 
-      className="py-24 bg-gradient-to-br from-white via-gray-50 to-blue-50 relative overflow-hidden"
+      className="py-16 sm:py-24 bg-gradient-to-br from-white via-gray-50 to-blue-50 relative overflow-hidden pb-20"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
@@ -211,7 +241,7 @@ export function SponsorsSection() {
           
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
             Trabajamos junto a las mejores marcas del mundo deportivo para ofrecerte 
-            una experiencia única y de calidad premium en cada visita.
+            una experiencia única y de alta calidad en cada visita.
           </p>
         </div>
 
@@ -219,20 +249,23 @@ export function SponsorsSection() {
         <div className={`relative transition-all duration-1000 delay-200 ${
           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
         }`}>
-          <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
+          <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/40 overflow-hidden">
             {/* Slider Container */}
-            <div className="relative h-96 overflow-hidden">
+            <div className="relative min-h-[340px] md:h-96 overflow-hidden">
               <div 
                 className="flex transition-transform duration-500 ease-in-out h-full"
                 style={{ transform: `translateX(-${currentSlide * 100}%)` }}
               >
                 {slides.map((slide, slideIndex) => (
-                  <div key={slideIndex} className="w-full flex-shrink-0 p-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 h-full">
+                  <div key={slideIndex} className="w-full flex-shrink-0 p-6 sm:p-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 h-full">
                       {slide.map((sponsor, index) => (
                         <div
                           key={sponsor.id}
-                          className={`group relative bg-white rounded-2xl p-6 border-2 ${tierColors[sponsor.tier as keyof typeof tierColors].border} hover:shadow-xl transition-all duration-300 hover:-translate-y-2 cursor-pointer`}
+                          className={`group relative bg-white/80 backdrop-blur-xs rounded-2xl p-4 sm:p-6 border ${tierColors[sponsor.tier as keyof typeof tierColors].border} hover:shadow-xl transition-all duration-300 hover:-translate-y-2 cursor-pointer`}
+                          onClick={() => { if (sponsor.website) window.open(sponsor.website, '_blank', 'noopener,noreferrer'); }}
+                          role="button"
+                          aria-label={`Abrir sitio de ${sponsor.name}`}
                         >
                           {/* Tier Badge */}
                           <div className={`absolute -top-3 -right-3 w-8 h-8 bg-gradient-to-r ${tierColors[sponsor.tier as keyof typeof tierColors].gradient} rounded-full flex items-center justify-center`}>
@@ -240,8 +273,13 @@ export function SponsorsSection() {
                           </div>
 
                           {/* Logo Placeholder */}
-                          <div className="w-full h-16 bg-gray-100 rounded-xl mb-4 flex items-center justify-center">
-                            <span className="text-gray-500 font-bold text-sm">{sponsor.name}</span>
+                          <div className="w-full h-20 sm:h-24 bg-gray-50 rounded-2xl mb-3 sm:mb-4 flex items-center justify-center overflow-hidden ring-1 ring-gray-100">
+                            {sponsor.logo ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={sponsor.logo} alt={`Logo ${sponsor.name}`} className="max-h-12 sm:max-h-16 object-contain" />
+                            ) : (
+                              <span className="text-gray-500 font-bold text-sm">{sponsor.name}</span>
+                            )}
                           </div>
 
                           {/* Sponsor Info */}
@@ -252,16 +290,16 @@ export function SponsorsSection() {
                             <p className="text-xs text-gray-600 mb-2">
                               {sponsor.category}
                             </p>
-                            <div className={`inline-block px-3 py-1 ${tierColors[sponsor.tier as keyof typeof tierColors].bg} ${tierColors[sponsor.tier as keyof typeof tierColors].text} rounded-full text-xs font-semibold`}>
+                            <div className={`inline-block px-2 py-0.5 sm:px-3 sm:py-1 ${tierColors[sponsor.tier as keyof typeof tierColors].bg} ${tierColors[sponsor.tier as keyof typeof tierColors].text} rounded-full text-[10px] sm:text-xs font-semibold shadow-sm`}>
                               {sponsor.partnership}
                             </div>
                           </div>
 
                           {/* Hover Overlay */}
-                          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/90 to-purple-600/90 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                            <div className="text-center text-white p-4">
-                              <i className="fas fa-external-link-alt text-2xl mb-2"></i>
-                              <p className="text-xs leading-tight">
+                          <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/95 to-blue-700/95 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                            <div className="text-center text-white p-3 sm:p-4">
+                              <i className="fas fa-external-link-alt text-xl sm:text-2xl mb-2 opacity-90"></i>
+                              <p className="text-[11px] sm:text-xs leading-tight">
                                 {sponsor.description}
                               </p>
                             </div>
@@ -275,10 +313,10 @@ export function SponsorsSection() {
             </div>
 
             {/* Navigation Controls */}
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-4">
+            <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex items-center space-x-3">
               <button 
                 onClick={prevSlide}
-                className="w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center text-gray-600 hover:text-blue-600 transition-colors duration-300"
+                className="hidden sm:flex w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full shadow-lg items-center justify-center text-gray-600 hover:text-blue-600 transition-colors duration-300"
               >
                 <i className="fas fa-chevron-left"></i>
               </button>
@@ -288,9 +326,9 @@ export function SponsorsSection() {
                   <button
                     key={index}
                     onClick={() => goToSlide(index)}
-                    className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                    className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full transition-all duration-300 ${
                       index === currentSlide 
-                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 w-8' 
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 w-6 sm:w-8' 
                         : 'bg-gray-300 hover:bg-gray-400'
                     }`}
                   ></button>
@@ -299,7 +337,7 @@ export function SponsorsSection() {
               
               <button 
                 onClick={nextSlide}
-                className="w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center text-gray-600 hover:text-blue-600 transition-colors duration-300"
+                className="hidden sm:flex w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full shadow-lg items-center justify-center text-gray-600 hover:text-blue-600 transition-colors duration-300"
               >
                 <i className="fas fa-chevron-right"></i>
               </button>
@@ -322,7 +360,7 @@ export function SponsorsSection() {
                   <i className="fas fa-crown text-2xl text-gray-600"></i>
                 </div>
                 <h4 className="font-bold text-gray-900 mb-2">Platinum</h4>
-                <p className="text-sm text-gray-600">Socios estratégicos principales con beneficios premium</p>
+                <p className="text-sm text-gray-600">Socios estratégicos principales con beneficios avanzados</p>
               </div>
               
               <div className="text-center p-6 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-2xl">
@@ -366,12 +404,16 @@ export function SponsorsSection() {
               </p>
               
               <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
-                <button className="bg-white text-blue-600 px-8 py-4 rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 flex items-center space-x-3">
+                <button
+                  onClick={() => handleSmoothScroll('#info')}
+                  className="bg-white text-blue-600 px-8 py-4 rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 flex items-center space-x-3">
                   <i className="fas fa-handshake"></i>
                   <span>Ser Patrocinador</span>
                 </button>
                 
-                <button className="border-2 border-white/30 text-white px-8 py-4 rounded-2xl font-semibold text-lg hover:bg-white/10 transition-all duration-300 flex items-center space-x-3">
+                <button
+                  onClick={() => handleSmoothScroll('#info')}
+                  className="border-2 border-white/30 text-white px-8 py-4 rounded-2xl font-semibold text-lg hover:bg-white/10 transition-all duration-300 flex items-center space-x-3">
                   <i className="fas fa-download"></i>
                   <span>Descargar Propuesta</span>
                 </button>

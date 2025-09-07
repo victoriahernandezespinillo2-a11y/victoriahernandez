@@ -179,8 +179,14 @@ export function Navigation() {
         { label: 'Sobre Nosotros', href: '#info', icon: Users },
         { label: 'Horarios', href: '#info', icon: Clock },
         { label: 'Ubicación', href: '#info', icon: MapPin },
-        { label: 'Contacto', href: '#info', icon: Phone }
+        { label: 'Contacto', href: '#contacto', icon: Phone }
       ]
+    }
+    ,
+    {
+      label: 'Contacto',
+      href: '#contacto',
+      icon: Phone
     }
   ];
 
