@@ -21,7 +21,7 @@ const nextConfig = {
       `connect-src 'self' ${apiUrl} ${apiUrl.replace('http://', 'ws://').replace('https://', 'wss://')} https://*.firebaseio.com https://*.googleapis.com https://*.gstatic.com`,
       // Scripts y estilos (permitir CDNs necesarios: Google APIs, Leaflet)
       process.env.NODE_ENV === 'production'
-        ? "script-src 'self' https://apis.google.com https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com"
+        ? "script-src 'self' 'unsafe-inline' https://apis.google.com https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com"
         : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
       process.env.NODE_ENV === 'production'
         ? "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net"

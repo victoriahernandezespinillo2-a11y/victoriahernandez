@@ -66,13 +66,19 @@ pnpm --filter @repo/db exec prisma generate
 pnpm --filter @repo/db exec prisma db push
 ```
 
-Crear usuario admin (opcional en dev):
+Crear usuario admin (solo en desarrollo; no usar credenciales reales aquí):
 
 ```bash
-$env:ADMIN_EMAIL="admin@polideportivo.com"
-$env:ADMIN_PASSWORD="admin1234"
+# Ejemplo (DEV). Define variables en tu .env.local, nunca en README ni en commits.
+$env:ADMIN_EMAIL="admin@example.com"
+$env:ADMIN_PASSWORD="cambiale-esto"
 pnpm --filter @repo/db exec tsx src/scripts/create-admin.ts
 ```
+
+Importante (seguridad):
+- No publiques correos/contraseñas en documentación o en el repositorio.
+- Usa archivos .env(.local) ignorados por Git y gestores de secretos.
+- En producción, crea el admin mediante interfaz/automatización segura y rota credenciales si se expusieron.
 
 ### Desarrollo
 
