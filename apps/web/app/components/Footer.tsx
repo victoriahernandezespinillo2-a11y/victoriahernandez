@@ -329,7 +329,7 @@ export function Footer() {
                     alt="Polideportivo Victoria Hernandez" 
                     width={64}
                     height={64}
-                    className="rounded-2xl shadow-2xl hover:scale-110 transition-transform duration-300"
+                    className="rounded-2xl shadow-2xl hover:scale-110 transition-transform duration-300 bg-white ring-1 ring-gray-200"
                     style={{ width: '64px', height: '64px' }}
                     onError={(e) => {
                       // Fallback al diseño original si no carga la imagen

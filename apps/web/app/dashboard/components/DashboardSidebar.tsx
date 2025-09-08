@@ -78,7 +78,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
             <img 
               src="/images/logo.png" 
               alt="Polideportivo Victoria Hernandez" 
-              className="h-8 w-8 object-contain bg-white rounded-lg"
+              className="h-8 w-8 object-contain bg-white rounded-lg ring-1 ring-white/40"
               onError={(e) => {
                 // Fallback al diseño original si no carga la imagen
                 e.currentTarget.style.display = 'none';

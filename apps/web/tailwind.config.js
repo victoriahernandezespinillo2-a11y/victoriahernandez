@@ -5,6 +5,16 @@ export default {
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  safelist: [
+    // Gradientes usados por categorías desde BD
+    'bg-gradient-to-r',
+    'from-green-500', 'to-emerald-600',
+    'from-blue-500', 'to-indigo-600',
+    'from-cyan-500', 'to-blue-600',
+    'from-purple-500', 'to-pink-600',
+    'from-orange-500', 'to-red-600',
+    'from-gray-400', 'to-gray-600',
+  ],
   theme: {
     extend: {
       colors: {

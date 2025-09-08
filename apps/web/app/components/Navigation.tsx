@@ -210,7 +210,7 @@ export function Navigation() {
                   alt="Polideportivo Victoria Hernandez" 
                   width={48}
                   height={48}
-                  className="w-8 h-8 sm:w-12 sm:h-12 object-contain rounded-lg sm:rounded-xl shadow-lg"
+                  className="w-8 h-8 sm:w-12 sm:h-12 object-contain rounded-lg sm:rounded-xl shadow-lg bg-white ring-1 ring-gray-200"
                   onError={(e) => {
                     // Fallback al diseño original si no carga la imagen
                     e.currentTarget.style.display = 'none';

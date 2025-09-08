@@ -11,6 +11,28 @@ export function SportsSection() {
   const router = useRouter();
   const { sports, loading } = useLandingData();
 
+  // Mapeo seguro de gradientes para evitar clases dinámicas purgadas por Tailwind
+  const gradientFor = (color?: string): string => {
+    if (!color) return 'from-emerald-500 to-blue-600';
+    const normalized = color.trim().toLowerCase();
+    const map: Record<string, string> = {
+      'from-green-500 to-emerald-600': 'from-green-500 to-emerald-600',
+      'from-blue-500 to-indigo-600': 'from-blue-500 to-indigo-600',
+      'from-cyan-500 to-blue-600': 'from-cyan-500 to-blue-600',
+      'from-purple-500 to-pink-600': 'from-purple-500 to-pink-600',
+      'from-orange-500 to-red-600': 'from-orange-500 to-red-600',
+      'from-gray-400 to-gray-600': 'from-gray-400 to-gray-600',
+    };
+    if (map[normalized]) return map[normalized];
+    if (normalized.includes('emerald') || normalized.includes('green')) return 'from-green-500 to-emerald-600';
+    if (normalized.includes('indigo') || normalized.includes('blue')) return 'from-blue-500 to-indigo-600';
+    if (normalized.includes('cyan')) return 'from-cyan-500 to-blue-600';
+    if (normalized.includes('purple') || normalized.includes('pink')) return 'from-purple-500 to-pink-600';
+    if (normalized.includes('orange') || normalized.includes('red')) return 'from-orange-500 to-red-600';
+    if (normalized.includes('gray') || normalized.includes('grey')) return 'from-gray-400 to-gray-600';
+    return 'from-emerald-500 to-blue-600';
+  };
+
   // Debug logs
   console.log('SportsSection - loading:', loading);
   console.log('SportsSection - sports:', sports);
@@ -29,21 +51,34 @@ export function SportsSection() {
   };
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (entry?.isIntersecting) {
-          setIsVisible(true);
+    // Fallback inmediato: mostrar contenido apenas monta
+    let fallbackTimeout: ReturnType<typeof setTimeout> | null = null;
+    try {
+      if ('IntersectionObserver' in window) {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            const entry = entries[0];
+            if (entry?.isIntersecting) {
+              setIsVisible(true);
+            }
+          },
+          { threshold: 0.05 }
+        );
+        if (sectionRef.current) {
+          observer.observe(sectionRef.current);
         }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (sectionRef.current) {
-      observer.observe(sectionRef.current);
+        // Asegurar visibilidad tras 800ms si el observer no dispara
+        fallbackTimeout = setTimeout(() => setIsVisible(true), 800);
+        return () => {
+          observer.disconnect();
+          if (fallbackTimeout) clearTimeout(fallbackTimeout);
+        };
+      } else {
+        setIsVisible(true);
+      }
+    } catch {
+      setIsVisible(true);
     }
-
-    return () => observer.disconnect();
   }, []);
 
   // Si no hay datos o está cargando, mostrar skeleton pero con título
@@ -124,7 +159,7 @@ export function SportsSection() {
                   onClick={() => setActiveTab(index)}
                   className={`flex items-center space-x-3 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
                     activeTab === index
-                      ? `bg-gradient-to-r ${category.color} text-white shadow-lg scale-105`
+                      ? `bg-gradient-to-r ${gradientFor(category.color)} text-white shadow-lg scale-105`
                       : 'text-gray-600 hover:text-gray-900 hover:bg-white'
                   }`}
                 >
@@ -180,7 +215,7 @@ export function SportsSection() {
                   </div>
 
                   {/* Hover Overlay */}
-                  <div className={`absolute inset-0 bg-gradient-to-br ${currentCategory?.color || 'from-gray-400 to-gray-600'} opacity-0 group-hover:opacity-80 transition-opacity duration-300 flex items-center justify-center`}>
+                  <div className={`absolute inset-0 bg-gradient-to-br ${gradientFor(currentCategory?.color)} opacity-0 group-hover:opacity-80 transition-opacity duration-300 flex items-center justify-center`}>
                     <button 
                       onClick={() => handleViewDetails(sport.name.toLowerCase().replace(/\s+/g, '-'))}
                       className="bg-white text-gray-900 px-6 py-3 rounded-xl font-semibold transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300"
@@ -194,7 +229,7 @@ export function SportsSection() {
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-xl font-bold text-gray-900">{sport.name}</h3>
-                    <div className={`text-lg font-bold bg-gradient-to-r ${currentCategory?.color || 'from-gray-400 to-gray-600'} bg-clip-text text-transparent`}>
+                    <div className={`text-lg font-bold bg-gradient-to-r ${gradientFor(currentCategory?.color)} bg-clip-text text-transparent`}>
                       {sport.price}
                     </div>
                   </div>
@@ -207,7 +242,7 @@ export function SportsSection() {
                   <div className="space-y-2 mb-6">
                     {sport.features.slice(0, 3).map((feature, featureIndex) => (
                       <div key={featureIndex} className="flex items-center space-x-2 text-sm text-gray-700">
-                        <div className={`w-2 h-2 bg-gradient-to-r ${currentCategory?.color || 'from-gray-400 to-gray-600'} rounded-full`}></div>
+                        <div className={`w-2 h-2 bg-gradient-to-r ${gradientFor(currentCategory?.color)} rounded-full`}></div>
                         <span>{feature}</span>
                       </div>
                     ))}
@@ -222,7 +257,7 @@ export function SportsSection() {
                   <div className="flex space-x-3">
                     <button 
                       onClick={handleReserveNow}
-                      className={`flex-1 bg-gradient-to-r ${currentCategory?.color || 'from-gray-400 to-gray-600'} text-white py-3 rounded-xl font-semibold text-sm hover:shadow-lg transition-all duration-300 hover:scale-105`}
+                      className={`flex-1 bg-gradient-to-r ${gradientFor(currentCategory?.color)} text-white py-3 rounded-xl font-semibold text-sm hover:shadow-lg transition-all duration-300 hover:scale-105`}
                     >
                       Reservar Ahora
                     </button>
