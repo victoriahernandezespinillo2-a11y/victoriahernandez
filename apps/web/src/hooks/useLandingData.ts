@@ -138,9 +138,11 @@ export function useLandingData() {
         let attempt = 0;
         let response: Response | null = null;
         let lastErr: unknown = null;
+        const apiBase = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+        const endpoint = apiBase ? `${apiBase}/api/landing` : '/api/landing';
         while (attempt < 3) {
           try {
-            response = await fetch('/api/landing', { cache: 'no-cache' });
+            response = await fetch(endpoint, { cache: 'no-cache' });
             if (response.ok) break;
             lastErr = new Error(`HTTP ${response.status}`);
           } catch (e) {

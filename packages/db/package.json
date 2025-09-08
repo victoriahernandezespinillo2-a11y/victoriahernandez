@@ -7,7 +7,7 @@
         ".": "./src/index.ts"
     },
     "scripts": {
-        "db:generate": "prisma generate --no-engine",
+        "db:generate": "prisma generate",
         "db:push": "prisma db push",
         "db:migrate": "prisma migrate dev",
         "db:studio": "prisma studio",
@@ -21,7 +21,7 @@
         "db:add-courts": "tsx src/add-courts.ts",
         "lint": "eslint . --max-warnings 0",
         "check-types": "tsc --noEmit",
-        "build": "prisma generate --no-engine"
+        "build": "prisma generate"
     },
     "prisma": {
         "schema": "prisma/schema.prisma"

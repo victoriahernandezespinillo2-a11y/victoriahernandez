@@ -62,7 +62,9 @@ export function NewsSection() {
         setIsLoading(true);
         setError(null);
         const query = activeCategory !== 'all' ? `&category=${encodeURIComponent(activeCategory)}` : '';
-        const res = await fetch(`/api/blog?limit=9${query}`);
+        const apiBase = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+        const url = apiBase ? `${apiBase}/api/blog?limit=9${query}` : `/api/blog?limit=9${query}`;
+        const res = await fetch(url);
         if (!res.ok) throw new Error('No se pudieron cargar las noticias');
         const json = await res.json();
         if (!cancelled) setPosts(json.posts || []);
@@ -81,7 +83,9 @@ export function NewsSection() {
     let cancelled = false;
     const loadCategories = async () => {
       try {
-        const res = await fetch('/api/blog/categories');
+        const apiBase = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+        const url = apiBase ? `${apiBase}/api/blog/categories` : '/api/blog/categories';
+        const res = await fetch(url);
         if (!res.ok) return; // mantener fallback
         const json = await res.json();
         const items = (json.categories || json || []).map((cat: any) => ({ id: cat.slug, name: cat.name }));
