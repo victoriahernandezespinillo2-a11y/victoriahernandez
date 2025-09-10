@@ -83,7 +83,7 @@ const SelectTrigger = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttrib
     const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
       if (disabled) return;
       // Only left-click or touch/pen
-      if (e.pointerType === 'mouse' && (e as any).button !== 0) return;
+      if (e.pointerType === 'mouse' && (e as React.MouseEvent).button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
       setOpen(!open);

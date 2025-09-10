@@ -13,7 +13,9 @@ const path = require('path');
         require('dotenv').config({ path: p });
         break;
       }
-    } catch {}
+    } catch {
+      // Ignore errors when loading dotenv files
+    }
   }
 })();
 

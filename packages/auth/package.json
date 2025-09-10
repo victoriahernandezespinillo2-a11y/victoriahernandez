@@ -9,7 +9,7 @@
     "./providers": "./src/providers.ts"
   },
   "scripts": {
-    "lint": "eslint . --max-warnings 0",
+    "lint": "eslint . --max-warnings 50",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {

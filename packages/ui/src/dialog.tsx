@@ -7,7 +7,7 @@ interface DialogProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const Dialog = React.forwardRef<HTMLDivElement, DialogProps>(
-  ({ className, children, open, onOpenChange, ...props }, ref) => {
+  ({ className, children, open, ...props }, ref) => {
     // Si el modal está abierto, renderizar el contenido del modal
     if (open) {
       return (

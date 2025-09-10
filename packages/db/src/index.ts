@@ -109,7 +109,7 @@ export const db = globalForPrisma.prisma ??
       if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = client;
       return client;
     } catch (e) {
-      console.error('[DB] PrismaClient init error:', (e as any)?.message || e);
+      console.error('[DB] PrismaClient init error:', (e as Error)?.message || e);
       throw e;
     }
   })();
