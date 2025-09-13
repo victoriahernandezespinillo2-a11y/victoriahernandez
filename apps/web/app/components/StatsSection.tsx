@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useLandingData } from "@/src/hooks/useLandingData";
 
 export function StatsSection() {
   const [isVisible, setIsVisible] = useState(false);
@@ -11,8 +12,11 @@ export function StatsSection() {
     satisfaction: 0
   });
   const sectionRef = useRef<HTMLElement>(null);
+  const lastAnimatedSignatureRef = useRef<string | null>(null);
 
-  const stats = [
+  const { stats: statsFromApi } = useLandingData();
+
+  const fallbackStats = [
     {
       id: 'users',
       value: 5000,
@@ -59,6 +63,55 @@ export function StatsSection() {
     }
   ];
 
+  const stats = useMemo(() => {
+    return (statsFromApi && statsFromApi.length > 0)
+    ? statsFromApi.map((s) => {
+        const label = (s.label || '').toLowerCase();
+        // Detección robusta por fragmentos (soporta plural y sin acentos)
+        const id = label.includes('reser') || label.includes('reserv')
+          ? 'reservations'
+          : label.includes('satis')
+            ? 'satisfaction'
+            : label.includes('instalac') || label.includes('facility') || label.includes('facilida')
+              ? 'facilities'
+              : label.includes('usuario') || label.includes('user')
+                ? 'users'
+                : 'users';
+
+        // Iconos y colores por tipo
+        const iconMap: Record<string, { icon: string; color: string; bgColor: string; iconColor: string }> = {
+          users: { icon: 'fas fa-users', color: 'from-blue-500 to-indigo-600', bgColor: 'bg-blue-50', iconColor: 'text-blue-600' },
+          reservations: { icon: 'fas fa-calendar-check', color: 'from-emerald-500 to-green-600', bgColor: 'bg-emerald-50', iconColor: 'text-emerald-600' },
+          facilities: { icon: 'fas fa-building', color: 'from-purple-500 to-pink-600', bgColor: 'bg-purple-50', iconColor: 'text-purple-600' },
+          satisfaction: { icon: 'fas fa-star', color: 'from-orange-500 to-red-600', bgColor: 'bg-orange-50', iconColor: 'text-orange-600' },
+        };
+        const visuals = iconMap[id] || iconMap.users;
+
+        return {
+          id,
+          value: (() => {
+            const raw = String(s.value ?? '').replace(/\./g, '').replace(/,/g, '').trim();
+            const digits = raw.replace(/[^0-9]/g, '');
+            return Number(digits) || 0;
+          })(),
+          suffix: (() => {
+            if (s.suffix) return s.suffix;
+            const v = String(s.value ?? '');
+            if (v.includes('%')) return '%';
+            if (v.includes('+')) return '+';
+            return '';
+          })(),
+          label: s.label,
+          description: s.description || '',
+          icon: visuals?.icon,
+          color: visuals?.color,
+          bgColor: visuals?.bgColor,
+          iconColor: visuals?.iconColor,
+        };
+      })
+    : fallbackStats;
+  }, [statsFromApi]);
+
   const achievements = [
     {
       title: 'Centro Deportivo del Año',
@@ -98,7 +151,7 @@ export function StatsSection() {
           setIsVisible(true);
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.01 }
     );
 
     if (sectionRef.current) {
@@ -109,30 +162,44 @@ export function StatsSection() {
   }, []);
 
   useEffect(() => {
-    if (isVisible) {
-      const duration = 2000; // 2 seconds
-      const steps = 60;
-      const stepDuration = duration / steps;
+    if (!isVisible || !stats.length) return;
 
-      stats.forEach((stat) => {
-        let currentValue = 0;
-        const increment = stat.value / steps;
-        
-        const timer = setInterval(() => {
-          currentValue += increment;
-          if (currentValue >= stat.value) {
-            currentValue = stat.value;
-            clearInterval(timer);
-          }
-          
-          setCounters(prev => ({
-            ...prev,
-            [stat.id]: Math.floor(currentValue)
-          }));
-        }, stepDuration);
-      });
-    }
-  }, [isVisible]);
+    // Evitar relanzar animación si stats y valores no han cambiado (y evitar StrictMode doble-invoke)
+    const signature = JSON.stringify(stats.map(s => ({ id: s.id, value: s.value })));
+    if (signature === lastAnimatedSignatureRef.current) return;
+    lastAnimatedSignatureRef.current = signature;
+
+    const duration = 2000; // 2 seconds
+    const steps = 60;
+    const stepDuration = duration / steps;
+    const timers: NodeJS.Timeout[] = [];
+
+    // Reiniciar contadores antes de animar nuevos valores (evita valores de fallback)
+    setCounters({ users: 0, reservations: 0, facilities: 0, satisfaction: 0 });
+
+    stats.forEach((stat) => {
+      let currentValue = 0;
+      const increment = stat.value / steps;
+
+      const timer = setInterval(() => {
+        currentValue += increment;
+        if (currentValue >= stat.value) {
+          currentValue = stat.value;
+          clearInterval(timer);
+        }
+
+        setCounters(prev => ({
+          ...prev,
+          [stat.id]: Math.floor(currentValue)
+        }));
+      }, stepDuration);
+      timers.push(timer);
+    });
+
+    return () => {
+      timers.forEach(clearInterval);
+    };
+  }, [isVisible, stats]);
 
   return (
     <section ref={sectionRef} className="py-24 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden">

@@ -543,9 +543,25 @@ export function useAdminTournaments() {
 export function useAdminPayments() {
   const { data, loading, error, execute, reset, setData } = useApiState<Payment[]>([]);
 
-  const getPayments = useCallback((params?: any) => {
-    return execute(() => adminApi.payments.getAll(params) as Promise<Payment[]>);
-  }, [execute]);
+  const getPayments = useCallback(async (params?: any) => {
+    const result = await adminApi.payments.getAll(params);
+    console.log('🔍 [HOOK PAYMENTS] Resultado de API:', result);
+    
+    // Extraer items del resultado paginado
+    if (result && typeof result === 'object' && 'items' in result) {
+      console.log('✅ [HOOK PAYMENTS] Extrayendo items:', (result.items as any[])?.length || 0);
+      setData(result.items as Payment[]);
+      return result.items as Payment[];
+    } else if (Array.isArray(result)) {
+      console.log('✅ [HOOK PAYMENTS] Resultado es array directo:', result.length);
+      setData(result as Payment[]);
+      return result as Payment[];
+    } else {
+      console.log('❌ [HOOK PAYMENTS] Formato de resultado no reconocido:', result);
+      setData([]);
+      return [];
+    }
+  }, [execute, setData]);
 
   const getPayment = useCallback(async (id: string) => {
     return await adminApi.payments.getById(id) as Payment;

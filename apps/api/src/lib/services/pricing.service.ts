@@ -393,6 +393,33 @@ export class PricingService {
     }
     // Si vienen timeSlots, crear una regla por cada slot; devolver la primera creada
     const timeSlots: Array<{ start: string; end: string; multiplier?: number }>|undefined = (normalized as any).timeSlots;
+    
+    // Si hay timeSlots, usar el primer slot para crear el basePayload
+    if (Array.isArray(timeSlots) && timeSlots.length > 0) {
+      const firstSlot = timeSlots[0];
+      if (firstSlot) {
+        normalized.timeStart = firstSlot.start;
+        normalized.timeEnd = firstSlot.end;
+        if (firstSlot.multiplier) {
+          normalized.priceMultiplier = firstSlot.multiplier;
+        }
+      }
+    }
+    
+    // Validar campos requeridos
+    if (!normalized.courtId) {
+      throw new Error('courtId es requerido');
+    }
+    if (!normalized.name) {
+      throw new Error('name es requerido');
+    }
+    if (!normalized.timeStart) {
+      throw new Error('timeStart es requerido');
+    }
+    if (!normalized.timeEnd) {
+      throw new Error('timeEnd es requerido');
+    }
+    
     const basePayload = {
       courtId: normalized.courtId,
       name: normalized.name,
@@ -464,23 +491,38 @@ export class PricingService {
 
     // Algunos campos del modelo (type, validFrom, validUntil, priority) pueden existir según el esquema actual.
     // Para mantener compatibilidad entre esquemas, enviamos solo campos seguros y casteamos como any.
-    return await (db.pricingRule as any).create({
-      data: {
-        courtId: validatedInput.courtId,
-        name: validatedInput.name,
-        isActive: validatedInput.isActive,
-        // Guardar condiciones tanto en columnas explícitas como en JSON para compatibilidad
-        timeStart: validatedInput.timeStart,
-        timeEnd: validatedInput.timeEnd,
-        daysOfWeek: validatedInput.daysOfWeek as unknown as any,
-        seasonStart: validatedInput.seasonStart ?? undefined,
-        seasonEnd: validatedInput.seasonEnd ?? undefined,
-        priceMultiplier: validatedInput.priceMultiplier as unknown as any,
-        memberDiscount: validatedInput.memberDiscount as unknown as any,
-        conditions,
-        adjustment,
-      },
-    });
+    
+    const createData = {
+      courtId: validatedInput.courtId,
+      name: validatedInput.name,
+      type: 'TIME_BASED', // Campo requerido
+      isActive: validatedInput.isActive,
+      // Guardar condiciones tanto en columnas explícitas como en JSON para compatibilidad
+      timeStart: validatedInput.timeStart,
+      timeEnd: validatedInput.timeEnd,
+      daysOfWeek: validatedInput.daysOfWeek as unknown as any,
+      seasonStart: validatedInput.seasonStart ?? undefined,
+      seasonEnd: validatedInput.seasonEnd ?? undefined,
+      priceMultiplier: validatedInput.priceMultiplier as unknown as any,
+      memberDiscount: validatedInput.memberDiscount as unknown as any,
+      // Campos requeridos del modelo
+      validFrom: new Date(), // Fecha actual como inicio de validez
+      validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 año desde ahora
+      conditions: conditions,
+      adjustment: adjustment,
+    };
+    
+    console.log('Creating pricing rule with data:', JSON.stringify(createData, null, 2));
+    
+    try {
+      return await (db.pricingRule as any).create({
+        data: createData,
+      });
+    } catch (error) {
+      console.error('Error creating pricing rule in database:', error);
+      console.error('Create data was:', JSON.stringify(createData, null, 2));
+      throw new Error(`Error creando regla de precios en base de datos: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    }
   }
   
   /**

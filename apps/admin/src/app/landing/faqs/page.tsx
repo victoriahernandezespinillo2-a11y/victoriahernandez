@@ -94,9 +94,14 @@ export default function FAQPage() {
 
   // Eliminar FAQ
   const deleteFAQ = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar esta FAQ?')) {
-      return;
-    }
+    const { confirm } = await import('@/components/ConfirmDialog');
+    const ok = await confirm({
+      title: 'Eliminar FAQ',
+      description: 'Esta acción no se puede deshacer. ¿Deseas continuar?',
+      tone: 'danger',
+      confirmText: 'Eliminar',
+    });
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/admin/landing/faqs/${id}`, {

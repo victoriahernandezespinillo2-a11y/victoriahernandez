@@ -116,7 +116,14 @@ export default function TournamentsPage() {
   const paginatedTournaments = filteredTournaments.slice(startIndex, startIndex + itemsPerPage);
 
   const handleDeleteTournament = async (tournamentId: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar este torneo?')) {
+    const { confirm } = await import('@/components/ConfirmDialog');
+    const ok = await confirm({
+      title: 'Eliminar torneo',
+      description: 'Esta acción no se puede deshacer. ¿Deseas continuar?',
+      tone: 'danger',
+      confirmText: 'Eliminar',
+    });
+    if (ok) {
       try {
         await deleteTournament(tournamentId);
       } catch (error) {

@@ -146,13 +146,22 @@ export default function UsersPage() {
     if (!userToDelete) return;
     
     try {
-      await deleteUser(userToDelete.id);
+      const result = await deleteUser(userToDelete.id);
+      
+      // Mostrar información de éxito
       toast.success(`Usuario "${userToDelete.name}" eliminado exitosamente`);
+      
       setDeleteConfirmOpen(false);
       setUserToDelete(null);
     } catch (error) {
       console.error('Error al eliminar usuario:', error);
-      toast.error('Error al eliminar el usuario. Por favor, inténtalo de nuevo.');
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      
+      if (errorMessage.includes('reservas o membresías activas')) {
+        toast.error('No se puede eliminar: El usuario tiene reservas o membresías activas. Cancela primero todas las reservas activas y desactiva las membresías.');
+      } else {
+        toast.error(`Error al eliminar el usuario: ${errorMessage}`);
+      }
     }
   };
 
@@ -375,7 +384,7 @@ export default function UsersPage() {
                         title="Editar usuario"
                       >
                         <PencilIcon className="h-4 w-4" />
-                      </button><s></s>
+                      </button>
                       <button 
                         className="text-red-600 hover:text-red-900"
                         onClick={() => handleDeleteUser(user)}
@@ -620,20 +629,44 @@ export default function UsersPage() {
       )}
 
       {/* Modal de confirmación de eliminación */}
-      <ConfirmDialog
-        open={deleteConfirmOpen}
-        title="Eliminar usuario"
-        description={
-          userToDelete
-            ? `¿Estás seguro de que deseas eliminar al usuario "${userToDelete.name}" (${userToDelete.email})? Esta acción no se puede deshacer y se eliminarán todas sus reservas, créditos y datos asociados.`
-            : ''
-        }
-        confirmText="Eliminar"
-        cancelText="Cancelar"
-        variant="danger"
-        onConfirm={confirmDeleteUser}
-        onCancel={cancelDeleteUser}
-      />
+      {deleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Eliminar usuario permanentemente</h3>
+            {userToDelete && (
+              <div className="text-sm text-gray-600 mb-6">
+                <p className="mb-4">
+                  ¿Estás seguro de que deseas eliminar permanentemente al usuario "{userToDelete.name}" ({userToDelete.email})?
+                </p>
+                <p className="mb-2">Esta acción eliminará COMPLETAMENTE:</p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>El usuario de la base de datos</li>
+                  <li>Todas sus reservas (pasadas y futuras)</li>
+                  <li>Todas sus membresías</li>
+                  <li>Todos sus pagos y transacciones</li>
+                  <li>Su cuenta de Firebase Auth (si está configurado)</li>
+                  <li>Todos los datos asociados</li>
+                </ul>
+                <p className="mt-4 text-red-600 font-semibold">⚠️ Esta acción NO se puede deshacer.</p>
+              </div>
+            )}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={cancelDeleteUser}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeleteUser}
+                className="px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700"
+              >
+                Eliminar permanentemente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

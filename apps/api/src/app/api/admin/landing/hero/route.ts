@@ -5,15 +5,18 @@ import { getServerSession } from '@repo/auth';
 import { z } from 'zod';
 
 // Schema de validación para Hero
+const internalPath = z.string().regex(/^\//);
+const hashAnchor = z.string().regex(/^#/);
+
 const HeroSchema = z.object({
   title: z.string().min(1, 'El título es requerido'),
   subtitle: z.string().optional(),
   description: z.string().optional(),
-  imageUrl: z.string().url().optional().or(z.literal('')),
+  imageUrl: z.union([z.string().url(), internalPath, z.literal('')]).optional(),
   ctaText: z.string().optional(),
-  ctaLink: z.string().optional(),
+  ctaLink: z.union([z.string().url(), internalPath, hashAnchor]).optional(),
   secondaryCtaText: z.string().optional(),
-  secondaryCtaLink: z.string().optional(),
+  secondaryCtaLink: z.union([z.string().url(), internalPath, hashAnchor]).optional(),
   isActive: z.boolean().default(true),
   order: z.number().int().min(0).default(0),
 });

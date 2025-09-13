@@ -106,9 +106,14 @@ export default function HeroSlidesPage() {
 
   // Eliminar hero slide
   const deleteHeroSlide = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este hero slide?')) {
-      return;
-    }
+    const { confirm } = await import('@/components/ConfirmDialog');
+    const ok = await confirm({
+      title: 'Eliminar slide',
+      description: 'Esta acción no se puede deshacer. ¿Deseas continuar?',
+      tone: 'danger',
+      confirmText: 'Eliminar',
+    });
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/admin/landing/hero/${id}`, {
@@ -324,7 +329,7 @@ export default function HeroSlidesPage() {
               {editingSlide ? 'Editar Hero Slide' : 'Crear Hero Slide'}
             </h2>
             
-            <form onSubmit={(e) => { e.preventDefault(); saveHeroSlide(); }}>
+            <form noValidate onSubmit={(e) => { e.preventDefault(); saveHeroSlide(); }}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -395,10 +400,12 @@ export default function HeroSlidesPage() {
                     Enlace del CTA principal
                   </label>
                   <input
-                    type="url"
+                    type="text"
+                    inputMode="url"
                     value={formData.ctaLink}
                     onChange={(e) => setFormData({ ...formData, ctaLink: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="https://ejemplo.com ó /ruta-interna ó #ancla"
                   />
                 </div>
               </div>
@@ -421,10 +428,12 @@ export default function HeroSlidesPage() {
                     Enlace del CTA secundario
                   </label>
                   <input
-                    type="url"
+                    type="text"
+                    inputMode="url"
                     value={formData.secondaryCtaLink}
                     onChange={(e) => setFormData({ ...formData, secondaryCtaLink: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="https://ejemplo.com ó /ruta-interna ó #ancla"
                   />
                 </div>
               </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useToast } from '@/components/ToastProvider';
 import Link from 'next/link';
 import {
   TrophyIcon,
@@ -58,6 +59,7 @@ export default function SportsManagement() {
     activeCategories: 0,
     activeFacilities: 0,
   });
+  const { showToast } = useToast();
 
   useEffect(() => {
     fetchData();
@@ -72,23 +74,27 @@ export default function SportsManagement() {
         fetch('/api/admin/landing/sports/facilities')
       ]);
 
+      let categoriesData = [];
+      let facilitiesData = [];
+
       if (categoriesRes.ok) {
-        const categoriesData = await categoriesRes.json();
+        categoriesData = await categoriesRes.json();
         setCategories(categoriesData);
       }
 
       if (facilitiesRes.ok) {
-        const facilitiesData = await facilitiesRes.json();
-        setFacilities(facilitiesData.facilities || []);
+        const facilitiesResponse = await facilitiesRes.json();
+        facilitiesData = facilitiesResponse.facilities || facilitiesResponse || [];
+        setFacilities(facilitiesData);
       }
 
-      // Calcular estadísticas
-      const activeCategories = categories.filter(cat => cat.isActive).length;
-      const activeFacilities = facilities.filter(fac => fac.isActive).length;
+      // Calcular estadísticas con los datos recién obtenidos
+      const activeCategories = categoriesData.filter((cat: any) => cat.isActive).length;
+      const activeFacilities = facilitiesData.filter((fac: any) => fac.isActive).length;
       
       setStats({
-        totalCategories: categories.length,
-        totalFacilities: facilities.length,
+        totalCategories: categoriesData.length,
+        totalFacilities: facilitiesData.length,
         activeCategories,
         activeFacilities,
       });
@@ -101,9 +107,14 @@ export default function SportsManagement() {
   };
 
   const handleDeleteCategory = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar esta categoría?')) {
-      return;
-    }
+    const { confirm } = await import('@/components/ConfirmDialog');
+    const ok = await confirm({
+      title: 'Eliminar categoría',
+      description: 'Esta acción no se puede deshacer. ¿Deseas continuar?',
+      tone: 'danger',
+      confirmText: 'Eliminar',
+    });
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/admin/landing/sports/categories/${id}`, {
@@ -113,20 +124,26 @@ export default function SportsManagement() {
       if (response.ok) {
         setCategories(categories.filter(cat => cat.id !== id));
         fetchData(); // Recargar datos para actualizar estadísticas
+        showToast({ variant: 'success', title: 'Categoría eliminada', message: 'La categoría se eliminó correctamente.' });
       } else {
         const error = await response.json();
-        alert(error.error || 'Error al eliminar la categoría');
+        showToast({ variant: 'warning', title: 'No se puede eliminar', message: error.error || 'Error al eliminar la categoría' });
       }
     } catch (error) {
       console.error('Error deleting category:', error);
-      alert('Error al eliminar la categoría');
+      showToast({ variant: 'error', title: 'Error', message: 'Error al eliminar la categoría' });
     }
   };
 
   const handleDeleteFacility = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar esta instalación?')) {
-      return;
-    }
+    const { confirm } = await import('@/components/ConfirmDialog');
+    const ok = await confirm({
+      title: 'Eliminar instalación',
+      description: 'Esta acción no se puede deshacer. ¿Deseas continuar?',
+      tone: 'danger',
+      confirmText: 'Eliminar',
+    });
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/admin/landing/sports/facilities/${id}`, {
@@ -136,13 +153,14 @@ export default function SportsManagement() {
       if (response.ok) {
         setFacilities(facilities.filter(fac => fac.id !== id));
         fetchData(); // Recargar datos para actualizar estadísticas
+        showToast({ variant: 'success', title: 'Instalación eliminada', message: 'La instalación se eliminó correctamente.' });
       } else {
         const error = await response.json();
-        alert(error.error || 'Error al eliminar la instalación');
+        showToast({ variant: 'warning', title: 'No se puede eliminar', message: error.error || 'Error al eliminar la instalación' });
       }
     } catch (error) {
       console.error('Error deleting facility:', error);
-      alert('Error al eliminar la instalación');
+      showToast({ variant: 'error', title: 'Error', message: 'Error al eliminar la instalación' });
     }
   };
 

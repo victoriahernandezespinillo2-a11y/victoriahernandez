@@ -60,9 +60,14 @@ export default function ActivitiesManagement() {
   };
 
   const handleDeleteActivity = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar esta actividad?')) {
-      return;
-    }
+    const { confirm } = await import('@/components/ConfirmDialog');
+    const ok = await confirm({
+      title: 'Eliminar actividad',
+      description: 'Esta acción no se puede deshacer. ¿Deseas continuar?',
+      tone: 'danger',
+      confirmText: 'Eliminar',
+    });
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/admin/landing/activities/${id}`, {

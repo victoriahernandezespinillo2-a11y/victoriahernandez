@@ -134,9 +134,14 @@ export default function SponsorsPage() {
 
   // Eliminar patrocinador
   const deleteSponsor = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este patrocinador?')) {
-      return;
-    }
+    const { confirm } = await import('@/components/ConfirmDialog');
+    const ok = await confirm({
+      title: 'Eliminar patrocinador',
+      description: 'Esta acción no se puede deshacer. ¿Deseas continuar?',
+      tone: 'danger',
+      confirmText: 'Eliminar',
+    });
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/admin/landing/sponsors/${id}`, {

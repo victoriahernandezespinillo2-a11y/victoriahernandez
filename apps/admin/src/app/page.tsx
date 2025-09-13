@@ -254,13 +254,13 @@ export default function AdminHomePage() {
               <div className="p-5">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
-                    <item.icon className="h-6 w-6 text-gray-400" aria-hidden="true" />
+                    <item.icon className="h-6 w-6 text-gray-600" aria-hidden="true" />
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">{item.name}</dt>
+                      <dt className="text-sm font-medium text-gray-700 truncate">{item.name}</dt>
                       <dd>
-                        <div className="text-lg font-medium text-gray-900">{item.stat}</div>
+                        <div className="text-lg font-bold text-gray-900">{item.stat}</div>
                       </dd>
                     </dl>
                   </div>
@@ -270,12 +270,12 @@ export default function AdminHomePage() {
                 <div className="text-sm">
                   <span
                     className={`${
-                      item.changeType === 'increase' ? 'text-green-600' : 'text-red-600'
-                    } font-medium`}
+                      item.changeType === 'increase' ? 'text-green-700' : 'text-red-700'
+                    } font-semibold`}
                   >
                     {item.change}
                   </span>
-                  <span className="text-gray-500"> desde el mes pasado</span>
+                  <span className="text-gray-600"> desde el mes pasado</span>
                 </div>
               </div>
             </div>
@@ -301,16 +301,16 @@ export default function AdminHomePage() {
                   </span>
                 </div>
                 <div className="mt-8">
-                  <h3 className="text-lg font-medium">
+                  <h3 className="text-lg font-semibold text-gray-900">
                     <a href={action.href} className="focus:outline-none">
                       <span className="absolute inset-0" aria-hidden="true" />
                       {action.name}
                     </a>
                   </h3>
-                  <p className="mt-2 text-sm text-gray-500">{action.description}</p>
+                  <p className="mt-2 text-sm text-gray-600">{action.description}</p>
                 </div>
                 <span
-                  className="pointer-events-none absolute top-6 right-6 text-gray-300 group-hover:text-gray-400"
+                  className="pointer-events-none absolute top-6 right-6 text-gray-400 group-hover:text-gray-500"
                   aria-hidden="true"
                 >
                   <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
@@ -357,15 +357,15 @@ export default function AdminHomePage() {
                             </div>
                             <div className="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
                               <div>
-                                <p className="text-sm text-gray-500">
-                                  <span className="font-medium text-gray-900">{activity.user}</span>{' '}
+                                <p className="text-sm text-gray-700">
+                                  <span className="font-semibold text-gray-900">{activity.user}</span>{' '}
                                   {activity.action}{' '}
                                   {activity.target && (
-                                    <span className="font-medium text-gray-900">{activity.target}</span>
+                                    <span className="font-semibold text-gray-900">{activity.target}</span>
                                   )}
                                 </p>
                               </div>
-                              <div className="text-right text-sm whitespace-nowrap text-gray-500">
+                              <div className="text-right text-sm whitespace-nowrap text-gray-600">
                                 <time>{activity.time}</time>
                               </div>
                             </div>
@@ -437,10 +437,10 @@ export default function AdminHomePage() {
                               }}
                               title={`${s.sportType}: ${s.count}`}
                             />
-                            <div className="mt-2 text-xs text-gray-600 truncate w-full text-center">
+                            <div className="mt-2 text-xs text-gray-700 truncate w-full text-center font-medium">
                               {s.sportType}
                             </div>
-                            <div className="text-xs font-medium text-gray-700">{s.count}</div>
+                            <div className="text-xs font-bold text-gray-900">{s.count}</div>
                           </div>
                         );
                       })}
@@ -513,7 +513,7 @@ export default function AdminHomePage() {
                     </div>
                     
                     {/* Leyenda */}
-                    <div className="mt-4 flex justify-between text-xs text-gray-600">
+                    <div className="mt-4 flex justify-between text-xs text-gray-700 font-medium">
                       <span>Min: ${minRevenue.toLocaleString()}</span>
                       <span>Promedio: ${Math.round(dailyData.reduce((sum, d) => sum + Number(d.revenue || 0), 0) / dailyData.length).toLocaleString()}</span>
                       <span>Max: ${maxRevenue.toLocaleString()}</span>

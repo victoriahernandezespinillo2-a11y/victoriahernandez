@@ -671,25 +671,55 @@ export default function ReservationsPage() {
         </div>
       )}
 
-      <ConfirmDialog
-        open={confirmState.open}
-        title="Eliminar reserva"
-        description="¿Estás seguro de que quieres cancelar esta reserva? Esta acción no se puede deshacer."
-        confirmText="Cancelar reserva"
-        variant="danger"
-        onConfirm={confirmDeletion}
-        onCancel={() => setConfirmState({ open: false })}
-      />
+      {confirmState.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Eliminar reserva</h3>
+            <p className="text-sm text-gray-600 mb-6">¿Estás seguro de que quieres cancelar esta reserva? Esta acción no se puede deshacer.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmState({ open: false })}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeletion}
+                className="px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700"
+              >
+                Cancelar reserva
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      <ConfirmDialog
-        open={resendState.open}
-        title={resendState.type === 'CONFIRMATION' ? 'Reenviar confirmación' : 'Reenviar enlace de pago'}
-        description={resendState.type === 'CONFIRMATION' ? 'Se enviará nuevamente el correo de confirmación al cliente.' : 'Se generará y enviará un nuevo enlace de pago al cliente.'}
-        confirmText="Reenviar"
-        variant="primary"
-        onConfirm={handleResend}
-        onCancel={() => setResendState({ ...resendState, open: false })}
-      />
+      {resendState.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">
+              {resendState.type === 'CONFIRMATION' ? 'Reenviar confirmación' : 'Reenviar enlace de pago'}
+            </h3>
+            <p className="text-sm text-gray-600 mb-6">
+              {resendState.type === 'CONFIRMATION' ? 'Se enviará nuevamente el correo de confirmación al cliente.' : 'Se generará y enviará un nuevo enlace de pago al cliente.'}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setResendState({ ...resendState, open: false })}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleResend}
+                className="px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Reenviar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Auditoría */}
       {auditState.open && (
@@ -738,41 +768,52 @@ export default function ReservationsPage() {
         </div>
       )}
 
-      <ConfirmDialog
-        open={refundState.open}
-        title="Reembolsar pago"
-        description={
-          <div className="space-y-3">
-            <p>Indica el monto (opcional para reembolso parcial) y la razón del reembolso.</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Monto (€)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={refundState.amount || ''}
-                  onChange={(e) => setRefundState((s) => ({ ...s, amount: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-xs text-gray-500 mb-1">Razón</label>
-                <input
-                  type="text"
-                  value={refundState.reason}
-                  onChange={(e) => setRefundState((s) => ({ ...s, reason: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Ej: Solicitud del cliente"
-                />
+      {refundState.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Reembolsar pago</h3>
+            <div className="space-y-3 mb-6">
+              <p className="text-sm text-gray-600">Indica el monto (opcional para reembolso parcial) y la razón del reembolso.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Monto (€)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={refundState.amount || ''}
+                    onChange={(e) => setRefundState((s) => ({ ...s, amount: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-gray-500 mb-1">Razón</label>
+                  <input
+                    type="text"
+                    value={refundState.reason}
+                    onChange={(e) => setRefundState((s) => ({ ...s, reason: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Ej: Solicitud del cliente"
+                  />
+                </div>
               </div>
             </div>
-          </div> as any
-        }
-        confirmText="Reembolsar"
-        variant="danger"
-        onConfirm={confirmRefund}
-        onCancel={() => setRefundState({ open: false, id: undefined, amount: undefined, reason: '' })}
-      />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setRefundState({ open: false, id: undefined, amount: undefined, reason: '' })}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmRefund}
+                className="px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700"
+              >
+                Reembolsar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

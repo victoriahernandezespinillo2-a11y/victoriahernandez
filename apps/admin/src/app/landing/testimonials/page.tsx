@@ -107,9 +107,14 @@ export default function TestimonialsPage() {
 
   // Eliminar testimonio
   const deleteTestimonial = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este testimonio?')) {
-      return;
-    }
+    const { confirm } = await import('@/components/ConfirmDialog');
+    const ok = await confirm({
+      title: 'Eliminar testimonio',
+      description: 'Esta acción no se puede deshacer. ¿Deseas continuar?',
+      tone: 'danger',
+      confirmText: 'Eliminar',
+    });
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/admin/landing/testimonials/${id}`, {

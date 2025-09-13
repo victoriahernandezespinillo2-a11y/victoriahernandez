@@ -55,38 +55,48 @@ export default function BlogPostsPage() {
         </Link>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-md p-3">
+        <div className="bg-white border border-gray-200 rounded-md p-3">
         <input
           placeholder="Buscar por título o excerpt..."
           value={search}
           onChange={(e) => { setPage(1); setSearch(e.target.value); }}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none"
+          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none text-gray-900 placeholder-gray-500"
         />
       </div>
 
       {loading ? (
-        <div className="text-gray-500">Cargando…</div>
+        <div className="text-gray-600">Cargando…</div>
       ) : posts.length === 0 ? (
-        <div className="text-gray-500">No hay posts.</div>
+        <div className="text-gray-600">No hay posts.</div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-md overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left px-4 py-2">Título</th>
-                <th className="text-left px-4 py-2">Estado</th>
-                <th className="text-left px-4 py-2">Publicado</th>
-                <th className="px-4 py-2" />
+                <th className="text-left px-4 py-2 text-gray-900 font-semibold">Título</th>
+                <th className="text-left px-4 py-2 text-gray-900 font-semibold">Estado</th>
+                <th className="text-left px-4 py-2 text-gray-900 font-semibold">Publicado</th>
+                <th className="px-4 py-2 text-gray-900 font-semibold" />
               </tr>
             </thead>
             <tbody>
               {posts.map((p) => (
                 <tr key={p.id} className="border-t">
-                  <td className="px-4 py-2">{p.title}</td>
+                  <td className="px-4 py-2 text-gray-900 font-medium">{p.title}</td>
                   <td className="px-4 py-2">
-                    <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-800">{p.status}</span>
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                      p.status === 'PUBLISHED' 
+                        ? 'bg-green-100 text-green-800' 
+                        : p.status === 'DRAFT'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : p.status === 'SCHEDULED'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {p.status}
+                    </span>
                   </td>
-                  <td className="px-4 py-2">{p.publishedAt ? new Date(p.publishedAt).toLocaleDateString("es-ES") : "-"}</td>
+                  <td className="px-4 py-2 text-gray-700">{p.publishedAt ? new Date(p.publishedAt).toLocaleDateString("es-ES") : "-"}</td>
                   <td className="px-4 py-2 text-right">
                     <div className="inline-flex gap-2">
                       <Link href={`/blog/posts/${p.id}/edit`} className="p-2 text-gray-500 hover:text-green-600" title="Editar">
@@ -106,9 +116,9 @@ export default function BlogPostsPage() {
 
       {pages > 1 && (
         <div className="flex justify-center items-center gap-2">
-          <button disabled={page===1} onClick={() => setPage((p)=>Math.max(1,p-1))} className="px-3 py-1 border rounded disabled:opacity-50">Anterior</button>
-          <span className="text-sm text-gray-600">Página {page} de {pages}</span>
-          <button disabled={page===pages} onClick={() => setPage((p)=>Math.min(pages,p+1))} className="px-3 py-1 border rounded disabled:opacity-50">Siguiente</button>
+          <button disabled={page===1} onClick={() => setPage((p)=>Math.max(1,p-1))} className="px-3 py-1 border rounded disabled:opacity-50 text-gray-700 hover:bg-gray-50">Anterior</button>
+          <span className="text-sm text-gray-700">Página {page} de {pages}</span>
+          <button disabled={page===pages} onClick={() => setPage((p)=>Math.min(pages,p+1))} className="px-3 py-1 border rounded disabled:opacity-50 text-gray-700 hover:bg-gray-50">Siguiente</button>
         </div>
       )}
     </div>

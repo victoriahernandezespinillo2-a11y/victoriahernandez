@@ -16,6 +16,8 @@ import {
   TrophyIcon as Crown,
   StarIcon as Star,
   ShieldCheckIcon as Shield,
+  XMarkIcon as X,
+  CheckIcon as Check,
 } from '@heroicons/react/24/outline';
 
 type UiMembership = {
@@ -80,6 +82,29 @@ export default function MembershipsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [memberships, setMemberships] = useState<UiMembership[]>([]);
+  
+  // Estados para modales y acciones
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showNewMembershipModal, setShowNewMembershipModal] = useState(false);
+  const [selectedMembership, setSelectedMembership] = useState<UiMembership | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  
+  // Estados para formulario de nueva membresía
+  const [newMembershipForm, setNewMembershipForm] = useState({
+    name: '',
+    type: 'basic' as 'basic' | 'premium' | 'vip',
+    price: 0,
+    duration: 1,
+    discountPercentage: 0,
+    maxReservations: -1,
+    benefits: [] as string[],
+    isActive: true,
+  });
+  const [newBenefit, setNewBenefit] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -98,9 +123,10 @@ export default function MembershipsPage() {
           type: (m.type || 'basic').toLowerCase(),
           price: Number(m.price || m.monthlyPrice || 0),
           duration: Number(m.durationMonths || m.duration || 1),
-          benefits: Array.isArray(m.benefits) ? m.benefits : [],
-          maxReservations: Number(m.maxReservations ?? -1),
-          discountPercentage: Number(m.discountPercentage ?? 0),
+          benefits: Array.isArray(m.benefits?.features) ? m.benefits.features : 
+                   Array.isArray(m.benefits) ? m.benefits : [],
+          maxReservations: Number(m.benefits?.maxReservations ?? m.maxReservations ?? -1),
+          discountPercentage: Number(m.benefits?.discountPercentage ?? m.discountPercentage ?? 0),
           status: (m.isActive ? 'active' : 'inactive') as 'active' | 'inactive',
           subscribersCount: Number(m.subscribersCount ?? 0),
           createdAt: m.createdAt || new Date().toISOString(),
@@ -132,6 +158,184 @@ export default function MembershipsPage() {
   const activeMemberships = memberships.filter(m => m.status === 'active').length;
   const averagePrice = memberships.length > 0 ? (memberships.reduce((sum, m) => sum + m.price, 0) / memberships.length) : 0;
 
+  // Funciones para manejar acciones
+  const handleView = (membership: UiMembership) => {
+    setSelectedMembership(membership);
+    setShowViewModal(true);
+  };
+
+  const handleEdit = (membership: UiMembership) => {
+    setSelectedMembership(membership);
+    setShowEditModal(true);
+  };
+
+  const handleDelete = (membership: UiMembership) => {
+    setSelectedMembership(membership);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedMembership) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      await adminApi.memberships?.delete?.(selectedMembership.id);
+      
+      // Recargar la lista
+      const res = await adminApi.memberships?.getAll?.({ page: 1, limit: 200 });
+      const list = Array.isArray(res?.membershipPlans)
+        ? res.membershipPlans
+        : Array.isArray(res?.data?.membershipPlans)
+          ? res.data.membershipPlans
+          : Array.isArray(res)
+            ? res
+            : [];
+      const mapped: UiMembership[] = list.map((m: any) => ({
+        id: m.id,
+        name: m.name || m.type || 'Membresía',
+        type: (m.type || 'basic').toLowerCase(),
+        price: Number(m.price || m.monthlyPrice || 0),
+        duration: Number(m.durationMonths || m.duration || 1),
+        benefits: Array.isArray(m.benefits?.features) ? m.benefits.features : 
+                 Array.isArray(m.benefits) ? m.benefits : [],
+        maxReservations: Number(m.benefits?.maxReservations ?? m.maxReservations ?? -1),
+        discountPercentage: Number(m.benefits?.discountPercentage ?? m.discountPercentage ?? 0),
+        status: (m.isActive ? 'active' : 'inactive') as 'active' | 'inactive',
+        subscribersCount: Number(m.subscribersCount ?? 0),
+        createdAt: m.createdAt || new Date().toISOString(),
+      }));
+      setMemberships(mapped);
+      
+      setShowDeleteDialog(false);
+      setSelectedMembership(null);
+    } catch (err: any) {
+      setError(err?.message || 'Error eliminando la membresía');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closeModals = () => {
+    setShowViewModal(false);
+    setShowEditModal(false);
+    setShowDeleteDialog(false);
+    setShowNewMembershipModal(false);
+    setSelectedMembership(null);
+    setError(null);
+    setSuccess(null);
+    // Resetear formulario
+    setNewMembershipForm({
+      name: '',
+      type: 'basic',
+      price: 0,
+      duration: 1,
+      discountPercentage: 0,
+      maxReservations: -1,
+      benefits: [],
+      isActive: true,
+    });
+    setNewBenefit('');
+  };
+
+  const handleNewMembership = () => {
+    setShowNewMembershipModal(true);
+  };
+
+  const addBenefit = () => {
+    if (newBenefit.trim()) {
+      setNewMembershipForm(prev => ({
+        ...prev,
+        benefits: [...prev.benefits, newBenefit.trim()]
+      }));
+      setNewBenefit('');
+    }
+  };
+
+  const removeBenefit = (index: number) => {
+    setNewMembershipForm(prev => ({
+      ...prev,
+      benefits: prev.benefits.filter((_, i) => i !== index)
+    }));
+  };
+
+  const createNewMembership = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      // Validar campos requeridos
+      if (!newMembershipForm.name.trim()) {
+        setError('El nombre del plan es requerido');
+        return;
+      }
+      if (newMembershipForm.price <= 0) {
+        setError('El precio debe ser mayor a 0');
+        return;
+      }
+      if (newMembershipForm.benefits.length === 0) {
+        setError('Debe agregar al menos un beneficio');
+        return;
+      }
+
+      // Crear el payload para la API
+      const payload = {
+        name: newMembershipForm.name,
+        type: newMembershipForm.type.toUpperCase(),
+        price: newMembershipForm.price,
+        durationMonths: newMembershipForm.duration,
+        benefits: {
+          features: newMembershipForm.benefits,
+          maxReservations: newMembershipForm.maxReservations,
+          discountPercentage: newMembershipForm.discountPercentage,
+          priorityBooking: newMembershipForm.type !== 'basic',
+          freeHours: newMembershipForm.type === 'vip' ? 2 : 0,
+          guestPasses: newMembershipForm.type === 'vip' ? 2 : 0,
+          accessToEvents: newMembershipForm.type !== 'basic',
+          personalTrainer: newMembershipForm.type === 'vip',
+        },
+        isActive: newMembershipForm.isActive,
+      };
+
+      // Llamar a la API para crear la membresía
+      await adminApi.memberships?.create?.(payload);
+
+      // Recargar la lista
+      const res = await adminApi.memberships?.getAll?.({ page: 1, limit: 200 });
+      const list = Array.isArray(res?.membershipPlans)
+        ? res.membershipPlans
+        : Array.isArray(res?.data?.membershipPlans)
+          ? res.data.membershipPlans
+          : Array.isArray(res)
+            ? res
+            : [];
+      const mapped: UiMembership[] = list.map((m: any) => ({
+        id: m.id,
+        name: m.name || m.type || 'Membresía',
+        type: (m.type || 'basic').toLowerCase(),
+        price: Number(m.price || m.monthlyPrice || 0),
+        duration: Number(m.durationMonths || m.duration || 1),
+        benefits: Array.isArray(m.benefits?.features) ? m.benefits.features : 
+                 Array.isArray(m.benefits) ? m.benefits : [],
+        maxReservations: Number(m.benefits?.maxReservations ?? m.maxReservations ?? -1),
+        discountPercentage: Number(m.benefits?.discountPercentage ?? m.discountPercentage ?? 0),
+        status: (m.isActive ? 'active' : 'inactive') as 'active' | 'inactive',
+        subscribersCount: Number(m.subscribersCount ?? 0),
+        createdAt: m.createdAt || new Date().toISOString(),
+      }));
+      setMemberships(mapped);
+
+      setSuccess('Plan de membresía creado exitosamente');
+      closeModals();
+    } catch (err: any) {
+      setError(err?.message || 'Error creando el plan de membresía');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -140,12 +344,50 @@ export default function MembershipsPage() {
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Gestión de Membresías</h1>
             <p className="text-gray-600">Administra los planes de membresía y suscripciones</p>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <button 
+            onClick={handleNewMembership}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
             <Plus className="w-4 h-4" />
             Nueva Membresía
           </button>
         </div>
       </div>
+
+      {/* Notificaciones */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center">
+              <X className="w-3 h-3 text-red-600" />
+            </div>
+            <p className="text-red-700">{error}</p>
+            <button 
+              onClick={() => setError(null)}
+              className="ml-auto text-red-400 hover:text-red-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {success && (
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center">
+              <Check className="w-3 h-3 text-green-600" />
+            </div>
+            <p className="text-green-700">{success}</p>
+            <button 
+              onClick={() => setSuccess(null)}
+              className="ml-auto text-green-400 hover:text-green-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Estadísticas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
@@ -286,15 +528,24 @@ export default function MembershipsPage() {
               </div>
 
               <div className="flex items-center gap-2 pt-4 border-t">
-                <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50">
+                <button 
+                  onClick={() => handleView(membership)}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                >
                   <Eye className="w-4 h-4" />
                   Ver
                 </button>
-                <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-green-600 border border-green-600 rounded-lg hover:bg-green-50">
+                <button 
+                  onClick={() => handleEdit(membership)}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-green-600 border border-green-600 rounded-lg hover:bg-green-50 transition-colors"
+                >
                   <Edit className="w-4 h-4" />
                   Editar
                 </button>
-                <button className="flex items-center justify-center px-3 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50">
+                <button 
+                  onClick={() => handleDelete(membership)}
+                  className="flex items-center justify-center px-3 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -360,6 +611,395 @@ export default function MembershipsPage() {
                   Siguiente
                 </button>
               </nav>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Ver */}
+      {showViewModal && selectedMembership && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Detalles del Plan</h2>
+              <button 
+                onClick={closeModals}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Nombre</label>
+                  <p className="text-lg font-semibold text-black">{selectedMembership.name}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Tipo</label>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTypeColor(selectedMembership.type)}`}>
+                    {selectedMembership.type === 'basic' ? 'Básica' : 
+                     selectedMembership.type === 'premium' ? 'Premium' : 'VIP'}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Precio</label>
+                  <p className="text-2xl font-bold text-green-600">{formatCurrency(selectedMembership.price)}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Duración</label>
+                  <p className="text-lg text-black">{selectedMembership.duration} {selectedMembership.duration === 1 ? 'mes' : 'meses'}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Beneficios</label>
+                <ul className="space-y-2">
+                  {selectedMembership.benefits.map((benefit, index) => (
+                    <li key={index} className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-green-500" />
+                      <span className="text-black">{benefit}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Reservas Máximas</label>
+                  <p className="text-lg text-black">{selectedMembership.maxReservations === -1 ? 'Ilimitadas' : selectedMembership.maxReservations}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Descuento</label>
+                  <p className="text-lg text-black">{selectedMembership.discountPercentage}%</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Suscriptores</label>
+                <p className="text-lg text-black">{selectedMembership.subscribersCount}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Editar */}
+      {showEditModal && selectedMembership && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Editar Plan</h2>
+              <button 
+                onClick={closeModals}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Plan</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                  defaultValue={selectedMembership.name}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Precio (€)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                    defaultValue={selectedMembership.price}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Descuento (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                    defaultValue={selectedMembership.discountPercentage}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reservas Máximas</label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                  defaultValue={selectedMembership.maxReservations === -1 ? '' : selectedMembership.maxReservations}
+                  placeholder="Dejar vacío para ilimitadas"
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input 
+                  id="isActive" 
+                  type="checkbox" 
+                  defaultChecked={selectedMembership.status === 'active'}
+                  className="w-4 h-4"
+                />
+                <label htmlFor="isActive" className="text-sm text-gray-700">Plan Activo</label>
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <button 
+                  onClick={closeModals}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={() => {
+                    // TODO: Implementar actualización
+                    closeModals();
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Guardar Cambios
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Diálogo de Confirmación para Eliminar */}
+      {showDeleteDialog && selectedMembership && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Eliminar Plan</h3>
+                <p className="text-sm text-gray-600">Esta acción no se puede deshacer</p>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-700">
+                ¿Estás seguro de que quieres eliminar el plan <strong>"{selectedMembership.name}"</strong>?
+              </p>
+              <p className="text-sm text-red-600 mt-2">
+                Se eliminarán todos los datos asociados a este plan.
+              </p>
+            </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            )}
+            
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={closeModals}
+                disabled={loading}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmDelete}
+                disabled={loading}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Eliminando...
+                  </>
+                ) : (
+                  'Eliminar'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Nueva Membresía */}
+      {showNewMembershipModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Nueva Membresía</h2>
+              <button 
+                onClick={closeModals}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Información básica */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Plan *</label>
+                  <input
+                    type="text"
+                    value={newMembershipForm.name}
+                    onChange={(e) => setNewMembershipForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                    placeholder="Ej: Plan Premium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Plan *</label>
+                  <select
+                    value={newMembershipForm.type}
+                    onChange={(e) => setNewMembershipForm(prev => ({ ...prev, type: e.target.value as 'basic' | 'premium' | 'vip' }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                  >
+                    <option value="basic">Básica</option>
+                    <option value="premium">Premium</option>
+                    <option value="vip">VIP</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Precio (€) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={newMembershipForm.price}
+                    onChange={(e) => setNewMembershipForm(prev => ({ ...prev, price: Number(e.target.value) }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                    placeholder="29.99"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Duración (meses)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newMembershipForm.duration}
+                    onChange={(e) => setNewMembershipForm(prev => ({ ...prev, duration: Number(e.target.value) }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Descuento (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={newMembershipForm.discountPercentage}
+                    onChange={(e) => setNewMembershipForm(prev => ({ ...prev, discountPercentage: Number(e.target.value) }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reservas Máximas</label>
+                  <input
+                    type="number"
+                    min="-1"
+                    value={newMembershipForm.maxReservations === -1 ? '' : newMembershipForm.maxReservations}
+                    onChange={(e) => setNewMembershipForm(prev => ({ 
+                      ...prev, 
+                      maxReservations: e.target.value === '' ? -1 : Number(e.target.value) 
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                    placeholder="Dejar vacío para ilimitadas"
+                  />
+                </div>
+              </div>
+
+              {/* Beneficios */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Beneficios *</label>
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={newBenefit}
+                    onChange={(e) => setNewBenefit(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addBenefit()}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                    placeholder="Ej: Acceso a todas las instalaciones"
+                  />
+                  <button
+                    type="button"
+                    onClick={addBenefit}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Agregar
+                  </button>
+                </div>
+                
+                {newMembershipForm.benefits.length > 0 && (
+                  <div className="space-y-2">
+                    {newMembershipForm.benefits.map((benefit, index) => (
+                      <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded-lg">
+                        <span className="text-sm text-black">{benefit}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeBenefit(index)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Estado activo */}
+              <div className="flex items-center gap-3">
+                <input 
+                  id="isActiveNew" 
+                  type="checkbox" 
+                  checked={newMembershipForm.isActive}
+                  onChange={(e) => setNewMembershipForm(prev => ({ ...prev, isActive: e.target.checked }))}
+                  className="w-4 h-4"
+                />
+                <label htmlFor="isActiveNew" className="text-sm text-gray-700">Plan Activo</label>
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <button 
+                  onClick={closeModals}
+                  disabled={loading}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={createNewMembership}
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Creando...
+                    </>
+                  ) : (
+                    'Crear Plan'
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

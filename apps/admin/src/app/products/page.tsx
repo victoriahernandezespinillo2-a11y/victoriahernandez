@@ -6,7 +6,7 @@ import { Button } from '@repo/ui/button';
 import { Card } from '@repo/ui/card';
 import { Input } from '@repo/ui/input';
 import { Badge } from '@repo/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogBody, DialogFooter } from '@repo/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogBody, DialogFooter, useDialog } from '@repo/ui/dialog';
 import { Label } from '@repo/ui/label';
 import { Textarea } from '@repo/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/select';
@@ -69,6 +69,25 @@ export default function ProductsPage() {
     creditMultiplier: 0,
     media: [] as any[], // added
   });
+
+  // Función para generar SKU automáticamente
+  const generateSKU = (name: string) => {
+    if (!name || name.trim().length === 0) return '';
+    
+    // Convertir a minúsculas, remover acentos y caracteres especiales
+    const cleanName = name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remover acentos
+      .replace(/[^a-z0-9\s]/g, '') // Remover caracteres especiales excepto espacios
+      .replace(/\s+/g, '') // Remover espacios
+      .substring(0, 8); // Limitar a 8 caracteres
+    
+    // Agregar timestamp para hacer único el SKU
+    const timestamp = Date.now().toString().slice(-4);
+    
+    return `${cleanName.toUpperCase()}${timestamp}`;
+  };
 
   // Usar el hook para manejar el scroll del body
   useModalScroll(isCreateDialogOpen || isEditDialogOpen);
@@ -394,7 +413,7 @@ export default function ProductsPage() {
       });
       const baseJson = await baseRes.json();
       if (!baseRes.ok || !baseJson?.success) {
-        toast.error(baseJson?.message || 'Error obteniendo firma de subida');
+        toast.error(baseJson?.message || baseJson?.error || 'Error obteniendo firma de subida');
         return;
       }
       const { cloudName, apiKey, folder } = baseJson.data;
@@ -489,7 +508,7 @@ export default function ProductsPage() {
         <h1 className="text-3xl font-bold text-gray-900">Productos</h1>
         
         {/* Modal de Crear Producto */}
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button 
               onClick={() => setIsCreateDialogOpen(true)}
@@ -501,7 +520,7 @@ export default function ProductsPage() {
           </DialogTrigger>
           
           {isCreateDialogOpen && (
-            <DialogContent>
+            <DialogContent onClose={() => setIsCreateDialogOpen(false)}>
               <DialogHeader>
                 <DialogTitle>Crear Nuevo Producto</DialogTitle>
               </DialogHeader>
@@ -531,17 +550,26 @@ export default function ProductsPage() {
                     <Input
                       id="name"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) => {
+                        const newName = e.target.value;
+                        const newSku = generateSKU(newName);
+                        setFormData({ 
+                          ...formData, 
+                          name: newName,
+                          sku: newSku
+                        });
+                      }}
                       placeholder="Nombre del producto"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sku">SKU</Label>
+                    <Label htmlFor="sku">SKU (Generado automáticamente)</Label>
                     <Input
                       id="sku"
                       value={formData.sku}
-                      onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                      placeholder="Código SKU"
+                      readOnly
+                      className="bg-gray-50 text-gray-600 cursor-not-allowed"
+                      placeholder="Se genera automáticamente al escribir el nombre"
                     />
                   </div>
                   <div className="space-y-2">
@@ -586,7 +614,27 @@ export default function ProductsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="creditMultiplier">Multiplicador de Créditos</Label>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="creditMultiplier">Multiplicador de Créditos</Label>
+                      <div className="group relative">
+                        <div className="w-4 h-4 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold cursor-help">
+                          ?
+                        </div>
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-80 bg-gray-900 text-white text-xs rounded-lg p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                          <div className="font-semibold mb-2">¿Qué es el Multiplicador de Créditos?</div>
+                          <div className="space-y-2">
+                            <p>Modifica la cantidad de créditos que recibe el usuario al comprar este producto.</p>
+                            <div className="space-y-1">
+                              <p><strong>• 0:</strong> No otorga créditos extra</p>
+                              <p><strong>• 1.5:</strong> Usuario paga 2€, recibe 3 créditos</p>
+                              <p><strong>• 2.0:</strong> Usuario paga 3€, recibe 6 créditos</p>
+                            </div>
+                            <p className="text-blue-200">💡 Útil para promociones y fidelización</p>
+                          </div>
+                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                        </div>
+                      </div>
+                    </div>
                     <Input
                       id="creditMultiplier"
                       type="number"
@@ -787,16 +835,16 @@ export default function ProductsPage() {
                       €{product.priceEuro.toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant={product.stockQty > 0 ? 'default' : 'destructive'}>
+                      <Badge variant={product.stockQty > 0 ? 'success' : 'destructive'}>
                         {product.stockQty}
                       </Badge>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant={product.isActive ? 'default' : 'secondary'}>
+                      <Badge variant={product.isActive ? 'success' : 'warning'}>
                         {product.isActive ? 'Activo' : 'Inactivo'}
                       </Badge>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       <div className="flex space-x-2">
                         <Button
                           variant="ghost"
@@ -839,10 +887,10 @@ export default function ProductsPage() {
                     <span>{product.category}</span>
                   </div>
                   <div className="mt-2 flex items-center gap-3">
-                    <Badge variant={product.isActive ? 'default' : 'secondary'}>
+                    <Badge variant={product.isActive ? 'success' : 'warning'}>
                       {product.isActive ? 'Activo' : 'Inactivo'}
                     </Badge>
-                    <Badge variant={product.stockQty > 0 ? 'default' : 'destructive'}>
+                    <Badge variant={product.stockQty > 0 ? 'success' : 'destructive'}>
                       Stock: {product.stockQty}
                     </Badge>
                   </div>
@@ -888,9 +936,9 @@ export default function ProductsPage() {
       )}
 
       {/* Modal de Editar Producto */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen}>
         {isEditDialogOpen && (
-          <DialogContent>
+          <DialogContent onClose={() => setIsEditDialogOpen(false)}>
             <DialogHeader>
               <DialogTitle>Editar Producto</DialogTitle>
             </DialogHeader>
@@ -947,7 +995,27 @@ export default function ProductsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-creditMultiplier">Multiplicador de Créditos</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="edit-creditMultiplier">Multiplicador de Créditos</Label>
+                    <div className="group relative">
+                      <div className="w-4 h-4 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold cursor-help">
+                        ?
+                      </div>
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-80 bg-gray-900 text-white text-xs rounded-lg p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                        <div className="font-semibold mb-2">¿Qué es el Multiplicador de Créditos?</div>
+                        <div className="space-y-2">
+                          <p>Modifica la cantidad de créditos que recibe el usuario al comprar este producto.</p>
+                          <div className="space-y-1">
+                            <p><strong>• 0:</strong> No otorga créditos extra</p>
+                            <p><strong>• 1.5:</strong> Usuario paga 2€, recibe 3 créditos</p>
+                            <p><strong>• 2.0:</strong> Usuario paga 3€, recibe 6 créditos</p>
+                          </div>
+                          <p className="text-blue-200">💡 Útil para promociones y fidelización</p>
+                        </div>
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  </div>
                   <Input
                     id="edit-creditMultiplier"
                     type="number"
@@ -1044,20 +1112,41 @@ export default function ProductsPage() {
       </Dialog>
 
       {/* Modal de confirmación de eliminación */}
-      <ConfirmDialog
-        open={deleteConfirmOpen}
-        title="Eliminar producto"
-        description={
-          productToDelete
-            ? `¿Estás seguro de que deseas eliminar el producto "${productToDelete.name}"? Esta acción no se puede deshacer.`
-            : ''
-        }
-        confirmText="Eliminar"
-        cancelText="Cancelar"
-        variant="danger"
-        onConfirm={confirmDeleteProduct}
-        onCancel={cancelDeleteProduct}
-      />
+      {deleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Eliminar producto</h3>
+            {productToDelete && (
+              <div className="text-sm text-gray-600 mb-6">
+                <p className="mb-4">
+                  ¿Estás seguro de que deseas eliminar el producto "{productToDelete.name}"?
+                </p>
+                <p className="mb-2">Esta acción eliminará COMPLETAMENTE:</p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>El producto de la base de datos</li>
+                  <li>Todos los datos relacionados</li>
+                  <li>Todas las imágenes asociadas</li>
+                </ul>
+                <p className="mt-4 text-red-600 font-semibold">⚠️ Esta acción NO se puede deshacer.</p>
+              </div>
+            )}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={cancelDeleteProduct}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeleteProduct}
+                className="px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700"
+              >
+                Eliminar permanentemente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

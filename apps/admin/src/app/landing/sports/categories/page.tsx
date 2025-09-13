@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useToast } from '@/components/ToastProvider';
 import Link from 'next/link';
 
 interface Category {
@@ -18,6 +19,7 @@ interface Category {
 export default function CategoriesListPage() {
   const [items, setItems] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
 
   useEffect(() => { load(); }, []);
 
@@ -35,9 +37,22 @@ export default function CategoriesListPage() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm('¿Eliminar esta categoría?')) return;
+    const { confirm } = await import('@/components/ConfirmDialog');
+    const ok = await confirm({
+      title: 'Eliminar categoría',
+      description: 'Esta acción no se puede deshacer. ¿Deseas continuar?',
+      tone: 'danger',
+      confirmText: 'Eliminar',
+    });
+    if (!ok) return;
     const res = await fetch(`/api/admin/landing/sports/categories/${id}`, { method: 'DELETE' });
-    if (res.ok) load(); else alert('No se pudo eliminar');
+    if (res.ok) {
+      showToast({ variant: 'success', title: 'Categoría eliminada', message: 'Se eliminó correctamente.' });
+      load();
+    } else {
+      const json = await res.json().catch(() => null);
+      showToast({ variant: 'warning', title: 'No se puede eliminar', message: json?.error || 'No se pudo eliminar' });
+    }
   };
 
   return (
@@ -96,6 +111,9 @@ export default function CategoriesListPage() {
     </div>
   );
 }
+
+
+
 
 
 

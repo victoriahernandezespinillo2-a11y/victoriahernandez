@@ -3,6 +3,7 @@ import './globals.css'
 import { SessionWrapper } from '../components/SessionWrapper'
 import { ToastProvider } from '../components/ToastProvider'
 import ConditionalLayout from '../components/ConditionalLayout'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 export const metadata: Metadata = {
   title: 'Admin - Polideportivo Victoria Hernandez',
@@ -31,6 +32,7 @@ export default function RootLayout({
         <SessionWrapper>
           <ToastProvider>
             <ConditionalLayout>{children}</ConditionalLayout>
+            <ConfirmDialog />
           </ToastProvider>
         </SessionWrapper>
       </body>

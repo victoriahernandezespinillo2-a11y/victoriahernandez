@@ -84,6 +84,8 @@ export default async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|manifest.json|sw.js|robots.txt|sitemap.xml|icon|icons|apple-touch-icon.png|auth/signin|auth/unauthorized).*)',
+    // Excluir cualquier ruta API (toda /api/*) para que sea el backend real quien
+    // valide las credenciales y roles. El middleware sólo protege páginas de UI.
+    '/((?!api/|_next/static|_next/image|favicon.ico|manifest.json|sw.js|robots.txt|sitemap.xml|icon|icons|apple-touch-icon.png|auth/signin|auth/unauthorized).*)',
   ],
 };

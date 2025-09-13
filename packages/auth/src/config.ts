@@ -56,6 +56,19 @@ export const authConfig: NextAuthConfig = {
     signOut: '/auth/signout',
     error: '/auth/error',
   },
+  // Unificar el nombre de la cookie de sesión en TODAS las apps que consumen @repo/auth
+  cookies: {
+    sessionToken: {
+      name: 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        // domain sin especificar para localhost y entornos con subdominios distintos
+      },
+    },
+  },
   callbacks: {
     async jwt({ token, user }) {
       // Al iniciar sesión (cuando 'user' está disponible), persistimos el ID y el rol en el token.
@@ -82,6 +95,11 @@ export const authConfig: NextAuthConfig = {
     },
   },
   debug: process.env.NODE_ENV === 'development',
+  // Asegurar que todas las instancias (API, Admin, Web) compartan el mismo secreto
+  // para poder desencriptar las cookies de sesión (JWE) de NextAuth.
+  secret: (process.env as any).AUTH_SECRET || (process.env as any).NEXTAUTH_SECRET,
+  // Evitar rechazos por host en proxies/rewrites durante desarrollo y Vercel
+  trustHost: true,
 };
 
 // Configuración específica para Admin

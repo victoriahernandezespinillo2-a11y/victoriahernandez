@@ -1068,19 +1068,21 @@ export const adminApi = {
       }
       const q = sp.toString();
       return apiClient
-        .request(`/api/memberships${q ? `?${q}` : ''}`)
+        .request(`/api/admin/memberships${q ? `?${q}` : ''}`)
         .then((res: any) => {
+          // El nuevo endpoint devuelve membershipPlans en lugar de memberships
+          if (Array.isArray(res?.membershipPlans)) return res.membershipPlans;
+          if (Array.isArray(res?.data?.membershipPlans)) return res.data.membershipPlans;
           if (Array.isArray(res)) return res;
-          if (Array.isArray(res?.memberships)) return res.memberships;
-          if (Array.isArray(res?.data?.memberships)) return res.data.memberships;
           return [];
         });
     },
 
     create: (data: any) =>
-      apiClient.request('/api/memberships', {
+      apiClient.request('/api/admin/memberships', {
         method: 'POST',
         body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
       }),
 
     getById: (id: string) => apiClient.request(`/api/memberships/${id}`),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useToast } from '@/components/ToastProvider';
 import Link from 'next/link';
 
 interface Facility {
@@ -17,6 +18,7 @@ interface Facility {
 export default function FacilitiesListPage() {
   const [items, setItems] = useState<Facility[]>([]);
   const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
 
   useEffect(() => { load(); }, []);
 
@@ -32,9 +34,23 @@ export default function FacilitiesListPage() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm('¿Eliminar esta instalación?')) return;
+    const { confirm } = await import('@/components/ConfirmDialog');
+    const ok = await confirm({
+      title: 'Eliminar instalación',
+      description: 'Esta acción no se puede deshacer. ¿Deseas continuar?',
+      tone: 'danger',
+      confirmText: 'Eliminar',
+    });
+    if (!ok) return;
+
     const res = await fetch(`/api/admin/landing/sports/facilities/${id}`, { method: 'DELETE' });
-    if (res.ok) load(); else alert('No se pudo eliminar');
+    if (res.ok) {
+      showToast({ variant: 'success', title: 'Instalación eliminada', message: 'La instalación se eliminó correctamente.' });
+      load();
+    } else {
+      const json = await res.json().catch(() => null);
+      showToast({ variant: 'warning', title: 'No se puede eliminar', message: json?.error || 'No se pudo eliminar' });
+    }
   };
 
   return (
@@ -95,6 +111,9 @@ export default function FacilitiesListPage() {
     </div>
   );
 }
+
+
+
 
 
 

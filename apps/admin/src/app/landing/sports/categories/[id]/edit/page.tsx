@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useToast } from '@/components/ToastProvider';
 import { useRouter, useParams } from 'next/navigation';
 
 export default function EditCategoryPage() {
@@ -10,18 +11,32 @@ export default function EditCategoryPage() {
   const [form, setForm] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [slugError, setSlugError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (!categoryId) return;
     const load = async () => {
-      const res = await fetch(`/api/admin/landing/sports/categories/${categoryId}`);
-      if (res.ok) {
+      try {
+        setLoading(true);
+        const res = await fetch(`/api/admin/landing/sports/categories/${categoryId}`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          showToast({ variant: 'error', title: 'No se pudo cargar', message: err?.error || 'Error obteniendo la categoría' });
+          setForm(null);
+          return;
+        }
         const data = await res.json();
-        setForm(data.category);
+        setForm(data);
+      } catch (e) {
+        showToast({ variant: 'error', title: 'Error', message: 'No se pudo cargar la categoría' });
+        setForm(null);
+      } finally {
+        setLoading(false);
       }
     };
     load();
-  }, [categoryId]);
+  }, [categoryId, showToast]);
 
   const checkSlug = async (slug: string) => {
     setSlugError(null);
@@ -45,14 +60,16 @@ export default function EditCategoryPage() {
       });
       if (!res.ok) {
         const err = await res.json();
-        alert(err.error || 'Error al actualizar');
+        showToast({ variant: 'error', title: 'No se pudo actualizar', message: err.error || 'Error al actualizar' });
         return;
       }
+      showToast({ variant: 'success', title: 'Categoría actualizada', message: 'Los cambios fueron guardados.' });
       router.push(`/landing/sports/categories/${categoryId}`);
     } finally { setSaving(false); }
   };
 
-  if (!form) return <div className="p-6">Cargando...</div>;
+  if (loading) return <div className="p-6">Cargando...</div>;
+  if (!form) return <div className="p-6">No encontrado</div>;
 
   return (
     <div className="p-6 max-w-3xl">

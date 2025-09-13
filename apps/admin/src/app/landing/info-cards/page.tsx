@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/components/ToastProvider';
 import {
   InformationCircleIcon,
   PlusIcon,
@@ -28,6 +29,7 @@ export default function InfoCardsManagement() {
     totalCards: 0,
     activeCards: 0,
   });
+  const { showToast } = useToast();
 
   useEffect(() => {
     fetchData();
@@ -43,7 +45,7 @@ export default function InfoCardsManagement() {
         const infoCardsData = await response.json();
         setInfoCards(infoCardsData);
         
-        // Calcular estadísticas
+        // Calcular estadísticas con los datos recién obtenidos
         const activeCards = infoCardsData.filter((card: InfoCard) => card.isActive).length;
         
         setStats({
@@ -59,9 +61,14 @@ export default function InfoCardsManagement() {
   };
 
   const handleDeleteCard = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar esta tarjeta de información?')) {
-      return;
-    }
+    const { confirm } = await import('@/components/ConfirmDialog');
+    const ok = await confirm({
+      title: 'Eliminar tarjeta',
+      description: 'Esta acción no se puede deshacer. ¿Deseas continuar?',
+      tone: 'danger',
+      confirmText: 'Eliminar',
+    });
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/admin/landing/info-cards/${id}`, {
@@ -69,15 +76,16 @@ export default function InfoCardsManagement() {
       });
 
       if (response.ok) {
+        showToast({ variant: 'success', title: 'Tarjeta eliminada', message: 'Se eliminó correctamente.' });
         setInfoCards(infoCards.filter(card => card.id !== id));
         fetchData(); // Recargar datos para actualizar estadísticas
       } else {
         const error = await response.json();
-        alert(error.error || 'Error al eliminar la tarjeta');
+        showToast({ variant: 'warning', title: 'No se puede eliminar', message: error.error || 'Error al eliminar la tarjeta' });
       }
     } catch (error) {
       console.error('Error deleting info card:', error);
-      alert('Error al eliminar la tarjeta');
+      showToast({ variant: 'error', title: 'Error', message: 'Error al eliminar la tarjeta' });
     }
   };
 

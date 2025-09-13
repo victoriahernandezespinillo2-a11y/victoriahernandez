@@ -15,43 +15,65 @@ import {
   ChevronRight 
 } from 'lucide-react';
 
+import { useLandingData } from "@/src/hooks/useLandingData";
+
 export function HeroSection() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   const router = useRouter();
+  const { hero: heroFromApi } = useLandingData();
 
-  const heroSlides = [
+  // Fallback local por si la API aún no tiene contenido
+  const fallbackSlides = [
     {
       title: "Polideportivo Victoria Hernandez",
       subtitle: "Centro Deportivo Municipal",
       description: "Vive la pasión del deporte en nuestras instalaciones de clase mundial. Reserva, entrena y compite en el mejor ambiente deportivo de la región.",
-      image: "bg-gradient-to-br from-emerald-600 via-blue-600 to-purple-700",
-      cta: "Reservar Ahora",
-      secondaryCta: "Explorar Instalaciones",
-      primaryAction: () => router.push('/dashboard/reservations/new'),
-      secondaryAction: () => handleSmoothScroll('#instalaciones')
+      imageUrl: "",
+      gradient: "bg-gradient-to-br from-emerald-600 via-blue-600 to-purple-700",
+      ctaText: "Reservar Ahora",
+      ctaLink: "/dashboard/reservations/new",
+      secondaryCtaText: "Explorar Instalaciones",
+      secondaryCtaLink: "#instalaciones",
     },
     {
       title: "Instalaciones Modernas",
       subtitle: "Tecnología de Vanguardia",
       description: "Canchas sintéticas, iluminación LED, sistemas de climatización y la mejor tecnología para una experiencia deportiva incomparable.",
-      image: "bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700",
-      cta: "Ver Instalaciones",
-      secondaryCta: "Conocer Más",
-      primaryAction: () => handleSmoothScroll('#instalaciones'),
-      secondaryAction: () => handleSmoothScroll('#info')
+      imageUrl: "",
+      gradient: "bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700",
+      ctaText: "Ver Instalaciones",
+      ctaLink: "#instalaciones",
+      secondaryCtaText: "Conocer Más",
+      secondaryCtaLink: "#info",
     },
     {
       title: "Comunidad Deportiva",
       subtitle: "Únete a Nosotros",
       description: "Más de 5,000 deportistas confían en nosotros. Torneos, clases dirigidas, entrenamiento personal y eventos que transforman vidas.",
-      image: "bg-gradient-to-br from-orange-500 via-red-500 to-pink-600",
-      cta: "Unirse Ahora",
-      secondaryCta: "Ver Eventos",
-      primaryAction: () => router.push('/auth/signin'),
-      secondaryAction: () => handleSmoothScroll('#actividades')
-    }
+      imageUrl: "",
+      gradient: "bg-gradient-to-br from-orange-500 via-red-500 to-pink-600",
+      ctaText: "Unirse Ahora",
+      ctaLink: "/auth/signin",
+      secondaryCtaText: "Ver Eventos",
+      secondaryCtaLink: "#actividades",
+    },
   ];
+
+  // Normalizar slides desde API a estructura de consumo del Hero
+  const slides = (heroFromApi && heroFromApi.length > 0
+    ? heroFromApi.map((h) => ({
+        title: h.title,
+        subtitle: h.subtitle || "",
+        description: h.description || "",
+        imageUrl: h.imageUrl || "",
+        gradient: "bg-gradient-to-br from-emerald-600 via-blue-600 to-purple-700",
+        ctaText: h.ctaText || "",
+        ctaLink: h.ctaLink || "",
+        secondaryCtaText: h.secondaryCtaText || "",
+        secondaryCtaLink: h.secondaryCtaLink || "",
+      }))
+    : fallbackSlides);
 
   // Función para navegación suave
   const handleSmoothScroll = (targetId: string) => {
@@ -68,24 +90,33 @@ export function HeroSection() {
   useEffect(() => {
     setIsVisible(true);
     const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
     }, 6000);
     return () => clearInterval(interval);
-  }, [heroSlides.length]);
+  }, [slides.length]);
 
-  if (heroSlides.length === 0) {
+  if (slides.length === 0) {
     return null;
   }
-  const idx = currentSlide % heroSlides.length;
-  const currentHero = heroSlides[idx];
+  const idx = currentSlide % slides.length;
+  const currentHero = slides[idx];
   if (!currentHero) {
     return null;
   }
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Animated Background */}
-      <div className={`absolute inset-0 ${currentHero.image} animate-gradient transition-all duration-1000`}>
+      {/* Background (imagen de API o gradiente fallback) */}
+      <div className={`absolute inset-0 ${currentHero.imageUrl ? '' : currentHero.gradient} animate-gradient transition-all duration-1000`} style={currentHero.imageUrl ? { backgroundImage: `url(${currentHero.imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}>
+        {/* Readability overlays over photo */}
+        {currentHero.imageUrl && (
+          <>
+            {/* vertical gradient from top to bottom */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/35 to-black/10" />
+            {/* left-right subtle vignette */}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/25 via-transparent to-black/25" />
+          </>
+        )}
         {/* Overlay Pattern */}
         <div className="absolute inset-0 opacity-20">
           <div className="absolute inset-0" style={{
@@ -110,39 +141,39 @@ export function HeroSection() {
           </div>
 
           {/* Main Title */}
-          <h1 className="text-responsive-xl font-black text-white mb-6 leading-tight">
+          <h1 className="text-responsive-xl font-black text-white mb-6 leading-tight filter drop-shadow-[0_6px_24px_rgba(0,0,0,0.6)]">
             <span className="block">{currentHero.title}</span>
-            <span className="block gradient-text-warm animate-gradient">
+            <span className="block gradient-text-warm animate-gradient filter drop-shadow-[0_4px_16px_rgba(0,0,0,0.7)]">
               {currentHero.subtitle}
             </span>
           </h1>
 
           {/* Description */}
-          <p className="text-responsive-md text-white/90 mb-12 max-w-4xl mx-auto leading-relaxed font-light">
+          <p className="text-responsive-md text-white/90 mb-12 max-w-4xl mx-auto leading-relaxed font-light filter drop-shadow-[0_3px_12px_rgba(0,0,0,0.65)]">
             {currentHero.description}
           </p>
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 mb-16">
             <button 
-              onClick={currentHero.primaryAction}
+              onClick={() => window.location.href = currentHero.ctaLink}
               className="group bg-white text-gray-900 px-8 py-4 rounded-2xl font-bold text-lg shadow-2xl hover:shadow-glow transition-all duration-300 hover:scale-105 hover:-translate-y-1 flex items-center space-x-3"
             >
-              {currentSlide === 0 ? <CalendarPlus className="h-5 w-5 text-emerald-600 group-hover:scale-110 transition-transform duration-300" /> : 
-               currentSlide === 1 ? <Eye className="h-5 w-5 text-emerald-600 group-hover:scale-110 transition-transform duration-300" /> : 
+              {idx === 0 ? <CalendarPlus className="h-5 w-5 text-emerald-600 group-hover:scale-110 transition-transform duration-300" /> : 
+               idx === 1 ? <Eye className="h-5 w-5 text-emerald-600 group-hover:scale-110 transition-transform duration-300" /> : 
                <UserPlus className="h-5 w-5 text-emerald-600 group-hover:scale-110 transition-transform duration-300" />}
-              <span>{currentHero.cta}</span>
+              <span>{currentHero.ctaText || 'Ver más'}</span>
               <ArrowRight className="h-5 w-5 text-emerald-600 group-hover:translate-x-1 transition-transform duration-300" />
             </button>
             
-            <button 
-              onClick={currentHero.secondaryAction}
+            <button
+              onClick={() => window.location.href = currentHero.secondaryCtaLink}
               className="group bg-transparent border-2 border-white/50 text-white px-8 py-4 rounded-2xl font-semibold text-lg hover:bg-white/10 hover:border-white transition-all duration-300 hover:scale-105 flex items-center space-x-3"
             >
-              {currentSlide === 0 ? <Compass className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" /> : 
-               currentSlide === 1 ? <Info className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" /> : 
+              {idx === 0 ? <Compass className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" /> : 
+               idx === 1 ? <Info className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" /> : 
                <Calendar className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />}
-              <span>{currentHero.secondaryCta}</span>
+              <span>{currentHero.secondaryCtaText || 'Más información'}</span>
             </button>
           </div>
 
@@ -170,7 +201,7 @@ export function HeroSection() {
 
       {/* Slide Indicators */}
       <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex space-x-3 z-20">
-        {heroSlides.map((_, index) => (
+        {slides.map((_, index) => (
           <button
             key={index}
             onClick={() => setCurrentSlide(index)}
@@ -193,14 +224,14 @@ export function HeroSection() {
 
       {/* Navigation Arrows */}
       <button 
-        onClick={() => setCurrentSlide((prev) => (prev - 1 + heroSlides.length) % heroSlides.length)}
+        onClick={() => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)}
         className="absolute left-8 top-1/2 transform -translate-y-1/2 w-12 h-12 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-all duration-300 hover:scale-110 z-20"
       >
         <ChevronLeft className="h-5 w-5" />
       </button>
       
       <button 
-        onClick={() => setCurrentSlide((prev) => (prev + 1) % heroSlides.length)}
+        onClick={() => setCurrentSlide((prev) => (prev + 1) % slides.length)}
         className="absolute right-8 top-1/2 transform -translate-y-1/2 w-12 h-12 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-all duration-300 hover:scale-110 z-20"
       >
         <ChevronRight className="h-5 w-5" />

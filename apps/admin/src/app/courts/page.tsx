@@ -93,6 +93,10 @@ export default function CourtsPage() {
   const [editingCourt, setEditingCourt] = useState<Court | null>(null);
   const [editForm, setEditForm] = useState<Partial<Court>>({});
 
+  // Estado para el modal de visualización
+  const [showView, setShowView] = useState(false);
+  const [viewingCourt, setViewingCourt] = useState<Court | null>(null);
+
   const itemsPerPage = 8;
 
   // Modal crear cancha
@@ -196,6 +200,11 @@ export default function CourtsPage() {
   const cancelDeleteCourt = () => {
     setDeleteConfirmOpen(false);
     setCourtToDelete(null);
+  };
+
+  const handleViewCourt = (court: Court) => {
+    setViewingCourt(court);
+    setShowView(true);
   };
 
   const handleEditCourt = (court: Court) => {
@@ -467,33 +476,33 @@ export default function CourtsPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-xl">
             <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Editar Cancha: {editingCourt.name}</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Editar Cancha: {editingCourt.name}</h3>
               <button onClick={() => setShowEdit(false)} className="text-gray-500 hover:text-gray-700">✕</button>
             </div>
-            <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto text-gray-900">
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Nombre</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
                 <input
                   value={editForm.name || ''}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Tarifa por Hora (€)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tarifa por Hora (€)</label>
                 <input
                   type="number"
                   value={editForm.hourlyRate || 0}
                   onChange={(e) => setEditForm({ ...editForm, hourlyRate: Number(e.target.value) })}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Estado</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
                 <select
                   value={editForm.status || ''}
                   onChange={(e) => setEditForm({ ...editForm, status: e.target.value as Court['status'] })}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="AVAILABLE">Disponible</option>
                   <option value="MAINTENANCE">Mantenimiento</option>
@@ -502,44 +511,46 @@ export default function CourtsPage() {
               </div>
               {/* Iluminación y extra */}
               <div className="grid grid-cols-2 gap-4">
-                <label className="inline-flex items-center gap-2">
+                <label className="inline-flex items-center gap-2 text-gray-700">
                   <input
                     type="checkbox"
                     checked={Boolean((editForm as any).lighting)}
                     onChange={(e) => setEditForm({ ...editForm, lighting: e.target.checked as any })}
+                    className="text-blue-600 focus:ring-blue-500"
                   />
                   Iluminación
                 </label>
                 {(editForm as any).lighting && (
                   <div>
-                    <label className="block text-sm text-gray-700 mb-1">Precio adicional iluminación (por hora)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Precio adicional iluminación (por hora)</label>
                     <input
                       type="number"
                       min={0}
                       value={Number((editForm as any).lightingExtraPerHour ?? 0)}
                       onChange={(e) => setEditForm({ ...editForm, lightingExtraPerHour: Number(e.target.value) as any })}
-                      className="w-full border rounded px-3 py-2"
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
                 )}
               </div>
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Multiuso</label>
-                <label className="inline-flex items-center gap-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Multiuso</label>
+                <label className="inline-flex items-center gap-2 text-gray-700">
                   <input
                     type="checkbox"
                     checked={Boolean((editForm as any).isMultiuse)}
                     onChange={(e) => setEditForm({ ...editForm, isMultiuse: e.target.checked, allowedSports: e.target.checked ? ((editForm as any).allowedSports || []) : [] })}
+                    className="text-blue-600 focus:ring-blue-500"
                   />
                   Habilitar
                 </label>
               </div>
               {Boolean((editForm as any).isMultiuse) && (
                 <div>
-                  <label className="block text-sm text-gray-700 mb-1">Deportes permitidos</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Deportes permitidos</label>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     {['FOOTBALL7','PADDLE','TENNIS','FUTSAL','BASKETBALL','VOLLEYBALL'].map((code) => (
-                      <label key={code} className="inline-flex items-center gap-2">
+                      <label key={code} className="inline-flex items-center gap-2 text-gray-700">
                         <input
                           type="checkbox"
                           checked={Array.isArray((editForm as any).allowedSports) ? ((editForm as any).allowedSports as string[]).includes(code) : false}
@@ -548,6 +559,7 @@ export default function CourtsPage() {
                             if (e.target.checked) current.add(code); else current.delete(code);
                             setEditForm({ ...editForm, allowedSports: Array.from(current) as any });
                           }}
+                          className="text-blue-600 focus:ring-blue-500"
                         />
                         {typeLabels[code] || code}
                       </label>
@@ -557,13 +569,174 @@ export default function CourtsPage() {
               )}
             </div>
             <div className="p-4 border-t flex justify-end gap-2">
-              <button onClick={() => setShowEdit(false)} className="px-4 py-2 border rounded">Cancelar</button>
+              <button 
+                onClick={() => setShowEdit(false)} 
+                className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                Cancelar
+              </button>
               <button
                 onClick={handleUpdateCourt}
                 disabled={isLoading}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-green-500"
               >
                 {isLoading ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ver Cancha */}
+      {showView && viewingCourt && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900">Detalles de la Cancha</h3>
+              <button 
+                onClick={() => setShowView(false)} 
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Header con nombre y badges */}
+              <div className="flex items-start justify-between">
+                <div>
+                  <h4 className="text-2xl font-bold text-gray-900 mb-2">{viewingCourt.name}</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                      typeColors[viewingCourt.type]
+                    }`}>
+                      {typeLabels[viewingCourt.type]}
+                    </span>
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                      statusColors[viewingCourt.status]
+                    }`}>
+                      {statusLabels[viewingCourt.status]}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-3xl font-bold text-green-600">
+                    €{Number(viewingCourt.hourlyRate || 0).toFixed(2)}
+                  </div>
+                  <div className="text-sm text-gray-500">por hora</div>
+                </div>
+              </div>
+
+              {/* Información del centro */}
+              <div className="flex items-center text-gray-600">
+                <BuildingOfficeIcon className="h-5 w-5 mr-2" />
+                <span className="font-medium">{viewingCourt.centerName}</span>
+              </div>
+
+              {/* Descripción */}
+              {viewingCourt.description && (
+                <div>
+                  <h5 className="text-lg font-semibold text-gray-900 mb-2">Descripción</h5>
+                  <p className="text-gray-600">{viewingCourt.description}</p>
+                </div>
+              )}
+
+              {/* Detalles técnicos */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h5 className="text-lg font-semibold text-gray-900 mb-3">Especificaciones Técnicas</h5>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Dimensiones:</span>
+                      <span className="font-medium">{viewingCourt.dimensions || 'No especificado'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Superficie:</span>
+                      <span className="font-medium">{viewingCourt.surface || 'No especificado'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Capacidad:</span>
+                      <span className="font-medium">{viewingCourt.capacity} personas</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Tipo:</span>
+                      <span className="font-medium">{viewingCourt.covered ? 'Cubierta' : 'Descubierta'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h5 className="text-lg font-semibold text-gray-900 mb-3">Características</h5>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Iluminación:</span>
+                      <span className={`font-medium ${viewingCourt.lighting ? 'text-green-600' : 'text-gray-400'}`}>
+                        {viewingCourt.lighting ? 'Sí' : 'No'}
+                      </span>
+                    </div>
+                    {viewingCourt.lighting && viewingCourt.lightingExtraPerHour && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Extra iluminación:</span>
+                        <span className="font-medium">€{Number(viewingCourt.lightingExtraPerHour).toFixed(2)}/hora</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Multiuso:</span>
+                      <span className={`font-medium ${viewingCourt.isMultiuse ? 'text-blue-600' : 'text-gray-400'}`}>
+                        {viewingCourt.isMultiuse ? 'Sí' : 'No'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Deportes permitidos (si es multiuso) */}
+              {viewingCourt.isMultiuse && viewingCourt.allowedSports && viewingCourt.allowedSports.length > 0 && (
+                <div>
+                  <h5 className="text-lg font-semibold text-gray-900 mb-3">Deportes Permitidos</h5>
+                  <div className="flex flex-wrap gap-2">
+                    {viewingCourt.allowedSports.map((sport, index) => (
+                      <span key={index} className="inline-flex px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-full">
+                        {typeLabels[sport] || sport}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Características adicionales */}
+              {viewingCourt.features && viewingCourt.features.length > 0 && (
+                <div>
+                  <h5 className="text-lg font-semibold text-gray-900 mb-3">Características Adicionales</h5>
+                  <div className="flex flex-wrap gap-2">
+                    {viewingCourt.features.map((feature, index) => (
+                      <span key={index} className="inline-flex px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-full">
+                        {feature}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Información de fechas */}
+              <div className="pt-4 border-t border-gray-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-500">
+                  <div>
+                    <span className="font-medium">Creada:</span> {new Date(viewingCourt.createdAt).toLocaleDateString('es-ES')}
+                  </div>
+                  <div>
+                    <span className="font-medium">ID:</span> {viewingCourt.id}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setShowView(false)}
+                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Cerrar
               </button>
             </div>
           </div>
@@ -661,7 +834,11 @@ export default function CourtsPage() {
                   </div>
                 </div>
                 <div className="flex space-x-1">
-                  <button className="text-blue-600 hover:text-blue-900 p-1">
+                  <button 
+                    className="text-blue-600 hover:text-blue-900 p-1"
+                    onClick={() => handleViewCourt(court)}
+                    title="Ver detalles de la cancha"
+                  >
                     <EyeIcon className="h-4 w-4" />
                   </button>
                   <button 
@@ -811,20 +988,41 @@ export default function CourtsPage() {
       )}
 
       {/* Modal de confirmación de eliminación */}
-      <ConfirmDialog
-        open={deleteConfirmOpen}
-        title="Eliminar cancha"
-        description={
-          courtToDelete
-            ? `¿Estás seguro de que deseas eliminar la cancha "${courtToDelete.name}"? Esta acción no se puede deshacer y se eliminarán todas las reservas asociadas.`
-            : ''
-        }
-        confirmText="Eliminar"
-        cancelText="Cancelar"
-        variant="danger"
-        onConfirm={confirmDeleteCourt}
-        onCancel={cancelDeleteCourt}
-      />
+      {deleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Eliminar cancha</h3>
+            {courtToDelete && (
+              <div className="text-sm text-gray-600 mb-6">
+                <p className="mb-4">
+                  ¿Estás seguro de que deseas eliminar la cancha "{courtToDelete.name}"?
+                </p>
+                <p className="mb-2">Esta acción eliminará COMPLETAMENTE:</p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>La cancha de la base de datos</li>
+                  <li>Todas las reservas asociadas</li>
+                  <li>Todos los datos relacionados</li>
+                </ul>
+                <p className="mt-4 text-red-600 font-semibold">⚠️ Esta acción NO se puede deshacer.</p>
+              </div>
+            )}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={cancelDeleteCourt}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeleteCourt}
+                className="px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700"
+              >
+                Eliminar permanentemente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

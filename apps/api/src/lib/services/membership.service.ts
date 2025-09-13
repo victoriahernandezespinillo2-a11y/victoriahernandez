@@ -24,6 +24,25 @@ export const UpdateMembershipSchema = z.object({
   autoRenew: z.boolean().optional(),
 });
 
+export const CreateMembershipPlanSchema = z.object({
+  name: z.string().min(1, 'El nombre es requerido').max(100, 'El nombre es muy largo'),
+  type: z.enum(['BASIC', 'PREMIUM', 'VIP'], { errorMap: () => ({ message: 'Tipo de plan inválido' }) }),
+  price: z.number().min(0, 'El precio debe ser mayor o igual a 0'),
+  durationMonths: z.number().min(1, 'La duración debe ser al menos 1 mes').max(24, 'La duración máxima es 24 meses').default(1),
+  benefits: z.object({
+    features: z.array(z.string()).min(1, 'Debe tener al menos un beneficio'),
+    maxReservations: z.number().min(-1).default(-1), // -1 = ilimitadas
+    discountPercentage: z.number().min(0).max(100).default(0),
+    priorityBooking: z.boolean().default(false),
+    freeHours: z.number().min(0).default(0),
+    guestPasses: z.number().min(0).default(0),
+    accessToEvents: z.boolean().default(false),
+    personalTrainer: z.boolean().default(false),
+  }),
+  isActive: z.boolean().default(true),
+  description: z.string().optional(),
+});
+
 // Sin tipos de Prisma; usamos literales de cadena para los tipos
 
 export const GetMembershipsSchema = z.object({
@@ -664,5 +683,36 @@ export class MembershipService {
         popular: false,
       }));
     }
+  }
+
+  /**
+   * Crear un nuevo plan de membresía
+   */
+  async createMembershipPlan(data: z.infer<typeof CreateMembershipPlanSchema>) {
+    const validatedData = CreateMembershipPlanSchema.parse(data);
+
+    // Verificar que no existe un plan con el mismo nombre
+    const existingPlan = await db.membershipPlan.findFirst({
+      where: { name: validatedData.name }
+    });
+
+    if (existingPlan) {
+      throw new Error('Ya existe un plan con ese nombre');
+    }
+
+    // Crear el plan de membresía
+    const membershipPlan = await db.membershipPlan.create({
+      data: {
+        name: validatedData.name,
+        type: validatedData.type,
+        monthlyPrice: validatedData.price,
+        benefits: validatedData.benefits,
+        isActive: validatedData.isActive,
+        description: validatedData.description,
+        isPopular: false, // Por defecto no es popular
+      },
+    });
+
+    return membershipPlan;
   }
 }

@@ -602,26 +602,32 @@ export default function AdminNewReservationPage() {
         )}
       </div>
 
-      <ConfirmDialog
-        open={confirmOverrideOpen}
-        title="Confirmar ajuste de precio"
-        description={(() => {
-          const baseTotal = Number(price?.final || 0);
-          const amt = Number(overrideAmount || '0');
-          const newTotal = baseTotal + (Number.isFinite(amt) ? amt : 0);
-          return (
-            <div className="text-sm">
-              <p>Se aplicará un ajuste de €{(Number.isFinite(amt) ? amt : 0).toFixed(2)} con motivo:</p>
-              <p className="mt-1 italic">“{overrideReason}”</p>
-              <p className="mt-2">Total anterior: €{baseTotal.toFixed(2)} → Nuevo total: €{newTotal.toFixed(2)}</p>
+      {confirmOverrideOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Confirmar ajuste de precio</h3>
+            <div className="text-sm text-gray-600 mb-6">
+              <p>Se aplicará un ajuste de €{(Number.isFinite(Number(overrideAmount)) ? Number(overrideAmount) : 0).toFixed(2)} con motivo:</p>
+              <p className="mt-1 italic">"{overrideReason}"</p>
+              <p className="mt-2">Total anterior: €{(Number(price?.final || 0)).toFixed(2)} → Nuevo total: €{(Number(price?.final || 0) + (Number.isFinite(Number(overrideAmount)) ? Number(overrideAmount) : 0)).toFixed(2)}</p>
             </div>
-          ) as any;
-        })()}
-        confirmText="Confirmar y crear"
-        variant="danger"
-        onConfirm={confirmCreateWithOverride}
-        onCancel={() => setConfirmOverrideOpen(false)}
-      />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmOverrideOpen(false)}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmCreateWithOverride}
+                className="px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700"
+              >
+                Confirmar y crear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

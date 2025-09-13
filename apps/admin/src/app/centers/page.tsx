@@ -218,7 +218,14 @@ export default function CentersPage() {
   const paginatedCenters = filteredCenters.slice(startIndex, startIndex + itemsPerPage);
 
   const handleDeleteCenter = async (centerId: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar este centro?')) {
+    const { confirm } = await import('@/components/ConfirmDialog');
+    const ok = await confirm({
+      title: 'Eliminar centro',
+      description: 'Esta acción no se puede deshacer. ¿Deseas continuar?',
+      tone: 'danger',
+      confirmText: 'Eliminar',
+    });
+    if (ok) {
       try {
         await deleteCenter(centerId);
       } catch (error) {

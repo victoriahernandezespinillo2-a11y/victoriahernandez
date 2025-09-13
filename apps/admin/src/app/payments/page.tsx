@@ -56,6 +56,22 @@ const getStatusColor = (status: string) => {
   }
 };
 
+const mapPaymentStatus = (status: string) => {
+  const statusMap: { [key: string]: string } = {
+    'PAID': 'completed',
+    'PENDING': 'pending',
+    'FAILED': 'failed',
+    'CANCELLED': 'failed',
+    'REFUNDED': 'refunded',
+    'PROCESSING': 'pending',
+    'completed': 'completed',
+    'pending': 'pending',
+    'failed': 'failed',
+    'refunded': 'refunded'
+  };
+  return statusMap[status.toUpperCase()] || 'pending';
+};
+
 const getMethodName = (method: string) => {
   switch (method) {
     case 'credit_card':
@@ -73,28 +89,53 @@ const getMethodName = (method: string) => {
 
 export default function PaymentsPage() {
   const { payments, loading, error, getPayments } = useAdminPayments();
+  
+  // Debug logging
+  console.log('💳 [PAYMENTS] Estado actual:', { 
+    payments: payments, 
+    paymentsLength: Array.isArray(payments) ? payments.length : 'No es array',
+    paymentsType: typeof payments,
+    loading, 
+    error 
+  });
+  console.log('🔍 [PAYMENTS] Contenido de payments:', payments);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [methodFilter, setMethodFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  
+  // Estados para modales y acciones
+  const [selectedPayment, setSelectedPayment] = useState<PaymentRow | null>(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
-    getPayments({ page: 1, limit: 100 }).catch(() => {});
+    console.log('💳 [PAYMENTS] Cargando pagos...');
+    getPayments({ page: 1, limit: 100 }).then((result) => {
+      console.log('✅ [PAYMENTS] Pagos cargados:', result?.length || 0, 'pagos');
+    }).catch((error) => {
+      console.error('❌ [PAYMENTS] Error cargando pagos:', error);
+    });
   }, [getPayments]);
 
   const rows: PaymentRow[] = useMemo(() => {
     const list = Array.isArray(payments) ? payments : [];
-    return list.map((p: any) => ({
+    console.log('🔍 [PAYMENTS] Datos originales:', list.slice(0, 3)); // Primeros 3 para debug
+    const mapped = list.map((p: any) => ({
       id: p.id,
       user: p.user?.name || p.userName || p.userId || '—',
       reservation: p.reservationId || p.reservation?.id || '—',
       amount: Number(p.totalPrice || p.amount || 0),
       method: (p.paymentMethod || p.method || 'UNKNOWN').toLowerCase(),
-      status: (p.status || 'PENDING').toLowerCase(),
+      status: mapPaymentStatus(p.status || 'PENDING'),
       date: p.createdAt || p.paidAt || new Date().toISOString(),
       transactionId: p.transactionId || p.externalId || p.id,
     }));
+    console.log('🔍 [PAYMENTS] Datos mapeados:', mapped.slice(0, 3)); // Primeros 3 para debug
+    console.log('📊 [PAYMENTS] Estados únicos:', [...new Set(mapped.map(p => p.status))]);
+    return mapped;
   }, [payments]);
 
   const filteredPayments = rows.filter(payment => {
@@ -117,6 +158,45 @@ export default function PaymentsPage() {
   const completedPayments = rows.filter(p => p.status === 'completed').length;
   const pendingPayments = rows.filter(p => p.status === 'pending').length;
   const failedPayments = rows.filter(p => p.status === 'failed').length;
+
+  // Funciones para manejar acciones
+  const handleViewPayment = (payment: PaymentRow) => {
+    setSelectedPayment(payment);
+    setShowViewModal(true);
+  };
+
+  const handleEditPayment = (payment: PaymentRow) => {
+    setSelectedPayment(payment);
+    setShowEditModal(true);
+  };
+
+  const handleDeletePayment = (payment: PaymentRow) => {
+    setSelectedPayment(payment);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeletePayment = async () => {
+    if (!selectedPayment) return;
+    
+    try {
+      // Aquí implementarías la llamada a la API para eliminar el pago
+      console.log('🗑️ [PAYMENTS] Eliminando pago:', selectedPayment.id);
+      // await deletePayment(selectedPayment.id);
+      setShowDeleteModal(false);
+      setSelectedPayment(null);
+      // Recargar la lista de pagos
+      getPayments({ page: 1, limit: 100 });
+    } catch (error) {
+      console.error('❌ [PAYMENTS] Error eliminando pago:', error);
+    }
+  };
+
+  const closeModals = () => {
+    setShowViewModal(false);
+    setShowEditModal(false);
+    setShowDeleteModal(false);
+    setSelectedPayment(null);
+  };
 
   return (
     <div className="p-6">
@@ -282,13 +362,25 @@ export default function PaymentsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center gap-2">
-                      <button className="text-blue-600 hover:text-blue-900">
+                      <button 
+                        onClick={() => handleViewPayment(payment)}
+                        className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
+                        title="Ver detalles"
+                      >
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button className="text-green-600 hover:text-green-900">
+                      <button 
+                        onClick={() => handleEditPayment(payment)}
+                        className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50"
+                        title="Editar pago"
+                      >
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button className="text-red-600 hover:text-red-900">
+                      <button 
+                        onClick={() => handleDeletePayment(payment)}
+                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
+                        title="Eliminar pago"
+                      >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -359,6 +451,172 @@ export default function PaymentsPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal Ver Pago */}
+      {showViewModal && selectedPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Detalles del Pago</h3>
+              <button 
+                onClick={closeModals}
+                className="text-gray-500 hover:text-gray-700 text-xl"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600">ID de Transacción</label>
+                  <p className="text-sm text-gray-900">{selectedPayment.transactionId}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Usuario</label>
+                  <p className="text-sm text-gray-900">{selectedPayment.user}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Monto</label>
+                  <p className="text-sm text-gray-900">${selectedPayment.amount}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Método</label>
+                  <p className="text-sm text-gray-900">{getMethodName(selectedPayment.method)}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Estado</label>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedPayment.status)}`}>
+                    {getStatusIcon(selectedPayment.status)}
+                    <span className="ml-1">{selectedPayment.status}</span>
+                  </span>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Fecha</label>
+                  <p className="text-sm text-gray-900">
+                    {new Date(selectedPayment.date).toLocaleDateString('es-ES', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Reserva</label>
+                <p className="text-sm text-gray-900">{selectedPayment.reservation}</p>
+              </div>
+            </div>
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={closeModals}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Pago */}
+      {showEditModal && selectedPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Editar Pago</h3>
+              <button 
+                onClick={closeModals}
+                className="text-gray-500 hover:text-gray-700 text-xl"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                <select 
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                  defaultValue={selectedPayment.status}
+                >
+                  <option value="pending">Pendiente</option>
+                  <option value="completed">Completado</option>
+                  <option value="failed">Fallido</option>
+                  <option value="refunded">Reembolsado</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Monto</label>
+                <input 
+                  type="number"
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                  defaultValue={selectedPayment.amount}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={closeModals}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  console.log('💾 [PAYMENTS] Guardando cambios para:', selectedPayment.id);
+                  closeModals();
+                }}
+                className="px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Guardar Cambios
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Eliminar Pago */}
+      {showDeleteModal && selectedPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Eliminar Pago</h3>
+              <button 
+                onClick={closeModals}
+                className="text-gray-500 hover:text-gray-700 text-xl"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-600 mb-4">
+                ¿Estás seguro de que deseas eliminar este pago?
+              </p>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="text-sm font-medium text-gray-900">ID: {selectedPayment.transactionId}</p>
+                <p className="text-sm text-gray-600">Usuario: {selectedPayment.user}</p>
+                <p className="text-sm text-gray-600">Monto: ${selectedPayment.amount}</p>
+              </div>
+              <p className="text-xs text-red-600 mt-2">⚠️ Esta acción no se puede deshacer.</p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={closeModals}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeletePayment}
+                className="px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700"
+              >
+                Eliminar Pago
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

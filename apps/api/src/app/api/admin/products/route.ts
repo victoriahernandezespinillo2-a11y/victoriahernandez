@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
   return withAdminMiddleware(async (req) => {
     try {
       const params = ListSchema.parse(Object.fromEntries(req.nextUrl.searchParams.entries()));
+      
       const where: any = {};
       if (params.centerId) where.centerId = params.centerId;
       if (params.active !== undefined) where.isActive = params.active;
@@ -40,11 +41,13 @@ export async function GET(request: NextRequest) {
           { category: { contains: params.search, mode: 'insensitive' } },
         ];
       }
+      
       const skip = (params.page - 1) * params.limit;
       const [items, total] = await Promise.all([
         (db as any).product.findMany({ where, skip, take: params.limit, orderBy: { updatedAt: 'desc' } }),
         (db as any).product.count({ where }),
       ]);
+      
       return ApiResponse.success({ items, pagination: { page: params.page, limit: params.limit, total, pages: Math.ceil(total / params.limit) } });
     } catch (error) {
       if (error instanceof z.ZodError) return ApiResponse.validation(error.errors.map(e => ({ field: e.path.join('.'), message: e.message })));
@@ -84,7 +87,9 @@ export async function POST(request: NextRequest) {
       }});
       return ApiResponse.success(created, 201);
     } catch (error) {
-      if (error instanceof z.ZodError) return ApiResponse.validation(error.errors.map(e => ({ field: e.path.join('.'), message: e.message })));
+      if (error instanceof z.ZodError) {
+        return ApiResponse.validation(error.errors.map(e => ({ field: e.path.join('.'), message: e.message })));
+      }
       return ApiResponse.internalError('Error creando producto');
     }
   })(request);

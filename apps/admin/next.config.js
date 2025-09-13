@@ -4,6 +4,31 @@ const nextConfig = {
   pageExtensions: ['ts', 'tsx', 'js', 'jsx'],
   // Configuración para el monorepo
   transpilePackages: ['@repo/ui'],
+  // Permitir dominios externos de logos/imagenes usados en el panel
+  images: {
+    domains: [
+      'images.unsplash.com',
+      'www.madrid.es',
+      'madrid.es',
+      'identidad.madrid.es',
+      'res.cloudinary.com',
+      'upload.wikimedia.org',
+      'pbs.twimg.com',
+      'img.freepik.com',
+      'static.vecteezy.com',
+    ],
+    remotePatterns: [
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: 'www.madrid.es' },
+      { protocol: 'https', hostname: 'madrid.es' },
+      { protocol: 'https', hostname: 'identidad.madrid.es' },
+      { protocol: 'https', hostname: 'res.cloudinary.com' },
+      { protocol: 'https', hostname: 'upload.wikimedia.org' },
+      { protocol: 'https', hostname: 'pbs.twimg.com' },
+      { protocol: 'https', hostname: 'img.freepik.com' },
+      { protocol: 'https', hostname: 'static.vecteezy.com' },
+    ],
+  },
   
   // Configurar rewrites para redirigir llamadas API al servidor API
   // EXCLUIR rutas de autenticación para evitar conflictos

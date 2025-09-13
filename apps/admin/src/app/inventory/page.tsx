@@ -118,6 +118,7 @@ export default function InventoryPage() {
 
   const fetchProducts = async () => {
     try {
+      console.log('📦 [INVENTORY] Cargando productos...');
       const params = new URLSearchParams({
         limit: '100',
         ...(search && { search }),
@@ -125,7 +126,9 @@ export default function InventoryPage() {
         active: 'true',
       });
       
+      console.log('🌐 [INVENTORY] URL productos:', `/api/admin/products?${params}`);
       const response = await fetch(`/api/admin/products?${params}`, { credentials: 'include' });
+      console.log('📡 [INVENTORY] Respuesta productos:', response.status, response.statusText);
       
       // Verificar si la respuesta es exitosa
       if (!response.ok) {
@@ -150,17 +153,24 @@ export default function InventoryPage() {
       }
       
       if (data.success) {
+        console.log('✅ [INVENTORY] Productos cargados:', data.data.items.length);
+        console.log('📋 [INVENTORY] Productos:', data.data.items);
+        console.log('📊 [INVENTORY] Stock del primer producto:', data.data.items[0]?.stockQty);
         setProducts(data.data.items);
+      } else {
+        console.error('❌ [INVENTORY] Error cargando productos:', data.message);
       }
     } catch (error) {
-      console.error('Error fetching products:', error);
+      console.error('❌ [INVENTORY] Error fetching products:', error);
     }
   };
 
   const fetchMovements = async () => {
     setLoading(true);
     try {
+      console.log('📊 [INVENTORY] Cargando movimientos...');
       const response = await fetch('/api/admin/inventory/movements', { credentials: 'include' });
+      console.log('📡 [INVENTORY] Respuesta movimientos:', response.status, response.statusText);
       
       // Verificar si la respuesta es exitosa
       if (!response.ok) {
@@ -185,10 +195,14 @@ export default function InventoryPage() {
       }
       
       if (data.success) {
+        console.log('✅ [INVENTORY] Movimientos cargados:', data.data.length);
+        console.log('📋 [INVENTORY] Movimientos:', data.data);
         setMovements(data.data);
+      } else {
+        console.error('❌ [INVENTORY] Error cargando movimientos:', data.message);
       }
     } catch (error) {
-      console.error('Error fetching movements:', error);
+      console.error('❌ [INVENTORY] Error fetching movements:', error);
     } finally {
       setLoading(false);
     }

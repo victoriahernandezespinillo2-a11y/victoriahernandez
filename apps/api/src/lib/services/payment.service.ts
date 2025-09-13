@@ -464,31 +464,45 @@ export class PaymentService {
         ];
       }
 
-      const [payments, total] = await Promise.all([
-        (prisma as any).payment.findMany({
+      const [orders, total] = await Promise.all([
+        (prisma as any).order.findMany({
           where,
           skip,
           take: limit,
           orderBy: { createdAt: 'desc' },
           include: {
             user: { select: { id: true, firstName: true, lastName: true, email: true } },
-            reservation: {
-              select: {
-                id: true,
-                startTime: true,
-                endTime: true,
-                court: { select: { name: true, center: { select: { name: true } } } },
-              },
-            },
-            membership: { select: { id: true, type: true, startDate: true, endDate: true } },
-            refunds: { select: { id: true, amount: true, status: true, createdAt: true } },
+            items: {
+              include: {
+                product: { select: { name: true, sku: true } }
+              }
+            }
           },
         }),
-        (prisma as any).payment.count({ where }),
+        (prisma as any).order.count({ where }),
       ]);
 
+      // Mapear orders a formato de pagos para compatibilidad
+      const payments = orders.map((order: any) => ({
+        id: order.id,
+        userId: order.userId,
+        user: order.user,
+        amount: order.totalEuro,
+        status: order.status,
+        paymentMethod: order.paymentMethod,
+        paymentIntentId: order.paymentIntentId,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        items: order.items,
+        // Campos adicionales para compatibilidad
+        totalPrice: order.totalEuro,
+        provider: 'MANUAL', // Por defecto, se puede mejorar
+        currency: 'EUR',
+        description: `Pedido ${order.id}`,
+      }));
+
       return {
-        payments,
+        items: payments,
         pagination: { page, limit, total, pages: Math.ceil(total / limit) },
       };
     } catch (e) {
@@ -536,7 +550,7 @@ export class PaymentService {
       }));
 
       return {
-        payments,
+        items: payments,
         pagination: { page, limit, total, pages: Math.ceil(total / limit) },
       };
     }

@@ -31,7 +31,14 @@ export default function TagsPage() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm('Eliminar tag?')) return;
+    const { confirm } = await import('@/components/ConfirmDialog');
+    const ok = await confirm({
+      title: 'Eliminar etiqueta',
+      description: 'Esta acción no se puede deshacer. ¿Deseas continuar?',
+      tone: 'danger',
+      confirmText: 'Eliminar',
+    });
+    if (!ok) return;
     const res = await fetch(`/api/admin/blog/tags/${id}`, { method: 'DELETE', credentials: 'include' });
     const json = await res.json();
     if (!res.ok || !json?.success) return alert(json?.error || 'Error');
@@ -67,6 +74,9 @@ export default function TagsPage() {
     </div>
   );
 }
+
+
+
 
 
 

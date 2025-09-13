@@ -123,6 +123,9 @@ export async function POST(request: NextRequest) {
         if (error.message.includes('conflicto') || error.message.includes('duplicado')) {
           return API.conflict(error.message);
         }
+        if (error.message.includes('es requerido') || error.message.includes('no encontrada')) {
+          return API.badRequest(error.message);
+        }
       }
       return API.internalError('Error interno del servidor');
     }

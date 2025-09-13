@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useLandingData } from "@/src/hooks/useLandingData";
 
 export function TestimonialsSection() {
   const [isVisible, setIsVisible] = useState(false);
@@ -11,7 +12,8 @@ export function TestimonialsSection() {
   const router = useRouter();
   const { status } = useSession();
 
-  const testimonials = [
+  // Fallback local si la API no devuelve testimonios
+  const fallbackTestimonials = [
     {
       id: 1,
       name: "María González",
@@ -85,6 +87,23 @@ export function TestimonialsSection() {
       highlight: "Instalaciones profesionales"
     }
   ];
+
+  // Traer testimonios desde API pública
+  const { testimonials: testimonialsFromApi } = useLandingData();
+  const testimonials = (testimonialsFromApi && testimonialsFromApi.length > 0)
+    ? testimonialsFromApi.map((t) => ({
+        id: t.id,
+        name: t.name,
+        role: t.role || "",
+        company: t.company || "",
+        imageUrl: t.imageUrl || "",
+        rating: t.rating || 5,
+        text: t.content,
+        sport: t.sport || "",
+        experience: t.experience || "",
+        highlight: t.highlight || "",
+      }))
+    : fallbackTestimonials;
 
   const stats = [
     { value: "4.9", label: "Calificación Promedio", icon: "fas fa-star" },
@@ -221,8 +240,13 @@ export function TestimonialsSection() {
 
                   {/* Author Info */}
                   <div className="flex items-center space-x-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-gray-200 to-gray-400 rounded-2xl flex items-center justify-center">
-                      <i className="fas fa-user text-2xl text-gray-600"></i>
+                    <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-200 flex items-center justify-center">
+                      {(currentTest as any).imageUrl || (currentTest as any).image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={(currentTest as any).imageUrl || (currentTest as any).image} alt={currentTest.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <i className="fas fa-user text-2xl text-gray-600"></i>
+                      )}
                     </div>
                     <div>
                       <div className="font-bold text-gray-900 text-lg">{currentTest.name}</div>
@@ -295,8 +319,13 @@ export function TestimonialsSection() {
                 </p>
                 
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-gray-200 to-gray-400 rounded-xl flex items-center justify-center">
-                    <i className="fas fa-user text-gray-600"></i>
+                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-200 flex items-center justify-center">
+                    {(testimonial as any).imageUrl || (testimonial as any).image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={(testimonial as any).imageUrl || (testimonial as any).image} alt={testimonial.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <i className="fas fa-user text-gray-600"></i>
+                    )}
                   </div>
                   <div>
                     <div className="font-semibold text-gray-900 text-sm">{testimonial.name}</div>

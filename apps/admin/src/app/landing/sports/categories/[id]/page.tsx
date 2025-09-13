@@ -17,7 +17,7 @@ export default function ViewCategoryPage() {
       const res = await fetch(`/api/admin/landing/sports/categories/${categoryId}`);
       if (res.ok) {
         const data = await res.json();
-        setCat(data.category);
+        setCat(data);
       }
       setLoading(false);
     };

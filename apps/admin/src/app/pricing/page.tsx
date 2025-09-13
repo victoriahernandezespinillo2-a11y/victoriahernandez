@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { adminApi } from '../../lib/api';
+import HelpTooltip from '../../components/HelpTooltip';
 import {
   MagnifyingGlassIcon as Search,
   PlusIcon as Plus,
@@ -172,13 +173,21 @@ export default function PricingPage() {
     try {
       setLoading(true);
       setError(null);
+      
+      // Obtener el precio base de la cancha seleccionada
+      const selectedCourt = courts.find(c => c.id === formCourtId);
+      const basePrice = (selectedCourt as any)?.hourlyRate || 0;
+      
       const payload: any = {
         name: formName,
         courtId: formCourtId || undefined,
-        timeStart: formTimeStart,
-        timeEnd: formTimeEnd,
+        basePrice: basePrice,
+        timeSlots: [{
+          start: formTimeStart,
+          end: formTimeEnd,
+          multiplier: formMultiplier
+        }],
         daysOfWeek: formDaysOfWeek,
-        priceMultiplier: formMultiplier,
         membershipDiscount: formMemberDiscountPct, // %; el servicio normaliza
         isActive: formIsActive,
       };
@@ -201,7 +210,14 @@ export default function PricingPage() {
   };
 
   const onDeleteRule = async (id: string) => {
-    if (!confirm('¿Eliminar esta regla de precios?')) return;
+    const { confirm } = await import('@/components/ConfirmDialog');
+    const ok = await confirm({
+      title: 'Eliminar regla de precios',
+      description: 'Esta acción no se puede deshacer. ¿Deseas continuar?',
+      tone: 'danger',
+      confirmText: 'Eliminar',
+    });
+    if (!ok) return;
     try {
       setLoading(true);
       await adminApi.pricing.deleteRule(id);
@@ -524,7 +540,13 @@ export default function PricingPage() {
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la regla</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                  Nombre de la regla
+                  <HelpTooltip 
+                    content="Nombre descriptivo para identificar la regla de precios. Ejemplo: 'Fútbol - Horario Normal', 'Pádel - Fin de Semana', etc."
+                    position="top"
+                  />
+                </label>
                 <input
                   type="text"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -536,7 +558,13 @@ export default function PricingPage() {
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de cancha</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                    Tipo de cancha
+                    <HelpTooltip 
+                      content="Selecciona la cancha específica a la que se aplicará esta regla de precios. La regla solo afectará a la cancha seleccionada."
+                      position="top"
+                    />
+                  </label>
                   <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" value={formCourtId} onChange={(e) => setFormCourtId(e.target.value)}>
                     <option value="">Selecciona una cancha</option>
                     {courts.map((c) => (
@@ -545,14 +573,26 @@ export default function PricingPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Centro</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                    Centro
+                    <HelpTooltip 
+                      content="Centro deportivo al que pertenece la cancha. Se muestra automáticamente al seleccionar una cancha."
+                      position="top"
+                    />
+                  </label>
                   <input disabled value={formCourtId ? (courtById.get(formCourtId)?.center?.name || '-') : ''} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50" />
                 </div>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora inicio</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                    Hora inicio
+                    <HelpTooltip 
+                      content="Hora de inicio del horario especial. La regla se aplicará desde esta hora hasta la hora de fin. Ejemplo: 18:00 para horario nocturno."
+                      position="top"
+                    />
+                  </label>
                   <input
                     type="time"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -561,7 +601,13 @@ export default function PricingPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora fin</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                    Hora fin
+                    <HelpTooltip 
+                      content="Hora de fin del horario especial. La regla se aplicará desde la hora de inicio hasta esta hora. Ejemplo: 22:00 para horario nocturno."
+                      position="top"
+                    />
+                  </label>
                   <input
                     type="time"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -573,17 +619,45 @@ export default function PricingPage() {
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Multiplicador</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                    Multiplicador
+                    <HelpTooltip 
+                      content="Factor que multiplica el precio base de la cancha:
+• 1.0 = Precio normal (sin cambio)
+• 1.5 = +50% más caro (horario pico)
+• 0.8 = -20% más barato (horario bajo)
+• 2.0 = Doble precio (eventos especiales)"
+                      position="top"
+                    />
+                  </label>
                   <input type="number" step="0.1" min="0.1" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" value={formMultiplier} onChange={(e) => setFormMultiplier(Number(e.target.value))} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Descuento membresía (%)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                    Descuento membresía (%)
+                    <HelpTooltip 
+                      content="Descuento adicional que se aplica solo a miembros con membresía activa. Se aplica después del multiplicador:
+• 0% = Sin descuento
+• 10% = 10% de descuento para miembros
+• 20% = 20% de descuento para miembros"
+                      position="top"
+                    />
+                  </label>
                   <input type="number" min="0" max="100" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" value={formMemberDiscountPct} onChange={(e) => setFormMemberDiscountPct(Number(e.target.value))} />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Días de la semana</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  Días de la semana
+                  <HelpTooltip 
+                    content="Selecciona los días de la semana en los que se aplicará esta regla de precios:
+• L = Lunes, M = Martes, X = Miércoles, J = Jueves
+• V = Viernes, S = Sábado, D = Domingo
+• Puedes seleccionar múltiples días"
+                    position="top"
+                  />
+                </label>
                 <div className="flex flex-wrap gap-2">
                   {[1,2,3,4,5,6,7].map((d) => (
                     <label key={d} className={`px-3 py-1 rounded border cursor-pointer ${formDaysOfWeek.includes(d) ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-300 text-gray-700'}`}>
@@ -596,7 +670,13 @@ export default function PricingPage() {
 
               <div className="flex items-center gap-3">
                 <input id="active" type="checkbox" checked={formIsActive} onChange={(e) => setFormIsActive(e.target.checked)} />
-                <label htmlFor="active" className="text-sm text-gray-700">Activa</label>
+                <label htmlFor="active" className="text-sm text-gray-700 flex items-center gap-2">
+                  Activa
+                  <HelpTooltip 
+                    content="Indica si la regla de precios está activa y se aplicará a las reservas. Si está desactivada, la regla no se utilizará en los cálculos de precios."
+                    position="top"
+                  />
+                </label>
               </div>
               
               <div className="flex justify-end gap-3 pt-4">

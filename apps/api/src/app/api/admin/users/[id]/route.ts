@@ -10,6 +10,7 @@ import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { z } from 'zod';
 import { hashPassword } from '@repo/auth';
+import { deleteFirebaseUser, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 
 // Usar cliente compartido
 
@@ -245,7 +246,7 @@ export async function PUT(request: NextRequest) {
 
 /**
  * DELETE /api/admin/users/[id]
- * Eliminar un usuario específico (soft delete)
+ * Eliminar un usuario específico (eliminación completa)
  * Acceso: ADMIN únicamente
  */
 export async function DELETE(request: NextRequest) {
@@ -254,6 +255,8 @@ export async function DELETE(request: NextRequest) {
       const adminUser = (req as any).user;
       const pathname = req.nextUrl.pathname;
       const userId = pathname.split('/').pop() as string;
+      
+      console.log(`[DELETE USER] Iniciando eliminación del usuario: ${userId}`);
       
       // Verificar que el usuario existe
       const existingUser = await db.user.findUnique({
@@ -279,40 +282,95 @@ export async function DELETE(request: NextRequest) {
       });
       
       if (!existingUser) {
+        console.log(`[DELETE USER] Usuario no encontrado: ${userId}`);
         return ApiResponse.notFound('Usuario no encontrado');
       }
       
+      console.log(`[DELETE USER] Usuario encontrado: ${existingUser.email}`);
+      
       // Verificar que no sea el mismo admin
       if (userId === adminUser?.id) {
+        console.log(`[DELETE USER] Intento de auto-eliminación bloqueado: ${userId}`);
         return ApiResponse.badRequest('No puedes eliminar tu propia cuenta');
       }
       
       // Verificar si tiene reservas o membresías activas
+      console.log(`[DELETE USER] Reservas activas: ${existingUser.reservations.length}, Membresías activas: ${existingUser.memberships.length}`);
+      
       if (existingUser.reservations.length > 0 || existingUser.memberships.length > 0) {
+        console.log(`[DELETE USER] Usuario tiene datos activos, eliminación bloqueada: ${userId}`);
         return ApiResponse.badRequest(
-          'No se puede eliminar el usuario porque tiene reservas o membresías activas'
+          'No se puede eliminar el usuario porque tiene reservas o membresías activas. ' +
+          'Primero cancela todas las reservas activas y desactiva las membresías.'
         );
       }
       
-      // Realizar soft delete
-      const deletedUser = await db.user.update({
-        where: { id: userId },
-        data: {
-          isActive: false,
-          email: `deleted_${Date.now()}_${existingUser.email}`
-        },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          isActive: true
+      // Eliminación paso a paso (sin transacción por ahora para debug)
+      console.log(`[DELETE USER] Iniciando eliminación paso a paso para: ${userId}`);
+      
+      let result;
+      try {
+        // 1. Eliminar datos relacionados primero
+        console.log(`[DELETE USER] Eliminando reservas del usuario: ${userId}`);
+        const deletedReservations = await db.reservation.deleteMany({
+          where: { userId: userId }
+        });
+        console.log(`[DELETE USER] Reservas eliminadas: ${deletedReservations.count}`);
+        
+        console.log(`[DELETE USER] Eliminando membresías del usuario: ${userId}`);
+        const deletedMemberships = await db.membership.deleteMany({
+          where: { userId: userId }
+        });
+        console.log(`[DELETE USER] Membresías eliminadas: ${deletedMemberships.count}`);
+        
+        console.log(`[DELETE USER] Eliminando notificaciones del usuario: ${userId}`);
+        const deletedNotifications = await db.notification.deleteMany({
+          where: { userId: userId }
+        });
+        console.log(`[DELETE USER] Notificaciones eliminadas: ${deletedNotifications.count}`);
+        
+        console.log(`[DELETE USER] Eliminando usuario de la base de datos: ${userId}`);
+        // 2. Eliminar el usuario de la base de datos
+        result = await db.user.delete({
+          where: { id: userId },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            isActive: true
+          }
+        });
+        
+        console.log(`[DELETE USER] Usuario eliminado exitosamente: ${result.email}`);
+      } catch (error) {
+        console.error(`[DELETE USER] Error en eliminación paso a paso para ${userId}:`, error);
+        throw error;
+      }
+      
+      // 3. Eliminar de Firebase Auth (si está configurado)
+      let firebaseDeleted = false;
+      if (isFirebaseAdminConfigured()) {
+        try {
+          firebaseDeleted = await deleteFirebaseUser(userId);
+        } catch (firebaseError) {
+          console.warn('No se pudo eliminar de Firebase Auth:', firebaseError);
+          // No fallar la operación si Firebase falla
         }
+      } else {
+        console.log('Firebase Admin SDK no configurado. Usuario eliminado solo de la base de datos.');
+      }
+      
+      // 4. Log de auditoría
+      console.log(`Usuario eliminado: ${result.email} (${result.firstName} ${result.lastName}) por admin: ${adminUser.email}`);
+      
+      return ApiResponse.success({
+        message: 'Usuario eliminado completamente',
+        user: result,
+        deletedAt: new Date().toISOString(),
+        firebaseDeleted,
+        deletedFrom: firebaseDeleted ? ['database', 'firebase'] : ['database']
       });
-      
-      // Registro de auditoría omitido (modelo no disponible en el esquema actual)
-      
-      return ApiResponse.success(deletedUser);
     } catch (error) {
       console.error('Error eliminando usuario:', error);
       return ApiResponse.internalError('Error interno del servidor');
