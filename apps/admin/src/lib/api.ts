@@ -134,6 +134,7 @@ class ApiClient {
         }
         if (response.status >= 400 && response.status < 500) {
           console.warn('API 4xx', { method, endpoint, status: response.status, code, traceId, details, body: options.body });
+          console.warn('API 4xx - Response details:', { message, code, traceId, details });
         }
         let detailMsg = '';
         if (Array.isArray(details) && details.length > 0) {
@@ -791,6 +792,7 @@ export const adminApi = {
   // Reportes
   reports: {
     getRevenue: (params?: {
+      period?: '7d' | '30d' | '90d' | '1y' | 'custom';
       startDate?: string;
       endDate?: string;
       centerId?: string;
@@ -804,11 +806,13 @@ export const adminApi = {
           }
         });
       }
+      searchParams.append('type', 'revenue');
       const query = searchParams.toString();
-      return apiClient.request(`/api/admin/reports/revenue${query ? `?${query}` : ''}`);
+      return apiClient.request(`/api/admin/reports${query ? `?${query}` : ''}`);
     },
     
     getUsage: (params?: {
+      period?: '7d' | '30d' | '90d' | '1y' | 'custom';
       startDate?: string;
       endDate?: string;
       centerId?: string;
@@ -822,11 +826,13 @@ export const adminApi = {
           }
         });
       }
+      searchParams.append('type', 'usage');
       const query = searchParams.toString();
-      return apiClient.request(`/api/admin/reports/usage${query ? `?${query}` : ''}`);
+      return apiClient.request(`/api/admin/reports${query ? `?${query}` : ''}`);
     },
     
     getCustomers: (params?: {
+      period?: '7d' | '30d' | '90d' | '1y' | 'custom';
       startDate?: string;
       endDate?: string;
       centerId?: string;
@@ -839,8 +845,9 @@ export const adminApi = {
           }
         });
       }
+      searchParams.append('type', 'users');
       const query = searchParams.toString();
-      return apiClient.request(`/api/admin/reports/customers${query ? `?${query}` : ''}`);
+      return apiClient.request(`/api/admin/reports${query ? `?${query}` : ''}`);
     },
   },
 
@@ -878,9 +885,11 @@ export const adminApi = {
       courtId: string;
       type: string;
       description: string;
-      scheduledDate: string;
-      estimatedDuration: number;
-      priority: string;
+      scheduledAt: string;
+      assignedTo?: string;
+      cost?: number;
+      estimatedDuration?: number;
+      notes?: string;
     }) => 
       apiClient.request('/api/maintenance', {
         method: 'POST',

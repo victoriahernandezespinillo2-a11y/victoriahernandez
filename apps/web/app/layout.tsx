@@ -7,6 +7,9 @@ import CookieBanner from "./components/CookieBanner";
 import { FirebaseAuthProvider } from "@/components/auth/FirebaseAuthProvider";
 import { ClientNavigation } from "./components/ClientNavigation";
 import { CartProvider } from "@/lib/contexts/CartContext";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { Suspense } from "react";
+import Script from "next/script";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -60,22 +63,93 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+        
+        {/* Script de manejo de errores de chunks */}
+        <Script
+          id="chunk-error-handler"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Script inline para manejo inmediato de errores de chunks
+              (function() {
+                let retryCount = 0;
+                const maxRetries = 3;
+                
+                function isChunkError(error) {
+                  return error && (
+                    error.name === 'ChunkLoadError' ||
+                    error.message?.includes('Loading chunk') ||
+                    error.message?.includes('timeout')
+                  );
+                }
+                
+                function handleChunkError() {
+                  if (retryCount >= maxRetries) {
+                    console.error('🚨 Máximo de reintentos alcanzado para chunk error');
+                    return;
+                  }
+                  
+                  retryCount++;
+                  console.log('🔄 Reintentando carga de chunk (intento ' + retryCount + '/' + maxRetries + ')');
+                  
+                  // Limpiar cache y recargar
+                  if ('caches' in window) {
+                    caches.keys().then(function(cacheNames) {
+                      cacheNames.forEach(function(cacheName) {
+                        if (cacheName.includes('next-') || cacheName.includes('chunks')) {
+                          caches.delete(cacheName);
+                        }
+                      });
+                    });
+                  }
+                  
+                  setTimeout(function() {
+                    window.location.reload();
+                  }, 2000 * Math.pow(2, retryCount - 1));
+                }
+                
+                window.addEventListener('error', function(event) {
+                  if (isChunkError(event.error)) {
+                    handleChunkError();
+                  }
+                });
+                
+                window.addEventListener('unhandledrejection', function(event) {
+                  if (isChunkError(event.reason)) {
+                    handleChunkError();
+                  }
+                });
+              })();
+            `
+          }}
+        />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning={true}>
-        <SessionWrapper>
-          <FirebaseAuthProvider>
-            <CartProvider>
-              <div className="min-h-screen flex flex-col">
-                <ClientNavigation />
-                <main className="flex-1">
-                  {children}
-                </main>
-                <Footer />
-                <CookieBanner />
+        <ErrorBoundary>
+          <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Cargando aplicación...</p>
               </div>
-            </CartProvider>
-          </FirebaseAuthProvider>
-        </SessionWrapper>
+            </div>
+          }>
+            <SessionWrapper>
+              <FirebaseAuthProvider>
+                <CartProvider>
+                  <div className="min-h-screen flex flex-col">
+                    <ClientNavigation />
+                    <main className="flex-1">
+                      {children}
+                    </main>
+                    <Footer />
+                    <CookieBanner />
+                  </div>
+                </CartProvider>
+              </FirebaseAuthProvider>
+            </SessionWrapper>
+          </Suspense>
+        </ErrorBoundary>
       </body>
     </html>
   );

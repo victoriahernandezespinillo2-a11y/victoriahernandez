@@ -72,10 +72,19 @@ export async function GET(request: NextRequest) {
       const { searchParams } = req.nextUrl;
       const params = GetReportsQuerySchema.parse(Object.fromEntries(searchParams.entries()));
       
-      // Calcular fechas
+      // Calcular fechas con validación robusta
       const { startDate, endDate } = calculateDateRange(params);
       
-      let reportData = {};
+      // Logging para debugging en producción
+      console.log(`📊 [REPORTS] Generando reporte ${params.type} para período ${params.period}:`, {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        centerId: params.centerId,
+        groupBy: params.groupBy,
+        allParams: params
+      });
+      
+      let reportData: any = {};
       
       switch (params.type) {
         case 'revenue':
@@ -102,6 +111,8 @@ export async function GET(request: NextRequest) {
         case 'payments':
           reportData = await generatePaymentsReport(startDate, endDate, params.centerId, params.groupBy);
           break;
+        default:
+          throw new Error(`Tipo de reporte no soportado: ${params.type}`);
       }
       
       const report = {
@@ -118,6 +129,13 @@ export async function GET(request: NextRequest) {
         format: params.format
       };
       
+      // Logging del resultado para debugging
+      console.log(`✅ [REPORTS] Reporte ${params.type} generado exitosamente:`, {
+        summary: reportData?.summary || 'No summary available',
+        dataKeys: Object.keys(reportData || {}),
+        generatedAt: report.generatedAt
+      });
+      
       // TODO: Implementar conversión a CSV/PDF si se solicita
       if (params.format === 'csv') {
         // Convertir a CSV
@@ -132,6 +150,7 @@ export async function GET(request: NextRequest) {
       return ApiResponse.success(report);
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error('❌ [REPORTS] Error de validación:', error.errors);
         return ApiResponse.validation(
           error.errors.map(err => ({
             field: err.path.join('.'),
@@ -140,7 +159,7 @@ export async function GET(request: NextRequest) {
         );
       }
       
-      console.error('Error generando reporte:', error);
+      console.error('❌ [REPORTS] Error generando reporte:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
   })(request);
@@ -189,11 +208,16 @@ export async function POST(request: NextRequest) {
 function calculateDateRange(params: any) {
   const now = new Date();
   let startDate = new Date();
-  let endDate = now;
+  let endDate = new Date(now);
+  
+  // Normalizar endDate al final del día para incluir reservas de todo el día
+  endDate.setHours(23, 59, 59, 999);
   
   if (params.period === 'custom' && params.startDate && params.endDate) {
     startDate = new Date(params.startDate);
     endDate = new Date(params.endDate);
+    // Asegurar que endDate incluya todo el día
+    endDate.setHours(23, 59, 59, 999);
   } else {
     switch (params.period) {
       case '7d':
@@ -206,23 +230,48 @@ function calculateDateRange(params: any) {
         startDate.setDate(now.getDate() - 90);
         break;
       case '1y':
-        startDate.setFullYear(now.getFullYear() - 1);
+        // Para 1 año, incluir un rango más amplio para capturar todas las reservas
+        startDate = new Date('2020-01-01'); // Fecha muy antigua para incluir todo
+        endDate = new Date('2030-12-31'); // Fecha futura para incluir reservas futuras
+        endDate.setHours(23, 59, 59, 999);
         break;
+      default:
+        // Fallback a 30 días si el período no es reconocido
+        startDate.setDate(now.getDate() - 30);
     }
   }
+  
+  // Normalizar startDate al inicio del día
+  startDate.setHours(0, 0, 0, 0);
+  
+  console.log('📅 [DATE_RANGE] Calculando rango de fechas:', {
+    period: params.period,
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString()
+  });
   
   return { startDate, endDate };
 }
 
 async function generateRevenueReport(startDate: Date, endDate: Date, centerId?: string, groupBy: string = 'day') {
+  console.log('🔍 [REVENUE] Generando reporte de ingresos:', {
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+    centerId,
+    groupBy
+  });
+
+  // Filtrar por startTime (fecha real de la reserva) - igual que el dashboard
   const baseFilter = {
-    createdAt: { gte: startDate, lte: endDate },
-    ...(centerId && { centerId })
+    startTime: { gte: startDate, lte: endDate },
+    ...(centerId && { court: { centerId } })
   } as const;
 
-  const paidWhere = { ...baseFilter, status: 'PAID' as any } as const;
+  const paidWhere = { ...baseFilter, status: { in: ['PAID','COMPLETED'] } as any } as const;
 
-  const [reservationRevenue, revenueByMethod, revenueByPeriod] = await Promise.all([
+  console.log('🔍 [REVENUE] Filtro aplicado:', paidWhere);
+
+  const [reservationRevenue, revenueByMethod, allReservations] = await Promise.all([
     prisma.reservation.aggregate({
       where: paidWhere,
       _sum: { totalPrice: true },
@@ -234,15 +283,27 @@ async function generateRevenueReport(startDate: Date, endDate: Date, centerId?: 
       _sum: { totalPrice: true },
       _count: { id: true },
     }),
-    prisma.reservation.groupBy({
-      by: ['createdAt'],
+    prisma.reservation.findMany({
       where: paidWhere,
-      _sum: { totalPrice: true },
-      _count: { id: true },
-    }),
+      select: {
+        startTime: true,
+        totalPrice: true,
+        id: true
+      }
+    })
   ]);
 
-  return {
+  console.log('📊 [REVENUE] Datos obtenidos:', {
+    totalRevenue: reservationRevenue._sum.totalPrice,
+    totalTransactions: reservationRevenue._count.id,
+    reservationsFound: allReservations.length,
+    byMethod: revenueByMethod.length
+  });
+
+  // Agrupar por período manualmente
+  const revenueByPeriod = groupReservationsByPeriod(allReservations, groupBy);
+
+  const result = {
     summary: {
       totalRevenue: Number(reservationRevenue._sum.totalPrice || 0),
       totalTransactions: reservationRevenue._count.id,
@@ -252,22 +313,62 @@ async function generateRevenueReport(startDate: Date, endDate: Date, centerId?: 
       totalAmount: Number(r._sum.totalPrice || 0),
       count: r._count.id,
     })),
-    byPeriod: revenueByPeriod.map((r: any) => ({
-      date: r.createdAt,
-      totalAmount: Number(r._sum.totalPrice || 0),
-      count: r._count.id,
-    })),
+    byPeriod: revenueByPeriod,
   };
+
+  console.log('✅ [REVENUE] Reporte generado:', result);
+  return result;
+}
+
+function groupReservationsByPeriod(reservations: any[], groupBy: string) {
+  const groups = new Map<string, { totalAmount: number, count: number }>();
+  
+  reservations.forEach(reservation => {
+    const date = new Date(reservation.startTime);
+    let key: string = '';
+    
+    switch (groupBy) {
+      case 'day':
+        key = date.toISOString().split('T')[0]!; // YYYY-MM-DD
+        break;
+      case 'week':
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - date.getDay());
+        key = weekStart.toISOString().split('T')[0]!;
+        break;
+      case 'month':
+        key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        break;
+      default:
+        key = date.toISOString().split('T')[0]!;
+    }
+    
+    if (!groups.has(key)) {
+      groups.set(key, { totalAmount: 0, count: 0 });
+    }
+    
+    const group = groups.get(key)!;
+    group.totalAmount += Number(reservation.totalPrice || 0);
+    group.count += 1;
+  });
+  
+  return Array.from(groups.entries()).map(([date, data]) => ({
+    date,
+    totalAmount: data.totalAmount,
+    count: data.count
+  })).sort((a, b) => a.date.localeCompare(b.date));
 }
 
 async function generateUsageReport(startDate: Date, endDate: Date, centerId?: string, groupBy: string = 'day') {
+  // Filtrar por startTime (fecha real de la reserva)
   const baseFilter = {
-    createdAt: { gte: startDate, lte: endDate },
-    ...(centerId && { centerId })
+    startTime: { gte: startDate, lte: endDate },
+    ...(centerId && { court: { centerId } })
   };
   
   const [totalReservations, reservationsBySport, reservationsByStatus] = await Promise.all([
-    prisma.reservation.count({ where: baseFilter }),
+    // Contar solo reservas que realmente ocupan la cancha
+    prisma.reservation.count({ where: { ...baseFilter, status: { in: ['PAID','IN_PROGRESS','COMPLETED'] } as any } }),
     
     // Agrupar por courtId y luego mapear a sportType
     prisma.reservation.groupBy({
@@ -286,18 +387,25 @@ async function generateUsageReport(startDate: Date, endDate: Date, centerId?: st
   const courtIds = reservationsBySport.map((r: any) => r.courtId);
   const courts = await prisma.court.findMany({
     where: { id: { in: courtIds } },
-    select: { id: true, sportType: true }
+    select: { id: true, name: true, sportType: true }
   });
 
   return {
     summary: {
       totalReservations
     },
-    bySport: reservationsBySport.map((r: any) => ({
-      sportType: courts.find((c: any) => c.id === r.courtId)?.sportType || 'UNKNOWN',
+    bySport: reservationsBySport.map((r: any) => {
+      const court = courts.find((c: any) => c.id === r.courtId);
+      return {
+        court: court?.name || 'Cancha Desconocida',
+        sportType: court?.sportType || 'UNKNOWN',
+        count: r._count.id
+      };
+    }),
+    byStatus: reservationsByStatus.map((r: any) => ({
+      status: r.status,
       count: r._count.id
-    })),
-    byStatus: reservationsByStatus
+    }))
   };
 }
 
@@ -446,9 +554,10 @@ async function generateTournamentsReport(startDate: Date, endDate: Date, centerI
 }
 
 async function generatePaymentsReport(startDate: Date, endDate: Date, centerId?: string, groupBy: string = 'day') {
+  // Filtrar por startTime (fecha real de la reserva)
   const baseFilter = {
-    createdAt: { gte: startDate, lte: endDate },
-    ...(centerId && { centerId })
+    startTime: { gte: startDate, lte: endDate },
+    ...(centerId && { court: { centerId } })
   } as const;
 
   const [paidAgg, byStatus, byMethod] = await Promise.all([

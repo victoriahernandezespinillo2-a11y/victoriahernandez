@@ -8,7 +8,9 @@
     "clean": "rm -rf .next",
     "dev": "next dev",
     "lint": "eslint . --max-warnings 15000",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test-build": "node scripts/test-build.js",
+    "build:verify": "npm run clean && npm run build && npm run test-build"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useAdminMaintenance } from '@/lib/hooks';
+import { useEffect, useState } from 'react';
+import { useAdminMaintenance, useAdminCourts, useAdminCenters } from '@/lib/hooks';
+import { useToast } from '@/components/ToastProvider';
 import {
   WrenchScrewdriverIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
   ClockIcon,
   PlusIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 
 export default function MaintenancePage() {
@@ -16,11 +18,35 @@ export default function MaintenancePage() {
     loading,
     error,
     getMaintenanceRecords,
+    createMaintenanceRecord,
+    startMaintenance,
+    completeMaintenance,
   } = useAdminMaintenance();
+  
+  const { courts, getCourts } = useAdminCourts();
+  const { centers, getCenters } = useAdminCenters();
+  const { showToast } = useToast();
+
+  // Estado para el modal de nueva tarea
+  const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedCenterId, setSelectedCenterId] = useState('');
+  const [newTaskForm, setNewTaskForm] = useState({
+    courtId: '',
+    type: '',
+    description: '',
+    scheduledAt: '',
+    estimatedDuration: 60,
+    assignedTo: '',
+    cost: '',
+    notes: '',
+  });
 
   useEffect(() => {
     getMaintenanceRecords({ limit: 50 }).catch(() => {});
-  }, [getMaintenanceRecords]);
+    getCourts({ page: 1, limit: 100 }).catch(() => {});
+    getCenters({ page: 1, limit: 100 }).catch(() => {});
+  }, [getMaintenanceRecords, getCourts, getCenters]);
 
   const formatPriority = (priority?: string) => {
     switch ((priority || '').toUpperCase()) {
@@ -76,6 +102,201 @@ export default function MaintenancePage() {
     return `${m} min`;
   };
 
+  // Función para abrir el modal de nueva tarea
+  const handleNewTask = () => {
+    setNewTaskForm({
+      courtId: '',
+      type: '',
+      description: '',
+      scheduledAt: new Date().toISOString().slice(0, 16),
+      estimatedDuration: 60,
+      assignedTo: '',
+      cost: '',
+      notes: '',
+    });
+    setSelectedCenterId('');
+    setShowNewTaskModal(true);
+  };
+
+  // Función para cerrar el modal
+  const handleCloseModal = () => {
+    setShowNewTaskModal(false);
+    setNewTaskForm({
+      courtId: '',
+      type: '',
+      description: '',
+      scheduledAt: '',
+      estimatedDuration: 60,
+      assignedTo: '',
+      cost: '',
+      notes: '',
+    });
+    setSelectedCenterId('');
+  };
+
+  // Función para manejar el envío del formulario
+  const handleSubmitNewTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newTaskForm.courtId || !newTaskForm.type || !newTaskForm.description || !newTaskForm.scheduledAt) {
+      showToast({
+        title: 'Error',
+        message: 'Por favor completa todos los campos obligatorios',
+        variant: 'error'
+      });
+      return;
+    }
+
+    // Validar longitud mínima de descripción (requerido por backend)
+    if (newTaskForm.description.length < 10) {
+      showToast({
+        title: 'Error',
+        message: 'La descripción debe tener al menos 10 caracteres',
+        variant: 'error'
+      });
+      return;
+    }
+
+    // Validar costo si se proporciona
+    if (newTaskForm.cost && (isNaN(parseFloat(newTaskForm.cost)) || parseFloat(newTaskForm.cost) < 0)) {
+      showToast({
+        title: 'Error',
+        message: 'El costo debe ser un número positivo válido',
+        variant: 'error'
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    // Preparar datos para envío
+    const scheduledDate = new Date(newTaskForm.scheduledAt);
+    const maintenanceData = {
+      courtId: newTaskForm.courtId,
+      type: newTaskForm.type,
+      description: newTaskForm.description,
+      scheduledAt: scheduledDate.toISOString(), // Asegurar formato ISO 8601
+      // assignedTo debe ser un UUID válido, no un email
+      // Por ahora lo omitimos hasta implementar la búsqueda de usuarios
+      // assignedTo: newTaskForm.assignedTo || undefined,
+      cost: newTaskForm.cost ? parseFloat(newTaskForm.cost) : undefined,
+      estimatedDuration: newTaskForm.estimatedDuration,
+      notes: newTaskForm.notes || undefined,
+    };
+
+    console.log('🔍 [MAINTENANCE] Datos a enviar:', maintenanceData);
+    console.log('🔍 [MAINTENANCE] Formulario completo:', newTaskForm);
+    console.log('🔍 [MAINTENANCE] Fecha original:', newTaskForm.scheduledAt);
+    console.log('🔍 [MAINTENANCE] Fecha convertida:', new Date(newTaskForm.scheduledAt).toISOString());
+    console.log('🔍 [MAINTENANCE] Tipo de courtId:', typeof maintenanceData.courtId);
+    console.log('🔍 [MAINTENANCE] Tipo de type:', typeof maintenanceData.type);
+    console.log('🔍 [MAINTENANCE] Tipo de description:', typeof maintenanceData.description);
+    console.log('🔍 [MAINTENANCE] Tipo de scheduledAt:', typeof maintenanceData.scheduledAt);
+    
+    // Validar que courtId sea un CUID válido (formato Prisma)
+    const cuidRegex = /^c[0-9a-z]{24}$/i;
+    if (!cuidRegex.test(maintenanceData.courtId)) {
+      console.error('❌ [MAINTENANCE] courtId no es un CUID válido:', maintenanceData.courtId);
+      showToast({
+        title: 'Error',
+        message: 'ID de cancha inválido',
+        variant: 'error'
+      });
+      return;
+    }
+    
+    // Validar que la fecha sea válida
+    if (isNaN(scheduledDate.getTime())) {
+      console.error('❌ [MAINTENANCE] Fecha inválida:', maintenanceData.scheduledAt);
+      showToast({
+        title: 'Error',
+        message: 'Fecha programada inválida',
+        variant: 'error'
+      });
+      return;
+    }
+    
+    // Validar formato datetime de Zod (debe ser ISO 8601 con Z o timezone)
+    const datetimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
+    if (!datetimeRegex.test(maintenanceData.scheduledAt)) {
+      console.error('❌ [MAINTENANCE] Formato datetime inválido para Zod:', maintenanceData.scheduledAt);
+      showToast({
+        title: 'Error',
+        message: 'Formato de fecha inválido',
+        variant: 'error'
+      });
+      return;
+    }
+    
+    try {
+      await createMaintenanceRecord(maintenanceData);
+      
+      showToast({
+        title: 'Éxito',
+        message: 'Tarea de mantenimiento creada correctamente',
+        variant: 'success'
+      });
+      
+      handleCloseModal();
+      
+      // Recargar la lista de tareas
+      await getMaintenanceRecords({ limit: 50 });
+      
+    } catch (error) {
+      console.error('Error creating maintenance record:', error);
+      showToast({
+        title: 'Error',
+        message: 'Error al crear la tarea de mantenimiento',
+        variant: 'error'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Obtener canchas filtradas por centro
+  const getCourtsByCenter = (centerId: string) => {
+    return courts?.filter(court => court.centerId === centerId) || [];
+  };
+
+  // Función para iniciar mantenimiento
+  const handleStartMaintenance = async (id: string) => {
+    try {
+      await startMaintenance(id);
+      showToast({
+        title: 'Éxito',
+        message: 'Mantenimiento iniciado correctamente',
+        variant: 'success'
+      });
+      await getMaintenanceRecords({ limit: 50 });
+    } catch (error: any) {
+      showToast({
+        title: 'Error',
+        message: error.message || 'Error al iniciar mantenimiento',
+        variant: 'error'
+      });
+    }
+  };
+
+  // Función para completar mantenimiento
+  const handleCompleteMaintenance = async (id: string) => {
+    try {
+      await completeMaintenance(id, {});
+      showToast({
+        title: 'Éxito',
+        message: 'Mantenimiento completado correctamente',
+        variant: 'success'
+      });
+      await getMaintenanceRecords({ limit: 50 });
+    } catch (error: any) {
+      showToast({
+        title: 'Error',
+        message: error.message || 'Error al completar mantenimiento',
+        variant: 'error'
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -87,7 +308,10 @@ export default function MaintenancePage() {
             <p className="text-gray-600">Gestión de tareas de mantenimiento de instalaciones</p>
           </div>
         </div>
-        <button className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+        <button 
+          onClick={handleNewTask}
+          className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+        >
           <PlusIcon className="h-5 w-5" />
           <span>Nueva Tarea</span>
         </button>
@@ -171,17 +395,20 @@ export default function MaintenancePage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Duración
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">Cargando...</td>
+                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">Cargando...</td>
                 </tr>
               )}
               {error && !loading && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-red-600">{String(error)}</td>
+                  <td colSpan={8} className="px-6 py-8 text-center text-red-600">{String(error)}</td>
                 </tr>
               )}
               {!loading && !error && (maintenanceRecords || []).map((record: any) => (
@@ -225,12 +452,238 @@ export default function MaintenancePage() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{formatDuration(record.estimatedDuration)}</div>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex space-x-2">
+                      {record.status === 'SCHEDULED' && (
+                        <button
+                          onClick={() => handleStartMaintenance(record.id)}
+                          className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          Iniciar
+                        </button>
+                      )}
+                      {record.status === 'IN_PROGRESS' && (
+                        <button
+                          onClick={() => handleCompleteMaintenance(record.id)}
+                          className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                        >
+                          Completar
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Modal para Nueva Tarea de Mantenimiento */}
+      {showNewTaskModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Nueva Tarea de Mantenimiento</h2>
+              <button 
+                onClick={handleCloseModal}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSubmitNewTask} className="space-y-6">
+              {/* Información básica */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Centro Deportivo *
+                  </label>
+                  <select
+                    value={selectedCenterId}
+                    onChange={(e) => {
+                      const centerId = e.target.value;
+                      setSelectedCenterId(centerId);
+                      setNewTaskForm(prev => ({ ...prev, courtId: '' }));
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Selecciona un centro</option>
+                    {centers?.map((center) => (
+                      <option key={center.id} value={center.id}>
+                        {center.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cancha *
+                  </label>
+                  <select
+                    value={newTaskForm.courtId}
+                    onChange={(e) => setNewTaskForm(prev => ({ ...prev, courtId: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                    disabled={!selectedCenterId}
+                  >
+                    <option value="">Selecciona una cancha</option>
+                    {getCourtsByCenter(selectedCenterId).map((court) => (
+                      <option key={court.id} value={court.id}>
+                        {court.name} - {court.type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tipo de Mantenimiento *
+                  </label>
+                  <select
+                    value={newTaskForm.type}
+                    onChange={(e) => setNewTaskForm(prev => ({ ...prev, type: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Selecciona el tipo</option>
+                    <option value="CLEANING">Limpieza</option>
+                    <option value="REPAIR">Reparación</option>
+                    <option value="INSPECTION">Inspección</option>
+                    <option value="RENOVATION">Renovación</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Costo Estimado (€)
+                  </label>
+                  <input
+                    type="number"
+                    value={newTaskForm.cost}
+                    onChange={(e) => setNewTaskForm(prev => ({ ...prev, cost: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Descripción *
+                </label>
+                <textarea
+                  value={newTaskForm.description}
+                  onChange={(e) => setNewTaskForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={3}
+                  placeholder="Describe detalladamente la tarea de mantenimiento a realizar..."
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Fecha y Hora Programada *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={newTaskForm.scheduledAt}
+                    onChange={(e) => setNewTaskForm(prev => ({ ...prev, scheduledAt: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Duración Estimada (minutos) *
+                  </label>
+                  <input
+                    type="number"
+                    value={newTaskForm.estimatedDuration}
+                    onChange={(e) => setNewTaskForm(prev => ({ ...prev, estimatedDuration: parseInt(e.target.value) || 60 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    min="15"
+                    max="480"
+                    step="15"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Duración en minutos (15-480 min)
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Asignado a (Técnico)
+                  </label>
+                  <input
+                    type="text"
+                    value={newTaskForm.assignedTo}
+                    onChange={(e) => setNewTaskForm(prev => ({ ...prev, assignedTo: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Próximamente disponible"
+                    disabled
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Asignación de técnicos estará disponible próximamente
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notas Adicionales
+                </label>
+                <textarea
+                  value={newTaskForm.notes}
+                  onChange={(e) => setNewTaskForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={2}
+                  placeholder="Notas adicionales sobre la tarea de mantenimiento..."
+                />
+              </div>
+
+              {/* Botones */}
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  disabled={isSubmitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Creando...
+                    </div>
+                  ) : (
+                    'Crear Tarea'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

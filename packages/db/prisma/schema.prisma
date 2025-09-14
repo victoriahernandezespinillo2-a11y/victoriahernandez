@@ -258,20 +258,21 @@ model WaitingList {
 }
 
 model MaintenanceSchedule {
-  id          String            @id @default(cuid())
-  courtId     String            @map("court_id")
-  type        MaintenanceType
-  status      MaintenanceStatus @default(SCHEDULED)
-  scheduledAt DateTime          @map("scheduled_at")
-  startedAt   DateTime?         @map("started_at")
-  completedAt DateTime?         @map("completed_at")
-  description String
-  notes       String?
-  cost        Decimal?
-  assignedTo  String?           @map("assigned_to")
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
-  court       Court             @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  id                String            @id @default(cuid())
+  courtId           String            @map("court_id")
+  type              MaintenanceType
+  status            MaintenanceStatus @default(SCHEDULED)
+  scheduledAt       DateTime          @map("scheduled_at")
+  startedAt         DateTime?         @map("started_at")
+  completedAt       DateTime?         @map("completed_at")
+  description       String
+  notes             String?
+  cost              Decimal?
+  estimatedDuration Int?              @map("estimated_duration") // Duración estimada en minutos
+  assignedTo        String?           @map("assigned_to")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  court             Court             @relation(fields: [courtId], references: [id], onDelete: Cascade)
 
   @@map("maintenance_schedules")
 }

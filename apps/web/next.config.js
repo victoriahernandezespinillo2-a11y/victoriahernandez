@@ -13,6 +13,59 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Configuración enterprise para manejo robusto de chunks
+  experimental: {
+    // Optimizar la carga de chunks
+    optimizeCss: true,
+    // Mejorar la estabilidad de la hidratación
+    optimizePackageImports: ['@heroicons/react', 'lucide-react'],
+  },
+  
+  // Configuración de webpack para manejo robusto de chunks
+  webpack: (config, { dev, isServer }) => {
+    // Configuración enterprise para chunks
+    if (!dev && !isServer) {
+      config.optimization = {
+        ...config.optimization,
+        splitChunks: {
+          chunks: 'all',
+          cacheGroups: {
+            // Chunk separado para NextAuth
+            nextauth: {
+              test: /[\\/]node_modules[\\/](next-auth|@auth)[\\/]/,
+              name: 'nextauth',
+              chunks: 'all',
+              priority: 20,
+            },
+            // Chunk separado para Firebase
+            firebase: {
+              test: /[\\/]node_modules[\\/]firebase[\\/]/,
+              name: 'firebase',
+              chunks: 'all',
+              priority: 20,
+            },
+            // Chunk separado para UI components
+            ui: {
+              test: /[\\/]node_modules[\\/](@heroicons|lucide-react)[\\/]/,
+              name: 'ui',
+              chunks: 'all',
+              priority: 15,
+            },
+            // Chunk por defecto para otras librerías
+            vendor: {
+              test: /[\\/]node_modules[\\/]/,
+              name: 'vendors',
+              chunks: 'all',
+              priority: 10,
+            },
+          },
+        },
+      };
+    }
+    
+    return config;
+  },
+
   async headers() {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
     const csp = [

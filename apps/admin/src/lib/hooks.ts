@@ -69,7 +69,25 @@ interface Payment {
 interface MaintenanceRecord {
   id: string;
   courtId: string;
-  status: string;
+  status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  type: string;
+  description: string;
+  scheduledDate: string;
+  estimatedDuration?: number; // Opcional para compatibilidad
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'; // Opcional para compatibilidad
+  assignedUser?: {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    email: string;
+  };
+  court?: {
+    id: string;
+    name: string;
+    type: string;
+  };
+  createdAt: string;
+  updatedAt: string;
   [key: string]: unknown;
 }
 
@@ -83,36 +101,42 @@ function useApiState<T>(initialData: T | null = null) {
 
   // Guard de re-entrada estable para evitar llamadas concurrentes/repetitivas
   const isExecutingRef = useRef(false);
+  const currentPromiseRef = useRef<Promise<T> | null>(null);
   // Mantener una referencia estable al valor inicial
   const initialDataRef = useRef(initialData);
 
   const execute = useCallback(async (apiCall: () => Promise<T>) => {
     console.log('[useApiState] execute called.');
-    if (isExecutingRef.current) {
-      console.log('[useApiState] API call already in progress, skipping re-execution.');
-      return;
+    if (isExecutingRef.current && currentPromiseRef.current) {
+      console.log('[useApiState] API call already in progress, returning in-flight promise.');
+      return currentPromiseRef.current;
     }
     isExecutingRef.current = true;
-    try {
-      setLoading(true);
-      setError(null);
-      const result = await apiCall();
-      setData(result);
-      return result;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
-      setError(errorMessage);
-      // Mantener el valor inicial en caso de error para evitar problemas con arrays
-      if (Array.isArray(initialDataRef.current)) {
-        setData(initialDataRef.current);
-      } else if (initialDataRef.current !== null) {
-        setData(initialDataRef.current);
+    setLoading(true);
+    setError(null);
+    const promise = (async () => {
+      try {
+        const result = await apiCall();
+        setData(result);
+        return result;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+        setError(errorMessage);
+        // Mantener el valor inicial en caso de error para evitar problemas con arrays
+        if (Array.isArray(initialDataRef.current)) {
+          setData(initialDataRef.current);
+        } else if (initialDataRef.current !== null) {
+          setData(initialDataRef.current);
+        }
+        throw err;
+      } finally {
+        setLoading(false);
+        isExecutingRef.current = false;
+        currentPromiseRef.current = null;
       }
-      throw err;
-    } finally {
-      setLoading(false);
-      isExecutingRef.current = false;
-    }
+    })();
+    currentPromiseRef.current = promise;
+    return promise;
   }, []);
 
   const reset = useCallback(() => {
@@ -596,19 +620,45 @@ export function useAdminPayments() {
  * Hook para gestión de reportes
  */
 export function useAdminReports() {
+  // Estado genérico (compatibilidad con usos existentes)
   const { data, loading, error, execute, reset } = useApiState<any>(null);
 
+  // Estados independientes para permitir llamadas concurrentes sin colisiones
+  const {
+    data: revenueData,
+    loading: revenueLoading,
+    error: revenueError,
+    execute: executeRevenue,
+    reset: resetRevenue,
+  } = useApiState<any>(null);
+
+  const {
+    data: usageData,
+    loading: usageLoading,
+    error: usageError,
+    execute: executeUsage,
+    reset: resetUsage,
+  } = useApiState<any>(null);
+
+  const {
+    data: customersData,
+    loading: customersLoading,
+    error: customersError,
+    execute: executeCustomers,
+    reset: resetCustomers,
+  } = useApiState<any>(null);
+
   const getRevenueReport = useCallback((params?: any) => {
-    return execute(() => adminApi.reports.getRevenue(params));
-  }, [execute]);
+    return executeRevenue(() => adminApi.reports.getRevenue(params));
+  }, [executeRevenue]);
 
   const getUsageReport = useCallback((params?: any) => {
-    return execute(() => adminApi.reports.getUsage(params));
-  }, [execute]);
+    return executeUsage(() => adminApi.reports.getUsage(params));
+  }, [executeUsage]);
 
   const getCustomersReport = useCallback((params?: any) => {
-    return execute(() => adminApi.reports.getCustomers(params));
-  }, [execute]);
+    return executeCustomers(() => adminApi.reports.getCustomers(params));
+  }, [executeCustomers]);
 
   const getGeneralReport = useCallback((params?: {
     type: 'revenue' | 'usage' | 'users' | 'courts' | 'maintenance' | 'memberships' | 'tournaments' | 'payments';
@@ -645,14 +695,24 @@ export function useAdminReports() {
   }, [execute]);
 
   return {
+    // Compatibilidad previa
     reportData: data,
-    loading,
-    error,
+    loading: loading || revenueLoading || usageLoading || customersLoading,
+    error: error || revenueError || usageError || customersError,
     getRevenueReport,
     getUsageReport,
     getCustomersReport,
     getGeneralReport,
-    reset,
+    reset: () => {
+      reset();
+      resetRevenue();
+      resetUsage();
+      resetCustomers();
+    },
+    // Estados individuales por si se requieren en otras vistas
+    revenueData,
+    usageData,
+    customersData,
   };
 }
 
@@ -759,9 +819,11 @@ export function useAdminMaintenance() {
     courtId: string;
     type: string;
     description: string;
-    scheduledDate: string;
-    estimatedDuration: number;
-    priority: string;
+    scheduledAt: string;
+    assignedTo?: string;
+    cost?: number;
+    estimatedDuration?: number;
+    notes?: string;
   }) => {
     const newRecord = await adminApi.maintenance.create(recordData) as MaintenanceRecord;
     setData(prev => prev ? [newRecord, ...prev] : [newRecord]);

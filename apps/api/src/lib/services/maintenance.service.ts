@@ -9,14 +9,15 @@ import { NotificationService } from '@repo/notifications';
 
 // Esquemas de validación
 export const CreateMaintenanceSchema = z.object({
-  courtId: z.string().uuid('ID de cancha inválido'),
+  courtId: z.string().cuid('ID de cancha inválido'),
   type: z.enum(['CLEANING', 'REPAIR', 'INSPECTION', 'RENOVATION'], {
     errorMap: () => ({ message: 'Tipo de mantenimiento inválido' }),
   }),
   description: z.string().min(10, 'La descripción debe tener al menos 10 caracteres'),
   scheduledAt: z.string().datetime('Fecha programada inválida'),
-  assignedTo: z.string().uuid('ID de técnico inválido').optional(),
+  assignedTo: z.string().cuid('ID de técnico inválido').optional(),
   cost: z.number().min(0).optional(),
+  estimatedDuration: z.number().min(15).max(480).optional(), // 15 minutos a 8 horas
   notes: z.string().optional(),
 });
 
@@ -25,8 +26,9 @@ export const UpdateMaintenanceSchema = z.object({
   description: z.string().min(10).optional(),
   scheduledAt: z.string().datetime().optional(),
   status: z.enum(['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
-  assignedTo: z.string().uuid().optional(),
+  assignedTo: z.string().cuid().optional(),
   cost: z.number().min(0).optional(),
+  estimatedDuration: z.number().min(15).max(480).optional(),
   notes: z.string().optional(),
 });
 
@@ -115,6 +117,7 @@ export class MaintenanceService {
         assignedTo: validatedData.assignedTo || undefined,
         notes: validatedData.notes,
         cost: validatedData.cost as any,
+        estimatedDuration: validatedData.estimatedDuration,
         status: 'SCHEDULED',
       },
       include: {
