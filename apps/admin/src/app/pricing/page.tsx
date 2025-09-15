@@ -245,127 +245,155 @@ export default function PricingPage() {
   };
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <div className="flex justify-between items-center">
+    <div className="min-h-screen bg-gray-50">
+      {/* Mobile Header */}
+      <div className="bg-white shadow-sm border-b px-4 py-3 md:hidden">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Configuración de Precios</h1>
-            <p className="text-gray-600">Gestiona las reglas de precios para canchas y servicios</p>
+            <h1 className="text-lg font-semibold text-gray-900">Configuración de Precios</h1>
+            <p className="text-xs text-gray-500">Gestiona las reglas de precios</p>
           </div>
           <button 
             onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm"
           >
             <Plus className="w-4 h-4" />
-            Nueva Regla de Precio
+            Nueva
           </button>
         </div>
         {loading && (
-          <p className="mt-2 text-sm text-gray-500">Cargando…</p>
+          <p className="mt-2 text-xs text-gray-500">Cargando…</p>
         )}
         {error && (
-          <p className="mt-2 text-sm text-red-600">{error}</p>
+          <p className="mt-2 text-xs text-red-600">{error}</p>
         )}
+      </div>
+
+      {/* Desktop Header */}
+      <div className="hidden md:block p-6">
+        <div className="mb-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Configuración de Precios</h1>
+              <p className="text-gray-600">Gestiona las reglas de precios para canchas y servicios</p>
+            </div>
+            <button 
+              onClick={() => setShowCreateForm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4" />
+              Nueva Regla de Precio
+            </button>
+          </div>
+          {loading && (
+            <p className="mt-2 text-sm text-gray-500">Cargando…</p>
+          )}
+          {error && (
+            <p className="mt-2 text-sm text-red-600">{error}</p>
+          )}
+        </div>
       </div>
 
       {/* Estadísticas rápidas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-               <p className="text-sm font-medium text-gray-600">Reglas Activas</p>
-               <p className="text-2xl font-bold text-gray-900">{enrichedRules.filter(r => r.isActive).length}</p>
+      <div className="p-4 md:p-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-4 md:mb-6">
+          <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                 <p className="text-xs md:text-sm font-medium text-gray-600">Reglas Activas</p>
+                 <p className="text-lg md:text-2xl font-bold text-gray-900">{enrichedRules.filter(r => r.isActive).length}</p>
+              </div>
+              <DollarSign className="w-6 h-6 md:w-8 md:h-8 text-green-500" />
             </div>
-            <DollarSign className="w-8 h-8 text-green-500" />
+          </div>
+          <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                 <p className="text-xs md:text-sm font-medium text-gray-600">Precio Promedio</p>
+                 <p className="text-lg md:text-2xl font-bold text-gray-900">
+                   ${(() => {
+                     const list = enrichedRules;
+                     if (list.length === 0) return 0;
+                     const sum = list.reduce((acc, r) => acc + calculateFinalPrice({ basePrice: r.basePrice, priceMultiplier: r.priceMultiplier || 1, memberDiscountPct: r.memberDiscountPct || 0 }), 0);
+                     return Math.round(sum / list.length).toLocaleString();
+                   })()}
+                 </p>
+              </div>
+              <Calendar className="w-6 h-6 md:w-8 md:h-8 text-blue-500" />
+            </div>
+          </div>
+          <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs md:text-sm font-medium text-gray-600">Tipos de Cancha</p>
+                 <p className="text-lg md:text-2xl font-bold text-gray-900">{uniqueCourtTypes.length}</p>
+              </div>
+              <MapPin className="w-6 h-6 md:w-8 md:h-8 text-purple-500" />
+            </div>
+          </div>
+          <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs md:text-sm font-medium text-gray-600">Centros</p>
+                 <p className="text-lg md:text-2xl font-bold text-gray-900">{uniqueCenters.length}</p>
+              </div>
+              <Clock className="w-6 h-6 md:w-8 md:h-8 text-orange-500" />
+            </div>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-               <p className="text-sm font-medium text-gray-600">Precio Promedio (aplicado)</p>
-               <p className="text-2xl font-bold text-gray-900">
-                 ${(() => {
-                   const list = enrichedRules;
-                   if (list.length === 0) return 0;
-                   const sum = list.reduce((acc, r) => acc + calculateFinalPrice({ basePrice: r.basePrice, priceMultiplier: r.priceMultiplier || 1, memberDiscountPct: r.memberDiscountPct || 0 }), 0);
-                   return Math.round(sum / list.length).toLocaleString();
-                 })()}
-               </p>
+
+        {/* Filtros y búsqueda */}
+        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border mb-4 md:mb-6">
+          <div className="space-y-3 md:space-y-0 md:flex md:flex-row md:gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Buscar reglas de precio..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
             </div>
-            <Calendar className="w-8 h-8 text-blue-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Tipos de Cancha</p>
-               <p className="text-2xl font-bold text-gray-900">{uniqueCourtTypes.length}</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:flex md:gap-4">
+              <select
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                value={courtTypeFilter}
+                onChange={(e) => setCourtTypeFilter(e.target.value)}
+              >
+                <option value="all">Todos los tipos</option>
+                {uniqueCourtTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+              <select
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                value={centerFilter}
+                onChange={(e) => setCenterFilter(e.target.value)}
+              >
+                <option value="all">Todos los centros</option>
+                {uniqueCenters.map(center => (
+                  <option key={center} value={center}>{center}</option>
+                ))}
+              </select>
+              <select
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">Todos los estados</option>
+                <option value="active">Activa</option>
+                <option value="inactive">Inactiva</option>
+              </select>
             </div>
-            <MapPin className="w-8 h-8 text-purple-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Centros</p>
-               <p className="text-2xl font-bold text-gray-900">{uniqueCenters.length}</p>
-            </div>
-            <Clock className="w-8 h-8 text-orange-500" />
           </div>
         </div>
       </div>
 
-      {/* Filtros y búsqueda */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Buscar reglas de precio..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="flex gap-4">
-            <select
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              value={courtTypeFilter}
-              onChange={(e) => setCourtTypeFilter(e.target.value)}
-            >
-              <option value="all">Todos los tipos</option>
-              {uniqueCourtTypes.map(type => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
-            <select
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              value={centerFilter}
-              onChange={(e) => setCenterFilter(e.target.value)}
-            >
-              <option value="all">Todos los centros</option>
-              {uniqueCenters.map(center => (
-                <option key={center} value={center}>{center}</option>
-              ))}
-            </select>
-            <select
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">Todos los estados</option>
-              <option value="active">Activa</option>
-              <option value="inactive">Inactiva</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabla de reglas de precio */}
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+      {/* Tabla de reglas de precio - Desktop */}
+      <div className="hidden md:block bg-white rounded-lg shadow-sm border overflow-hidden mx-4 md:mx-6">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
@@ -460,27 +488,120 @@ export default function PricingPage() {
             </tbody>
           </table>
         </div>
+      </div>
 
-        {/* Paginación */}
-        {totalPages > 1 && (
-          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-            <div className="flex-1 flex justify-between sm:hidden">
-              <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-              >
-                Anterior
-              </button>
-              <button
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-              >
-                Siguiente
-              </button>
+      {/* Vista móvil - Tarjetas de reglas de precio */}
+      <div className="md:hidden px-4 space-y-3">
+        {paginatedRules.map((rule) => (
+          <div key={rule.id} className="bg-white rounded-lg shadow-sm border p-4">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    rule.isActive 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {rule.isActive ? 'Activa' : 'Inactiva'}
+                  </span>
+                </div>
+                <h3 className="text-sm font-medium text-gray-900 mb-1">{rule.name}</h3>
+                <p className="text-xs text-gray-500 mb-2">{rule.center}</p>
+                <div className="flex items-center gap-4 text-xs text-gray-600">
+                  <span className="font-medium">{rule.courtType}</span>
+                  <span>{rule.timeStart} - {rule.timeEnd}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={() => onEditRule(rule.id)}
+                  className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                  title="Editar regla"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => onDeleteRule(rule.id)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                  title="Eliminar regla"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            
+            <div className="space-y-2 text-xs text-gray-600">
+              <div className="flex justify-between">
+                <span>Días:</span>
+                <div className="flex gap-1">
+                  {formatDays(rule.daysOfWeek).map((letter, idx) => (
+                    <span key={idx} className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                       {letter}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-between">
+                <span>Precio Base:</span>
+                <span className="font-medium">${rule.basePrice.toLocaleString()}</span>
+              </div>
+              {rule.priceMultiplier !== 1.0 && (
+                <div className="flex justify-between">
+                  <span>Multiplicador:</span>
+                  <span className="font-medium">x{rule.priceMultiplier}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span>Precio Final:</span>
+                <span className="font-medium text-green-600">
+                  ${calculateFinalPrice({ basePrice: rule.basePrice, priceMultiplier: rule.priceMultiplier || 1, memberDiscountPct: rule.memberDiscountPct || 0 }).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>VIP:</span>
+                <span className="font-medium text-blue-600">
+                  ${calculateFinalPrice({ basePrice: rule.basePrice, priceMultiplier: rule.priceMultiplier || 1, memberDiscountPct: rule.memberDiscountPct || 0 }, 'vip').toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="px-4 md:px-6 py-4">
+          <div className="bg-white rounded-lg shadow-sm border p-4">
+            {/* Mobile Pagination */}
+            <div className="md:hidden">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm text-gray-700">
+                  Página {currentPage} de {totalPages}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredRules.length)} de {filteredRules.length}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Anterior
+                </button>
+                <button
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+
+            {/* Desktop Pagination */}
+            <div className="hidden md:flex md:items-center md:justify-between">
               <div>
                 <p className="text-sm text-gray-700">
                   Mostrando <span className="font-medium">{startIndex + 1}</span> a{' '}
@@ -521,8 +642,8 @@ export default function PricingPage() {
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Modal para crear nueva regla */}
       {showCreateForm && (

@@ -434,234 +434,236 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Reportes y Análisis</h1>
-            <p className="text-gray-600">Análisis detallado del rendimiento del polideportivo</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header móvil */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Reportes y Análisis</h1>
+              <p className="text-sm text-gray-600">Análisis detallado del rendimiento del polideportivo</p>
+            </div>
           </div>
-          <div className="flex gap-3">
+          
+          {/* Botones de acción móviles */}
+          <div className="flex gap-2">
             <button 
               onClick={() => setSelectedPeriod('custom')}
-              className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 transition-all duration-200 font-medium shadow-sm"
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors text-sm font-medium"
             >
               <Filter className="w-4 h-4" />
               Filtros
             </button>
             <button 
               onClick={() => handleExport('csv')}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 hover:shadow-md transition-all duration-200 font-medium shadow-sm"
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
             >
               <Download className="w-4 h-4" />
               Exportar CSV
-            </button>
-            <button 
-              onClick={() => handleExport('json')}
-              className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:border-green-400 hover:bg-green-50 hover:text-green-700 transition-all duration-200 font-medium shadow-sm"
-            >
-              <FileText className="w-4 h-4" />
-              Exportar JSON
             </button>
           </div>
         </div>
       </div>
 
-      {/* Controles de período */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex gap-2">
+      {/* Controles de período móviles */}
+      <div className="px-4 py-3">
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          {/* Botones de período en grid móvil */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
             <button
               onClick={() => setSelectedPeriod('7d')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+              className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
                 selectedPeriod === '7d'
                   ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
+                  : 'bg-gray-50 text-gray-700 border border-gray-300 hover:border-blue-400 hover:bg-blue-50'
               }`}
             >
               7 Días
             </button>
             <button
               onClick={() => setSelectedPeriod('30d')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+              className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
                 selectedPeriod === '30d'
                   ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
+                  : 'bg-gray-50 text-gray-700 border border-gray-300 hover:border-blue-400 hover:bg-blue-50'
               }`}
             >
               30 Días
             </button>
             <button
               onClick={() => setSelectedPeriod('90d')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+              className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
                 selectedPeriod === '90d'
                   ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
+                  : 'bg-gray-50 text-gray-700 border border-gray-300 hover:border-blue-400 hover:bg-blue-50'
               }`}
             >
               90 Días
             </button>
             <button
               onClick={() => setSelectedPeriod('1y')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+              className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
                 selectedPeriod === '1y'
                   ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
+                  : 'bg-gray-50 text-gray-700 border border-gray-300 hover:border-blue-400 hover:bg-blue-50'
               }`}
             >
               1 Año
             </button>
-            <button
-              onClick={() => setSelectedPeriod('custom')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                selectedPeriod === 'custom'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
-              }`}
-            >
-              Personalizado
-            </button>
           </div>
-          <div className="flex gap-4 ml-auto items-center">
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-semibold text-gray-800">Agrupar:</label>
+          
+          {/* Personalizado */}
+          <button
+            onClick={() => setSelectedPeriod('custom')}
+            className={`w-full px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 mb-4 ${
+              selectedPeriod === 'custom'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-gray-50 text-gray-700 border border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+            }`}
+          >
+            Personalizado
+          </button>
+          
+          {/* Controles adicionales en móvil */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Agrupar por:</label>
               <select
                 value={groupBy}
                 onChange={(e) => setGroupBy(e.target.value as any)}
-                className="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-all duration-200"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-400"
               >
                 <option value="day">Día</option>
                 <option value="week">Semana</option>
                 <option value="month">Mes</option>
               </select>
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-semibold text-gray-800">Desde:</label>
-              <input
-                type="date"
-                value={dateRange.start}
-                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                className="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-all duration-200"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-semibold text-gray-800">Hasta:</label>
-              <input
-                type="date"
-                value={dateRange.end}
-                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                className="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-400 transition-all duration-200"
-              />
-            </div>
+            
+            {selectedPeriod === 'custom' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Desde:</label>
+                  <input
+                    type="date"
+                    value={dateRange.start}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Hasta:</label>
+                  <input
+                    type="date"
+                    value={dateRange.end}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-400"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Métricas principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Ingresos Totales</p>
-              <p className="text-2xl font-bold text-gray-900">${metrics.totalRevenue.toLocaleString()}</p>
-              <div className="flex items-center gap-1 mt-1">
+      {/* Métricas principales móviles */}
+      <div className="px-4 pb-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between mb-2">
+              <DollarSign className="w-6 h-6 text-green-500" />
+              <div className="flex items-center gap-1">
                 {revenueGrowth.isPositive ? (
-                  <TrendingUp className="w-4 h-4 text-green-500" />
+                  <TrendingUp className="w-3 h-3 text-green-500" />
                 ) : (
-                  <TrendingDown className="w-4 h-4 text-red-500" />
+                  <TrendingDown className="w-3 h-3 text-red-500" />
                 )}
-                <span className={`text-sm font-medium ${
+                <span className={`text-xs font-medium ${
                   revenueGrowth.isPositive ? 'text-green-600' : 'text-red-600'
                 }`}>
                   {revenueGrowth.value}%
                 </span>
-                <span className="text-sm text-gray-500">vs mes anterior</span>
               </div>
             </div>
-            <DollarSign className="w-8 h-8 text-green-500" />
+            <p className="text-xs font-medium text-gray-600 mb-1">Ingresos Totales</p>
+            <p className="text-lg font-bold text-gray-900">${metrics.totalRevenue.toLocaleString()}</p>
+            <p className="text-xs text-gray-500 mt-1">vs mes anterior</p>
           </div>
-        </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Reservas</p>
-              <p className="text-2xl font-bold text-gray-900">{metrics.totalReservations}</p>
-              <div className="flex items-center gap-1 mt-1">
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between mb-2">
+              <Calendar className="w-6 h-6 text-blue-500" />
+              <div className="flex items-center gap-1">
                 {reservationGrowth.isPositive ? (
-                  <TrendingUp className="w-4 h-4 text-green-500" />
+                  <TrendingUp className="w-3 h-3 text-green-500" />
                 ) : (
-                  <TrendingDown className="w-4 h-4 text-red-500" />
+                  <TrendingDown className="w-3 h-3 text-red-500" />
                 )}
-                <span className={`text-sm font-medium ${
+                <span className={`text-xs font-medium ${
                   reservationGrowth.isPositive ? 'text-green-600' : 'text-red-600'
                 }`}>
                   {reservationGrowth.value}%
                 </span>
-                <span className="text-sm text-gray-500">vs mes anterior</span>
               </div>
             </div>
-            <Calendar className="w-8 h-8 text-blue-500" />
+            <p className="text-xs font-medium text-gray-600 mb-1">Total Reservas</p>
+            <p className="text-lg font-bold text-gray-900">{metrics.totalReservations}</p>
+            <p className="text-xs text-gray-500 mt-1">vs mes anterior</p>
           </div>
-        </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Usuarios Activos</p>
-              <p className="text-2xl font-bold text-gray-900">{metrics.totalUsers}</p>
-              <div className="flex items-center gap-1 mt-1">
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between mb-2">
+              <Users className="w-6 h-6 text-purple-500" />
+              <div className="flex items-center gap-1">
                 {userGrowth.isPositive ? (
-                  <TrendingUp className="w-4 h-4 text-green-500" />
+                  <TrendingUp className="w-3 h-3 text-green-500" />
                 ) : (
-                  <TrendingDown className="w-4 h-4 text-red-500" />
+                  <TrendingDown className="w-3 h-3 text-red-500" />
                 )}
-                <span className={`text-sm font-medium ${
+                <span className={`text-xs font-medium ${
                   userGrowth.isPositive ? 'text-green-600' : 'text-red-600'
                 }`}>
                   {userGrowth.value}%
                 </span>
-                <span className="text-sm text-gray-500">vs mes anterior</span>
               </div>
             </div>
-            <Users className="w-8 h-8 text-purple-500" />
+            <p className="text-xs font-medium text-gray-600 mb-1">Usuarios Activos</p>
+            <p className="text-lg font-bold text-gray-900">{metrics.totalUsers}</p>
+            <p className="text-xs text-gray-500 mt-1">vs mes anterior</p>
           </div>
-        </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Tasa de Ocupación</p>
-              <p className="text-2xl font-bold text-gray-900">{metrics.occupancyRate}%</p>
-              <div className="flex items-center gap-1 mt-1">
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between mb-2">
+              <Activity className="w-6 h-6 text-orange-500" />
+              <div className="flex items-center gap-1">
                 {occupancyGrowth.isPositive ? (
-                  <TrendingUp className="w-4 h-4 text-green-500" />
+                  <TrendingUp className="w-3 h-3 text-green-500" />
                 ) : (
-                  <TrendingDown className="w-4 h-4 text-red-500" />
+                  <TrendingDown className="w-3 h-3 text-red-500" />
                 )}
-                <span className={`text-sm font-medium ${
+                <span className={`text-xs font-medium ${
                   occupancyGrowth.isPositive ? 'text-green-600' : 'text-red-600'
                 }`}>
                   {occupancyGrowth.value}%
                 </span>
-                <span className="text-sm text-gray-500">vs mes anterior</span>
               </div>
             </div>
-            <Activity className="w-8 h-8 text-orange-500" />
+            <p className="text-xs font-medium text-gray-600 mb-1">Tasa de Ocupación</p>
+            <p className="text-lg font-bold text-gray-900">{metrics.occupancyRate}%</p>
+            <p className="text-xs text-gray-500 mt-1">vs mes anterior</p>
           </div>
         </div>
       </div>
 
-      {/* Gráficos y análisis */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Gráfico de ingresos */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Evolución de Ingresos</h3>
-            <BarChart3 className="w-5 h-5 text-gray-400" />
+      {/* Gráficos y análisis móviles */}
+      <div className="px-4 pb-3 space-y-3">
+        {/* Gráfico de ingresos móvil */}
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold text-gray-900">Evolución de Ingresos</h3>
+            <BarChart3 className="w-4 h-4 text-gray-400" />
           </div>
-          <div className="space-y-3">
-            {Array.isArray(revenueData?.byPeriod) && revenueData.byPeriod.length > 0 ? revenueData.byPeriod.map((item: any, index: number) => {
+          <div className="space-y-2">
+            {Array.isArray(revenueData?.byPeriod) && revenueData.byPeriod.length > 0 ? revenueData.byPeriod.slice(0, 5).map((item: any, index: number) => {
               const amount = Number(item?.totalAmount ?? item?._sum?.amount ?? 0);
               const maxRevenue = Math.max(...(revenueData?.byPeriod || []).map((r: any) => Number(r?.totalAmount ?? r?._sum?.amount ?? 0)), 0);
               const percentage = maxRevenue > 0 ? (amount / maxRevenue) * 100 : 0;
@@ -670,15 +672,15 @@ export default function ReportsPage() {
                 ? d.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' })
                 : d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
               return (
-                <div key={index} className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-gray-600 w-16">{label}</span>
-                  <div className="flex-1 bg-gray-200 rounded-full h-3">
+                <div key={index} className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-600 w-12">{label}</span>
+                  <div className="flex-1 bg-gray-200 rounded-full h-2">
                     <div
-                      className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
-                  <span className="text-sm font-medium text-gray-900 w-24 text-right">
+                  <span className="text-xs font-medium text-gray-900 w-16 text-right">
                     ${amount > 1000000 ? `${(amount / 1000000).toFixed(1)}M` : amount > 1000 ? `${(amount / 1000).toFixed(1)}K` : amount.toLocaleString()}
                   </span>
                 </div>
@@ -686,20 +688,20 @@ export default function ReportsPage() {
             }) : (
               <div className="text-center py-4 text-gray-500">
                 <div className="text-lg font-medium mb-2">📊</div>
-                <div>No hay datos de ingresos disponibles</div>
+                <div className="text-sm">No hay datos de ingresos disponibles</div>
                 <div className="text-xs text-gray-400 mt-1">Los datos aparecerán cuando se generen reservas</div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Reservas por día */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Reservas por Día de la Semana</h3>
-            <PieChart className="w-5 h-5 text-gray-400" />
+        {/* Reservas por estado móvil */}
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold text-gray-900">Reservas por Estado</h3>
+            <PieChart className="w-4 h-4 text-gray-400" />
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {Array.isArray(usageData?.byStatus) && usageData.byStatus.length > 0 ? usageData.byStatus.map((item: any, index: number) => {
               const maxCount = Math.max(...(usageData?.byStatus || []).map((r: any) => r?._count?.id || 0));
               const percentage = maxCount > 0 ? ((item?._count?.id || 0) / maxCount) * 100 : 0;
@@ -716,15 +718,15 @@ export default function ReportsPage() {
                 'COMPLETED': 'bg-blue-600'
               };
               return (
-                <div key={index} className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-gray-600 w-20">{statusLabels[item.status] || item.status}</span>
-                  <div className="flex-1 bg-gray-200 rounded-full h-3">
+                <div key={index} className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-600 w-16">{statusLabels[item.status] || item.status}</span>
+                  <div className="flex-1 bg-gray-200 rounded-full h-2">
                     <div 
-                      className={`h-3 rounded-full transition-all duration-300 ${statusColors[item.status] || 'bg-gray-600'}`}
+                      className={`h-2 rounded-full transition-all duration-300 ${statusColors[item.status] || 'bg-gray-600'}`}
                       style={{ width: `${percentage}%` }}
                     ></div>
                   </div>
-                  <span className="text-sm font-medium text-gray-900 w-12 text-right">
+                  <span className="text-xs font-medium text-gray-900 w-8 text-right">
                     {item?._count?.id ?? 0}
                   </span>
                 </div>
@@ -732,7 +734,7 @@ export default function ReportsPage() {
             }) : (
               <div className="text-center py-4 text-gray-500">
                 <div className="text-lg font-medium mb-2">📅</div>
-                <div>No hay datos de reservas disponibles</div>
+                <div className="text-sm">No hay datos de reservas disponibles</div>
                 <div className="text-xs text-gray-400 mt-1">Los datos aparecerán cuando se creen reservas</div>
               </div>
             )}
@@ -740,133 +742,73 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Canchas más populares */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Canchas Más Populares</h3>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {Array.isArray(usageData?.bySport) && usageData.bySport.length > 0 ? usageData.bySport.slice(0, 5).map((court: any, index: number) => (
-            <div key={index} className="text-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-              <div className="text-2xl font-bold text-blue-600 mb-1">{court?._count?.id ?? 0}</div>
-              <div className="text-sm text-gray-600 font-medium">{court.court}</div>
-              <div className="text-xs text-gray-500 mt-1">reservas</div>
-            </div>
-          )) : (
-            <div className="col-span-5 text-center py-8 text-gray-500">
-              <div className="text-lg font-medium mb-2">🏟️</div>
-              <div>No hay datos de canchas disponibles</div>
-              <div className="text-xs text-gray-400 mt-1">Los datos aparecerán cuando se hagan reservas</div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Detalle de ingresos */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Detalle de Ingresos</h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
-            <h4 className="text-sm font-semibold text-gray-800 mb-2">Por Período</h4>
-            <div className="overflow-x-auto border rounded-lg">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-gray-700">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Fecha</th>
-                    <th className="px-4 py-2 text-right">Transacciones</th>
-                    <th className="px-4 py-2 text-right">Monto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.isArray(revenueData?.byPeriod) && revenueData.byPeriod.length > 0 ? revenueData.byPeriod.map((r: any, idx: number) => {
-                    const d = new Date(r?.date || r?.createdAt || new Date());
-                    const dateLabel = d.toLocaleDateString('es-ES');
-                    const count = Number(r?.count ?? r?._count?.id ?? 0);
-                    const amount = Number(r?.totalAmount ?? r?._sum?.amount ?? 0);
-                    return (
-                      <tr key={`p-${idx}`} className={idx % 2 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-4 py-2 text-gray-800">{dateLabel}</td>
-                        <td className="px-4 py-2 text-right text-gray-800">{count.toLocaleString()}</td>
-                        <td className="px-4 py-2 text-right font-medium text-gray-900">${amount.toLocaleString()}</td>
-                      </tr>
-                    );
-                  }) : (
-                    <tr>
-                      <td colSpan={3} className="px-4 py-4 text-center text-gray-500">Sin datos</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div>
-            <h4 className="text-sm font-semibold text-gray-800 mb-2">Por Método de Pago</h4>
-            <div className="overflow-x-auto border rounded-lg">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-gray-700">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Método</th>
-                    <th className="px-4 py-2 text-right">Transacciones</th>
-                    <th className="px-4 py-2 text-right">Monto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.isArray(revenueData?.byMethod) && revenueData.byMethod.length > 0 ? revenueData.byMethod.map((m: any, idx: number) => {
-                    const method = (m?.method || m?.paymentMethod || 'UNKNOWN').toString();
-                    const count = Number(m?.count ?? m?._count?.id ?? 0);
-                    const amount = Number(m?.totalAmount ?? m?._sum?.totalPrice ?? m?._sum?.amount ?? 0);
-                    return (
-                      <tr key={`m-${idx}`} className={idx % 2 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-4 py-2 text-gray-800">{method}</td>
-                        <td className="px-4 py-2 text-right text-gray-800">{count.toLocaleString()}</td>
-                        <td className="px-4 py-2 text-right font-medium text-gray-900">${amount.toLocaleString()}</td>
-                      </tr>
-                    );
-                  }) : (
-                    <tr>
-                      <td colSpan={3} className="px-4 py-4 text-center text-gray-500">Sin datos</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+      {/* Canchas más populares móvil */}
+      <div className="px-4 pb-3">
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <h3 className="text-base font-semibold text-gray-900 mb-3">Canchas Más Populares</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {Array.isArray(usageData?.bySport) && usageData.bySport.length > 0 ? usageData.bySport.slice(0, 4).map((court: any, index: number) => (
+              <div key={index} className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-lg font-bold text-blue-600 mb-1">{court?._count?.id ?? 0}</div>
+                <div className="text-xs text-gray-600 font-medium truncate">{court.court}</div>
+                <div className="text-xs text-gray-500 mt-1">reservas</div>
+              </div>
+            )) : (
+              <div className="col-span-2 text-center py-6 text-gray-500">
+                <div className="text-lg font-medium mb-2">🏟️</div>
+                <div className="text-sm">No hay datos de canchas disponibles</div>
+                <div className="text-xs text-gray-400 mt-1">Los datos aparecerán cuando se hagan reservas</div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Reportes rápidos */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Reportes Rápidos</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {quickReports.map((report) => {
-            const Icon = report.icon;
-            return (
-              <button
-                key={report.id}
-                onClick={() => {
-                  if (report.id === 'revenue') {
-                    router.push('/reports/revenue');
-                    return;
-                  }
-                  if (report.id === 'reservations') {
-                    router.push('/reports/reservations');
-                    return;
-                  }
-                  setSelectedReport(report.id);
-                  loadReportsData();
-                }}
-                className={`p-4 border-2 rounded-lg hover:shadow-md transition-all duration-200 text-left ${
-                  selectedReport === report.id 
-                    ? 'border-blue-400 bg-blue-50 shadow-md' 
-                    : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50'
-                }`}
-              >
-                <div className={`w-12 h-12 ${report.bgColor} rounded-lg flex items-center justify-center mb-3`}>
-                  <Icon className={`w-6 h-6 ${report.color}`} />
-                </div>
-                <h4 className="font-semibold text-gray-900 mb-1">{report.name}</h4>
-                <p className="text-sm text-gray-700 font-medium">{report.description}</p>
-              </button>
-            );
-          })}
+      {/* Reportes rápidos móviles */}
+      <div className="px-4 pb-6">
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <h3 className="text-base font-semibold text-gray-900 mb-3">Reportes Rápidos</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {quickReports.map((report) => {
+              const Icon = report.icon;
+              return (
+                <button
+                  key={report.id}
+                  onClick={() => {
+                    if (report.id === 'revenue') {
+                      router.push('/reports/revenue');
+                      return;
+                    }
+                    if (report.id === 'reservations') {
+                      router.push('/reports/reservations');
+                      return;
+                    }
+                    if (report.id === 'users') {
+                      router.push('/reports/users');
+                      return;
+                    }
+                    if (report.id === 'courts') {
+                      router.push('/reports/courts');
+                      return;
+                    }
+                    setSelectedReport(report.id);
+                    loadReportsData();
+                  }}
+                  className={`p-3 border rounded-lg hover:shadow-md transition-all duration-200 text-left ${
+                    selectedReport === report.id 
+                      ? 'border-blue-400 bg-blue-50 shadow-md' 
+                      : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50'
+                  }`}
+                >
+                  <div className={`w-8 h-8 ${report.bgColor} rounded-lg flex items-center justify-center mb-2`}>
+                    <Icon className={`w-4 h-4 ${report.color}`} />
+                  </div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-1">{report.name}</h4>
+                  <p className="text-xs text-gray-700 font-medium leading-tight">{report.description}</p>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

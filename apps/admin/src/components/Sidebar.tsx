@@ -63,6 +63,8 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
       href: '#',
       icon: UsersIcon,
       submenu: [
+        { name: 'Reservas', href: '/reservations', icon: CalendarIcon },
+        { name: 'Nueva Reserva', href: '/reservations/new', icon: CalendarIcon },
         { name: 'Usuarios', href: '/users', icon: UsersIcon },
         { name: 'Centros', href: '/centers', icon: GlobeAltIcon },
         { name: 'Canchas', href: '/courts', icon: TrophyIcon },
@@ -89,8 +91,15 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
     },
     {
       name: 'Reportes',
-      href: '/reports',
+      href: '#',
       icon: ChartBarIcon,
+      submenu: [
+        { name: 'Dashboard', href: '/reports', icon: ChartBarIcon },
+        { name: 'Ingresos', href: '/reports/revenue', icon: CreditCardIcon },
+        { name: 'Reservas', href: '/reports/reservations', icon: CalendarIcon },
+        { name: 'Usuarios', href: '/reports/users', icon: UsersIcon },
+        { name: 'Canchas', href: '/reports/courts', icon: TrophyIcon },
+      ],
     },
     {
       name: 'Notificaciones',

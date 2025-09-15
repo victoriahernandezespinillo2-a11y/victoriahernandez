@@ -481,21 +481,24 @@ export default function MaintenancePage() {
 
       {/* Modal para Nueva Tarea de Mantenimiento */}
       {showNewTaskModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Nueva Tarea de Mantenimiento</h2>
-              <button 
-                onClick={handleCloseModal}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <XMarkIcon className="w-6 h-6" />
-              </button>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[95vh] overflow-y-auto">
+            {/* Header móvil */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 md:px-6 md:py-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg md:text-xl font-bold text-gray-900">Nueva Tarea de Mantenimiento</h2>
+                <button 
+                  onClick={handleCloseModal}
+                  className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                >
+                  <XMarkIcon className="w-6 h-6" />
+                </button>
+              </div>
             </div>
             
-            <form onSubmit={handleSubmitNewTask} className="space-y-6">
+            <form onSubmit={handleSubmitNewTask} className="p-4 md:p-6 space-y-4 md:space-y-6">
               {/* Información básica */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Centro Deportivo *
@@ -507,7 +510,7 @@ export default function MaintenancePage() {
                       setSelectedCenterId(centerId);
                       setNewTaskForm(prev => ({ ...prev, courtId: '' }));
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
                     required
                   >
                     <option value="">Selecciona un centro</option>
@@ -526,7 +529,7 @@ export default function MaintenancePage() {
                   <select
                     value={newTaskForm.courtId}
                     onChange={(e) => setNewTaskForm(prev => ({ ...prev, courtId: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
                     required
                     disabled={!selectedCenterId}
                   >
@@ -540,7 +543,7 @@ export default function MaintenancePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Tipo de Mantenimiento *
@@ -548,7 +551,7 @@ export default function MaintenancePage() {
                   <select
                     value={newTaskForm.type}
                     onChange={(e) => setNewTaskForm(prev => ({ ...prev, type: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
                     required
                   >
                     <option value="">Selecciona el tipo</option>
@@ -567,7 +570,7 @@ export default function MaintenancePage() {
                     type="number"
                     value={newTaskForm.cost}
                     onChange={(e) => setNewTaskForm(prev => ({ ...prev, cost: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
                     min="0"
                     step="0.01"
                     placeholder="0.00"
@@ -582,14 +585,14 @@ export default function MaintenancePage() {
                 <textarea
                   value={newTaskForm.description}
                   onChange={(e) => setNewTaskForm(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
                   rows={3}
                   placeholder="Describe detalladamente la tarea de mantenimiento a realizar..."
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Fecha y Hora Programada *
@@ -598,7 +601,7 @@ export default function MaintenancePage() {
                     type="datetime-local"
                     value={newTaskForm.scheduledAt}
                     onChange={(e) => setNewTaskForm(prev => ({ ...prev, scheduledAt: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
                     required
                   />
                 </div>
@@ -611,7 +614,7 @@ export default function MaintenancePage() {
                     type="number"
                     value={newTaskForm.estimatedDuration}
                     onChange={(e) => setNewTaskForm(prev => ({ ...prev, estimatedDuration: parseInt(e.target.value) || 60 }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
                     min="15"
                     max="480"
                     step="15"
@@ -623,23 +626,21 @@ export default function MaintenancePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Asignado a (Técnico)
-                  </label>
-                  <input
-                    type="text"
-                    value={newTaskForm.assignedTo}
-                    onChange={(e) => setNewTaskForm(prev => ({ ...prev, assignedTo: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Próximamente disponible"
-                    disabled
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Asignación de técnicos estará disponible próximamente
-                  </p>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Asignado a (Técnico)
+                </label>
+                <input
+                  type="text"
+                  value={newTaskForm.assignedTo}
+                  onChange={(e) => setNewTaskForm(prev => ({ ...prev, assignedTo: e.target.value }))}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                  placeholder="Próximamente disponible"
+                  disabled
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Asignación de técnicos estará disponible próximamente
+                </p>
               </div>
 
               <div>
@@ -649,36 +650,38 @@ export default function MaintenancePage() {
                 <textarea
                   value={newTaskForm.notes}
                   onChange={(e) => setNewTaskForm(prev => ({ ...prev, notes: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
                   rows={2}
                   placeholder="Notas adicionales sobre la tarea de mantenimiento..."
                 />
               </div>
 
               {/* Botones */}
-              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  disabled={isSubmitting}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSubmitting ? (
-                    <div className="flex items-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Creando...
-                    </div>
-                  ) : (
-                    'Crear Tarea'
-                  )}
-                </button>
+              <div className="sticky bottom-0 bg-white border-t border-gray-200 pt-4 -mx-4 md:-mx-6 px-4 md:px-6">
+                <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={handleCloseModal}
+                    className="w-full sm:w-auto px-4 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    disabled={isSubmitting}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto px-4 py-3 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting ? (
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Creando...
+                      </div>
+                    ) : (
+                      'Crear Tarea'
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

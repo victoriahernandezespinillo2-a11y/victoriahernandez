@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAdminReports, exportUtils } from '@/lib/hooks';
-import { ArrowTrendingUpIcon, ArrowTrendingDownIcon, CurrencyDollarIcon, DocumentTextIcon, ClockIcon, EyeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { ArrowTrendingUpIcon, ArrowTrendingDownIcon, CurrencyDollarIcon, DocumentTextIcon, ClockIcon, EyeIcon, MagnifyingGlassIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 
 export default function RevenueReportPage() {
   const { getRevenueReport, reset } = useAdminReports();
@@ -183,167 +183,247 @@ export default function RevenueReportPage() {
   });
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Reporte de Ingresos</h1>
-          <p className="text-gray-600">Análisis detallado de ingresos por período</p>
-        </div>
-        <div className="flex gap-3">
-          <button onClick={() => exportFile('csv')} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"><DocumentTextIcon className="w-4 h-4"/>Exportar CSV</button>
-          <button onClick={() => exportFile('json')} className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-gray-300 rounded-lg hover:border-green-400 hover:bg-green-50"><DocumentTextIcon className="w-4 h-4"/>Exportar JSON</button>
-        </div>
-      </div>
-
-      <div className="bg-white p-6 rounded-lg shadow-sm border">
-        <div className="flex flex-wrap gap-3 items-center">
-          {(['7d','30d','90d','1y'] as const).map((p) => (
-            <button key={p} onClick={() => setPeriod(p)} className={`px-4 py-2 rounded-lg text-sm font-semibold ${period===p?'bg-blue-600 text-white':'bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}>{p==='7d'?'7 Días':p==='30d'?'30 Días':p==='90d'?'90 Días':'1 Año'}</button>
-          ))}
-          <button onClick={() => setPeriod('custom')} className={`px-4 py-2 rounded-lg text-sm font-semibold ${period==='custom'?'bg-blue-600 text-white':'bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}>Personalizado</button>
-          <div className="flex items-center gap-2 ml-auto">
-            <label className="text-sm font-semibold">Agrupar:</label>
-            <select value={groupBy} onChange={(e)=>setGroupBy(e.target.value as any)} className="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm font-medium text-gray-700">
-              <option value="day">Día</option>
-              <option value="week">Semana</option>
-              <option value="month">Mes</option>
-            </select>
-          </div>
-          {period==='custom' && (
-            <div className="flex items-center gap-3">
-              <input type="date" value={dateRange.start} onChange={(e)=>setDateRange(r=>({...r,start:e.target.value}))} className="px-3 py-2 border-2 border-gray-300 rounded-lg"/>
-              <input type="date" value={dateRange.end} onChange={(e)=>setDateRange(r=>({...r,end:e.target.value}))} className="px-3 py-2 border-2 border-gray-300 rounded-lg"/>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-gray-50">
+      {/* Header móvil */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-sm text-gray-600">Ingresos Totales</p>
-              <p className="text-2xl font-bold text-gray-900">${totalRevenue.toLocaleString()}</p>
+              <h1 className="text-xl font-bold text-gray-900">Reporte de Ingresos</h1>
+              <p className="text-sm text-gray-600">Análisis detallado de ingresos por período</p>
             </div>
-            <CurrencyDollarIcon className="w-8 h-8 text-green-600"/>
           </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Transacciones</p>
-              <p className="text-2xl font-bold text-gray-900">{totalTx.toLocaleString()}</p>
-            </div>
-            <ClockIcon className="w-8 h-8 text-blue-600"/>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Ticket Promedio</p>
-              <p className="text-2xl font-bold text-gray-900">${avgTicket.toFixed(2)}</p>
-            </div>
-            <ArrowTrendingUpIcon className="w-8 h-8 text-purple-600"/>
+          
+          {/* Botones de acción móviles */}
+          <div className="flex gap-2">
+            <button 
+              onClick={() => exportFile('csv')} 
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+            >
+              <DocumentTextIcon className="w-4 h-4"/>
+              Exportar CSV
+            </button>
+            <button 
+              onClick={() => exportFile('json')} 
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:border-green-400 hover:bg-green-50 transition-colors text-sm font-medium"
+            >
+              <DocumentTextIcon className="w-4 h-4"/>
+              Exportar JSON
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Evolución</h3>
+      {/* Controles de período móviles */}
+      <div className="px-4 py-3">
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          {/* Botones de período en grid móvil */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {(['7d','30d','90d','1y'] as const).map((p) => (
+              <button 
+                key={p} 
+                onClick={() => setPeriod(p)} 
+                className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                  period===p
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-50 text-gray-700 border border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                }`}
+              >
+                {p==='7d'?'7 Días':p==='30d'?'30 Días':p==='90d'?'90 Días':'1 Año'}
+              </button>
+            ))}
+          </div>
+          
+          {/* Personalizado */}
+          <button 
+            onClick={() => setPeriod('custom')} 
+            className={`w-full px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 mb-4 ${
+              period==='custom'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-gray-50 text-gray-700 border border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+            }`}
+          >
+            Personalizado
+          </button>
+          
+          {/* Controles adicionales en móvil */}
           <div className="space-y-3">
-            {Array.isArray(data?.byPeriod) && data.byPeriod.length>0 ? data.byPeriod.map((r:any, i:number)=>{
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Agrupar por:</label>
+              <select 
+                value={groupBy} 
+                onChange={(e)=>setGroupBy(e.target.value as any)} 
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-400"
+              >
+                <option value="day">Día</option>
+                <option value="week">Semana</option>
+                <option value="month">Mes</option>
+              </select>
+            </div>
+            
+            {period==='custom' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Desde:</label>
+                  <input 
+                    type="date" 
+                    value={dateRange.start} 
+                    onChange={(e)=>setDateRange(r=>({...r,start:e.target.value}))} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Hasta:</label>
+                  <input 
+                    type="date" 
+                    value={dateRange.end} 
+                    onChange={(e)=>setDateRange(r=>({...r,end:e.target.value}))} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-400"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Métricas principales móviles */}
+      <div className="px-4 pb-3">
+        <div className="grid grid-cols-1 gap-3">
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between mb-2">
+              <CurrencyDollarIcon className="w-6 h-6 text-green-600"/>
+            </div>
+            <p className="text-xs font-medium text-gray-600 mb-1">Ingresos Totales</p>
+            <p className="text-lg font-bold text-gray-900">${totalRevenue.toLocaleString()}</p>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white p-4 rounded-lg shadow-sm border">
+              <div className="flex items-center justify-between mb-2">
+                <ClockIcon className="w-5 h-5 text-blue-600"/>
+              </div>
+              <p className="text-xs font-medium text-gray-600 mb-1">Transacciones</p>
+              <p className="text-lg font-bold text-gray-900">{totalTx.toLocaleString()}</p>
+            </div>
+            
+            <div className="bg-white p-4 rounded-lg shadow-sm border">
+              <div className="flex items-center justify-between mb-2">
+                <ArrowTrendingUpIcon className="w-5 h-5 text-purple-600"/>
+              </div>
+              <p className="text-xs font-medium text-gray-600 mb-1">Ticket Promedio</p>
+              <p className="text-lg font-bold text-gray-900">${avgTicket.toFixed(2)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Gráficos móviles */}
+      <div className="px-4 pb-3 space-y-3">
+        {/* Evolución móvil */}
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <h3 className="text-base font-semibold text-gray-900 mb-3">Evolución de Ingresos</h3>
+          <div className="space-y-2">
+            {Array.isArray(data?.byPeriod) && data.byPeriod.length>0 ? data.byPeriod.slice(0, 5).map((r:any, i:number)=>{
               const amount = Number(r?.totalAmount ?? r?._sum?.amount ?? 0);
               const max = Math.max(...data.byPeriod.map((x:any)=>Number(x?.totalAmount ?? x?._sum?.amount ?? 0)),1);
               const pct = (amount/max)*100;
               const d = new Date(r?.date || r?.createdAt || new Date());
               const label = groupBy==='month'?d.toLocaleDateString('es-ES',{month:'short',year:'2-digit'}):d.toLocaleDateString('es-ES',{day:'2-digit',month:'short'});
               return (
-                <div key={i} className="flex items-center gap-3">
-                  <span className="text-sm text-gray-600 w-20">{label}</span>
-                  <div className="flex-1 bg-gray-200 h-3 rounded-full"><div className="bg-blue-600 h-3 rounded-full" style={{width:`${pct}%`}}/></div>
-                  <span className="text-sm font-medium w-24 text-right text-gray-900">${amount.toLocaleString()}</span>
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-12">{label}</span>
+                  <div className="flex-1 bg-gray-200 h-2 rounded-full">
+                    <div className="bg-blue-600 h-2 rounded-full" style={{width:`${pct}%`}}/>
+                  </div>
+                  <span className="text-xs font-medium w-16 text-right text-gray-900">${amount.toLocaleString()}</span>
                 </div>
               );
-            }):(<div className="text-gray-500">Sin datos</div>)}
+            }):(<div className="text-center py-4 text-gray-500 text-sm">Sin datos</div>)}
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Por Método</h3>
+        {/* Por método móvil */}
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <h3 className="text-base font-semibold text-gray-900 mb-3">Por Método de Pago</h3>
           <div className="space-y-2">
             {Array.isArray(data?.byMethod) && data.byMethod.length>0 ? data.byMethod.map((m:any,i:number)=>{
               const count = Number(m?.count ?? m?._count?.id ?? 0);
               const amount = Number(m?.totalAmount ?? m?._sum?.totalPrice ?? m?._sum?.amount ?? 0);
               return (
-                <div key={i} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-800">{(m?.method || m?.paymentMethod || 'UNKNOWN')}</span>
-                  <span className="text-gray-800">{count.toLocaleString()} tx</span>
+                <div key={i} className="flex items-center justify-between text-xs">
+                  <span className="text-gray-800 truncate flex-1">{(m?.method || m?.paymentMethod || 'UNKNOWN')}</span>
+                  <span className="text-gray-600 mx-2">{count.toLocaleString()} tx</span>
                   <span className="font-medium text-gray-900">${amount.toLocaleString()}</span>
                 </div>
               );
-            }):(<div className="text-gray-500">Sin datos</div>)}
+            }):(<div className="text-center py-4 text-gray-500 text-sm">Sin datos</div>)}
           </div>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow-sm border">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Detalle de Reservas (Resumen por período)</h3>
-          <button 
-            onClick={() => {
-              setShowReservationsTable(!showReservationsTable);
-              if (!showReservationsTable) loadReservations();
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-          >
-            <EyeIcon className="w-4 h-4"/>
-            {showReservationsTable ? 'Ocultar' : 'Ver'} Reservas Individuales
-          </button>
-        </div>
-        
-        <div className="overflow-x-auto border rounded-lg">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-gray-700">
-              <tr>
-                <th className="px-4 py-2 text-left">Fecha</th>
-                <th className="px-4 py-2 text-right">Transacciones</th>
-                <th className="px-4 py-2 text-right">Monto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Array.isArray(data?.byPeriod)&&data.byPeriod.length>0?data.byPeriod.map((r:any,i:number)=>{
-                const d = new Date(r?.date || r?.createdAt || new Date());
-                const count = Number(r?.count ?? r?._count?.id ?? 0);
-                const amount = Number(r?.totalAmount ?? r?._sum?.amount ?? 0);
-                return (
-                  <tr key={i} className={i%2?'bg-white':'bg-gray-50'}>
-                    <td className="px-4 py-2 text-gray-800">{d.toLocaleDateString('es-ES')}</td>
-                    <td className="px-4 py-2 text-right text-gray-800">{count.toLocaleString()}</td>
-                    <td className="px-4 py-2 text-right font-medium text-gray-900">${amount.toLocaleString()}</td>
-                  </tr>
-                );
-              }):(<tr><td colSpan={3} className="px-4 py-4 text-center text-gray-500">Sin datos</td></tr>)}
-            </tbody>
-          </table>
+      {/* Detalle de reservas móvil */}
+      <div className="px-4 pb-3">
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold text-gray-900">Resumen por Período</h3>
+            <button 
+              onClick={() => {
+                setShowReservationsTable(!showReservationsTable);
+                if (!showReservationsTable) loadReservations();
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium"
+            >
+              <EyeIcon className="w-3 h-3"/>
+              {showReservationsTable ? 'Ocultar' : 'Ver'} Detalles
+            </button>
+          </div>
+          
+          <div className="space-y-2">
+            {Array.isArray(data?.byPeriod)&&data.byPeriod.length>0?data.byPeriod.slice(0, 5).map((r:any,i:number)=>{
+              const d = new Date(r?.date || r?.createdAt || new Date());
+              const count = Number(r?.count ?? r?._count?.id ?? 0);
+              const amount = Number(r?.totalAmount ?? r?._sum?.amount ?? 0);
+              return (
+                <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                  <span className="text-xs text-gray-800">{d.toLocaleDateString('es-ES')}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-600">{count.toLocaleString()} tx</span>
+                    <span className="text-xs font-medium text-gray-900">${amount.toLocaleString()}</span>
+                  </div>
+                </div>
+              );
+            }):(<div className="text-center py-4 text-gray-500 text-sm">Sin datos</div>)}
+          </div>
         </div>
       </div>
 
-      {/* Tabla de reservas individuales */}
+      {/* Tabla de reservas individuales móvil */}
       {showReservationsTable && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Reservas Individuales ({reservationsTotal.toLocaleString()})</h3>
-            <div className="flex items-center gap-3">
+        <div className="px-4 pb-3">
+          <div className="bg-white rounded-lg shadow-sm border p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-semibold text-gray-900">Reservas ({reservationsTotal.toLocaleString()})</h3>
+              <button
+                onClick={() => exportFile('csv')}
+                className="flex items-center gap-1 px-2 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs"
+              >
+                <ArrowDownTrayIcon className="w-3 h-3"/>
+                CSV
+              </button>
+            </div>
+
+            {/* Filtros móviles */}
+            <div className="space-y-2 mb-3">
               <div className="relative">
                 <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"/>
                 <input
                   type="text"
-                  placeholder="Buscar por usuario, cancha..."
+                  placeholder="Buscar..."
                   value={reservationsSearch}
                   onChange={(e) => setReservationsSearch(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && loadReservations(1, e.currentTarget.value, reservationsStatus)}
-                  className="pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg text-sm w-64"
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm w-full"
                 />
               </div>
               <select
@@ -352,7 +432,7 @@ export default function RevenueReportPage() {
                   setReservationsStatus(e.target.value);
                   loadReservations(1, reservationsSearch, e.target.value);
                 }}
-                className="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
               >
                 <option value="">Todos los estados</option>
                 <option value="PAID">Pagadas</option>
@@ -360,105 +440,71 @@ export default function RevenueReportPage() {
                 <option value="PAID,COMPLETED">Pagadas + Completadas</option>
               </select>
             </div>
-          </div>
 
-          <div className="overflow-x-auto border rounded-lg">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-700">
-                <tr>
-                  <th className="px-4 py-2 text-left">Usuario</th>
-                  <th className="px-4 py-2 text-left">Cancha</th>
-                  <th className="px-4 py-2 text-left">Fecha</th>
-                  <th className="px-4 py-2 text-left">Hora</th>
-                  <th className="px-4 py-2 text-right">Duración</th>
-                  <th className="px-4 py-2 text-right">Monto</th>
-                  <th className="px-4 py-2 text-center">Estado</th>
-                  <th className="px-4 py-2 text-center">Método</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reservationsLoading ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                      <div className="flex items-center justify-center gap-2">
-                        <ClockIcon className="w-4 h-4 animate-spin"/>
-                        Cargando reservas...
-                      </div>
-                    </td>
-                  </tr>
-                ) : reservations.length > 0 ? reservations.map((reservation: any, i: number) => (
-                  <tr key={reservation.id} className={i % 2 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="px-4 py-2 text-gray-800">
-                      <div>
-                        <div className="font-medium">{reservation.userName}</div>
-                        <div className="text-xs text-gray-500">{reservation.userEmail}</div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2 text-gray-800">
-                      <div>
-                        <div className="font-medium">{reservation.courtName}</div>
-                        <div className="text-xs text-gray-500">{reservation.centerName}</div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2 text-gray-800">{reservation.date}</td>
-                    <td className="px-4 py-2 text-gray-800">
-                      {reservation.startTime} - {reservation.endTime}
-                    </td>
-                    <td className="px-4 py-2 text-right text-gray-800">{reservation.duration}h</td>
-                    <td className="px-4 py-2 text-right font-medium text-gray-900">
-                      ${Number(reservation.totalAmount).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        reservation.status === 'PAID' ? 'bg-green-100 text-green-800' :
-                        reservation.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {reservation.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-center text-gray-800">
-                      {reservation.paymentMethod || '-'}
-                    </td>
-                  </tr>
-                )) : (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                      No se encontraron reservas
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Paginación */}
-          {reservationsTotal > 50 && (
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-gray-700">
-                Mostrando {((reservationsPage - 1) * 50) + 1} - {Math.min(reservationsPage * 50, reservationsTotal)} de {reservationsTotal} reservas
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => loadReservations(reservationsPage - 1, reservationsSearch, reservationsStatus)}
-                  disabled={reservationsPage <= 1}
-                  className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                >
-                  Anterior
-                </button>
-                <span className="px-3 py-1 text-sm text-gray-700">
-                  Página {reservationsPage} de {Math.ceil(reservationsTotal / 50)}
-                </span>
-                <button
-                  onClick={() => loadReservations(reservationsPage + 1, reservationsSearch, reservationsStatus)}
-                  disabled={reservationsPage >= Math.ceil(reservationsTotal / 50)}
-                  className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                >
-                  Siguiente
-                </button>
-              </div>
+            {/* Lista de reservas móvil */}
+            <div className="space-y-2">
+              {reservationsLoading ? (
+                <div className="text-center py-8 text-gray-500">
+                  <div className="flex items-center justify-center gap-2">
+                    <ClockIcon className="w-4 h-4 animate-spin"/>
+                    Cargando reservas...
+                  </div>
+                </div>
+              ) : reservations.length > 0 ? reservations.slice(0, 10).map((reservation: any, i: number) => (
+                <div key={reservation.id} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-900">{reservation.userName}</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      reservation.status === 'PAID' ? 'bg-green-100 text-green-800' :
+                      reservation.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {reservation.status}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-600 space-y-1">
+                    <div className="flex justify-between">
+                      <span>Cancha:</span>
+                      <span className="text-gray-800">{reservation.courtName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Centro:</span>
+                      <span className="text-gray-800">{reservation.centerName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Fecha:</span>
+                      <span className="text-gray-800">{reservation.date}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Hora:</span>
+                      <span className="text-gray-800">{reservation.startTime} - {reservation.endTime}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Duración:</span>
+                      <span className="text-gray-800">{reservation.duration}h</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Método:</span>
+                      <span className="text-gray-800">{reservation.paymentMethod || '-'}</span>
+                    </div>
+                    <div className="flex justify-between font-medium">
+                      <span>Monto:</span>
+                      <span className="text-gray-900">${Number(reservation.totalAmount).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-center py-8 text-gray-500">
+                  No se encontraron reservas
+                </div>
+              )}
+              {reservations.length > 10 && (
+                <div className="text-center py-2 text-xs text-gray-500">
+                  Mostrando 10 de {reservations.length} reservas
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
 

@@ -26,14 +26,14 @@ export async function GET(request: NextRequest) {
       const QuerySchema = z.object({
         page: z.coerce.number().int().min(1).default(1),
         limit: z.coerce.number().int().min(1).max(100).default(20),
-        sortBy: z.enum(['type', 'createdAt', 'priority', 'scheduledDate']).default('createdAt'),
+        sortBy: z.enum(['type', 'createdAt', 'scheduledAt']).default('createdAt'),
         sortOrder: z.enum(['asc', 'desc']).default('desc'),
         status: z.enum(['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
         type: z.string().optional(),
         centerId: z.string().optional(),
         courtId: z.string().optional(),
-        from: z.string().datetime().optional(),
-        to: z.string().datetime().optional(),
+        startDate: z.string().datetime().optional(),
+        endDate: z.string().datetime().optional(),
         assignedTo: z.string().optional(),
       });
 

@@ -436,7 +436,7 @@ async function generateUsersReport(startDate: Date, endDate: Date, groupBy: stri
     createdAt: { gte: startDate, lte: endDate }
   };
   
-  const [totalUsers, usersByRole, usersByActive] = await Promise.all([
+  const [totalUsers, usersByRole, usersByActive, usersList] = await Promise.all([
     prisma.user.count({ where: baseFilter }),
     
     prisma.user.groupBy({
@@ -449,22 +449,57 @@ async function generateUsersReport(startDate: Date, endDate: Date, groupBy: stri
       by: ['isActive'],
       where: baseFilter,
       _count: { id: true }
+    }),
+    
+    // Obtener lista de usuarios con sus reservas
+    prisma.user.findMany({
+      where: baseFilter,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        _count: {
+          select: {
+            reservations: {
+              where: {
+                startTime: { gte: startDate, lte: endDate }
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: 1000 // Límite para evitar problemas de memoria
     })
   ]);
+  
+  console.log('👥 [USERS] Datos generados:', {
+    totalUsers,
+    usersByRole: usersByRole.length,
+    usersByActive: usersByActive.length,
+    usersList: usersList.length,
+    firstUser: usersList[0]
+  });
   
   return {
     summary: {
       totalUsers
     },
     byRole: usersByRole,
-    byActive: usersByActive
+    byActive: usersByActive,
+    users: usersList
   };
 }
 
 async function generateCourtsReport(startDate: Date, endDate: Date, centerId?: string) {
   const where = centerId ? { centerId } : {};
   
-  const [totalCourts, courtsBySport, courtsByStatus] = await Promise.all([
+  const [totalCourts, courtsBySport, courtsByStatus, courtsList, reservationsData] = await Promise.all([
     prisma.court.count({ where }),
     
     prisma.court.groupBy({
@@ -477,15 +512,142 @@ async function generateCourtsReport(startDate: Date, endDate: Date, centerId?: s
       by: ['maintenanceStatus'],
       where,
       _count: { id: true }
+    }),
+    
+    // Obtener lista detallada de canchas con sus centros
+    prisma.court.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        sportType: true,
+        capacity: true,
+        basePricePerHour: true,
+        hasLighting: true,
+        lightingExtraPerHour: true,
+        isActive: true,
+        maintenanceStatus: true,
+        isMultiuse: true,
+        allowedSports: true,
+        createdAt: true,
+        updatedAt: true,
+        center: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            phone: true,
+            email: true
+          }
+        },
+        _count: {
+          select: {
+            reservations: {
+              where: {
+                startTime: { gte: startDate, lte: endDate },
+                status: { in: ['PAID', 'COMPLETED', 'IN_PROGRESS'] }
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        name: 'asc'
+      }
+    }),
+    
+    // Obtener datos de reservas para análisis de utilización
+    prisma.reservation.findMany({
+      where: {
+        startTime: { gte: startDate, lte: endDate },
+        status: { in: ['PAID', 'COMPLETED', 'IN_PROGRESS'] },
+        ...(centerId && { court: { centerId } })
+      },
+      select: {
+        id: true,
+        courtId: true,
+        startTime: true,
+        endTime: true,
+        totalPrice: true,
+        status: true,
+        court: {
+          select: {
+            id: true,
+            name: true,
+            sportType: true,
+            center: {
+              select: {
+                name: true
+              }
+            }
+          }
+        }
+      },
+      take: 5000 // Límite para evitar problemas de memoria
     })
   ]);
   
+  // Calcular métricas de utilización
+  const utilizationData = courtsList.map(court => {
+    const courtReservations = reservationsData.filter(r => r.courtId === court.id);
+    const totalHours = courtReservations.reduce((sum, res) => {
+      const duration = (new Date(res.endTime).getTime() - new Date(res.startTime).getTime()) / (1000 * 60 * 60);
+      return sum + duration;
+    }, 0);
+    
+    // Calcular horas totales disponibles en el período
+    const daysInPeriod = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const hoursPerDay = 16; // Asumiendo 16 horas de operación por día
+    const totalAvailableHours = daysInPeriod * hoursPerDay;
+    
+    const utilizationRate = totalAvailableHours > 0 ? Math.round((totalHours / totalAvailableHours) * 100) : 0;
+    
+    return {
+      courtId: court.id,
+      utilizationRate,
+      totalHours,
+      reservationCount: courtReservations.length,
+      revenue: courtReservations.reduce((sum, res) => sum + Number(res.totalPrice), 0)
+    };
+  });
+  
+  // Calcular métricas agregadas
+  const activeCourts = courtsList.filter(c => c.isActive).length;
+  const operationalCourts = courtsList.filter(c => c.maintenanceStatus === 'operational').length;
+  const maintenanceCourts = courtsList.filter(c => c.maintenanceStatus !== 'operational').length;
+  const averageUtilization = utilizationData.length > 0 
+    ? Math.round(utilizationData.reduce((sum, c) => sum + c.utilizationRate, 0) / utilizationData.length)
+    : 0;
+  
+  const totalRevenue = utilizationData.reduce((sum, c) => sum + c.revenue, 0);
+  const totalReservations = reservationsData.length;
+  
+  console.log('🏟️ [COURTS] Datos generados:', {
+    totalCourts,
+    activeCourts,
+    operationalCourts,
+    maintenanceCourts,
+    averageUtilization,
+    totalRevenue,
+    totalReservations,
+    courtsList: courtsList.length,
+    utilizationData: utilizationData.length
+  });
+  
   return {
     summary: {
-      totalCourts
+      totalCourts,
+      activeCourts,
+      operationalCourts,
+      maintenanceCourts,
+      averageUtilization,
+      totalRevenue,
+      totalReservations
     },
     bySport: courtsBySport,
-    byStatus: courtsByStatus
+    byStatus: courtsByStatus,
+    courts: courtsList,
+    utilizationData
   };
 }
 

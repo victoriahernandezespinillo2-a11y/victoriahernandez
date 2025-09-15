@@ -168,119 +168,119 @@ export default function ReservationsReportPage() {
   const occupancyRate = metrics.occupancyRate;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Reporte de Reservas</h1>
-          <p className="text-gray-600">Análisis detallado de ocupación y rendimiento</p>
-        </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={() => setShowReservationsTable(!showReservationsTable)}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-          >
-            <EyeIcon className="w-4 h-4"/>
-            {showReservationsTable ? 'Ocultar' : 'Ver'} Detalles
-          </button>
-          <button onClick={()=>exportFile('csv')} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            <DocumentTextIcon className="w-4 h-4"/>Exportar CSV
-          </button>
-          <button onClick={()=>exportFile('json')} className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-gray-300 rounded-lg hover:border-green-400 hover:bg-green-50">
-            <DocumentTextIcon className="w-4 h-4"/>Exportar JSON
-          </button>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header móvil */}
+      <div className="bg-white shadow-sm border-b px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-bold text-gray-900">Reporte de Reservas</h1>
+            <p className="text-sm text-gray-600">Análisis de ocupación</p>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setShowReservationsTable(!showReservationsTable)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+            >
+              <EyeIcon className="w-4 h-4"/>
+              {showReservationsTable ? 'Ocultar' : 'Ver'}
+            </button>
+            <button onClick={()=>exportFile('csv')} className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+              <DocumentTextIcon className="w-4 h-4"/>CSV
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border">
-        <div className="flex flex-wrap gap-3 items-center">
-          {(['7d','30d','90d','1y'] as const).map((p) => (
-            <button key={p} onClick={() => setPeriod(p)} className={`px-4 py-2 rounded-lg text-sm font-semibold ${period===p?'bg-blue-600 text-white':'bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}>
-              {p==='7d'?'7 Días':p==='30d'?'30 Días':p==='90d'?'90 Días':'1 Año'}
-            </button>
-          ))}
-          <button onClick={() => setPeriod('custom')} className={`px-4 py-2 rounded-lg text-sm font-semibold ${period==='custom'?'bg-blue-600 text-white':'bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}>
+      {/* Filtros móviles */}
+      <div className="px-4 py-3">
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            {(['7d','30d','90d','1y'] as const).map((p) => (
+              <button key={p} onClick={() => setPeriod(p)} className={`px-3 py-2 rounded-lg text-sm font-semibold ${period===p?'bg-blue-600 text-white':'bg-white text-gray-700 border border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}>
+                {p==='7d'?'7 Días':p==='30d'?'30 Días':p==='90d'?'90 Días':'1 Año'}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setPeriod('custom')} className={`w-full px-3 py-2 rounded-lg text-sm font-semibold ${period==='custom'?'bg-blue-600 text-white':'bg-white text-gray-700 border border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}>
             Personalizado
           </button>
           {period==='custom' && (
-            <div className="flex items-center gap-3 ml-auto">
-              <input type="date" value={dateRange.start} onChange={(e)=>setDateRange(r=>({...r,start:e.target.value}))} className="px-3 py-2 border-2 border-gray-300 rounded-lg"/>
-              <input type="date" value={dateRange.end} onChange={(e)=>setDateRange(r=>({...r,end:e.target.value}))} className="px-3 py-2 border-2 border-gray-300 rounded-lg"/>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <input type="date" value={dateRange.start} onChange={(e)=>setDateRange(r=>({...r,start:e.target.value}))} className="px-3 py-2 border border-gray-300 rounded-lg text-sm"/>
+              <input type="date" value={dateRange.end} onChange={(e)=>setDateRange(r=>({...r,end:e.target.value}))} className="px-3 py-2 border border-gray-300 rounded-lg text-sm"/>
             </div>
           )}
         </div>
       </div>
 
-      {/* Métricas principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Reservas Efectivas</p>
-              <p className="text-2xl font-bold text-gray-900">{totalEffective.toLocaleString()}</p>
-              <p className="text-xs text-green-600 mt-1">+{occupancyRate}% ocupación</p>
+      {/* Métricas principales móviles */}
+      <div className="px-4 pb-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between mb-2">
+              <CheckCircleIcon className="w-6 h-6 text-green-600"/>
+              <span className="text-xs text-green-600 font-medium">+{occupancyRate}%</span>
             </div>
-            <CheckCircleIcon className="w-8 h-8 text-green-600"/>
+            <p className="text-xs text-gray-600 mb-1">Efectivas</p>
+            <p className="text-lg font-bold text-gray-900">{totalEffective.toLocaleString()}</p>
           </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Canceladas</p>
-              <p className="text-2xl font-bold text-gray-900">{cancelled.toLocaleString()}</p>
-              <p className="text-xs text-red-600 mt-1">{cancelled > 0 ? Math.round((cancelled / (totalEffective + cancelled + pending)) * 100) : 0}% del total</p>
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between mb-2">
+              <XCircleIcon className="w-6 h-6 text-red-600"/>
+              <span className="text-xs text-red-600 font-medium">{cancelled > 0 ? Math.round((cancelled / (totalEffective + cancelled + pending)) * 100) : 0}%</span>
             </div>
-            <XCircleIcon className="w-8 h-8 text-red-600"/>
+            <p className="text-xs text-gray-600 mb-1">Canceladas</p>
+            <p className="text-lg font-bold text-gray-900">{cancelled.toLocaleString()}</p>
           </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Pendientes</p>
-              <p className="text-2xl font-bold text-gray-900">{pending.toLocaleString()}</p>
-              <p className="text-xs text-yellow-600 mt-1">En proceso</p>
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between mb-2">
+              <ExclamationTriangleIcon className="w-6 h-6 text-yellow-600"/>
+              <span className="text-xs text-yellow-600 font-medium">En proceso</span>
             </div>
-            <ExclamationTriangleIcon className="w-8 h-8 text-yellow-600"/>
+            <p className="text-xs text-gray-600 mb-1">Pendientes</p>
+            <p className="text-lg font-bold text-gray-900">{pending.toLocaleString()}</p>
           </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Ingresos</p>
-              <p className="text-2xl font-bold text-gray-900">${totalRevenue.toLocaleString()}</p>
-              <p className="text-xs text-green-600 mt-1">De reservas efectivas</p>
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between mb-2">
+              <CurrencyDollarIcon className="w-6 h-6 text-green-600"/>
+              <span className="text-xs text-green-600 font-medium">Efectivas</span>
             </div>
-            <CurrencyDollarIcon className="w-8 h-8 text-green-600"/>
+            <p className="text-xs text-gray-600 mb-1">Ingresos</p>
+            <p className="text-lg font-bold text-gray-900">${totalRevenue.toLocaleString()}</p>
           </div>
         </div>
       </div>
 
-      {/* Calendario de ocupación */}
-      <OccupancyCalendar 
-        reservations={reservations.map(r => ({
-          id: r.id,
-          date: r.date,
-          startTime: r.startTime,
-          endTime: r.endTime,
-          courtName: r.courtName,
-          status: r.status,
-          userName: r.userName
-        }))}
-        onReservationClick={(reservation) => {
-          const fullReservation = reservations.find(r => r.id === reservation.id);
-          if (fullReservation) {
-            setSelectedReservation(fullReservation);
-            setShowReservationModal(true);
-          }
-        }}
-      />
+      {/* Calendario de ocupación móvil */}
+      <div className="px-4 pb-3">
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <h3 className="text-base font-semibold text-gray-900 mb-3">Calendario de Ocupación</h3>
+          <OccupancyCalendar 
+            reservations={reservations.map(r => ({
+              id: r.id,
+              date: r.date,
+              startTime: r.startTime,
+              endTime: r.endTime,
+              courtName: r.courtName,
+              status: r.status,
+              userName: r.userName
+            }))}
+            onReservationClick={(reservation) => {
+              const fullReservation = reservations.find(r => r.id === reservation.id);
+              if (fullReservation) {
+                setSelectedReservation(fullReservation);
+                setShowReservationModal(true);
+              }
+            }}
+          />
+        </div>
+      </div>
 
-      {/* Gráficos y análisis */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Distribución por Estado</h3>
-          <div className="space-y-3">
+      {/* Gráficos móviles */}
+      <div className="px-4 pb-3 space-y-3">
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <h3 className="text-base font-semibold text-gray-900 mb-3">Por Estado</h3>
+          <div className="space-y-2">
             {[
               { status: 'PAID', label: 'Pagadas', count: reservations.filter(r => r.status === 'PAID').length, color: 'bg-green-500' },
               { status: 'COMPLETED', label: 'Completadas', count: reservations.filter(r => r.status === 'COMPLETED').length, color: 'bg-blue-500' },
@@ -290,8 +290,8 @@ export default function ReservationsReportPage() {
               const total = reservations.length;
               const percentage = total > 0 ? Math.round((item.count / total) * 100) : 0;
               return (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${item.color}`}></div>
                     <span className="text-sm text-gray-700">{item.label}</span>
                   </div>
@@ -305,12 +305,12 @@ export default function ReservationsReportPage() {
           </div>
         </div>
         
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Deportes/Canchas</h3>
-          <div className="space-y-3">
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <h3 className="text-base font-semibold text-gray-900 mb-3">Top Deportes</h3>
+          <div className="space-y-2">
             {metrics.topSports.length > 0 ? metrics.topSports.map((item, i) => {
               return (
-                <div key={i} className="flex items-center justify-between">
+                <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
                   <span className="text-sm text-gray-700 truncate">{item.sport}</span>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{item.count}</span>
@@ -319,165 +319,139 @@ export default function ReservationsReportPage() {
                 </div>
               );
             }) : (
-              <div className="text-gray-500 text-sm">Sin datos</div>
+              <div className="text-gray-500 text-sm text-center py-4">Sin datos</div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Tabla de reservas detallada */}
+      {/* Tabla de reservas detallada móvil */}
       {showReservationsTable && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Reservas Individuales ({reservationsTotal.toLocaleString()})</h3>
-            <div className="flex items-center gap-3">
+        <div className="px-4 pb-3">
+          <div className="bg-white rounded-lg shadow-sm border p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-semibold text-gray-900">Reservas ({reservationsTotal.toLocaleString()})</h3>
+              <button onClick={()=>exportFile('json')} className="flex items-center gap-1 px-2 py-1 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-xs">
+                <DocumentTextIcon className="w-3 h-3"/>JSON
+              </button>
+            </div>
+
+            {/* Filtros móviles */}
+            <div className="space-y-2 mb-3">
               <div className="relative">
                 <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"/>
                 <input
                   type="text"
-                  placeholder="Buscar por usuario, cancha..."
+                  placeholder="Buscar..."
                   value={reservationsSearch}
                   onChange={(e) => setReservationsSearch(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && loadReservations(1, e.currentTarget.value, reservationsStatus, reservationsSport)}
-                  className="pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg text-sm w-64"
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm w-full"
                 />
               </div>
-              <select
-                value={reservationsStatus}
-                onChange={(e) => {
-                  setReservationsStatus(e.target.value);
-                  loadReservations(1, reservationsSearch, e.target.value, reservationsSport);
-                }}
-                className="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm"
-              >
-                <option value="">Todos los estados</option>
-                <option value="PAID">Pagadas</option>
-                <option value="COMPLETED">Completadas</option>
-                <option value="PENDING">Pendientes</option>
-                <option value="CANCELLED">Canceladas</option>
-              </select>
-              <select
-                value={reservationsSport}
-                onChange={(e) => {
-                  setReservationsSport(e.target.value);
-                  loadReservations(1, reservationsSearch, reservationsStatus, e.target.value);
-                }}
-                className="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm"
-              >
-                <option value="">Todos los deportes</option>
-                {Array.from(new Set(reservations.map(r => r.courtName))).map(sport => (
-                  <option key={sport} value={sport}>{sport}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto border rounded-lg">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-700">
-                <tr>
-                  <th className="px-4 py-2 text-left">Usuario</th>
-                  <th className="px-4 py-2 text-left">Cancha</th>
-                  <th className="px-4 py-2 text-left">Fecha</th>
-                  <th className="px-4 py-2 text-left">Hora</th>
-                  <th className="px-4 py-2 text-right">Duración</th>
-                  <th className="px-4 py-2 text-right">Monto</th>
-                  <th className="px-4 py-2 text-center">Estado</th>
-                  <th className="px-4 py-2 text-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reservationsLoading ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                      <div className="flex items-center justify-center gap-2">
-                        <ClockIcon className="w-4 h-4 animate-spin"/>
-                        Cargando reservas...
-                      </div>
-                    </td>
-                  </tr>
-                ) : reservations.length > 0 ? reservations.map((reservation: any, i: number) => (
-                  <tr key={reservation.id} className={i % 2 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="px-4 py-2 text-gray-800">
-                      <div>
-                        <div className="font-medium">{reservation.userName}</div>
-                        <div className="text-xs text-gray-500">{reservation.userEmail}</div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2 text-gray-800">
-                      <div>
-                        <div className="font-medium">{reservation.courtName}</div>
-                        <div className="text-xs text-gray-500">{reservation.centerName}</div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2 text-gray-800">{reservation.date}</td>
-                    <td className="px-4 py-2 text-gray-800">
-                      {reservation.startTime} - {reservation.endTime}
-                    </td>
-                    <td className="px-4 py-2 text-right text-gray-800">{reservation.duration}h</td>
-                    <td className="px-4 py-2 text-right font-medium text-gray-900">
-                      ${Number(reservation.totalAmount).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        reservation.status === 'PAID' ? 'bg-green-100 text-green-800' :
-                        reservation.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
-                        reservation.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {reservation.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <button
-                        onClick={() => {
-                          setSelectedReservation(reservation);
-                          setShowReservationModal(true);
-                        }}
-                        className="text-blue-600 hover:text-blue-800 text-xs font-medium"
-                      >
-                        Ver detalles
-                      </button>
-                    </td>
-                  </tr>
-                )) : (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                      No se encontraron reservas
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Paginación */}
-          {reservationsTotal > 50 && (
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-gray-700">
-                Mostrando {((reservationsPage - 1) * 50) + 1} - {Math.min(reservationsPage * 50, reservationsTotal)} de {reservationsTotal} reservas
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => loadReservations(reservationsPage - 1, reservationsSearch, reservationsStatus, reservationsSport)}
-                  disabled={reservationsPage <= 1}
-                  className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={reservationsStatus}
+                  onChange={(e) => {
+                    setReservationsStatus(e.target.value);
+                    loadReservations(1, reservationsSearch, e.target.value, reservationsSport);
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 >
-                  Anterior
-                </button>
-                <span className="px-3 py-1 text-sm text-gray-700">
-                  Página {reservationsPage} de {Math.ceil(reservationsTotal / 50)}
-                </span>
-                <button
-                  onClick={() => loadReservations(reservationsPage + 1, reservationsSearch, reservationsStatus, reservationsSport)}
-                  disabled={reservationsPage >= Math.ceil(reservationsTotal / 50)}
-                  className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  <option value="">Todos los estados</option>
+                  <option value="PAID">Pagadas</option>
+                  <option value="COMPLETED">Completadas</option>
+                  <option value="PENDING">Pendientes</option>
+                  <option value="CANCELLED">Canceladas</option>
+                </select>
+                <select
+                  value={reservationsSport}
+                  onChange={(e) => {
+                    setReservationsSport(e.target.value);
+                    loadReservations(1, reservationsSearch, reservationsStatus, e.target.value);
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 >
-                  Siguiente
-                </button>
+                  <option value="">Todos los deportes</option>
+                  {Array.from(new Set(reservations.map(r => r.courtName))).map(sport => (
+                    <option key={sport} value={sport}>{sport}</option>
+                  ))}
+                </select>
               </div>
             </div>
-          )}
+
+            {/* Lista de reservas móvil */}
+            <div className="space-y-2">
+              {reservationsLoading ? (
+                <div className="text-center py-8 text-gray-500">
+                  <div className="flex items-center justify-center gap-2">
+                    <ClockIcon className="w-4 h-4 animate-spin"/>
+                    Cargando reservas...
+                  </div>
+                </div>
+              ) : reservations.length > 0 ? reservations.slice(0, 10).map((reservation: any, i: number) => (
+                <div key={reservation.id} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-900">{reservation.userName}</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      reservation.status === 'PAID' ? 'bg-green-100 text-green-800' :
+                      reservation.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                      reservation.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {reservation.status}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-600 space-y-1">
+                    <div className="flex justify-between">
+                      <span>Cancha:</span>
+                      <span className="text-gray-800">{reservation.courtName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Centro:</span>
+                      <span className="text-gray-800">{reservation.centerName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Fecha:</span>
+                      <span className="text-gray-800">{reservation.date}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Hora:</span>
+                      <span className="text-gray-800">{reservation.startTime} - {reservation.endTime}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Duración:</span>
+                      <span className="text-gray-800">{reservation.duration}h</span>
+                    </div>
+                    <div className="flex justify-between font-medium">
+                      <span>Monto:</span>
+                      <span className="text-gray-900">${Number(reservation.totalAmount).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-gray-200">
+                    <button
+                      onClick={() => {
+                        setSelectedReservation(reservation);
+                        setShowReservationModal(true);
+                      }}
+                      className="w-full text-center text-blue-600 hover:text-blue-800 text-xs font-medium py-1"
+                    >
+                      Ver detalles completos
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-center py-8 text-gray-500">
+                  No se encontraron reservas
+                </div>
+              )}
+              {reservations.length > 10 && (
+                <div className="text-center py-2 text-xs text-gray-500">
+                  Mostrando 10 de {reservations.length} reservas
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

@@ -457,42 +457,45 @@ export default function AdminHomePage() {
         </div>
 
         {/* Revenue Chart */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Ingresos Diarios</h3>
+        <div className="bg-white rounded-lg shadow p-4 md:p-6">
+          <div className="flex items-center justify-between mb-3 md:mb-4">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900">Ingresos Diarios</h3>
             <span className="text-xs text-gray-500">Últimos 30 días</span>
           </div>
           {loading ? (
-            <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
+            <div className="h-48 md:h-64 bg-gray-50 rounded-lg flex items-center justify-center">
               <div className="flex items-center text-gray-500 text-sm">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600 mr-2"></div>
                 Cargando ingresos...
               </div>
             </div>
           ) : Array.isArray(dashboardData?.trends?.daily) && dashboardData.trends.daily.length > 0 ? (
-            <div className="h-64">
+            <div className="h-48 md:h-64">
               {(() => {
                 const dailyData = dashboardData.trends.daily as Array<{ date: string; revenue: number }>;
-                console.log('Datos de ingresos diarios:', dailyData);
+                console.log('🔍 Dashboard data completo:', dashboardData);
+                console.log('📊 Trends:', dashboardData?.trends);
+                console.log('📈 Daily data:', dailyData);
+                console.log('📅 Primeros 3 días:', dailyData.slice(0, 3));
                 const maxRevenue = Math.max(...dailyData.map(d => Number(d.revenue || 0)), 1);
                 const minRevenue = Math.min(...dailyData.map(d => Number(d.revenue || 0)));
-                console.log('Máximo ingreso:', maxRevenue, 'Mínimo:', minRevenue);
+                console.log('💰 Máximo ingreso:', maxRevenue, 'Mínimo:', minRevenue);
                 
                 return (
-                  <div className="h-56 bg-gray-50 p-4 rounded">
-                    {/* Gráfico de línea simple */}
-                    <div className="relative h-full flex items-end justify-between">
-                      {dailyData.slice(-14).map((day, index) => {
+                  <div className="h-40 md:h-56 bg-gray-50 p-3 md:p-4 rounded">
+                    {/* Gráfico de barras móvil */}
+                    <div className="relative h-full flex items-end justify-between gap-1">
+                      {dailyData.slice(-7).map((day, index) => {
                         const revenue = Number(day.revenue || 0);
                         const heightPercent = maxRevenue > 0 ? (revenue / maxRevenue) * 100 : 0;
                         const date = new Date(day.date);
                         const shortDate = `${date.getDate()}/${date.getMonth() + 1}`;
                         
                         return (
-                          <div key={day.date} className="flex flex-col items-center group">
+                          <div key={day.date} className="flex flex-col items-center group flex-1">
                             {/* Barra */}
                             <div
-                              className="w-6 bg-gradient-to-t from-green-500 to-green-400 rounded-t-md shadow-sm hover:from-green-600 hover:to-green-500 transition-all duration-200"
+                              className="w-full bg-gradient-to-t from-green-500 to-green-400 rounded-t-md shadow-sm hover:from-green-600 hover:to-green-500 transition-all duration-200"
                               style={{ 
                                 height: `${Math.max(heightPercent, 2)}%`,
                                 minHeight: '4px'
@@ -500,11 +503,11 @@ export default function AdminHomePage() {
                               title={`${shortDate}: $${revenue.toLocaleString()}`}
                             />
                             {/* Fecha */}
-                            <div className="mt-1 text-[10px] text-gray-500 rotate-45 origin-bottom-left">
+                            <div className="mt-1 text-[8px] md:text-[10px] text-gray-500 text-center">
                               {shortDate}
                             </div>
                             {/* Valor en hover */}
-                            <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-gray-800 text-white text-xs px-2 py-1 rounded transition-opacity">
+                            <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-gray-800 text-white text-xs px-2 py-1 rounded transition-opacity z-10">
                               ${revenue.toLocaleString()}
                             </div>
                           </div>
@@ -512,19 +515,23 @@ export default function AdminHomePage() {
                       })}
                     </div>
                     
-                    {/* Leyenda */}
-                    <div className="mt-4 flex justify-between text-xs text-gray-700 font-medium">
-                      <span>Min: ${minRevenue.toLocaleString()}</span>
-                      <span>Promedio: ${Math.round(dailyData.reduce((sum, d) => sum + Number(d.revenue || 0), 0) / dailyData.length).toLocaleString()}</span>
-                      <span>Max: ${maxRevenue.toLocaleString()}</span>
+                    {/* Leyenda móvil */}
+                    <div className="mt-3 md:mt-4 space-y-1 md:space-y-0">
+                      <div className="flex justify-between text-xs text-gray-700 font-medium">
+                        <span>Min: ${minRevenue.toLocaleString()}</span>
+                        <span>Max: ${maxRevenue.toLocaleString()}</span>
+                      </div>
+                      <div className="text-center text-xs text-gray-700 font-medium">
+                        Promedio: ${Math.round(dailyData.reduce((sum, d) => sum + Number(d.revenue || 0), 0) / dailyData.length).toLocaleString()}
+                      </div>
                     </div>
                   </div>
                 );
               })()}
             </div>
           ) : (
-            <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-              <p className="text-gray-500 text-sm">Sin datos de ingresos en el período seleccionado</p>
+            <div className="h-48 md:h-64 bg-gray-50 rounded-lg flex items-center justify-center">
+              <p className="text-gray-500 text-sm text-center px-4">Sin datos de ingresos en el período seleccionado</p>
             </div>
           )}
         </div>

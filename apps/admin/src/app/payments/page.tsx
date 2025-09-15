@@ -199,91 +199,114 @@ export default function PaymentsPage() {
   };
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Gestión de Pagos</h1>
-        <p className="text-gray-600">Administra y monitorea todos los pagos del sistema</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Mobile Header */}
+      <div className="bg-white shadow-sm border-b px-4 py-3 md:hidden">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900">Gestión de Pagos</h1>
+            <p className="text-xs text-gray-500">Administra y monitorea todos los pagos</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="p-2 bg-gray-100 rounded-lg">
+              <Filter className="w-4 h-4 text-gray-600" />
+            </button>
+            <button className="p-2 bg-blue-600 text-white rounded-lg">
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Header */}
+      <div className="hidden md:block p-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Gestión de Pagos</h1>
+          <p className="text-gray-600">Administra y monitorea todos los pagos del sistema</p>
+        </div>
       </div>
 
       {/* Estadísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Ingresos Totales</p>
-              <p className="text-2xl font-bold text-gray-900">${totalAmount.toLocaleString()}</p>
+      <div className="p-4 md:p-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-4 md:mb-6">
+          <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs md:text-sm font-medium text-gray-600">Ingresos Totales</p>
+                <p className="text-lg md:text-2xl font-bold text-gray-900">${totalAmount.toLocaleString()}</p>
+              </div>
+              <CreditCardIcon className="w-6 h-6 md:w-8 md:h-8 text-green-500" />
             </div>
-            <CreditCardIcon className="w-8 h-8 text-green-500" />
+          </div>
+          <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs md:text-sm font-medium text-gray-600">Completados</p>
+                <p className="text-lg md:text-2xl font-bold text-gray-900">{completedPayments}</p>
+              </div>
+              <CheckCircleIcon className="w-6 h-6 md:w-8 md:h-8 text-green-500" />
+            </div>
+          </div>
+          <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs md:text-sm font-medium text-gray-600">Pendientes</p>
+                <p className="text-lg md:text-2xl font-bold text-gray-900">{pendingPayments}</p>
+              </div>
+              <Clock className="w-6 h-6 md:w-8 md:h-8 text-yellow-500" />
+            </div>
+          </div>
+          <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs md:text-sm font-medium text-gray-600">Fallidos</p>
+                <p className="text-lg md:text-2xl font-bold text-gray-900">{failedPayments}</p>
+              </div>
+              <XCircleIcon className="w-6 h-6 md:w-8 md:h-8 text-red-500" />
+            </div>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Pagos Completados</p>
-              <p className="text-2xl font-bold text-gray-900">{completedPayments}</p>
-            </div>
-            <CheckCircleIcon className="w-8 h-8 text-green-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Pagos Pendientes</p>
-              <p className="text-2xl font-bold text-gray-900">{pendingPayments}</p>
-            </div>
-            <Clock className="w-8 h-8 text-yellow-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Pagos Fallidos</p>
-              <p className="text-2xl font-bold text-gray-900">{failedPayments}</p>
-            </div>
-            <XCircleIcon className="w-8 h-8 text-red-500" />
-          </div>
-        </div>
-      </div>
 
-      {/* Filtros y búsqueda */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Buscar por usuario, reserva o ID de transacción..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+        {/* Filtros y búsqueda */}
+        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border mb-4 md:mb-6">
+          <div className="space-y-3 md:space-y-0 md:flex md:flex-row md:gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Buscar por usuario, reserva o ID..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
-          <div className="flex gap-4">
-            <select
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">Todos los estados</option>
-              <option value="completed">Completado</option>
-              <option value="pending">Pendiente</option>
-              <option value="failed">Fallido</option>
-              <option value="refunded">Reembolsado</option>
-            </select>
-            <select
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              value={methodFilter}
-              onChange={(e) => setMethodFilter(e.target.value)}
-            >
-              <option value="all">Todos los métodos</option>
-              <option value="credit_card">Tarjeta de Crédito</option>
-              <option value="debit_card">Tarjeta de Débito</option>
-              <option value="transfer">Transferencia</option>
-              <option value="cash">Efectivo</option>
-            </select>
-            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <div className="grid grid-cols-2 gap-3 md:flex md:gap-4">
+              <select
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">Todos los estados</option>
+                <option value="completed">Completado</option>
+                <option value="pending">Pendiente</option>
+                <option value="failed">Fallido</option>
+                <option value="refunded">Reembolsado</option>
+              </select>
+              <select
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                value={methodFilter}
+                onChange={(e) => setMethodFilter(e.target.value)}
+              >
+                <option value="all">Todos los métodos</option>
+                <option value="credit_card">Tarjeta de Crédito</option>
+                <option value="debit_card">Tarjeta de Débito</option>
+                <option value="transfer">Transferencia</option>
+                <option value="cash">Efectivo</option>
+              </select>
+            </div>
+            <button className="hidden md:flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
               <Download className="w-4 h-4" />
               Exportar
             </button>
@@ -291,8 +314,8 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      {/* Tabla de pagos */}
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+      {/* Tabla de pagos - Desktop */}
+      <div className="hidden md:block bg-white rounded-lg shadow-sm border overflow-hidden mx-4 md:mx-6">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
@@ -390,26 +413,112 @@ export default function PaymentsPage() {
             </tbody>
           </table>
         </div>
+      </div>
 
-        {/* Paginación */}
-        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-          <div className="flex-1 flex justify-between sm:hidden">
-            <button
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-            >
-              Anterior
-            </button>
-            <button
-              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-              disabled={currentPage === totalPages}
-              className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-            >
-              Siguiente
-            </button>
+      {/* Vista móvil - Tarjetas de pagos */}
+      <div className="md:hidden px-4 space-y-3">
+        {paginatedPayments.map((payment) => (
+          <div key={payment.id} className="bg-white rounded-lg shadow-sm border p-4">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  {getStatusIcon(payment.status)}
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(payment.status)}`}>
+                    {payment.status === 'completed' ? 'Completado' :
+                     payment.status === 'pending' ? 'Pendiente' :
+                     payment.status === 'failed' ? 'Fallido' : 'Reembolsado'}
+                  </span>
+                </div>
+                <p className="text-sm font-medium text-gray-900">${payment.amount.toLocaleString()}</p>
+                <p className="text-xs text-gray-500">{getMethodName(payment.method)}</p>
+              </div>
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={() => handleViewPayment(payment)}
+                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                  title="Ver detalles"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => handleEditPayment(payment)}
+                  className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                  title="Editar pago"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => handleDeletePayment(payment)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                  title="Eliminar pago"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="space-y-2 text-xs text-gray-600">
+              <div className="flex justify-between">
+                <span>Usuario:</span>
+                <span className="font-medium">{payment.user}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Reserva:</span>
+                <span className="font-medium">{payment.reservation}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>ID Transacción:</span>
+                <span className="font-mono text-xs">{payment.transactionId.slice(0, 12)}...</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Fecha:</span>
+                <span className="font-medium">
+                  {new Date(payment.date).toLocaleDateString('es-ES', {
+                    day: 'numeric',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+        ))}
+      </div>
+
+      {/* Paginación */}
+      <div className="px-4 md:px-6 py-4">
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          {/* Mobile Pagination */}
+          <div className="md:hidden">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm text-gray-700">
+                Página {currentPage} de {totalPages}
+              </p>
+              <p className="text-xs text-gray-500">
+                {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredPayments.length)} de {filteredPayments.length}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="flex-1 px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+                className="flex-1 px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+
+          {/* Desktop Pagination */}
+          <div className="hidden md:flex md:items-center md:justify-between">
             <div>
               <p className="text-sm text-gray-700">
                 Mostrando <span className="font-medium">{startIndex + 1}</span> a{' '}
