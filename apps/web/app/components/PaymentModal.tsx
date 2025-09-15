@@ -125,8 +125,29 @@ export default function PaymentModal(props: PaymentModalProps) {
   const handlePay = async () => {
     setError(null);
     if (method === 'ONSITE') {
-      onClose();
-      router.push(`/dashboard/reservations/success?reservationId=${reservationId}`);
+      setIsSubmitting(true);
+      try {
+        // Actualizar la reserva con el método de pago ONSITE
+        const response = await fetch(`/api/reservations/${reservationId}/payment-method`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            paymentMethod: 'ONSITE'
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('No se pudo actualizar el método de pago');
+        }
+
+        onClose();
+        router.push(`/dashboard/reservations/success?reservationId=${reservationId}`);
+      } catch (e: any) {
+        setError(e?.message || 'No se pudo procesar la reserva.');
+        setIsSubmitting(false);
+      }
       return;
     }
     setIsSubmitting(true);

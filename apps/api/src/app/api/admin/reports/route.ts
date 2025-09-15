@@ -230,10 +230,9 @@ function calculateDateRange(params: any) {
         startDate.setDate(now.getDate() - 90);
         break;
       case '1y':
-        // Para 1 año, incluir un rango más amplio para capturar todas las reservas
-        startDate = new Date('2020-01-01'); // Fecha muy antigua para incluir todo
-        endDate = new Date('2030-12-31'); // Fecha futura para incluir reservas futuras
-        endDate.setHours(23, 59, 59, 999);
+        // Para 1 año, calcular correctamente el período
+        startDate = new Date(now);
+        startDate.setFullYear(now.getFullYear() - 1);
         break;
       default:
         // Fallback a 30 días si el período no es reconocido
@@ -289,6 +288,10 @@ async function generateRevenueReport(startDate: Date, endDate: Date, centerId?: 
         startTime: true,
         totalPrice: true,
         id: true
+      },
+      take: 1000, // Límite para evitar problemas de memoria
+      orderBy: {
+        startTime: 'desc'
       }
     })
   ]);
@@ -366,15 +369,26 @@ async function generateUsageReport(startDate: Date, endDate: Date, centerId?: st
     ...(centerId && { court: { centerId } })
   };
   
-  const [totalReservations, reservationsBySport, reservationsByStatus] = await Promise.all([
+  // Optimización: Usar una sola consulta con join en lugar de consultas N+1
+  const [totalReservations, reservationsWithCourts, reservationsByStatus] = await Promise.all([
     // Contar solo reservas que realmente ocupan la cancha
     prisma.reservation.count({ where: { ...baseFilter, status: { in: ['PAID','IN_PROGRESS','COMPLETED'] } as any } }),
     
-    // Agrupar por courtId y luego mapear a sportType
-    prisma.reservation.groupBy({
-      by: ['courtId'],
+    // Consulta optimizada con join para obtener datos de canchas
+    prisma.reservation.findMany({
       where: baseFilter,
-      _count: { id: true }
+      select: {
+        id: true,
+        courtId: true,
+        court: {
+          select: {
+            id: true,
+            name: true,
+            sportType: true
+          }
+        }
+      },
+      take: 1000 // Límite para evitar problemas de memoria
     }),
     
     prisma.reservation.groupBy({
@@ -384,24 +398,32 @@ async function generateUsageReport(startDate: Date, endDate: Date, centerId?: st
     })
   ]);
   
-  const courtIds = reservationsBySport.map((r: any) => r.courtId);
-  const courts = await prisma.court.findMany({
-    where: { id: { in: courtIds } },
-    select: { id: true, name: true, sportType: true }
+  // Agrupar por deporte usando los datos ya obtenidos
+  const sportGroups = new Map<string, { sportType: string; count: number; courts: string[] }>();
+  reservationsWithCourts.forEach((reservation: any) => {
+    const sportType = reservation.court?.sportType || 'UNKNOWN';
+    const courtName = reservation.court?.name || 'Cancha Desconocida';
+    
+    if (!sportGroups.has(sportType)) {
+      sportGroups.set(sportType, { sportType, count: 0, courts: [] });
+    }
+    
+    const group = sportGroups.get(sportType)!;
+    group.count++;
+    if (!group.courts.includes(courtName)) {
+      group.courts.push(courtName);
+    }
   });
 
   return {
     summary: {
       totalReservations
     },
-    bySport: reservationsBySport.map((r: any) => {
-      const court = courts.find((c: any) => c.id === r.courtId);
-      return {
-        court: court?.name || 'Cancha Desconocida',
-        sportType: court?.sportType || 'UNKNOWN',
-        count: r._count.id
-      };
-    }),
+    bySport: Array.from(sportGroups.values()).map(group => ({
+      sportType: group.sportType,
+      count: group.count,
+      courts: group.courts
+    })),
     byStatus: reservationsByStatus.map((r: any) => ({
       status: r.status,
       count: r._count.id

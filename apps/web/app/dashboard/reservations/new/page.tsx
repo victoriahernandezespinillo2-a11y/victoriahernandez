@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Smartphone,
   Monitor,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -25,6 +26,7 @@ import { useFirebaseAuth } from '@/components/auth/FirebaseAuthProvider';
 import CalendarVisualModal from '@/components/CalendarVisualModal';
 import { MobileCourtSelector } from '@/app/components/MobileCourtSelector';
 import { MobileCalendar } from '@/app/components/MobileCalendar';
+import { DesktopCalendar } from '@/components/DesktopCalendar';
 import MobilePaymentModal from '@/app/components/MobilePaymentModal';
 import { CalendarSlot } from '@/types/calendar.types';
 
@@ -98,9 +100,11 @@ export default function NewReservationPage() {
   const [createdReservationId, setCreatedReservationId] = useState<string | null>(null);
   const [selectedCalendarSlot, setSelectedCalendarSlot] = useState<CalendarSlot | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number>(60);
 
   const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [showTimeSlotsDesktop, setShowTimeSlotsDesktop] = useState(false);
 
   // Calculate total price
   const totalPrice = useMemo(() => {
@@ -287,8 +291,26 @@ export default function NewReservationPage() {
 
     setIsLoading(true);
     try {
-      // 🎯 USAR EL SLOT DEL CALENDARIO VISUAL
-      const startTime = selectedCalendarSlot.startTime;
+      // 🎯 CONSTRUIR DATETIME ISO VÁLIDO
+      // selectedCalendarSlot.startTime puede ser "HH:MM" o ya un ISO
+      let startTime: string;
+      if (selectedCalendarSlot.startTime.includes('T')) {
+        // Ya es un ISO datetime
+        startTime = selectedCalendarSlot.startTime;
+      } else {
+        // Es formato "HH:MM", combinarlo con la fecha seleccionada
+        startTime = new Date(`${selectedDate}T${selectedCalendarSlot.startTime}:00`).toISOString();
+      }
+      
+      console.log('🎯 [DEBUG] Datos a enviar:', {
+        courtId: selectedCourt.id,
+        startTime,
+        duration,
+        notes,
+        sport: selectedSport || undefined,
+        selectedDate,
+        originalStartTime: selectedCalendarSlot.startTime
+      });
       
       const res: any = await api.reservations.create({
         courtId: selectedCourt.id,
@@ -654,8 +676,8 @@ export default function NewReservationPage() {
                 selectedCourt={selectedCourt}
                 onCourtSelect={(court) => {
                   setSelectedCourt(court);
-                  setStep(3);
                 }}
+                onContinue={() => setStep(4)}
                 selectedSport={selectedSport}
               />
             ) : (
@@ -799,96 +821,196 @@ export default function NewReservationPage() {
                   </button>
                 </div>
             
-            {/* 🎨 CONFIGURACIÓN INICIAL */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* Date Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Calendar className="h-4 w-4 inline mr-1" />
-                  Fecha
-                </label>
-                <input
-                  type="date"
-                  min={minDate}
-                  max={maxDate}
-                  value={selectedDate}
-                  onChange={(e) => {
-                    setSelectedDate(e.target.value);
-                    setSelectedTime('');
-                    setSelectedCalendarSlot(null);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+            {/* 🎨 FLUJO MEJORADO: CALENDARIO + HORARIOS */}
+            <div className="mb-6">
+              <div className={`transition-all duration-500 ease-in-out ${showTimeSlotsDesktop ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'flex justify-center'}`}>
+                {/* CALENDARIO */}
+                <div className={`transition-all duration-500 ease-in-out ${showTimeSlotsDesktop ? 'lg:col-span-1' : 'w-full max-w-2xl'}`}>
+                  <DesktopCalendar
+                    selectedDate={selectedDate}
+                    onDateChange={async (date) => {
+                      setSelectedDate(date);
+                      setSelectedTime('');
+                      setSelectedCalendarSlot(null);
+                      setSelectedSlot(null); // Resetear slot seleccionado
+                      setSelectedSlotIndex(null); // Resetear index seleccionado
+                      setShowTimeSlotsDesktop(true);
+                      
+                      // Cargar horarios automáticamente
+                      if (selectedCourt?.id) {
+                        await loadTimeSlots(selectedCourt.id, date, duration);
+                      }
+                    }}
+                    duration={duration}
+                    onDurationChange={(newDuration) => {
+                      setDuration(newDuration);
+                      setSelectedTime('');
+                      setSelectedCalendarSlot(null);
+                      setSelectedSlot(null); // Resetear slot seleccionado
+                      setSelectedSlotIndex(null); // Resetear index seleccionado
+                    }}
+                    courtName={selectedCourt?.name}
+                  />
+                </div>
 
-              {/* Duration Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Clock className="h-4 w-4 inline mr-1" />
-                  Duración
-                </label>
-                <select
-                  value={duration}
-                  onChange={(e) => {
-                    setDuration(Number(e.target.value));
-                    setSelectedTime('');
-                    setSelectedCalendarSlot(null);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value={60}>1 hora</option>
-                  <option value={90}>1.5 horas</option>
-                  <option value={120}>2 horas</option>
-                  <option value={180}>3 horas</option>
-                </select>
+                {/* HORARIOS DISPONIBLES */}
+                {showTimeSlotsDesktop && selectedDate && (
+                  <div className="lg:col-span-1">
+                    <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          Horarios Disponibles
+                        </h3>
+                        <button
+                          onClick={() => setShowTimeSlotsDesktop(false)}
+                          className="text-gray-500 hover:text-gray-700 transition-colors"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                      </div>
+
+                      <div className="mb-4">
+                        <p className="text-sm text-gray-600">
+                          {new Date(selectedDate).toLocaleDateString('es-ES', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Duración: {duration === 60 ? '1 hora' : duration === 90 ? '1.5 horas' : duration === 120 ? '2 horas' : '3 horas'}
+                        </p>
+                      </div>
+
+                      {/* ✅ HORARIO SELECCIONADO - ARRIBA */}
+                      {selectedCalendarSlot && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center">
+                              <div className="text-green-600 text-lg mr-2">✅</div>
+                              <div>
+                                <p className="font-semibold text-green-900 text-sm">
+                                  {formatTime(selectedCalendarSlot.startTime)} - {formatTime(selectedCalendarSlot.endTime)}
+                                </p>
+                                <p className="text-xs text-green-700">
+                                  {duration === 60 ? '1 hora' : duration === 90 ? '1.5 horas' : duration === 120 ? '2 horas' : '3 horas'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-green-900 text-lg">€{selectedCalendarSlot.price}</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={handleSubmit}
+                            disabled={isLoading}
+                            className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isLoading ? 'Creando Reserva...' : 'Continuar con la Reserva'}
+                          </button>
+                        </div>
+                      )}
+
+                      {loadingTimeSlots ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                          <span className="ml-2 text-gray-600">Cargando horarios...</span>
+                        </div>
+                      ) : timeSlots.length > 0 ? (
+                        <div className="grid grid-cols-3 gap-2 max-h-96 overflow-y-auto">
+                          {timeSlots.map((slot, index) => {
+                            const isSelected = selectedSlotIndex === index;
+                            return (
+                            <button
+                              key={index}
+                              onClick={() => {
+                                if (slot.status === 'AVAILABLE') {
+                                  setSelectedSlotIndex(index);
+                                  setSelectedSlot(slot);
+                                  setSelectedTime(slot.time);
+                                  setSelectedCalendarSlot({
+                                    time: slot.time,
+                                    startTime: slot.startTime,
+                                    endTime: slot.endTime,
+                                    status: slot.status,
+                                    price: slot.price,
+                                    available: slot.available,
+                                    color: 'green',
+                                    message: 'Disponible',
+                                    conflicts: []
+                                  });
+                                }
+                              }}
+                              disabled={slot.status !== 'AVAILABLE'}
+                              className={`
+                                p-2 rounded-md text-center transition-all duration-200 font-medium text-xs
+                                ${isSelected
+                                  ? 'bg-blue-600 text-white border-2 border-blue-700 shadow-md'
+                                  : slot.status === 'AVAILABLE'
+                                    ? 'bg-green-100 text-green-900 hover:bg-green-200 border-2 border-green-400'
+                                    : slot.status === 'BOOKED'
+                                      ? 'bg-red-100 text-red-900 border-2 border-red-400 cursor-not-allowed'
+                                      : slot.status === 'USER_BOOKED'
+                                        ? 'bg-purple-100 text-purple-900 border-2 border-purple-400 cursor-not-allowed'
+                                        : slot.status === 'MAINTENANCE'
+                                          ? 'bg-yellow-100 text-yellow-900 border-2 border-yellow-400 cursor-not-allowed'
+                                          : 'bg-gray-100 text-gray-500 border-2 border-gray-300 cursor-not-allowed'
+                                }
+                              `}
+                              style={{
+                                backgroundColor: isSelected 
+                                  ? '#2563eb' 
+                                  : slot.status === 'AVAILABLE' 
+                                    ? '#dcfce7'
+                                    : slot.status === 'BOOKED'
+                                      ? '#fecaca'
+                                      : slot.status === 'USER_BOOKED'
+                                        ? '#e9d5ff'
+                                        : slot.status === 'MAINTENANCE'
+                                          ? '#fef3c7'
+                                          : '#f3f4f6'
+                              }}
+                            >
+                              <div className="font-bold text-sm mb-1">
+                                {slot.time || slot.startTime || 'N/A'}
+                                {isSelected ? ' ✓' : ''}
+                              </div>
+                              <div className="text-xs mb-1">
+                                {isSelected 
+                                  ? 'SELECCIONADO' 
+                                  : slot.status === 'AVAILABLE' 
+                                    ? 'Disponible'
+                                    : slot.status === 'BOOKED'
+                                      ? 'Ocupado'
+                                      : slot.status === 'USER_BOOKED'
+                                        ? 'Mi reserva'
+                                        : slot.status === 'MAINTENANCE'
+                                          ? 'Mantenimiento'
+                                          : 'No disponible'
+                                }
+                              </div>
+                              {slot.available && (
+                                <div className="text-xs font-semibold">
+                                  €{slot.price}
+                                </div>
+                              )}
+                            </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <AlertCircle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                          <p>No hay horarios disponibles para esta fecha</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* 🎨 CALENDARIO VISUAL INTELIGENTE */}
-            {selectedDate && (
-              <div className="mb-6">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start">
-                      <div className="text-blue-600 text-lg mr-3">💡</div>
-                      <div className="text-sm text-blue-800">
-                        <p className="font-medium mb-1">Calendario Visual Inteligente:</p>
-                        <p>Selecciona directamente un horario disponible del calendario. Los colores te indican el estado de cada horario.</p>
-                      </div>
-                    </div>
-                    
-                    {/* 🚀 BOTÓN PARA ABRIR MODAL DEL CALENDARIO */}
-                    <button
-                      onClick={handleOpenCalendarModal}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center space-x-2"
-                    >
-                      <Calendar className="h-4 w-4" />
-                      <span>Ver Calendario</span>
-                    </button>
-                  </div>
-                </div>
-                
-                {/* 🚀 CALENDARIO VISUAL ELIMINADO - FUNCIONALIDAD INTEGRADA EN EL MODAL */}
-                <div className="text-center py-8">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                    <Calendar className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-blue-900 mb-2">
-                      Calendario Visual
-                    </h3>
-                    <p className="text-blue-700 mb-4">
-                      Haz clic en "Ver Calendario" para abrir el calendario visual completo
-                    </p>
-                    <button
-                      onClick={handleOpenCalendarModal}
-                      className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center mx-auto"
-                    >
-                      <Calendar className="h-4 w-4 mr-2" />
-                      Abrir Calendario
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* 📝 NOTAS */}
             <div className="mb-6">
@@ -904,36 +1026,16 @@ export default function NewReservationPage() {
               />
             </div>
 
-            {/* 🎯 INDICADOR DE SELECCIÓN */}
-            {selectedCalendarSlot && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <div className="flex items-center justify-center">
-                  <div className="text-blue-600 text-lg mr-3">🎯</div>
-                  <div className="text-sm text-blue-800">
-                    <p className="font-medium">Horario seleccionado: <strong>{formatTime(selectedCalendarSlot.startTime)} - {formatTime(selectedCalendarSlot.endTime)}</strong></p>
-                    <p className="text-xs mt-1">Revisa el modal flotante para continuar</p>
-                  </div>
-                </div>
-              </div>
-            )}
 
-            {/* 🚀 BOTONES DE NAVEGACIÓN */}
-            {selectedDate && selectedCalendarSlot && (
-              <div className="flex justify-between">
+            {/* 🚀 NAVEGACIÓN */}
+            {selectedDate && (
+              <div className="flex justify-start">
                 <button
                   onClick={() => setStep(2)}
                   className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   Anterior
                 </button>
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="text-sm text-green-800 mb-2">
-                    ✅ <strong>Horario confirmado:</strong> {formatTime(selectedCalendarSlot.startTime)} - {formatTime(selectedCalendarSlot.endTime)}
-                  </p>
-                  <p className="text-xs text-green-700">
-                    🚀 Al confirmar en el calendario visual, tu reserva se creará automáticamente y se abrirá el modal de pago.
-                  </p>
-                </div>
               </div>
             )}
               </div>

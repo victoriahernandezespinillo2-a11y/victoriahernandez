@@ -52,6 +52,9 @@ model User {
   waitingLists        WaitingList[]
   walletLedger        WalletLedger[]
 
+  @@index([createdAt, role])
+  @@index([isActive, createdAt])
+  @@index([role, isActive])
   @@map("users")
 }
 
@@ -101,6 +104,9 @@ model Court {
   reservations         Reservation[]
   waitingLists         WaitingList[]
 
+  @@index([sportType, isActive])
+  @@index([maintenanceStatus, isActive])
+  @@index([centerId, sportType])
   @@map("courts")
 }
 
@@ -133,6 +139,11 @@ model Reservation {
   recurringChildren Reservation[]     @relation("RecurringReservations")
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([startTime, status])
+  @@index([courtId, startTime])
+  @@index([userId, startTime])
+  @@index([status, startTime])
+  @@index([paymentMethod, startTime])
   @@map("reservations")
 }
 

@@ -395,6 +395,8 @@ export default function MobileNewReservationPage() {
                     min={minDate}
                     max={maxDate}
                     value={selectedDate}
+                    lang="es-ES"
+                    data-locale="es-ES"
                     onChange={(e) => {
                       setSelectedDate(e.target.value);
                       setSelectedTime('');

@@ -96,6 +96,10 @@ export default function PaymentSuccessPage() {
     }).format(amount);
   };
 
+  // Determinar el tipo de mensaje según el método de pago
+  const isOnSitePayment = reservation?.paymentMethod === 'ONSITE';
+  const isPaid = reservation?.status === 'PAID';
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -129,24 +133,44 @@ export default function PaymentSuccessPage() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Success Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-            <CheckCircle className="h-10 w-10 text-green-600" />
+          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${
+            isOnSitePayment ? 'bg-orange-100' : 'bg-green-100'
+          }`}>
+            <CheckCircle className={`h-10 w-10 ${isOnSitePayment ? 'text-orange-600' : 'text-green-600'}`} />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            ¡Pago Exitoso!
+            {isOnSitePayment ? '¡Reserva Creada!' : '¡Pago Exitoso!'}
           </h1>
           <p className="text-lg text-gray-600">
-            Tu reserva ha sido confirmada y el pago procesado correctamente
+            {isOnSitePayment 
+              ? 'Tu reserva ha sido creada. Debes pagar en el centro deportivo antes de usar la cancha.'
+              : 'Tu reserva ha sido confirmada y el pago procesado correctamente'
+            }
           </p>
+          {isOnSitePayment && (
+            <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+              <p className="text-sm text-orange-800">
+                <strong>Importante:</strong> Presenta este comprobante en el centro deportivo para completar tu pago y acceder a la cancha.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Reservation Details Card */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden mb-8">
-          <div className="bg-green-50 px-6 py-4 border-b border-green-100">
-            <h2 className="text-xl font-semibold text-green-800">
+          <div className={`px-6 py-4 border-b ${
+            isOnSitePayment 
+              ? 'bg-orange-50 border-orange-100' 
+              : 'bg-green-50 border-green-100'
+          }`}>
+            <h2 className={`text-xl font-semibold ${
+              isOnSitePayment ? 'text-orange-800' : 'text-green-800'
+            }`}>
               Detalles de tu Reserva
             </h2>
-            <p className="text-sm text-green-600 mt-1">
+            <p className={`text-sm mt-1 ${
+              isOnSitePayment ? 'text-orange-600' : 'text-green-600'
+            }`}>
               ID: {reservation.id}
             </p>
           </div>
@@ -211,16 +235,22 @@ export default function PaymentSuccessPage() {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium text-gray-900">
-                      Total Pagado
+                      {isOnSitePayment ? 'Total a Pagar' : 'Total Pagado'}
                     </span>
-                    <span className="text-lg font-bold text-green-600">
+                    <span className={`text-lg font-bold ${
+                      isOnSitePayment ? 'text-orange-600' : 'text-green-600'
+                    }`}>
                       {formatCurrency(reservation.totalPrice)}
                     </span>
                   </div>
                 </div>
 
-                <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  ✓ Pagado
+                <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                  isOnSitePayment 
+                    ? 'bg-orange-100 text-orange-800' 
+                    : 'bg-green-100 text-green-800'
+                }`}>
+                  {isOnSitePayment ? '⏳ Pendiente de Pago' : '✓ Pagado'}
                 </div>
               </div>
             </div>

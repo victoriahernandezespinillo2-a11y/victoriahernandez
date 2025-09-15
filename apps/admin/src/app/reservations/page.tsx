@@ -18,6 +18,7 @@ import { useAdminReservations } from '@/lib/hooks';
 import { adminApi } from '@/lib/api';
 import { useToast } from '@/components/ToastProvider';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import PaymentConfirmationModal from '@/components/PaymentConfirmationModal';
 
 interface Reservation {
   id: string;
@@ -34,8 +35,17 @@ interface Reservation {
   totalAmount: number;
   status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW';
   paymentStatus: 'PENDING' | 'PAID' | 'REFUNDED';
+  currentPaymentMethod?: string;
   notes?: string;
   createdAt: string;
+}
+
+interface PaymentConfirmationReservation {
+  id: string;
+  userName: string;
+  courtName: string;
+  totalAmount: number;
+  currentPaymentMethod?: string;
 }
 
 
@@ -70,7 +80,7 @@ const paymentStatusLabels: Record<string, string> = {
 };
 
 export default function ReservationsPage() {
-  const { reservations, loading, error, updateReservation, cancelReservation, getReservations } = useAdminReservations();
+  const { reservations, loading, error, updateReservation, confirmPayment, cancelReservation, getReservations } = useAdminReservations();
   const { showToast } = useToast();
   useEffect(() => {
     getReservations({ page: 1, limit: 200 }).catch(() => {});
@@ -79,6 +89,7 @@ export default function ReservationsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [paymentFilter, setPaymentFilter] = useState<string>('ALL');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('ALL');
+  const [pendingPaymentsFilter, setPendingPaymentsFilter] = useState<boolean>(false);
   const [overrideFilter, setOverrideFilter] = useState<string>('ALL');
   const [dateFilter, setDateFilter] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -86,6 +97,7 @@ export default function ReservationsPage() {
   const [confirmState, setConfirmState] = useState<{ open: boolean; id?: string }>(() => ({ open: false }));
   const [refundState, setRefundState] = useState<{ open: boolean; id?: string; amount?: string; reason: string }>(() => ({ open: false, reason: '' }));
   const [resendState, setResendState] = useState<{ open: boolean; id?: string; type: 'CONFIRMATION'|'PAYMENT_LINK' }>({ open: false, type: 'CONFIRMATION' });
+  const [paymentConfirmationState, setPaymentConfirmationState] = useState<{ open: boolean; reservation?: PaymentConfirmationReservation }>({ open: false });
   const [auditState, setAuditState] = useState<{ open: boolean; id?: string; loading: boolean; events: Array<{ id: string; type: string; summary: string; createdAt: string }> }>({ open: false, loading: false, events: [] });
 
   const itemsPerPage = 10;
@@ -134,8 +146,9 @@ export default function ReservationsPage() {
     const matchesDate = !dateFilter || reservation.date === dateFilter;
     const hasOverride = !!(reservation as any).override;
     const matchesOverride = overrideFilter === 'ALL' || (overrideFilter === 'WITH' ? hasOverride : !hasOverride);
+    const matchesPendingPayments = !pendingPaymentsFilter || (reservation.paymentStatus === 'PENDING' && reservation.status !== 'CANCELLED');
     
-    return matchesSearch && matchesStatus && matchesPayment && matchesPaymentMethod && matchesOverride && matchesDate;
+    return matchesSearch && matchesStatus && matchesPayment && matchesPaymentMethod && matchesOverride && matchesDate && matchesPendingPayments;
   }) || [];
 
   // Paginación
@@ -197,6 +210,31 @@ export default function ReservationsPage() {
       showToast({ variant: 'success', title: 'Enviado', message: resendState.type === 'CONFIRMATION' ? 'Confirmación reenviada.' : 'Enlace de pago reenviado.' });
     } catch {
       showToast({ variant: 'error', title: 'Error', message: 'No se pudo reenviar.' });
+    }
+  };
+
+  const handlePaymentConfirmation = async (paymentData: {
+    paymentMethod: 'CASH' | 'CARD' | 'TRANSFER' | 'ONSITE' | 'CREDITS' | 'BIZUM';
+    notes?: string;
+  }) => {
+    if (!paymentConfirmationState.reservation) return;
+    
+    try {
+      await confirmPayment(paymentConfirmationState.reservation.id, {
+        ...paymentData,
+        paymentStatus: 'PAID'
+      });
+      showToast({ 
+        variant: 'success', 
+        title: 'Pago Confirmado', 
+        message: `Pago de €${paymentConfirmationState.reservation.totalAmount.toFixed(2)} confirmado exitosamente.` 
+      });
+      setPaymentConfirmationState({ open: false });
+      // Recargar reservas para reflejar cambios
+      await getReservations({ page: 1, limit: 200 });
+    } catch (error) {
+      console.error('Error confirming payment:', error);
+      showToast({ variant: 'error', title: 'Error', message: 'No se pudo confirmar el pago.' });
     }
   };
 
@@ -380,6 +418,21 @@ export default function ReservationsPage() {
               onChange={(e) => setDateFilter(e.target.value)}
             />
           </div>
+
+          {/* Pending Payments Filter */}
+          <div className="flex items-center">
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={pendingPaymentsFilter}
+                onChange={(e) => setPendingPaymentsFilter(e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Solo Pendientes de Pago
+              </span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -553,6 +606,25 @@ export default function ReservationsPage() {
                           onClick={() => setResendState({ open: true, id: reservation.id, type: 'PAYMENT_LINK' })}
                         >
                           ↗
+                        </button>
+                      )}
+                      {/* Confirmar pago si pendiente */}
+                      {reservation.paymentStatus === 'PENDING' && reservation.status !== 'CANCELLED' && (
+                        <button
+                          className="text-green-600 hover:text-green-900"
+                          title="Confirmar Pago"
+                          onClick={() => setPaymentConfirmationState({ 
+                            open: true, 
+                            reservation: {
+                              id: reservation.id,
+                              userName: reservation.userName as string,
+                              courtName: reservation.courtName as string,
+                              totalAmount: reservation.totalAmount as number,
+                              currentPaymentMethod: (reservation as any).paymentMethod as string
+                            }
+                          })}
+                        >
+                          ✓
                         </button>
                       )}
                       {/* Descargar paquete PDF + Auditoría */}
@@ -813,6 +885,16 @@ export default function ReservationsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Payment Confirmation Modal */}
+      {paymentConfirmationState.reservation && (
+        <PaymentConfirmationModal
+          isOpen={paymentConfirmationState.open}
+          onClose={() => setPaymentConfirmationState({ open: false })}
+          onConfirm={handlePaymentConfirmation}
+          reservation={paymentConfirmationState.reservation}
+        />
       )}
     </div>
   );

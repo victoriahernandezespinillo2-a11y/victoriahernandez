@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useAdminReports } from '@/lib/hooks';
+import { useAdminReports, exportUtils } from '@/lib/hooks';
 import { ArrowTrendingUpIcon, ArrowTrendingDownIcon, CurrencyDollarIcon, DocumentTextIcon, ClockIcon, EyeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
 export default function RevenueReportPage() {
@@ -81,24 +81,17 @@ export default function RevenueReportPage() {
   const loadReservations = async (page = 1, search = '', status = '') => {
     setReservationsLoading(true);
     try {
-      // Obtener un rango más amplio para luego filtrar por startTime
+      // Usar rango real (coherente con backend: startTime)
       const startDate = period === 'custom' ? dateRange.start : getPeriodStartDate(period);
-      const endDate = period === 'custom' ? dateRange.end : 
-        period === '1y' ? '2030-12-31' : new Date().toISOString().slice(0,10);
-      
-      // Extender el rango para asegurar que capturamos todas las reservas
-      const extendedStart = new Date(startDate);
-      extendedStart.setDate(extendedStart.getDate() - 7); // 7 días antes
-      const extendedEnd = new Date(endDate);
-      extendedEnd.setDate(extendedEnd.getDate() + 7); // 7 días después
-      
+      const endDate = period === 'custom' ? dateRange.end : new Date().toISOString().slice(0,10);
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: '100', // Aumentar límite para tener más datos para filtrar
-        startDate: extendedStart.toISOString(),
-        endDate: extendedEnd.toISOString(),
+        limit: '50',
+        startDate: new Date(`${startDate}T00:00:00.000Z`).toISOString(),
+        endDate: new Date(`${endDate}T23:59:59.999Z`).toISOString(),
         sortBy: 'startTime',
-        sortOrder: 'desc'
+        sortOrder: 'desc',
+        dateField: 'startTime'
       });
       
       // Solo agregar status si no está vacío y es un valor válido
@@ -115,33 +108,17 @@ export default function RevenueReportPage() {
       console.log('📊 Respuesta de API reservas:', result);
       
       if (result.success) {
-        // Filtrar por startTime (fecha real de la reserva) y status
-        const targetStartDate = new Date(`${startDate}T00:00:00.000Z`);
-        const targetEndDate = new Date(`${endDate}T23:59:59.999Z`);
-        
-        console.log('📅 Fechas objetivo:', { targetStartDate, targetEndDate });
-        console.log('📋 Reservas recibidas:', result.data.data.length);
-        
-        let filteredReservations = result.data.data.filter((r: any) => {
-          // Usar el campo 'date' que contiene la fecha en formato ISO
-          const reservationDate = new Date(r.date + 'T00:00:00.000Z');
-          const isInDateRange = reservationDate >= targetStartDate && reservationDate <= targetEndDate;
-          
-          let statusMatch = true;
-          if (!status || status === 'PAID,COMPLETED') {
-            statusMatch = r.status === 'PAID' || r.status === 'COMPLETED';
-          } else {
-            statusMatch = r.status === status;
-          }
-          
-          return isInDateRange && statusMatch;
-        });
-        
-        console.log('✅ Reservas filtradas:', filteredReservations.length);
-        console.log('📊 Primeras 3 reservas:', filteredReservations.slice(0, 3));
-        
-        setReservations(filteredReservations);
-        setReservationsTotal(filteredReservations.length);
+        let rows: any[] = Array.isArray(result?.data?.data) ? result.data.data : [];
+        // Filtrado por estado en cliente cuando se requiere combinación
+        if (!status || status === 'PAID,COMPLETED') {
+          rows = rows.filter((r: any) => r.status === 'PAID' || r.status === 'COMPLETED');
+        } else {
+          rows = rows.filter((r: any) => r.status === status);
+        }
+
+        console.log('✅ Reservas recibidas:', rows.length);
+        setReservations(rows);
+        setReservationsTotal(Number(result?.data?.pagination?.total ?? rows.length));
         setReservationsPage(page);
       } else {
         console.error('Error en respuesta de API:', result);
@@ -163,8 +140,9 @@ export default function RevenueReportPage() {
       case '30d': ago.setDate(today.getDate() - 30); break;
       case '90d': ago.setDate(today.getDate() - 90); break;
       case '1y': 
-        // Para 1 año, usar un rango muy amplio para capturar todas las reservas
-        ago = new Date('2020-01-01');
+        // Para 1 año, hoy - 1 año (coherente con backend)
+        ago = new Date(today);
+        ago.setFullYear(today.getFullYear() - 1);
         break;
       default: ago.setDate(today.getDate() - 30);
     }
@@ -183,10 +161,12 @@ export default function RevenueReportPage() {
     return { totalRevenue: total, totalTx: count, avgTicket: avg };
   }, [reservations]);
 
-  // SIEMPRE usar datos de reservas individuales (son los correctos)
-  const totalRevenue = calculatedFromReservations.totalRevenue;
-  const totalTx = calculatedFromReservations.totalTx;
-  const avgTicket = calculatedFromReservations.avgTicket;
+  // Métricas de cabecera: usar summary del backend como fuente de verdad
+  const backendRevenue = Number(data?.summary?.totalRevenue || 0);
+  const backendTx = Number(data?.summary?.totalTransactions || 0);
+  const totalRevenue = backendRevenue;
+  const totalTx = backendTx;
+  const avgTicket = totalTx > 0 ? totalRevenue / totalTx : 0;
   
   // Debug de métricas
   console.log('💵 Métricas calculadas:', {
@@ -505,54 +485,43 @@ export default function RevenueReportPage() {
         byMethod: Array.isArray(data?.byMethod)?data.byMethod:[],
       },
       reservations: showReservationsTable ? reservations : [],
+      metrics: {
+        totalRevenue,
+        totalTx,
+        avgTicket
+      },
       generatedAt: new Date().toISOString(),
     };
-    if (format==='json') {
-      const blob = new Blob([JSON.stringify(payload,null,2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob); const a = document.createElement('a');
-      a.href=url; a.download=`revenue_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url);
-      return;
-    }
-    const esc = (v:any)=>`"${String(v??'').replace(/"/g,'""')}"`;
-    const lines:string[]=[];
-    lines.push(['Sección','Label','Valor','Período','Inicio','Fin','Agrupar'].map(esc).join(','));
-    lines.push(['Resumen','Ingresos Totales', data?.summary?.totalRevenue||0, period, dateRange.start, dateRange.end, groupBy].map(esc).join(','));
-    lines.push(['Resumen','Transacciones', data?.summary?.totalTransactions||0, period, dateRange.start, dateRange.end, groupBy].map(esc).join(','));
-    lines.push(['Resumen','Ticket Promedio', (avgTicket||0).toFixed(2), period, dateRange.start, dateRange.end, groupBy].map(esc).join(','));
-    lines.push(['','','','','',''].map(esc).join(','));
-    lines.push(['Detalle por período','Fecha','Transacciones','Monto','','',''].map(esc).join(','));
-    (payload.revenueData.byPeriod||[]).forEach((r:any)=>{
-      const d = new Date(r?.date || r?.createdAt || new Date()).toISOString().slice(0,10);
-      lines.push(['Detalle por período', d, (r?.count ?? r?._count?.id ?? 0), (r?.totalAmount ?? r?._sum?.amount ?? 0)].map(esc).join(','));
-    });
-    lines.push(['','','','','',''].map(esc).join(','));
-    lines.push(['Detalle por método','Método','Transacciones','Monto','','',''].map(esc).join(','));
-    (payload.revenueData.byMethod||[]).forEach((m:any)=>{
-      lines.push(['Detalle por método', (m?.method||m?.paymentMethod||'UNKNOWN'), (m?.count ?? m?._count?.id ?? 0), (m?.totalAmount ?? m?._sum?.totalPrice ?? m?._sum?.amount ?? 0)].map(esc).join(','));
-    });
     
-    // Agregar reservas individuales si están cargadas
-    if (showReservationsTable && reservations.length > 0) {
-      lines.push(['','','','','',''].map(esc).join(','));
-      lines.push(['Reservas Individuales','Usuario','Cancha','Fecha','Hora','Duración','Monto','Estado','Método'].map(esc).join(','));
-      reservations.forEach((r:any)=>{
-        lines.push([
-          'Reservas Individuales',
-          r.userName,
-          r.courtName,
-          r.date,
-          `${r.startTime}-${r.endTime}`,
-          `${r.duration}h`,
-          r.totalAmount,
-          r.status,
-          r.paymentMethod || ''
-        ].map(esc).join(','));
-      });
-    }
+    const filename = `revenue_${new Date().toISOString().slice(0,10)}`;
     
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob); const a = document.createElement('a');
-    a.href=url; a.download=`revenue_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
+    if (format === 'json') {
+      exportUtils.downloadJSON(payload, `${filename}.json`);
+    } else {
+      // Para CSV, crear estructura específica para revenue
+      const csvData = [
+        ['Sección', 'Label', 'Valor', 'Período', 'Inicio', 'Fin', 'Agrupar'],
+        ['Resumen', 'Ingresos Totales', data?.summary?.totalRevenue||0, period, dateRange.start, dateRange.end, groupBy],
+        ['Resumen', 'Transacciones', data?.summary?.totalTransactions||0, period, dateRange.start, dateRange.end, groupBy],
+        ['Resumen', 'Ticket Promedio', (avgTicket||0).toFixed(2), period, dateRange.start, dateRange.end, groupBy],
+        ['', '', '', '', '', '', ''],
+        ['Detalle por período', 'Fecha', 'Transacciones', 'Monto', '', '', ''],
+        ...(payload.revenueData.byPeriod||[]).map((r:any) => {
+          const d = new Date(r?.date || r?.createdAt || new Date()).toISOString().slice(0,10);
+          return ['Detalle por período', d, (r?.count ?? r?._count?.id ?? 0), (r?.totalAmount ?? r?._sum?.amount ?? 0), '', '', ''];
+        }),
+        ['', '', '', '', '', '', ''],
+        ['Detalle por método', 'Método', 'Transacciones', 'Monto', '', '', ''],
+        ...(payload.revenueData.byMethod||[]).map((m:any) => [
+          'Detalle por método', 
+          m?.method || 'UNKNOWN', 
+          m?.count || 0, 
+          m?.totalAmount || 0, 
+          '', '', ''
+        ])
+      ];
+      exportUtils.downloadCSV(csvData, `${filename}.csv`);
+    }
   }
 }
 

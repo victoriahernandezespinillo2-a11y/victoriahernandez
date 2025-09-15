@@ -507,6 +507,150 @@ export class EmailService {
     });
   }
 
+  // Enviar confirmación de pago en sede
+  async sendOnSitePaymentConfirmation(data: {
+    reservationId: string;
+    userEmail: string;
+    userName: string;
+    courtName: string;
+    centerName: string;
+    totalAmount: number;
+    startTime: string;
+    endTime: string;
+    reservationDate: string;
+    reservationTime: string;
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    const { userEmail, userName, courtName, centerName, totalAmount, reservationDate, reservationTime } = data;
+    
+    const subject = `Reserva confirmada - Pago pendiente en ${centerName}`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Reserva Confirmada - Pago Pendiente</title>
+      </head>
+      <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: Arial, sans-serif;">
+        <table role="presentation" style="width: 100%; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+          <tr>
+            <td style="padding: 40px 30px;">
+              
+              <!-- Header -->
+              <div style="text-align: center; margin-bottom: 30px;">
+                <div style="display: inline-block; background-color: #f59e0b; color: white; padding: 12px 24px; border-radius: 50px; font-size: 18px; font-weight: bold;">
+                  🏢 Reserva Creada
+                </div>
+              </div>
+
+              <!-- Main Content -->
+              <div style="margin-bottom: 30px;">
+                <h1 style="color: #1f2937; font-size: 24px; margin: 0 0 20px 0; text-align: center;">
+                  ¡Hola ${userName}!
+                </h1>
+                
+                <p style="color: #6b7280; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                  Tu reserva ha sido creada exitosamente. <strong>Debes pagar en el centro deportivo antes de usar la cancha.</strong>
+                </p>
+
+                <!-- Important Notice -->
+                <div style="background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 12px; padding: 20px; margin: 25px 0;">
+                  <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                    <span style="font-size: 24px; margin-right: 10px;">⚠️</span>
+                    <h3 style="color: #92400e; margin: 0; font-size: 18px;">Importante</h3>
+                  </div>
+                  <p style="color: #92400e; margin: 0; font-weight: 500;">
+                    Presenta este comprobante en el centro deportivo para completar tu pago y acceder a la cancha.
+                  </p>
+                </div>
+
+                <!-- Reservation Details -->
+                <div style="background-color: #f8fafc; border-radius: 12px; padding: 25px; margin: 25px 0;">
+                  <h3 style="color: #1f2937; margin: 0 0 20px 0; font-size: 18px;">Detalles de tu Reserva</h3>
+                  
+                  <div style="display: grid; gap: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+                      <span style="color: #6b7280; font-weight: 500;">Cancha:</span>
+                      <span style="color: #1f2937; font-weight: 600;">${courtName}</span>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+                      <span style="color: #6b7280; font-weight: 500;">Centro:</span>
+                      <span style="color: #1f2937; font-weight: 600;">${centerName}</span>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+                      <span style="color: #6b7280; font-weight: 500;">Fecha:</span>
+                      <span style="color: #1f2937; font-weight: 600;">${reservationDate}</span>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+                      <span style="color: #6b7280; font-weight: 500;">Horario:</span>
+                      <span style="color: #1f2937; font-weight: 600;">${reservationTime}</span>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+                      <span style="color: #6b7280; font-weight: 500;">Método de Pago:</span>
+                      <span style="color: #f59e0b; font-weight: 600;">🏢 Pagar en Sede</span>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0;">
+                      <span style="color: #6b7280; font-weight: 500;">Total a Pagar:</span>
+                      <span style="color: #1f2937; font-weight: 700; font-size: 18px;">€${totalAmount.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Payment Status -->
+                <div style="text-align: center; margin: 25px 0;">
+                  <div style="display: inline-block; background-color: #fef3c7; color: #92400e; padding: 12px 24px; border-radius: 25px; font-weight: 600;">
+                    ⏳ Pendiente de Pago
+                  </div>
+                </div>
+
+                <!-- Instructions -->
+                <div style="background-color: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 12px; padding: 20px; margin: 25px 0;">
+                  <h4 style="color: #0c4a6e; margin: 0 0 15px 0; font-size: 16px;">📋 Instrucciones para el Pago</h4>
+                  <ol style="color: #0c4a6e; margin: 0; padding-left: 20px;">
+                    <li style="margin-bottom: 8px;">Llega al centro deportivo 10 minutos antes de tu reserva</li>
+                    <li style="margin-bottom: 8px;">Presenta este comprobante en recepción</li>
+                    <li style="margin-bottom: 8px;">Realiza el pago de €${totalAmount.toFixed(2)}</li>
+                    <li style="margin-bottom: 8px;">Recibe tu confirmación de pago</li>
+                    <li style="margin-bottom: 0;">¡Disfruta de tu cancha!</li>
+                  </ol>
+                </div>
+
+                <!-- Contact Info -->
+                <div style="text-align: center; margin: 30px 0;">
+                  <p style="color: #6b7280; font-size: 14px; margin: 0;">
+                    ¿Necesitas ayuda? Contacta con nosotros en recepción o responde a este email.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Footer -->
+              <div style="text-align: center; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                  © 2024 ${centerName} - Polideportivo Victoria Hernandez
+                </p>
+              </div>
+
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    return await this.sendEmail({
+      to: userEmail,
+      subject,
+      html,
+      text: `Reserva confirmada - Pago pendiente en ${centerName}\n\nHola ${userName},\n\nTu reserva ha sido creada exitosamente. Debes pagar en el centro deportivo antes de usar la cancha.\n\nDetalles:\n- Cancha: ${courtName}\n- Centro: ${centerName}\n- Fecha: ${reservationDate}\n- Horario: ${reservationTime}\n- Total: €${totalAmount.toFixed(2)}\n- Estado: Pendiente de Pago\n\nPresenta este comprobante en recepción para completar tu pago.\n\n¡Gracias por elegirnos!`,
+    });
+  }
+
   // Verificar configuración del transporter
   async verifyConnection(): Promise<boolean> {
     try {

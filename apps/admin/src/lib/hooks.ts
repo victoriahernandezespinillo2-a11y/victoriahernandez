@@ -488,6 +488,29 @@ export function useAdminReservations() {
     return updatedReservation;
   }, [setData]);
 
+  const confirmPayment = useCallback(async (id: string, paymentData: {
+    paymentMethod: 'CASH' | 'CARD' | 'TRANSFER' | 'ONSITE' | 'CREDITS' | 'BIZUM';
+    paymentStatus?: 'PAID' | 'PENDING' | 'REFUNDED';
+    notes?: string;
+    amount?: number;
+  }) => {
+    const result = await adminApi.reservations.confirmPayment(id, paymentData);
+    // Actualizar el estado local
+    setData(prev => 
+      prev ? prev.map(res => 
+        res.id === id 
+          ? { 
+              ...res, 
+              status: 'PAID', 
+              paymentMethod: paymentData.paymentMethod,
+              paymentStatus: 'PAID' 
+            } 
+          : res
+      ) : []
+    );
+    return result;
+  }, [setData]);
+
   const cancelReservation = useCallback(async (id: string) => {
     await adminApi.reservations.cancel(id);
     setData(prev => prev ? prev.filter(res => res.id !== id) : []);
@@ -500,6 +523,7 @@ export function useAdminReservations() {
     getReservations,
     getReservation,
     updateReservation,
+    confirmPayment,
     cancelReservation,
     reset,
   };
@@ -804,6 +828,56 @@ export function useAdminNotifications() {
     reset,
   };
 }
+
+/**
+ * Utilidades de exportación para reportes
+ */
+export const exportUtils = {
+  downloadCSV: (data: any, filename: string) => {
+    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines: string[] = [];
+    
+    // Si data es un array de objetos, crear CSV automáticamente
+    if (Array.isArray(data) && data.length > 0) {
+      const headers = Object.keys(data[0]);
+      lines.push(headers.map(esc).join(','));
+      data.forEach(row => {
+        lines.push(headers.map(header => esc(row[header])).join(','));
+      });
+    } else {
+      // Para datos estructurados, usar formato personalizado
+      lines.push(['Sección', 'Métrica', 'Valor', 'Período', 'Inicio', 'Fin'].map(esc).join(','));
+      if (data.summary) {
+        Object.entries(data.summary).forEach(([key, value]) => {
+          lines.push(['Resumen', key, value, data.period || '', data.dateRange?.start || '', data.dateRange?.end || ''].map(esc).join(','));
+        });
+      }
+    }
+    
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  downloadJSON: (data: any, filename: string) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  downloadPDF: (data: any, filename: string) => {
+    // TODO: Implementar generación de PDF
+    console.log('PDF export not implemented yet', { data, filename });
+  }
+};
 
 /**
  * Hook para gestión de mantenimiento

@@ -610,6 +610,17 @@ export const adminApi = {
         body: JSON.stringify(data),
       }),
 
+    confirmPayment: (reservationId: string, data: {
+      paymentMethod: 'CASH' | 'CARD' | 'TRANSFER' | 'ONSITE' | 'CREDITS' | 'BIZUM';
+      paymentStatus?: 'PAID' | 'PENDING' | 'REFUNDED';
+      notes?: string;
+      amount?: number;
+    }) =>
+      apiClient.request(`/api/admin/reservations/${reservationId}/payment`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
     checkIn: (reservationId: string) =>
       apiClient.request(`/api/admin/reservations/${reservationId}/check-in`, { method: 'POST' }),
 

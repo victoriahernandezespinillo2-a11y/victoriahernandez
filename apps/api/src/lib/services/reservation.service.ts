@@ -268,6 +268,7 @@ export class ReservationService {
     }
     
     // Verificar mantenimiento programado
+    // Seleccionar solo campos existentes para evitar fallos en entornos donde falten columnas nuevas
     const maintenanceSchedules = await tx.maintenanceSchedule.findMany({
       where: {
         courtId,
@@ -277,6 +278,7 @@ export class ReservationService {
           { completedAt: { gte: startTime } },
         ],
       },
+      select: { id: true },
     });
     
     if (maintenanceSchedules.length > 0) {

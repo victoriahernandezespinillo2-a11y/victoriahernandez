@@ -35,6 +35,7 @@ interface MobileCourtSelectorProps {
   courts: Court[];
   selectedCourt: Court | null;
   onCourtSelect: (court: Court) => void;
+  onContinue?: () => void;
   selectedSport: string;
 }
 
@@ -42,6 +43,7 @@ export function MobileCourtSelector({
   courts,
   selectedCourt,
   onCourtSelect,
+  onContinue,
   selectedSport,
 }: MobileCourtSelectorProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -183,20 +185,20 @@ export function MobileCourtSelector({
 
   return (
     <div className="relative">
-      {/* Header con contador */}
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">
+      {/* Header compacto con contador */}
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-base font-semibold text-gray-900">
           Canchas disponibles
         </h3>
         <div className="flex items-center space-x-2">
-          <span className="text-sm text-gray-500">
+          <span className="text-xs text-gray-500">
             {currentIndex + 1} de {courts.length}
           </span>
           <div className="flex space-x-1">
             {courts.map((_, index) => (
               <div
                 key={index}
-                className={`w-2 h-2 rounded-full transition-colors ${
+                className={`w-1.5 h-1.5 rounded-full transition-colors ${
                   index === currentIndex ? 'bg-blue-600' : 'bg-gray-300'
                 }`}
               />
@@ -207,30 +209,30 @@ export function MobileCourtSelector({
 
       {/* Carrusel de canchas */}
       <div className="relative">
-        {/* Botones de navegación */}
+        {/* Botones de navegación compactos */}
         {courts.length > 1 && (
           <>
             <button
               onClick={goToPrevious}
               disabled={currentIndex === 0}
-              className={`absolute left-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full shadow-lg transition-all ${
+              className={`absolute left-1 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-full shadow-md transition-all ${
                 currentIndex === 0
                   ? 'bg-gray-100 text-gray-400'
                   : 'bg-white text-gray-700 hover:bg-gray-50 active:scale-95'
               }`}
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
             <button
               onClick={goToNext}
               disabled={currentIndex === courts.length - 1}
-              className={`absolute right-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full shadow-lg transition-all ${
+              className={`absolute right-1 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-full shadow-md transition-all ${
                 currentIndex === courts.length - 1
                   ? 'bg-gray-100 text-gray-400'
                   : 'bg-white text-gray-700 hover:bg-gray-50 active:scale-95'
               }`}
             >
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="h-4 w-4" />
             </button>
           </>
         )}
@@ -253,7 +255,7 @@ export function MobileCourtSelector({
             {courts.map((court, index) => (
               <div
                 key={court.id}
-                className="w-full flex-shrink-0 px-1"
+                className="w-full flex-shrink-0 px-2"
               >
                 <div
                   className={`relative bg-white rounded-2xl shadow-lg border-2 transition-all duration-200 overflow-hidden ${
@@ -262,8 +264,8 @@ export function MobileCourtSelector({
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  {/* Imagen de fondo o gradiente */}
-                  <div className="relative h-48 bg-gradient-to-br from-blue-500 to-purple-600 overflow-hidden">
+                  {/* Imagen de fondo o gradiente optimizada para móvil - más compacta */}
+                  <div className="relative h-40 bg-gradient-to-br from-blue-500 via-purple-600 to-indigo-700 overflow-hidden">
                     {court.image ? (
                       <img
                         src={court.image}
@@ -272,21 +274,21 @@ export function MobileCourtSelector({
                       />
                     ) : (
                       <div className="flex items-center justify-center h-full">
-                        <div className="text-6xl text-white opacity-80">
+                        <div className="text-6xl text-white opacity-90 drop-shadow-lg">
                           {getSportIcon(court.sportType || selectedSport)}
                         </div>
                       </div>
                     )}
                     
-                    {/* Overlay con botones */}
-                    <div className="absolute inset-0 bg-black bg-opacity-20">
+                    {/* Overlay con botones optimizados para móvil */}
+                    <div className="absolute inset-0 bg-black bg-opacity-10">
                       <div className="absolute top-3 right-3 flex space-x-2">
                         <button
                           onClick={() => toggleFavorite(court.id)}
-                          className={`p-2 rounded-full transition-all ${
+                          className={`p-2 rounded-full transition-all duration-200 active:scale-95 shadow-md ${
                             favorites.has(court.id)
                               ? 'bg-red-500 text-white'
-                              : 'bg-white bg-opacity-80 text-gray-700 hover:bg-opacity-100'
+                              : 'bg-white bg-opacity-90 text-gray-700 hover:bg-opacity-100'
                           }`}
                         >
                           <Heart className={`h-4 w-4 ${
@@ -295,51 +297,65 @@ export function MobileCourtSelector({
                         </button>
                         <button
                           onClick={() => setShowDetails(showDetails === court.id ? null : court.id)}
-                          className="p-2 rounded-full bg-white bg-opacity-80 text-gray-700 hover:bg-opacity-100 transition-all"
+                          className="p-2 rounded-full bg-white bg-opacity-90 text-gray-700 hover:bg-opacity-100 transition-all duration-200 active:scale-95 shadow-md"
                         >
                           <Info className="h-4 w-4" />
                         </button>
                       </div>
                       
-                      {/* Disponibilidad */}
+                      {/* Disponibilidad compacta */}
                       {court.availability && (
                         <div className="absolute top-3 left-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium border backdrop-blur-sm ${
                             getAvailabilityColor(court.availability)
                           }`}>
                             {getAvailabilityText(court.availability)}
                           </span>
                         </div>
                       )}
+
+                      {/* Indicador de página compacto */}
+                      {courts.length > 1 && (
+                        <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex space-x-1.5">
+                          {courts.map((_, idx) => (
+                            <div
+                              key={idx}
+                              className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                                idx === currentIndex ? 'bg-white shadow-md' : 'bg-white/50'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Contenido de la tarjeta */}
-                  <div className="p-5">
-                    {/* Header */}
+                  {/* Contenido de la tarjeta compacto para móvil */}
+                  <div className="p-4">
+                    {/* Header compacto */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <h4 className="text-xl font-bold text-gray-900 mb-1">
                           {court.name}
                         </h4>
                         <div className="flex items-center space-x-3 text-sm text-gray-600">
-                          <div className="flex items-center">
-                            <Users className="h-4 w-4 mr-1" />
-                            <span>Hasta {court.capacity}</span>
+                          <div className="flex items-center bg-blue-50 rounded-lg px-2 py-1">
+                            <Users className="h-4 w-4 mr-1 text-blue-600" />
+                            <span className="font-medium text-sm">Hasta {court.capacity}</span>
                           </div>
                           {court.rating && (
-                            <div className="flex items-center text-yellow-500">
+                            <div className="flex items-center bg-yellow-50 rounded-lg px-2 py-1 text-yellow-600">
                               <Star className="h-4 w-4 mr-1 fill-current" />
-                              <span className="font-medium">{court.rating}</span>
+                              <span className="font-bold text-sm">{court.rating}</span>
                             </div>
                           )}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-gray-900">
+                      <div className="text-right ml-3">
+                        <div className="text-2xl font-bold text-blue-600">
                           {formatCurrency(court.pricePerHour)}
                         </div>
-                        <div className="text-sm text-gray-500">por hora</div>
+                        <div className="text-xs text-gray-500 font-medium">por hora</div>
                       </div>
                     </div>
 
@@ -350,14 +366,14 @@ export function MobileCourtSelector({
                       </p>
                     )}
 
-                    {/* Amenidades principales */}
+                    {/* Amenidades principales compactas */}
                     <div className="grid grid-cols-2 gap-2 mb-4">
                       {court.amenities.slice(0, 4).map((amenity: string, amenityIndex: number) => (
-                        <div key={amenityIndex} className="flex items-center text-sm text-gray-600">
-                          <div className="text-green-500 mr-2">
+                        <div key={amenityIndex} className="flex items-center bg-green-50 rounded-lg px-2 py-1.5 border border-green-100">
+                          <div className="text-green-600 mr-2">
                             {getAmenityIcon(amenity)}
                           </div>
-                          <span className="truncate">{amenity}</span>
+                          <span className="text-xs font-medium text-green-700 truncate">{amenity}</span>
                         </div>
                       ))}
                     </div>
@@ -395,13 +411,13 @@ export function MobileCourtSelector({
                       </div>
                     )}
 
-                    {/* Botón de selección */}
+                    {/* Botón de selección compacto */}
                     <button
                       onClick={() => onCourtSelect(court)}
-                      className={`w-full py-3 rounded-xl font-semibold transition-all duration-200 active:scale-98 ${
+                      className={`w-full py-3 rounded-xl font-semibold text-base transition-all duration-200 active:scale-98 shadow-md ${
                         selectedCourt?.id === court.id
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          ? 'bg-blue-600 text-white shadow-blue-200'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
                       }`}
                     >
                       {selectedCourt?.id === court.id ? (
@@ -410,7 +426,7 @@ export function MobileCourtSelector({
                           Seleccionada
                         </div>
                       ) : (
-                        'Seleccionar esta cancha'
+                        'Seleccionar'
                       )}
                     </button>
                   </div>
@@ -421,11 +437,27 @@ export function MobileCourtSelector({
         </div>
       </div>
 
-      {/* Indicadores de deslizamiento */}
+      {/* Indicadores de deslizamiento compactos */}
       {courts.length > 1 && (
-        <div className="text-center mt-4">
-          <p className="text-xs text-gray-500">
+        <div className="text-center mt-3">
+          <p className="text-xs text-gray-400">
             Desliza para ver más canchas
+          </p>
+        </div>
+      )}
+
+      {/* Botón de continuar compacto */}
+      {selectedCourt && onContinue && (
+        <div className="mt-6 px-4 pb-4">
+          <button
+            onClick={onContinue}
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 rounded-xl font-semibold text-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 active:scale-98 flex items-center justify-center shadow-lg"
+          >
+            Continuar a Fecha y Hora
+            <ChevronRight className="h-5 w-5 ml-2" />
+          </button>
+          <p className="text-center text-xs text-gray-500 mt-2">
+            Paso 3 de 4 - Selecciona fecha y hora
           </p>
         </div>
       )}

@@ -267,6 +267,8 @@ export default function ProfilePage() {
                   value={formData.dateOfBirth || ''}
                   onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
+                  lang="es-ES"
+                  data-locale="es-ES"
                 />
               ) : (
                 <p className="text-gray-900">

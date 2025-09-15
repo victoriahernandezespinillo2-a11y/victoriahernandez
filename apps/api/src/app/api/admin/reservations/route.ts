@@ -23,6 +23,8 @@ const GetAdminReservationsSchema = z.object({
   search: z.string().optional(),
   sortBy: z.enum(['createdAt','startTime','endTime','status']).optional().default('createdAt'),
   sortOrder: z.enum(['asc','desc']).optional().default('desc'),
+  // Campo de fecha a considerar para el filtrado temporal. Por defecto startTime para coherencia con los reportes
+  dateField: z.enum(['startTime','createdAt']).optional().default('startTime'),
 });
 
 export async function GET(request: NextRequest) {
@@ -39,9 +41,19 @@ export async function GET(request: NextRequest) {
       if (params.courtId) where.courtId = params.courtId;
       if (params.centerId) where.court = { is: { centerId: params.centerId } };
       if (params.startDate || params.endDate) {
-        where.createdAt = {} as any;
-        if (params.startDate) (where.createdAt as any).gte = new Date(params.startDate);
-        if (params.endDate) (where.createdAt as any).lte = new Date(params.endDate);
+        const field = params.dateField || 'startTime';
+        const range: any = {};
+        if (params.startDate) {
+          const gte = new Date(params.startDate);
+          gte.setHours(0, 0, 0, 0);
+          range.gte = gte;
+        }
+        if (params.endDate) {
+          const lte = new Date(params.endDate);
+          lte.setHours(23, 59, 59, 999);
+          range.lte = lte;
+        }
+        (where as any)[field] = range;
       }
       if (params.search) {
         const q = params.search;

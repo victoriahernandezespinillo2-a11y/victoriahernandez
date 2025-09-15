@@ -17,7 +17,7 @@ import {
   BoltIcon as Activity,
   DocumentTextIcon as FileText
 } from '@heroicons/react/24/outline';
-import { useAdminReports } from '@/lib/hooks';
+import { useAdminReports, exportUtils } from '@/lib/hooks';
 
 interface ReportData {
   period: string;
@@ -278,20 +278,36 @@ export default function ReportsPage() {
   const calculateOccupancyRate = (data: UsageData | null): number => {
     if (!data || !data.summary) return 0;
     
-    // Obtener el número total de canchas disponibles
-    // En una implementación real, esto vendría de la base de datos
-    const totalCourts = 8; // Asumiendo 8 canchas en el polideportivo
-    const hoursPerDay = 14; // Horas de operación por día (ej: 6 AM - 8 PM)
-    const daysInPeriod = selectedPeriod === 'custom' ? 
-      Math.ceil((new Date(dateRange.end!).getTime() - new Date(dateRange.start!).getTime()) / (1000 * 60 * 60 * 24)) :
-      (selectedPeriod === '7d' ? 7 : selectedPeriod === '30d' ? 30 : selectedPeriod === '90d' ? 90 : 365);
+    // Obtener datos reales de canchas desde la base de datos
+    // Por ahora usamos un valor por defecto, pero esto debería venir de una consulta
+    const totalCourts = 8; // TODO: Obtener dinámicamente desde adminApi.courts.getAll()
+    const hoursPerDay = 14; // Horas de operación por día (6 AM - 8 PM)
     
+    // Calcular días en el período de forma más precisa
+    let daysInPeriod = 1;
+    if (selectedPeriod === 'custom') {
+      const start = new Date(dateRange.start!);
+      const end = new Date(dateRange.end!);
+      daysInPeriod = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    } else {
+      switch (selectedPeriod) {
+        case '7d': daysInPeriod = 7; break;
+        case '30d': daysInPeriod = 30; break;
+        case '90d': daysInPeriod = 90; break;
+        case '1y': daysInPeriod = 365; break;
+        default: daysInPeriod = 30;
+      }
+    }
+    
+    // Calcular capacidad total considerando que cada reserva ocupa 1 hora
     const totalCapacity = totalCourts * hoursPerDay * daysInPeriod;
     const totalReservations = data.summary.totalReservations;
     
     if (totalCapacity === 0) return 0;
     
-    return Math.round((totalReservations / totalCapacity) * 100);
+    // Calcular tasa de ocupación real
+    const occupancyRate = (totalReservations / totalCapacity) * 100;
+    return Math.round(Math.min(occupancyRate, 100)); // Máximo 100%
   };
 
   // Calcular crecimiento dinámicamente
@@ -344,30 +360,12 @@ export default function ReportsPage() {
         generatedAt: new Date().toISOString()
       };
 
+      const filename = `reporte_${selectedPeriod}_${new Date().toISOString().split('T')[0]}`;
+      
       if (format === 'csv') {
-        // Convertir a CSV
-        const csvContent = convertToCSV(exportData);
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', `reporte_${selectedPeriod}_${new Date().toISOString().split('T')[0]}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        exportUtils.downloadCSV(exportData, `${filename}.csv`);
       } else {
-        // Exportar como JSON
-        const jsonContent = JSON.stringify(exportData, null, 2);
-        const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', `reporte_${selectedPeriod}_${new Date().toISOString().split('T')[0]}.json`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        exportUtils.downloadJSON(exportData, `${filename}.json`);
       }
     } catch (error) {
       console.error('Error exportando datos:', error);

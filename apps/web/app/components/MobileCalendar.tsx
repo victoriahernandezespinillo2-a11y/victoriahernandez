@@ -53,14 +53,18 @@ export function MobileCalendar({
   const calendarRef = useRef<HTMLDivElement>(null);
   const timeSlotsRef = useRef<HTMLDivElement>(null);
 
-  // Generar días del mes
+  // Generar días del mes - Formato español (lunes a domingo)
   const generateCalendarDays = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
+    
+    // Calcular el primer lunes de la semana que contiene el primer día del mes
     const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - firstDay.getDay());
+    const dayOfWeek = firstDay.getDay(); // 0 = domingo, 1 = lunes, ..., 6 = sábado
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Si es domingo (0), restar 6 días; si no, restar (día - 1)
+    startDate.setDate(startDate.getDate() - daysToSubtract);
 
     const days = [];
     const today = new Date();
@@ -256,9 +260,9 @@ export function MobileCalendar({
         )}
       </div>
 
-      {/* Días de la semana */}
+      {/* Días de la semana - Formato español (lunes a domingo) */}
       <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
-        {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((day) => (
+        {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((day) => (
           <div key={day} className="p-3 text-center text-sm font-medium text-gray-600">
             {day}
           </div>

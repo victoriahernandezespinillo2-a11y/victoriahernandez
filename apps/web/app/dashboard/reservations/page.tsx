@@ -29,6 +29,7 @@ interface Reservation {
   status: 'confirmed' | 'pending' | 'cancelled' | 'completed';
   cost: number;
   paymentStatus: 'paid' | 'pending' | 'refunded';
+  paymentMethod?: 'CARD' | 'BIZUM' | 'ONSITE' | 'CASH' | 'TRANSFER' | 'CREDITS';
   createdAt: string;
   notes?: string;
 }
@@ -56,6 +57,21 @@ const statusConfig = {
     color: 'bg-blue-100 text-blue-800',
     icon: CheckCircle
   }
+};
+
+const paymentMethodConfig = {
+  CARD: { label: 'Tarjeta', icon: '💳', color: 'bg-blue-100 text-blue-800' },
+  BIZUM: { label: 'Bizum', icon: '📱', color: 'bg-purple-100 text-purple-800' },
+  ONSITE: { label: 'En Sede', icon: '🏢', color: 'bg-orange-100 text-orange-800' },
+  CASH: { label: 'Efectivo', icon: '💵', color: 'bg-green-100 text-green-800' },
+  TRANSFER: { label: 'Transferencia', icon: '🏦', color: 'bg-gray-100 text-gray-800' },
+  CREDITS: { label: 'Créditos', icon: '⭐', color: 'bg-yellow-100 text-yellow-800' }
+};
+
+const paymentStatusConfig = {
+  paid: { label: 'Pagado', color: 'bg-green-100 text-green-800', icon: '✅' },
+  pending: { label: 'Pendiente', color: 'bg-orange-100 text-orange-800', icon: '⏳' },
+  refunded: { label: 'Reembolsado', color: 'bg-gray-100 text-gray-800', icon: '↩️' }
 };
 
 const paymentConfig: Record<Reservation['paymentStatus'], { label: string; color: string }> = {
@@ -373,7 +389,39 @@ export default function ReservationsPage() {
                             <StatusIcon className="h-3 w-3 mr-1" />
                             {statusConfig[reservation.status].label}
                           </span>
-                          {reservation.paymentStatus === 'pending' && (
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${paymentStatusConfig[reservation.paymentStatus].color}`}>
+                            <span className="mr-1">{paymentStatusConfig[reservation.paymentStatus].icon}</span>
+                            {paymentStatusConfig[reservation.paymentStatus].label}
+                          </span>
+                        </div>
+                        
+                        {/* Información de pago más detallada */}
+                        <div className="mt-2 space-y-1">
+                          {reservation.paymentMethod && (
+                            <div className="flex items-center text-sm text-gray-600">
+                              <span className="mr-2">Método:</span>
+                              <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${paymentMethodConfig[reservation.paymentMethod]?.color || 'bg-gray-100 text-gray-800'}`}>
+                                <span className="mr-1">{paymentMethodConfig[reservation.paymentMethod]?.icon || '💳'}</span>
+                                {paymentMethodConfig[reservation.paymentMethod]?.label || reservation.paymentMethod}
+                              </span>
+                            </div>
+                          )}
+                          
+                          {reservation.paymentStatus === 'pending' && reservation.paymentMethod === 'ONSITE' && (
+                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mt-2">
+                              <div className="flex items-start">
+                                <span className="text-orange-600 mr-2">⚠️</span>
+                                <div className="text-sm">
+                                  <p className="text-orange-800 font-medium">Pago pendiente en el centro</p>
+                                  <p className="text-orange-700 text-xs mt-1">
+                                    Presenta este comprobante en recepción para completar tu pago
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {reservation.paymentStatus === 'pending' && reservation.paymentMethod !== 'ONSITE' && (
                             <button
                               disabled={linkLoadingId === reservation.id}
                               onClick={async () => {
@@ -396,7 +444,7 @@ export default function ReservationsPage() {
                                   setLinkLoadingId(null);
                                 }
                               }}
-                              className="text-xs px-2 py-0.5 border rounded hover:bg-gray-50"
+                              className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                             >
                               {linkLoadingId === reservation.id ? 'Abriendo…' : 'Pagar ahora'}
                             </button>
