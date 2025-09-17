@@ -109,9 +109,10 @@ export default function MobileNewReservationPage() {
     return courts.filter(court => court.sportType === selectedSport);
   }, [selectedSport, courts]);
 
-  // Fechas disponibles
-  const minDate = new Date().toISOString().split('T')[0];
-  const maxDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  // Fechas disponibles (formato local YYYY-MM-DD)
+  const toLocalYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const minDate = toLocalYMD(new Date());
+  const maxDate = toLocalYMD(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
 
   // Calcular precio total
   const totalCost = useMemo(() => {
@@ -122,7 +123,10 @@ export default function MobileNewReservationPage() {
     if (/^\d{2}:\d{2}$/.test(raw)) {
       if (!selectedDate) return 0; // necesitamos fecha para componer ISO
       const local = new Date(`${selectedDate}T${raw}:00`);
-      if (!isNaN(local.getTime())) startISO = local.toISOString();
+      if (!isNaN(local.getTime())) {
+        // Convertir a ISO corrigiendo desfase de zona para no mover de día
+        startISO = new Date(local.getTime() - local.getTimezoneOffset()*60000).toISOString();
+      }
     } else {
       const d = new Date(raw);
       if (!isNaN(d.getTime())) {
@@ -505,7 +509,9 @@ export default function MobileNewReservationPage() {
                       let startISO: string | null = null;
                       if (/^\d{2}:\d{2}$/.test(raw)) {
                         const local = new Date(`${selectedDate}T${raw}:00`);
-                        if (!isNaN(local.getTime())) startISO = local.toISOString();
+                        if (!isNaN(local.getTime())) {
+                          startISO = new Date(local.getTime() - local.getTimezoneOffset()*60000).toISOString();
+                        }
                       } else {
                         const d = new Date(raw);
                         if (!isNaN(d.getTime())) startISO = d.toISOString();

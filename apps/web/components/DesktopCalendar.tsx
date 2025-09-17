@@ -38,6 +38,14 @@ export function DesktopCalendar({
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const calendarRef = useRef<HTMLDivElement>(null);
 
+  // Helper: construir YYYY-MM-DD en hora local (sin uso de toISOString)
+  const toLocalYMD = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   // Generar días del mes - Formato español (lunes a domingo)
   const generateCalendarDays = () => {
     const year = currentMonth.getFullYear();
@@ -61,7 +69,8 @@ export function DesktopCalendar({
       const isCurrentMonth = date.getMonth() === month;
       const isToday = date.getTime() === today.getTime();
       const isPast = date < today;
-      const isSelected = selectedDate === date.toISOString().split('T')[0];
+      // Comparar usando fecha local para evitar desfases por UTC
+      const isSelected = selectedDate === toLocalYMD(date);
       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
       
       days.push({
@@ -72,7 +81,8 @@ export function DesktopCalendar({
         isPast,
         isSelected,
         isWeekend,
-        dateString: date.toISOString().split('T')[0],
+        // Persistir la fecha seleccionable en formato local (no UTC)
+        dateString: toLocalYMD(date),
       });
     }
 

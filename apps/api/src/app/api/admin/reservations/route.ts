@@ -8,7 +8,6 @@ import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { z } from 'zod';
 import { reservationService } from '@/lib/services/reservation.service';
-import { stripeService } from '@repo/payments';
 import { emailService } from '@repo/notifications';
 
 const GetAdminReservationsSchema = z.object({
@@ -30,6 +29,17 @@ const GetAdminReservationsSchema = z.object({
 export async function GET(request: NextRequest) {
   return withAdminMiddleware(async (req) => {
     try {
+      // Marcación oportunista de NO_SHOW: idempotente, rápida y segura
+      try {
+        const now = new Date();
+        const graceMin = Math.max(0, Number(process.env.NO_SHOW_GRACE_MINUTES || '5'));
+        const cutoff = new Date(now.getTime() - graceMin * 60000);
+        await db.reservation.updateMany({
+          where: { endTime: { lt: cutoff }, checkInTime: null, status: { in: ['PENDING','PAID'] as any } },
+          data: { status: 'NO_SHOW' as any },
+        });
+      } catch {}
+
       const { searchParams } = req.nextUrl;
       const params = GetAdminReservationsSchema.parse(Object.fromEntries(searchParams.entries()));
 
@@ -107,6 +117,20 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // Detectar si existe un pago registrado (PAYMENT_RECORDED o RESERVATION_PAID)
+      const paymentEvents = await db.outboxEvent.findMany({
+        where: {
+          eventType: { in: ['PAYMENT_RECORDED','RESERVATION_PAID'] },
+        },
+        select: { eventData: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      }).catch(() => [] as any[]);
+      const hasPaymentMap = new Set<string>();
+      for (const ev of paymentEvents as any[]) {
+        const rid = ev?.eventData?.reservationId as string | undefined;
+        if (rid && idsSet.has(rid)) hasPaymentMap.add(rid);
+      }
+
       const mapped = items.map((r: any) => ({
         id: r.id,
         userId: r.userId,
@@ -121,7 +145,9 @@ export async function GET(request: NextRequest) {
         duration: Math.max(0, Math.round((r.endTime.getTime() - r.startTime.getTime()) / (60 * 60 * 1000))),
         totalAmount: Number(r.totalPrice || 0),
         status: r.status as any,
-        paymentStatus: refundedIds.has(r.id) ? 'REFUNDED' : (r.status === 'PAID' ? 'PAID' : 'PENDING'),
+        paymentStatus: refundedIds.has(r.id)
+          ? 'REFUNDED'
+          : (r.status === 'PAID' || hasPaymentMap.has(r.id) ? 'PAID' : 'PENDING'),
         paymentMethod: (r as any).paymentMethod || null,
         override: overrideMap.get(r.id) || null,
         notes: r.notes || undefined,
@@ -301,34 +327,52 @@ export async function POST(request: NextRequest) {
 
       let paymentLinkUrl: string | undefined;
 
-      // 4) Si el método es LINK, generar enlace de pago y enviar por email
+      // 4) Si el método es LINK, generar enlace de pago (Redsys redirect) y enviar por email
       if (input.payment?.method === 'LINK') {
-        try {
-          const amount = Number(reservation.totalPrice || 0);
-          const successUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/dashboard/reservations/success?reservationId=${reservation.id}`;
-          const cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/dashboard/reservations`;
-          const session = await stripeService.createCheckoutSession({
-            amount,
-            currency: 'eur',
-            successUrl,
-            cancelUrl,
-            metadata: { reservationId: reservation.id },
-            description: `Reserva ${reservation.courtId}`,
-          });
-          paymentLinkUrl = session.url || undefined;
-          await db.outboxEvent.create({ data: { eventType: 'PAYMENT_LINK_CREATED', eventData: { reservationId: reservation.id, sessionId: session.id, url: paymentLinkUrl } as any } });
+        const amountDue = Number(reservation.totalPrice || 0);
+        // Reglas: no generar si importe 0 o estado incompatible o ya hay pago
+        const blockedStatuses = new Set(['PAID','COMPLETED','CANCELLED']);
+        if (blockedStatuses.has((reservation.status as any) || '')) {
+          return ApiResponse.badRequest('La reserva no admite enlace de pago en su estado actual');
+        }
+        if (!(amountDue > 0)) {
+          return ApiResponse.badRequest('La reserva no tiene importe a cobrar');
+        }
+        const existingPayment = await db.outboxEvent.findFirst({
+          where: {
+            eventType: { in: ['PAYMENT_RECORDED','RESERVATION_PAID'] },
+            eventData: { path: ['reservationId'], equals: reservation.id } as any,
+          },
+        } as any);
+        if (existingPayment) {
+          return ApiResponse.badRequest('La reserva ya tiene un pago registrado');
+        }
 
-          // Enviar por email si hay correo del usuario
-          const user = await db.user.findUnique({ where: { id: userId } });
-          if (user?.email && paymentLinkUrl) {
-            await emailService.sendEmail({
-              to: user.email,
-              subject: 'Enlace de pago de tu reserva',
-              html: `<p>Hola ${user.name || ''},</p><p>Puedes completar el pago de tu reserva haciendo clic en el siguiente enlace:</p><p><a href="${paymentLinkUrl}">Pagar ahora</a></p>`,
-            });
-          }
-        } catch (e) {
-          console.warn('No se pudo generar/enviar enlace de pago:', e);
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+        const redirectUrl = `${apiUrl}/api/payments/redsys/redirect?rid=${encodeURIComponent(reservation.id)}`;
+        paymentLinkUrl = redirectUrl;
+        await db.outboxEvent.create({
+          data: {
+            eventType: 'PAYMENT_LINK_CREATED',
+            eventData: {
+              reservationId: reservation.id,
+              provider: 'redsys',
+              amount: amountDue,
+              url: redirectUrl,
+              successUrl: `${appUrl}/dashboard/reservations/success?reservationId=${reservation.id}`,
+              cancelUrl: `${appUrl}/dashboard/reservations`,
+            } as any,
+          },
+        });
+
+        const user = await db.user.findUnique({ where: { id: userId } });
+        if (user?.email && paymentLinkUrl) {
+          await emailService.sendEmail({
+            to: user.email,
+            subject: 'Enlace de pago de tu reserva',
+            html: `<p>Hola ${user.name || ''},</p><p>Puedes completar el pago de tu reserva haciendo clic en el siguiente enlace:</p><p><a href="${paymentLinkUrl}">Pagar ahora</a></p>`,
+          });
         }
       }
 

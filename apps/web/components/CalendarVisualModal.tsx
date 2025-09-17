@@ -280,7 +280,9 @@ export default function CalendarVisualModal({
     try {
       // Crear la reserva directamente con los campos correctos según la API
       const hhmm = (selectedSlot.startTime || '').slice(0, 5);
-      const startISO = `${date}T${hhmm}:00.000Z`;
+      // Construir en local y enviar en ISO sin forzar Z al final para evitar mover de día
+      const localStart = new Date(`${date}T${hhmm}:00`);
+      const startISO = new Date(localStart.getTime() - localStart.getTimezoneOffset() * 60000).toISOString();
       console.log('🔍 [FRONTEND-DEBUG] Creando reserva con datos:', {
         courtId,
         startTime: startISO,
@@ -316,7 +318,7 @@ export default function CalendarVisualModal({
       if (reservation?.id) {
         if (window.innerWidth >= 768) {
           // Mostrar modal de métodos de pago en escritorio
-          const start = new Date(startISO);
+          const start = localStart;
           const end = new Date(start.getTime() + duration * 60000);
           const dateLabel = start.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
           const timeLabel = `${start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;

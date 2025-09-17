@@ -116,7 +116,7 @@ export default function PaymentConfirmationModal({
                   { value: 'CASH', label: 'Efectivo', icon: '💵' },
                   { value: 'CARD', label: 'Tarjeta', icon: '💳' },
                   { value: 'TRANSFER', label: 'Transferencia', icon: '🏦' },
-                  { value: 'ONSITE', label: 'En Sede', icon: '🏢' },
+                  // Omitimos 'ONSITE' aquí: en recepción se debe registrar el método real
                   { value: 'CREDITS', label: 'Créditos', icon: '⭐' },
                   { value: 'BIZUM', label: 'Bizum', icon: '📱' }
                 ].map((method) => (
@@ -190,3 +190,5 @@ export default function PaymentConfirmationModal({
     </div>
   );
 }
+
+

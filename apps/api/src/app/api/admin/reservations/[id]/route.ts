@@ -9,13 +9,10 @@ import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { z } from 'zod';
-
-const UpdateReservationSchema = z.object({
-  status: z.enum(['PENDING','PAID','IN_PROGRESS','COMPLETED','CANCELLED','NO_SHOW']).optional(),
-  startTime: z.string().datetime().optional(),
-  endTime: z.string().datetime().optional(),
-  notes: z.string().optional(),
-});
+import { 
+  UpdateReservationSchema, 
+  validateAndMapReservationStatus 
+} from '@/lib/validators/reservation.validator';
 
 export async function GET(request: NextRequest) {
   return withAdminMiddleware(async (req) => {
@@ -45,15 +42,43 @@ export async function PUT(request: NextRequest) {
     try {
       const id = req.nextUrl.pathname.split('/').pop() as string;
       if (!id) return ApiResponse.badRequest('ID requerido');
+      
       const body = await req.json();
+      
+      // Validar y mapear estado si es necesario
+      if (body.status) {
+        const statusValidation = validateAndMapReservationStatus(body.status);
+        if (!statusValidation.isValid) {
+          return ApiResponse.badRequest(statusValidation.error!);
+        }
+        // Usar el estado mapeado si es necesario
+        if (statusValidation.mappedStatus) {
+          body.status = statusValidation.mappedStatus;
+        }
+      }
+      
       const data = UpdateReservationSchema.parse(body);
 
-      // Preparar payload
+      // Preparar payload (endTime se deriva de startTime + duration)
+      const existing = await db.reservation.findUnique({ where: { id }, select: { startTime: true, endTime: true, duration: true } as any });
+      if (!existing) return ApiResponse.notFound('Reserva');
+
       const updateData: any = {};
+      // status y notas directos
       if (data.status) updateData.status = data.status;
-      if (data.startTime) updateData.startTime = new Date(data.startTime);
-      if (data.endTime) updateData.endTime = new Date(data.endTime);
       if (data.notes !== undefined) updateData.notes = data.notes;
+
+      // calcular start/end
+      const existingStart = new Date((existing as any).startTime as any);
+      const existingEnd = new Date((existing as any).endTime as any);
+      const newStart = data.startTime ? new Date(data.startTime) : existingStart;
+      const baseDuration = (existing as any).duration ?? Math.max(30, Math.round((existingEnd.getTime() - existingStart.getTime()) / 60000));
+      const newDuration = data.duration ?? baseDuration;
+      const newEnd = new Date(newStart.getTime() + newDuration * 60000);
+      if (data.startTime || data.duration !== undefined) {
+        updateData.startTime = newStart;
+        updateData.endTime = newEnd;
+      }
 
       const updated = await db.reservation.update({ where: { id }, data: updateData });
       return ApiResponse.success(updated);

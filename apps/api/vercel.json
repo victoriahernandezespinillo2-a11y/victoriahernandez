@@ -1,8 +1,14 @@
 {
-    "$schema": "https://openapi.vercel.sh/vercel.json",
-    "functions": {
-      "src/app/api/**/route.js": {
-        "includeFiles": "node_modules/pdfkit/js/data/**"
-      }
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "src/app/api/**/route.js": {
+      "includeFiles": "node_modules/pdfkit/js/data/**"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/admin/reservations/tasks/mark-no-shows",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}

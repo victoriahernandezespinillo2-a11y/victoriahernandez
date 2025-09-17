@@ -780,4 +780,9 @@ export const ApiResponse = {
       { status: 409 }
     );
   },
+
+  // Enviar binario crudo con headers tipados como NextResponse
+  raw: (body: Buffer | Uint8Array, headers: Record<string, string> = {}, status = 200) => {
+    return new NextResponse(body as any, { status, headers });
+  },
 };

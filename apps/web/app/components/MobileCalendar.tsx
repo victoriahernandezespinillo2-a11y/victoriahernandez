@@ -47,6 +47,14 @@ export function MobileCalendar({
   onContinue,
 }: MobileCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // Helper consistente: YYYY-MM-DD en zona local
+  const toLocalYMD = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
   const [showTimeSlots, setShowTimeSlots] = useState(false);
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
@@ -77,7 +85,7 @@ export function MobileCalendar({
       const isCurrentMonth = date.getMonth() === month;
       const isToday = date.getTime() === today.getTime();
       const isPast = date < today;
-      const isSelected = selectedDate === date.toISOString().split('T')[0];
+      const isSelected = selectedDate === toLocalYMD(date);
       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
       
       days.push({
@@ -88,7 +96,7 @@ export function MobileCalendar({
         isPast,
         isSelected,
         isWeekend,
-        dateString: date.toISOString().split('T')[0],
+      dateString: toLocalYMD(date),
       });
     }
 

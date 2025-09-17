@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
+import ReceiptPDF from '@/components/ReceiptPDF';
+import JSZip from 'jszip';
 
 export const runtime = 'nodejs';
 
@@ -9,8 +11,10 @@ export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   return withAdminMiddleware(async (req) => {
-    const { default: PDFDocument } = await import('pdfkit');
-    const id = req.nextUrl.pathname.split('/').slice(-4, -3)[0];
+    // Identificar el ID de manera robusta
+    const segments = req.nextUrl.pathname.split('/');
+    const ridx = segments.findIndex((s) => s === 'reservations');
+    const id = ridx !== -1 && segments[ridx + 1] ? segments[ridx + 1] : '';
     if (!id) return ApiResponse.badRequest('ID de reserva requerido');
 
     const reservation = await db.reservation.findUnique({
@@ -25,111 +29,41 @@ export async function GET(request: NextRequest) {
       select: { eventType: true, eventData: true, createdAt: true, id: true },
     } as any);
 
-    // 1) Generar recibo PDF enriquecido en memoria (mismo estilo que el endpoint de recibo admin)
-    const pdfDoc = new PDFDocument({ margin: 50 });
-    const pdfChunks: any[] = [];
-    pdfDoc.on('data', (c) => pdfChunks.push(c));
-    const pdfDone = new Promise<Buffer>((resolve) => pdfDoc.on('end', () => resolve(Buffer.concat(pdfChunks as any))));
-
-    // Configuración dinámica desde el centro
-    const centerSettings: any = ((reservation.court as any).center as any).settings || {};
+    // 1) Generar recibo PDF con el mismo componente que usa el usuario (react-pdf)
+    const centerSettings: any = (reservation.court.center as any)?.settings || {};
     const receiptCfg: any = centerSettings.receipt || {};
-    const legalName: string | undefined = receiptCfg.legalName || centerSettings.legalName;
-    const taxId: string | undefined = receiptCfg.taxId || centerSettings.taxId;
-    const fiscalAddress: string | undefined = receiptCfg.fiscalAddress || centerSettings.fiscalAddress;
-    const contactEmail: string | undefined = receiptCfg.contactEmail || ((reservation.court as any).center as any).email || centerSettings.contactEmail;
-    const contactPhone: string | undefined = receiptCfg.contactPhone || ((reservation.court as any).center as any).phone || centerSettings.contactPhone;
-    const footerNotes: string | undefined = receiptCfg.footerNotes;
-    const showStripeReferences: boolean = !!receiptCfg.showStripeReferences;
+    const { renderToBuffer } = await import('@react-pdf/renderer');
+    const pdfElement = ReceiptPDF({
+      reservation: {
+        id: reservation.id,
+        court: {
+          name: reservation.court.name,
+          center: {
+            name: reservation.court.center.name,
+            email: reservation.court.center.email,
+            phone: reservation.court.center.phone,
+          },
+        },
+        startTime: reservation.startTime,
+        endTime: reservation.endTime,
+        totalPrice: Number(reservation.totalPrice || 0),
+        paymentMethod: (reservation as any).paymentMethod || null,
+      },
+      centerSettings: {
+        legalName: receiptCfg.legalName || centerSettings.legalName,
+        taxId: receiptCfg.taxId || centerSettings.taxId,
+        fiscalAddress: receiptCfg.fiscalAddress || centerSettings.fiscalAddress,
+        contactEmail: receiptCfg.contactEmail || reservation.court.center.email || centerSettings.contactEmail,
+        contactPhone: receiptCfg.contactPhone || reservation.court.center.phone || centerSettings.contactPhone,
+        footerNotes: receiptCfg.footerNotes,
+      },
+      total: Number(reservation.totalPrice || 0),
+      sumOverrides: 0,
+      reasons: [],
+    } as any);
+    const pdfBuffer = await renderToBuffer(pdfElement as any);
 
-    pdfDoc.fontSize(16).text(legalName || 'Recibo de Reserva', { align: 'center' });
-    if (taxId) pdfDoc.fontSize(9).text(`CIF/NIF: ${taxId}`, { align: 'center' });
-    if (fiscalAddress) pdfDoc.fontSize(9).text(fiscalAddress, { align: 'center' });
-    pdfDoc.moveDown(1);
-    pdfDoc.fontSize(10).text(`Centro: ${((reservation.court as any).center as any).name}`);
-    pdfDoc.text(`Cancha: ${reservation.court.name}`);
-    pdfDoc.text(`Cliente: ${reservation.user?.name || ''} - ${reservation.user?.email || ''}`);
-    pdfDoc.text(`Fecha: ${reservation.startTime.toLocaleDateString('es-ES')} ${reservation.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`);
-    pdfDoc.text(`Duración: ${Math.round((reservation.endTime.getTime() - reservation.startTime.getTime()) / 60000)} min`);
-    const paymentMethod = (reservation as any).paymentMethod || 'N/D';
-    pdfDoc.text(`Método de pago: ${paymentMethod}`);
-    pdfDoc.moveDown(1);
-
-    // Overrides de precio (si existen)
-    let total = Number(reservation.totalPrice || 0);
-    let sumOverrides = 0;
-    let overrideReasons: string[] = [];
-    try {
-      const overrideEvents = await db.outboxEvent.findMany({
-        where: { eventType: 'PRICE_OVERRIDE', eventData: { path: ['reservationId'], equals: reservation.id } as any } as any,
-        orderBy: { createdAt: 'asc' },
-        select: { eventData: true },
-      });
-      for (const ev of (overrideEvents as any[])) {
-        const delta = Number(ev?.eventData?.delta || 0);
-        sumOverrides += delta;
-        if (ev?.eventData?.reason) overrideReasons.push(String(ev.eventData.reason));
-      }
-    } catch {}
-    const base = total - sumOverrides;
-
-    // Sección de importes y números
-    pdfDoc.fontSize(12).text(`Número: ${reservation.id.slice(0, 10).toUpperCase()}`, { align: 'right' });
-    pdfDoc.moveDown(1);
-    pdfDoc.fontSize(12).text(`Base: €${base.toFixed(2)}`, { align: 'right' });
-    if (sumOverrides !== 0) {
-      pdfDoc.text(`Ajustes: €${sumOverrides.toFixed(2)}`, { align: 'right' });
-      if (overrideReasons.length > 0) {
-        pdfDoc.fontSize(9).text(`Motivos: ${overrideReasons.join(' | ')}`, { align: 'right' });
-      }
-    }
-    // Impuestos dinámicos
-    try {
-      const taxes: any = centerSettings.taxes || {};
-      const rate = Number(taxes.rate || 0);
-      const included = !!taxes.included;
-      if (rate > 0) {
-        if (included) {
-          const net = total / (1 + rate / 100);
-          const taxAmount = total - net;
-          pdfDoc.text(`Impuestos incluidos (${rate}%): €${taxAmount.toFixed(2)}`, { align: 'right' });
-        } else {
-          const taxAmount = total * (rate / 100);
-          pdfDoc.text(`Impuestos (${rate}%): €${taxAmount.toFixed(2)}`, { align: 'right' });
-          total += taxAmount;
-        }
-      }
-    } catch {}
-    pdfDoc.fontSize(12).text(`Total: €${total.toFixed(2)}`, { align: 'right' });
-
-    // Referencias de pago (opcional)
-    if (showStripeReferences) {
-      const pi = (reservation as any).paymentIntentId as string | undefined;
-      if (pi) pdfDoc.fontSize(9).text(`Stripe PaymentIntent: ${pi}`);
-      try {
-        const refundEvt = await db.outboxEvent.findFirst({
-          where: { eventType: 'RESERVATION_REFUNDED', eventData: { path: ['reservationId'], equals: reservation.id } as any } as any,
-          orderBy: { createdAt: 'desc' },
-          select: { eventData: true },
-        });
-        const refundId = (refundEvt as any)?.eventData?.refundId as string | undefined;
-        if (refundId) pdfDoc.fontSize(9).text(`Stripe Refund: ${refundId}`);
-      } catch {}
-    }
-
-    // Contacto y notas
-    if (contactEmail || contactPhone) {
-      pdfDoc.moveDown(1);
-      if (contactEmail) pdfDoc.fontSize(9).text(`Contacto: ${contactEmail}`);
-      if (contactPhone) pdfDoc.fontSize(9).text(`Teléfono: ${contactPhone}`);
-    }
-    if (footerNotes) {
-      pdfDoc.moveDown(1);
-      pdfDoc.fontSize(9).text(String(footerNotes));
-    }
-
-    pdfDoc.end();
-    const pdfBuffer = await pdfDone;
+    // nota: los overrides y referencias ya están incluidos en el PDF de react-pdf
 
     // 2) Generar CSV de auditoría
     const csvRows: string[] = [];
@@ -140,29 +74,16 @@ export async function GET(request: NextRequest) {
     }
     const csvBuffer = Buffer.from(csvRows.join('\n'), 'utf-8');
 
-    // 3) Responder como multipart/mixed con ambas partes
-    const boundary = 'BOUNDARY-' + Math.random().toString(36).slice(2);
-    const parts: string[] = [];
-    // PDF part
-    parts.push(`--${boundary}`);
-    parts.push('Content-Type: application/pdf');
-    parts.push(`Content-Disposition: attachment; filename="recibo-${reservation.id}.pdf"`);
-    parts.push('');
-    const pdfPart = Buffer.concat([Buffer.from(parts.join('\r\n') + '\r\n'), pdfBuffer, Buffer.from('\r\n')]);
-    // CSV part
-    const parts2: string[] = [];
-    parts2.push(`--${boundary}`);
-    parts2.push('Content-Type: text/csv; charset=utf-8');
-    parts2.push(`Content-Disposition: attachment; filename="audit-${reservation.id}.csv"`);
-    parts2.push('');
-    const csvPart = Buffer.concat([Buffer.from(parts2.join('\r\n') + '\r\n'), csvBuffer, Buffer.from('\r\n')]);
-    const end = Buffer.from(`--${boundary}--`);
+    // 3) Empaquetar en ZIP real (application/zip)
+    const zip = new JSZip();
+    zip.file(`recibo-${reservation.id}.pdf`, pdfBuffer);
+    zip.file(`audit-${reservation.id}.csv`, csvBuffer);
+    const zipBuffer: Buffer = await zip.generateAsync({ type: 'nodebuffer' });
 
-    const body = Buffer.concat([pdfPart, csvPart, end]);
-    const res = ApiResponse.success(body as any);
-    res.headers.set('Content-Type', `multipart/mixed; boundary=${boundary}`);
-    res.headers.set('Content-Disposition', `attachment; filename="reserva-${reservation.id}-documentos.mime"`);
-    return res;
+    return ApiResponse.raw(zipBuffer, {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="reserva-${reservation.id}-paquete.zip"`,
+    }, 200);
   })(request);
 }
 

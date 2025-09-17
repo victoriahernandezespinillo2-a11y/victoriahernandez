@@ -33,19 +33,10 @@ interface Reservation {
   endTime: string;
   duration: number;
   totalAmount: number;
-  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW';
+  status: 'PENDING' | 'PAID' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
   paymentStatus: 'PENDING' | 'PAID' | 'REFUNDED';
-  currentPaymentMethod?: string;
   notes?: string;
   createdAt: string;
-}
-
-interface PaymentConfirmationReservation {
-  id: string;
-  userName: string;
-  courtName: string;
-  totalAmount: number;
-  currentPaymentMethod?: string;
 }
 
 
@@ -53,7 +44,8 @@ interface PaymentConfirmationReservation {
 
 const statusColors: Record<string, string> = {
   PENDING: 'bg-yellow-100 text-yellow-800',
-  CONFIRMED: 'bg-blue-100 text-blue-800',
+  PAID: 'bg-blue-100 text-blue-800',
+  IN_PROGRESS: 'bg-indigo-100 text-indigo-800',
   CANCELLED: 'bg-red-100 text-red-800',
   COMPLETED: 'bg-green-100 text-green-800',
   NO_SHOW: 'bg-gray-100 text-gray-800'
@@ -61,7 +53,8 @@ const statusColors: Record<string, string> = {
 
 const statusLabels: Record<string, string> = {
   PENDING: 'Pendiente',
-  CONFIRMED: 'Confirmada',
+  PAID: 'Pagada',
+  IN_PROGRESS: 'En curso',
   CANCELLED: 'Cancelada',
   COMPLETED: 'Completada',
   NO_SHOW: 'No se presentó'
@@ -80,7 +73,7 @@ const paymentStatusLabels: Record<string, string> = {
 };
 
 export default function ReservationsPage() {
-  const { reservations, loading, error, updateReservation, confirmPayment, cancelReservation, getReservations } = useAdminReservations();
+  const { reservations, loading, error, updateReservation, cancelReservation, getReservations } = useAdminReservations();
   const { showToast } = useToast();
   useEffect(() => {
     getReservations({ page: 1, limit: 200 }).catch(() => {});
@@ -89,7 +82,6 @@ export default function ReservationsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [paymentFilter, setPaymentFilter] = useState<string>('ALL');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('ALL');
-  const [pendingPaymentsFilter, setPendingPaymentsFilter] = useState<boolean>(false);
   const [overrideFilter, setOverrideFilter] = useState<string>('ALL');
   const [dateFilter, setDateFilter] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -97,10 +89,40 @@ export default function ReservationsPage() {
   const [confirmState, setConfirmState] = useState<{ open: boolean; id?: string }>(() => ({ open: false }));
   const [refundState, setRefundState] = useState<{ open: boolean; id?: string; amount?: string; reason: string }>(() => ({ open: false, reason: '' }));
   const [resendState, setResendState] = useState<{ open: boolean; id?: string; type: 'CONFIRMATION'|'PAYMENT_LINK' }>({ open: false, type: 'CONFIRMATION' });
-  const [paymentConfirmationState, setPaymentConfirmationState] = useState<{ open: boolean; reservation?: PaymentConfirmationReservation }>({ open: false });
+  const [payOnSiteState, setPayOnSiteState] = useState<{ open: boolean; id?: string; userName?: string; courtName?: string; totalAmount?: number; currentMethod?: string }>({ open: false });
   const [auditState, setAuditState] = useState<{ open: boolean; id?: string; loading: boolean; events: Array<{ id: string; type: string; summary: string; createdAt: string }> }>({ open: false, loading: false, events: [] });
 
   const itemsPerPage = 10;
+
+  // Helpers de tiempo para gating de acciones (check-in)
+  const toLocalDate = (ymd: string, hhmm: string) => {
+    try {
+      return new Date(`${ymd}T${hhmm}:00`);
+    } catch {
+      return new Date(NaN);
+    }
+  };
+  const isWithinCheckInWindow = (r: any, toleranceMin: number = 30) => {
+    const ymd = r?.date as string;
+    const start = toLocalDate(ymd, (r?.startTime as string)?.slice(0,5));
+    const end = toLocalDate(ymd, (r?.endTime as string)?.slice(0,5));
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return false;
+    const openFrom = new Date(start.getTime() - toleranceMin * 60000);
+    const now = new Date();
+    return now >= openFrom && now <= end;
+  };
+
+  const formatHHMM = (d: Date) =>
+    d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+
+  const getCheckInWindowLabels = (r: any, toleranceMin: number = 30) => {
+    const ymd = r?.date as string;
+    const start = toLocalDate(ymd, (r?.startTime as string)?.slice(0,5));
+    const end = toLocalDate(ymd, (r?.endTime as string)?.slice(0,5));
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return { open: '-', close: '-' };
+    const openFrom = new Date(start.getTime() - toleranceMin * 60000);
+    return { open: formatHHMM(openFrom), close: formatHHMM(end) };
+  };
 
   // Mostrar estado de carga
   if (loading) {
@@ -133,6 +155,34 @@ export default function ReservationsPage() {
   }
 
   // Filtrar reservas
+  // Normalización de método de pago a códigos canónicos backend
+  const normalizeMethod = (raw: string | undefined | null): string => {
+    const v = (raw || '').toString().trim().toUpperCase();
+    const map: Record<string, string> = {
+      'CASH': 'CASH', 'EFECTIVO': 'CASH',
+      'CARD': 'CARD', 'TPV': 'CARD', 'TARJETA': 'CARD', 'STRIPE': 'CARD',
+      'TRANSFER': 'TRANSFER', 'TRANSFERENCIA': 'TRANSFER',
+      'ONSITE': 'ONSITE', 'MANUAL': 'ONSITE', 'EN SITIO': 'ONSITE',
+      'CREDITS': 'CREDITS', 'CRÉDITOS': 'CREDITS',
+      'BIZUM': 'BIZUM',
+      'COURTESY': 'COURTESY', 'CORTESIA': 'COURTESY', 'CORTESÍA': 'COURTESY',
+    };
+    return map[v] || (v || '');
+  };
+
+  const methodLabel = (code: string | undefined): string => {
+    const labelMap: Record<string, string> = {
+      'CASH': 'Efectivo',
+      'CARD': 'Tarjeta (TPV)',
+      'TRANSFER': 'Transferencia',
+      'ONSITE': 'En sitio',
+      'CREDITS': 'Créditos',
+      'BIZUM': 'Bizum',
+      'COURTESY': 'Cortesía',
+    };
+    return labelMap[code || ''] || '-';
+  };
+
   const filteredReservations = reservations?.filter((reservation: any) => {
     const matchesSearch = 
       (reservation.userName as string)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -142,13 +192,13 @@ export default function ReservationsPage() {
     
     const matchesStatus = statusFilter === 'ALL' || reservation.status === statusFilter;
     const matchesPayment = paymentFilter === 'ALL' || reservation.paymentStatus === paymentFilter;
-    const matchesPaymentMethod = paymentMethodFilter === 'ALL' || ((reservation as any).paymentMethod || '-') === paymentMethodFilter;
+    const normalizedMethod = normalizeMethod((reservation as any).paymentMethod as string);
+    const matchesPaymentMethod = paymentMethodFilter === 'ALL' || normalizedMethod === paymentMethodFilter;
     const matchesDate = !dateFilter || reservation.date === dateFilter;
     const hasOverride = !!(reservation as any).override;
     const matchesOverride = overrideFilter === 'ALL' || (overrideFilter === 'WITH' ? hasOverride : !hasOverride);
-    const matchesPendingPayments = !pendingPaymentsFilter || (reservation.paymentStatus === 'PENDING' && reservation.status !== 'CANCELLED');
     
-    return matchesSearch && matchesStatus && matchesPayment && matchesPaymentMethod && matchesOverride && matchesDate && matchesPendingPayments;
+    return matchesSearch && matchesStatus && matchesPayment && matchesPaymentMethod && matchesOverride && matchesDate;
   }) || [];
 
   // Paginación
@@ -160,7 +210,18 @@ export default function ReservationsPage() {
     setConfirmState({ open: true, id: reservationId });
   };
 
-  const handleGenerateLink = async (reservationId: string) => {
+  const handleGenerateLink = async (reservationId: string, r: any) => {
+    // Reglas de negocio en UI (reforzadas por backend):
+    const blockedStatuses = new Set(['PAID','COMPLETED','CANCELLED']);
+    const amount = Number(r?.totalAmount || 0);
+    if (blockedStatuses.has(r?.status)) {
+      showToast({ variant: 'warning', title: 'No permitido', message: 'La reserva no admite enlace de pago en su estado actual.' });
+      return;
+    }
+    if (!(amount > 0)) {
+      showToast({ variant: 'warning', title: 'Sin importe', message: 'La reserva no tiene importe a cobrar.' });
+      return;
+    }
     try {
       const { url } = await adminApi.reservations.generatePaymentLink(reservationId);
       if (url) {
@@ -169,8 +230,9 @@ export default function ReservationsPage() {
       } else {
         showToast({ variant: 'warning', title: 'Sin enlace', message: 'No se pudo generar el enlace.' });
       }
-    } catch (e) {
-      showToast({ variant: 'error', title: 'Error', message: 'No se pudo generar el enlace de pago.' });
+    } catch (e: any) {
+      const msg = (e as Error)?.message || 'No se pudo generar el enlace de pago.';
+      showToast({ variant: 'error', title: 'Error', message: msg });
     }
   };
 
@@ -210,31 +272,6 @@ export default function ReservationsPage() {
       showToast({ variant: 'success', title: 'Enviado', message: resendState.type === 'CONFIRMATION' ? 'Confirmación reenviada.' : 'Enlace de pago reenviado.' });
     } catch {
       showToast({ variant: 'error', title: 'Error', message: 'No se pudo reenviar.' });
-    }
-  };
-
-  const handlePaymentConfirmation = async (paymentData: {
-    paymentMethod: 'CASH' | 'CARD' | 'TRANSFER' | 'ONSITE' | 'CREDITS' | 'BIZUM';
-    notes?: string;
-  }) => {
-    if (!paymentConfirmationState.reservation) return;
-    
-    try {
-      await confirmPayment(paymentConfirmationState.reservation.id, {
-        ...paymentData,
-        paymentStatus: 'PAID'
-      });
-      showToast({ 
-        variant: 'success', 
-        title: 'Pago Confirmado', 
-        message: `Pago de €${paymentConfirmationState.reservation.totalAmount.toFixed(2)} confirmado exitosamente.` 
-      });
-      setPaymentConfirmationState({ open: false });
-      // Recargar reservas para reflejar cambios
-      await getReservations({ page: 1, limit: 200 });
-    } catch (error) {
-      console.error('Error confirming payment:', error);
-      showToast({ variant: 'error', title: 'Error', message: 'No se pudo confirmar el pago.' });
     }
   };
 
@@ -323,7 +360,7 @@ export default function ReservationsPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Confirmadas</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {reservations?.filter(r => r.status === 'CONFIRMED').length || 0}
+                {reservations?.filter(r => r.status === 'PAID').length || 0}
               </p>
             </div>
           </div>
@@ -386,13 +423,12 @@ export default function ReservationsPage() {
             >
               <option value="ALL">Todos los métodos</option>
               <option value="CASH">Efectivo</option>
-              <option value="TPV">TPV</option>
+              <option value="CARD">Tarjeta (TPV)</option>
               <option value="TRANSFER">Transferencia</option>
+              <option value="ONSITE">En sitio</option>
               <option value="CREDITS">Créditos</option>
+              <option value="BIZUM">Bizum</option>
               <option value="COURTESY">Cortesía</option>
-              <option value="LINK">Enlace (Stripe)</option>
-              <option value="stripe">Stripe</option>
-              <option value="manual">Manual</option>
             </select>
           </div>
 
@@ -417,21 +453,6 @@ export default function ReservationsPage() {
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
             />
-          </div>
-
-          {/* Pending Payments Filter */}
-          <div className="flex items-center">
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={pendingPaymentsFilter}
-                onChange={(e) => setPendingPaymentsFilter(e.target.checked)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <span className="text-sm font-medium text-gray-700">
-                Solo Pendientes de Pago
-              </span>
-            </label>
           </div>
         </div>
       </div>
@@ -517,7 +538,8 @@ export default function ReservationsPage() {
                       }`}
                     >
                       <option value="PENDING">Pendiente</option>
-                      <option value="CONFIRMED">Confirmada</option>
+                      <option value="PAID">Pagada</option>
+                      <option value="PAID">Pagada</option>
                       <option value="CANCELLED">Cancelada</option>
                       <option value="COMPLETED">Completada</option>
                       <option value="NO_SHOW">No se presentó</option>
@@ -534,14 +556,32 @@ export default function ReservationsPage() {
                    €{(reservation.totalAmount as number).toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {(reservation as any).paymentMethod || '-'}
+                    <div className="flex items-center gap-2">
+                      <span>{methodLabel(normalizeMethod((reservation as any).paymentMethod as string))}</span>
+                      {reservation.paymentStatus === 'PENDING' && normalizeMethod((reservation as any).paymentMethod as string) === 'ONSITE' && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 text-xs" title="Usuario eligió pagar en sede">
+                          🏢 Pagar en sede
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
                       {/* Generar enlace de pago (LINK) */}
-                      <button title="Generar enlace de pago" className="text-blue-600 hover:text-blue-900" onClick={() => handleGenerateLink(reservation.id)}>
-                        <EyeIcon className="h-4 w-4" />
-                      </button>
+                      {Number(reservation.totalAmount || 0) > 0 && reservation.paymentStatus === 'PENDING' && !['PAID','COMPLETED','CANCELLED'].includes(reservation.status as string) && (
+                        <button
+                          title="Generar enlace de pago"
+                          className="text-blue-600 hover:text-blue-900"
+                          onClick={() => handleGenerateLink(reservation.id, reservation)}
+                        >
+                          <EyeIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                      {Number(reservation.totalAmount || 0) > 0 && reservation.paymentStatus !== 'PENDING' && (
+                        <span className="text-blue-300 cursor-not-allowed" title="No disponible: la reserva ya tiene pago registrado o reembolsado">
+                          <EyeIcon className="h-4 w-4" />
+                        </span>
+                      )}
                        {/* Descargar recibo */}
                       {reservation.paymentStatus === 'PAID' && (
                         <a
@@ -554,11 +594,11 @@ export default function ReservationsPage() {
                           PDF
                         </a>
                       )}
-                      {/* Check-in si en ventana y no iniciado */}
-                      {reservation.status !== 'IN_PROGRESS' && reservation.status !== 'COMPLETED' && (
+                      {/* Check-in: sólo si ventana abierta y pago confirmado o importe 0 */}
+                      {reservation.status !== 'IN_PROGRESS' && reservation.status !== 'COMPLETED' && reservation.status !== 'CANCELLED' && reservation.status !== 'NO_SHOW' && isWithinCheckInWindow(reservation) && (reservation.paymentStatus === 'PAID' || Number(reservation.totalAmount || 0) === 0) && (
                         <button
                           className="text-emerald-600 hover:text-emerald-900"
-                          title="Check-in"
+                          title={'Check-in'}
                           onClick={async () => {
                             try {
                               await adminApi.reservations.checkIn(reservation.id);
@@ -571,6 +611,14 @@ export default function ReservationsPage() {
                         >
                           ▶
                         </button>
+                      )}
+                      {reservation.status !== 'IN_PROGRESS' && reservation.status !== 'COMPLETED' && reservation.status !== 'CANCELLED' && reservation.status !== 'NO_SHOW' && (!isWithinCheckInWindow(reservation) || (reservation.paymentStatus !== 'PAID' && Number(reservation.totalAmount || 0) > 0)) && (
+                        <span
+                          className="text-emerald-300 cursor-not-allowed"
+                          title={`${(() => { if (!isWithinCheckInWindow(reservation)) { const w = getCheckInWindowLabels(reservation); return `Fuera de ventana de check-in (abre ${w.open} - cierra ${w.close})`; } return 'Pago pendiente: registrar cobro en recepción'; })()}`}
+                        >
+                          ▶
+                        </span>
                       )}
                       {/* Check-out si en curso */}
                       {reservation.status === 'IN_PROGRESS' && (
@@ -590,16 +638,44 @@ export default function ReservationsPage() {
                           ■
                         </button>
                       )}
-                      {/* Reenviar confirmación */}
-                      <button
-                        className="text-gray-600 hover:text-gray-900"
-                        title="Reenviar confirmación"
-                        onClick={() => setResendState({ open: true, id: reservation.id, type: 'CONFIRMATION' })}
-                      >
-                        @
-                      </button>
-                      {/* Reenviar enlace de pago si pendiente */}
-                      {reservation.paymentStatus === 'PENDING' && (
+                      {/* Cobrar en sede: sólo si pendiente y método ONSITE */}
+                      {reservation.paymentStatus === 'PENDING' && normalizeMethod((reservation as any).paymentMethod as string) === 'ONSITE' && (
+                        <button
+                          className="text-green-700 hover:text-green-900"
+                          title="Cobrar en sede"
+                          onClick={() => setPayOnSiteState({
+                            open: true,
+                            id: reservation.id,
+                            userName: reservation.userName as string,
+                            courtName: reservation.courtName as string,
+                            totalAmount: Number(reservation.totalAmount || 0),
+                            currentMethod: methodLabel('ONSITE')
+                          })}
+                        >
+                          💵
+                        </button>
+                      )}
+
+                      {/* Reenviar confirmación: no permitir en CANCELLED */}
+                      {reservation.status !== 'CANCELLED' && (
+                        <button
+                          className="text-gray-600 hover:text-gray-900"
+                          title="Reenviar confirmación"
+                          onClick={() => setResendState({ open: true, id: reservation.id, type: 'CONFIRMATION' })}
+                        >
+                          @
+                        </button>
+                      )}
+                      {reservation.status === 'CANCELLED' && (
+                        <span
+                          className="text-gray-400 cursor-not-allowed"
+                          title="No disponible en reservas canceladas"
+                        >
+                          @
+                        </span>
+                      )}
+                      {/* Reenviar enlace de pago si pendiente y procede */}
+                      {reservation.paymentStatus === 'PENDING' && Number(reservation.totalAmount || 0) > 0 && !['PAID','COMPLETED','CANCELLED'].includes(reservation.status as string) && (
                         <button
                           className="text-indigo-600 hover:text-indigo-900"
                           title="Reenviar enlace de pago"
@@ -608,24 +684,9 @@ export default function ReservationsPage() {
                           ↗
                         </button>
                       )}
-                      {/* Confirmar pago si pendiente */}
-                      {reservation.paymentStatus === 'PENDING' && reservation.status !== 'CANCELLED' && (
-                        <button
-                          className="text-green-600 hover:text-green-900"
-                          title="Confirmar Pago"
-                          onClick={() => setPaymentConfirmationState({ 
-                            open: true, 
-                            reservation: {
-                              id: reservation.id,
-                              userName: reservation.userName as string,
-                              courtName: reservation.courtName as string,
-                              totalAmount: reservation.totalAmount as number,
-                              currentPaymentMethod: (reservation as any).paymentMethod as string
-                            }
-                          })}
-                        >
-                          ✓
-                        </button>
+                      {reservation.paymentStatus === 'PENDING' && Number(reservation.totalAmount || 0) > 0 && ['PAID','COMPLETED','CANCELLED'].includes(reservation.status as string) && (
+                        <span className="text-indigo-300 cursor-not-allowed" title="No disponible si la reserva está pagada, completada o cancelada">↗
+                        </span>
                       )}
                       {/* Descargar paquete PDF + Auditoría */}
                       <a
@@ -637,8 +698,8 @@ export default function ReservationsPage() {
                       >
                         ⤓
                       </a>
-                      {/* Reembolsar pago (solo si pagado) */}
-                      {reservation.paymentStatus === 'PAID' && (
+                      {/* Reembolsar pago (solo si pagado y no cancelada) */}
+                      {reservation.paymentStatus === 'PAID' && reservation.status !== 'CANCELLED' && (
                         <button
                           className="text-amber-600 hover:text-amber-800"
                           title="Reembolsar"
@@ -647,9 +708,16 @@ export default function ReservationsPage() {
                           €
                         </button>
                       )}
-                      <button className="text-green-600 hover:text-green-900">
-                        <PencilIcon className="h-4 w-4" />
-                      </button>
+                      {/* Editar: oculto en COMPLETED/CANCELLED, mostrar indicador inactivo */}
+                      {![ 'COMPLETED','CANCELLED' ].includes(reservation.status as string) ? (
+                        <button className="text-green-600 hover:text-green-900" title="Editar">
+                          <PencilIcon className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <span className="text-green-300 cursor-not-allowed" title="No disponible en reservas completadas o canceladas">
+                          <PencilIcon className="h-4 w-4" />
+                        </span>
+                      )}
                       {/* Auditoría */}
                       <button
                         className="text-gray-600 hover:text-gray-900"
@@ -744,53 +812,11 @@ export default function ReservationsPage() {
       )}
 
       {confirmState.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Eliminar reserva</h3>
-            <p className="text-sm text-gray-600 mb-6">¿Estás seguro de que quieres cancelar esta reserva? Esta acción no se puede deshacer.</p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setConfirmState({ open: false })}
-                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmDeletion}
-                className="px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700"
-              >
-                Cancelar reserva
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog />
       )}
 
       {resendState.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-gray-900 mb-2">
-              {resendState.type === 'CONFIRMATION' ? 'Reenviar confirmación' : 'Reenviar enlace de pago'}
-            </h3>
-            <p className="text-sm text-gray-600 mb-6">
-              {resendState.type === 'CONFIRMATION' ? 'Se enviará nuevamente el correo de confirmación al cliente.' : 'Se generará y enviará un nuevo enlace de pago al cliente.'}
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setResendState({ ...resendState, open: false })}
-                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleResend}
-                className="px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700"
-              >
-                Reenviar
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog />
       )}
 
       {/* Modal Auditoría */}
@@ -841,59 +867,31 @@ export default function ReservationsPage() {
       )}
 
       {refundState.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Reembolsar pago</h3>
-            <div className="space-y-3 mb-6">
-              <p className="text-sm text-gray-600">Indica el monto (opcional para reembolso parcial) y la razón del reembolso.</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Monto (€)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={refundState.amount || ''}
-                    onChange={(e) => setRefundState((s) => ({ ...s, amount: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">Razón</label>
-                  <input
-                    type="text"
-                    value={refundState.reason}
-                    onChange={(e) => setRefundState((s) => ({ ...s, reason: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Ej: Solicitud del cliente"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setRefundState({ open: false, id: undefined, amount: undefined, reason: '' })}
-                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmRefund}
-                className="px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700"
-              >
-                Reembolsar
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog />
       )}
 
-      {/* Payment Confirmation Modal */}
-      {paymentConfirmationState.reservation && (
+      {/* Modal: Confirmar pago en sede */}
+      {payOnSiteState.open && (
         <PaymentConfirmationModal
-          isOpen={paymentConfirmationState.open}
-          onClose={() => setPaymentConfirmationState({ open: false })}
-          onConfirm={handlePaymentConfirmation}
-          reservation={paymentConfirmationState.reservation}
+          isOpen={payOnSiteState.open}
+          onClose={() => setPayOnSiteState({ open: false })}
+          reservation={{
+            id: String(payOnSiteState.id || ''),
+            userName: String(payOnSiteState.userName || ''),
+            courtName: String(payOnSiteState.courtName || ''),
+            totalAmount: Number(payOnSiteState.totalAmount || 0),
+            currentPaymentMethod: String(payOnSiteState.currentMethod || '')
+          }}
+          onConfirm={async ({ paymentMethod, notes }) => {
+            try {
+              await adminApi.reservations.confirmPayment(String(payOnSiteState.id), { paymentMethod, paymentStatus: 'PAID', notes });
+              showToast({ variant: 'success', title: 'Pago registrado', message: 'Pago en sede confirmado.' });
+              setPayOnSiteState({ open: false });
+              await getReservations({ page: 1, limit: 200 });
+            } catch (e: any) {
+              showToast({ variant: 'error', title: 'Error', message: e?.message || 'No se pudo confirmar el pago.' });
+            }
+          }}
         />
       )}
     </div>

@@ -19,6 +19,7 @@ import {
   CreateNotificationSchema,
   GetNotificationsSchema,
 } from '@/lib/services/notification.service';
+import { processOutboxNotifications } from '@/lib/services/outbox-notification-processor';
 
 const notificationService = new NotificationService();
 
@@ -70,6 +71,9 @@ export async function GET(request: NextRequest) {
           // No agregar userId si no es vÃ¡lido, fallback a bÃºsqueda general
         }
       }
+
+      // Procesamiento oportunista de outbox -> notifications (limitado)
+      try { await processOutboxNotifications({ max: 50, sinceHours: 24 * 7 }); } catch {}
 
       const result = await notificationService.getNotifications(effectiveParams);
 

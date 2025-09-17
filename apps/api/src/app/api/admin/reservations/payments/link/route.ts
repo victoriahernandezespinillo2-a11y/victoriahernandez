@@ -16,7 +16,26 @@ export async function POST(request: NextRequest) {
       const reservation = await db.reservation.findUnique({ where: { id: reservationId }, include: { user: true, court: true } });
       if (!reservation) return ApiResponse.notFound('Reserva');
 
-      const amount = Number(reservation.totalPrice || 0);
+  // Reglas de negocio: no generar enlace si no procede
+  const amount = Number(reservation.totalPrice || 0);
+  const blockedStatuses = new Set(['PAID','COMPLETED','CANCELLED']);
+  if (blockedStatuses.has((reservation.status as any) || '')) {
+    return ApiResponse.badRequest('La reserva no admite enlace de pago en su estado actual');
+  }
+  if (!(amount > 0)) {
+    return ApiResponse.badRequest('La reserva no tiene importe a cobrar');
+  }
+  // Idempotencia básica: si ya existe un pago registrado, no generar link
+  const existingPayment = await db.outboxEvent.findFirst({
+    where: {
+      eventType: { in: ['PAYMENT_RECORDED','RESERVATION_PAID'] },
+      eventData: { path: ['reservationId'], equals: reservation.id } as any,
+    },
+  } as any);
+  if (existingPayment) {
+    return ApiResponse.badRequest('La reserva ya tiene un pago registrado');
+  }
+
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
 

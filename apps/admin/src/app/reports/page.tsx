@@ -706,13 +706,13 @@ export default function ReportsPage() {
               const maxCount = Math.max(...(usageData?.byStatus || []).map((r: any) => r?._count?.id || 0));
               const percentage = maxCount > 0 ? ((item?._count?.id || 0) / maxCount) * 100 : 0;
               const statusLabels: { [key: string]: string } = {
-                'CONFIRMED': 'Confirmadas',
+                'PAID': 'Pagadas',
                 'PENDING': 'Pendientes',
                 'CANCELLED': 'Canceladas',
                 'COMPLETED': 'Completadas'
               };
               const statusColors: { [key: string]: string } = {
-                'CONFIRMED': 'bg-green-600',
+                'PAID': 'bg-green-600',
                 'PENDING': 'bg-yellow-600',
                 'CANCELLED': 'bg-red-600',
                 'COMPLETED': 'bg-blue-600'

@@ -28,6 +28,21 @@ export async function POST(request: NextRequest) {
         return ApiResponse.badRequest('Fuera de ventana de check-in');
       }
 
+      // Requerir pago confirmado (importe > 0) antes de permitir check-in
+      const amount = Number((reservation as any).totalPrice || 0);
+      if (amount > 0) {
+        // Considerar pagado si status es PAID o existen eventos de pago
+        const hasPayment = reservation.status === ('PAID' as any) || !!(await db.outboxEvent.findFirst({
+          where: {
+            eventType: { in: ['PAYMENT_RECORDED', 'RESERVATION_PAID'] },
+            eventData: { path: ['reservationId'], equals: reservation.id } as any,
+          },
+        } as any));
+        if (!hasPayment) {
+          return ApiResponse.forbidden('Pago pendiente: requiere cobro en recepción antes del acceso');
+        }
+      }
+
       if (reservation.status === 'IN_PROGRESS' || reservation.status === 'COMPLETED') {
         return ApiResponse.badRequest('La reserva ya está en curso o completada');
       }

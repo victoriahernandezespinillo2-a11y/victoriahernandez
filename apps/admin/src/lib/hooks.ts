@@ -476,7 +476,7 @@ export function useAdminReservations() {
   }, []);
 
   const updateReservation = useCallback(async (id: string, updateData: Partial<{
-    status: string;
+    status: 'PENDING' | 'PAID' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
     startTime: string;
     endTime: string;
     notes: string;
