@@ -1105,18 +1105,118 @@ export const adminApi = {
         headers: { 'Content-Type': 'application/json' },
       }),
 
-    getById: (id: string) => apiClient.request(`/api/memberships/${id}`),
+    getById: (id: string) => apiClient.request(`/api/admin/memberships/${id}`),
 
     update: (id: string, data: any) =>
-      apiClient.request(`/api/memberships/${id}`, {
+      apiClient.request(`/api/admin/memberships/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       }),
 
     delete: (id: string) =>
-      apiClient.request(`/api/memberships/${id}`, {
+      apiClient.request(`/api/admin/memberships/${id}`, {
         method: 'DELETE',
       }),
+  },
+
+  // Pedidos
+  orders: {
+    getAll: (params?: {
+      status?: string;
+      userId?: string;
+      page?: number;
+      limit?: number;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+    }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            searchParams.append(key, String(value));
+          }
+        });
+      }
+      const query = searchParams.toString();
+      return apiClient.request(`/api/admin/orders${query ? `?${query}` : ''}`);
+    },
+
+    getById: (id: string) =>
+      apiClient.request(`/api/admin/orders/${id}`),
+
+    update: (id: string, data: any) =>
+      apiClient.request(`/api/admin/orders/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
+    delete: (id: string) =>
+      apiClient.request(`/api/admin/orders/${id}`, {
+        method: 'DELETE',
+      }),
+  },
+
+  // Auditoría
+  audit: {
+    getLogs: (params?: {
+      page?: number;
+      limit?: number;
+      action?: string;
+      resource?: string;
+      entityType?: string;
+      userId?: string;
+      status?: string;
+      severity?: string;
+      category?: string;
+      searchTerm?: string;
+      startDate?: string;
+      endDate?: string;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+    }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            searchParams.append(key, String(value));
+          }
+        });
+      }
+      const query = searchParams.toString();
+      return apiClient.request(`/api/admin/audit${query ? `?${query}` : ''}`);
+    },
+
+    getStats: (params?: any) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            searchParams.append(key, String(value));
+          }
+        });
+      }
+      const query = searchParams.toString();
+      return apiClient.request(`/api/admin/audit/stats${query ? `?${query}` : ''}`);
+    },
+
+    create: (data: any) =>
+      apiClient.request('/api/admin/audit', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    export: (params?: any) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            searchParams.append(key, String(value));
+          }
+        });
+      }
+      const query = searchParams.toString();
+      return apiClient.request(`/api/admin/audit/export${query ? `?${query}` : ''}`);
+    },
   },
 };
 

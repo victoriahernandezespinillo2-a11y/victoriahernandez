@@ -200,26 +200,33 @@ export function Navigation() {
         // En mobile mantenemos el header, pero ocultamos el botón de menú; en desktop siempre visible
         'top-0 translate-y-0'
       }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 xl:px-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
           <div className="flex items-center justify-between h-16 sm:h-20">
             {/* Logo */}
             <div className="flex items-center space-x-2 sm:space-x-3">
               <div className="relative z-10">
-                {/* Usar img nativa para evitar cualquier transformación del optimizador */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/images/logo.png"
-                  alt="Polideportivo Victoria Hernandez"
-                  width={48}
-                  height={48}
-                  className="w-8 h-8 sm:w-12 sm:h-12 object-contain rounded-lg sm:rounded-xl shadow-lg bg-white ring-1 ring-gray-200"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = 'none';
-                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                  }}
-                />
-                <div className="hidden w-8 h-8 sm:w-12 sm:h-12 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-lg sm:rounded-xl flex items-center justify-center shadow-lg">
-                  <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                {/* Logo con fallback corregido */}
+                <div className="w-8 h-8 sm:w-12 sm:h-12 relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/images/logo.png"
+                    alt="Polideportivo Victoria Hernández"
+                    width={48}
+                    height={48}
+                    className="w-full h-full object-contain rounded-lg sm:rounded-xl shadow-lg bg-white ring-1 ring-gray-200 relative z-10"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                      // Mostrar el fallback cuando la imagen falla
+                      const fallback = e.currentTarget.parentElement?.querySelector('.logo-fallback') as HTMLElement;
+                      if (fallback) {
+                        fallback.style.display = 'flex';
+                      }
+                    }}
+                  />
+                  {/* Fallback icon - oculto por defecto, visible solo si la imagen falla */}
+                  <div className="logo-fallback hidden absolute inset-0 w-full h-full bg-gradient-to-br from-emerald-500 to-blue-600 rounded-lg sm:rounded-xl items-center justify-center shadow-lg">
+                    <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                  </div>
                 </div>
                 <div className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-3 h-3 sm:w-4 sm:h-4 bg-orange-500 rounded-full animate-pulse"></div>
               </div>
@@ -232,7 +239,7 @@ export function Navigation() {
                 <p className={`text-xs sm:text-sm font-medium transition-colors duration-300 ${
                   isScrolled ? 'text-emerald-600' : 'text-emerald-200'
                 }`}>
-                  Victoria Hernandez
+                  Victoria Hernández
                 </p>
               </div>
               {/* Logo compacto solo para móvil */}
@@ -246,7 +253,7 @@ export function Navigation() {
             </div>
 
             {/* Desktop Navigation */}
-            <div className="hidden lg:flex items-center space-x-2 xl:space-x-4">
+            <div className="hidden lg:flex items-center space-x-1 xl:space-x-2">
               {navigationItems.map((item, index) => (
                 <div 
                   key={index} 
@@ -257,14 +264,14 @@ export function Navigation() {
                   <a
                     href={item.href}
                     onClick={(e) => handleSmoothScroll(e, item.href)}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
+                    className={`flex items-center space-x-1 px-2 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
                       isScrolled 
                         ? 'text-gray-700 hover:text-emerald-600 hover:bg-emerald-50' 
                         : 'text-white hover:text-emerald-200 hover:bg-white/10'
                     }`}
                   >
-                    <item.icon className="h-4 w-4" />
-                    <span className="text-sm">{item.label}</span>
+                    <item.icon className="h-3 w-3" />
+                    <span className="text-xs">{item.label}</span>
                     {item.dropdown && (
                       <svg className={`h-3 w-3 transition-transform duration-300 ${
                         activeDropdown === item.label ? 'rotate-180' : ''
@@ -299,22 +306,22 @@ export function Navigation() {
             </div>
 
             {/* CTA Buttons */}
-            <div className="hidden lg:flex items-center space-x-4 xl:space-x-6">
+            <div className="hidden lg:flex items-center space-x-2 xl:space-x-3">
               <button 
                 onClick={() => router.push('/auth/signin')}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
+                className={`flex items-center space-x-1 px-2 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
                 isScrolled 
                   ? 'text-gray-700 hover:text-emerald-600 hover:bg-emerald-50' 
                   : 'text-white hover:text-emerald-200 hover:bg-white/10'
               }`}>
                 <User className="h-4 w-4" />
-                <span>Iniciar Sesión</span>
+                <span className="text-xs">Iniciar Sesión</span>
               </button>
               <button 
                 onClick={() => router.push('/dashboard/reservations/new')}
-                className="flex items-center space-x-2 bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-6 py-2 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 hover:from-emerald-600 hover:to-blue-700">
+                className="flex items-center space-x-1 bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-3 py-2 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 hover:from-emerald-600 hover:to-blue-700">
                 <CalendarPlus className="h-4 w-4" />
-                Reservar Ahora
+                <span className="text-xs">Reservar Ahora</span>
               </button>
             </div>
 

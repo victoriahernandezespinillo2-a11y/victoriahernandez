@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build": "pnpm generate && turbo run build",
+    "build:no-prisma": "turbo run build --filter=!@repo/db",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",

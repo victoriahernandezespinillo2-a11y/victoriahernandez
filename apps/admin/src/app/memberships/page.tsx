@@ -67,12 +67,11 @@ const getStatusColor = (status: UiMembership['status']) => {
 };
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('es-CO', {
+  return new Intl.NumberFormat('es-ES', {
     style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount).replace('COP', '$');
+    currency: 'EUR',
+    minimumFractionDigits: 2
+  }).format(amount);
 };
 
 export default function MembershipsPage() {
@@ -105,18 +104,35 @@ export default function MembershipsPage() {
     isActive: true,
   });
   const [newBenefit, setNewBenefit] = useState('');
+  const [editBenefit, setEditBenefit] = useState('');
+
+  // Estados para formulario de edición
+  const [editMembershipForm, setEditMembershipForm] = useState({
+    name: '',
+    price: 0,
+    discountPercentage: 0,
+    maxReservations: -1,
+    isActive: true,
+    type: 'BASIC' as 'BASIC' | 'PREMIUM' | 'VIP',
+    duration: 1,
+    benefits: [] as string[],
+  });
 
   useEffect(() => {
     const load = async () => {
       try {
         const res = await adminApi.memberships?.getAll?.({ page: 1, limit: 200 });
-        const list = Array.isArray(res?.memberships)
-          ? res.memberships
-          : Array.isArray(res?.data?.memberships)
-            ? res.data.memberships
-            : Array.isArray(res)
-              ? res
-              : [];
+        const list = Array.isArray(res?.membershipPlans)
+          ? res.membershipPlans
+          : Array.isArray(res?.data?.membershipPlans)
+            ? res.data.membershipPlans
+            : Array.isArray(res?.memberships)
+              ? res.memberships
+              : Array.isArray(res?.data?.memberships)
+                ? res.data.memberships
+                : Array.isArray(res)
+                  ? res
+                  : [];
         const mapped: UiMembership[] = list.map((m: any) => ({
           id: m.id,
           name: m.name || m.type || 'Membresía',
@@ -127,7 +143,7 @@ export default function MembershipsPage() {
                    Array.isArray(m.benefits) ? m.benefits : [],
           maxReservations: Number(m.benefits?.maxReservations ?? m.maxReservations ?? -1),
           discountPercentage: Number(m.benefits?.discountPercentage ?? m.discountPercentage ?? 0),
-          status: (m.isActive ? 'active' : 'inactive') as 'active' | 'inactive',
+          status: (m.status || (m.isActive ? 'active' : 'inactive')) as 'active' | 'inactive',
           subscribersCount: Number(m.subscribersCount ?? 0),
           createdAt: m.createdAt || new Date().toISOString(),
         }));
@@ -166,6 +182,16 @@ export default function MembershipsPage() {
 
   const handleEdit = (membership: UiMembership) => {
     setSelectedMembership(membership);
+    setEditMembershipForm({
+      name: membership.name,
+      price: membership.price,
+      discountPercentage: membership.discountPercentage,
+      maxReservations: membership.maxReservations,
+      isActive: membership.status === 'active',
+      type: membership.type.toUpperCase() as 'BASIC' | 'PREMIUM' | 'VIP',
+      duration: 1, // Por defecto 1 mes
+      benefits: membership.benefits || [],
+    });
     setShowEditModal(true);
   };
 
@@ -202,7 +228,7 @@ export default function MembershipsPage() {
                  Array.isArray(m.benefits) ? m.benefits : [],
         maxReservations: Number(m.benefits?.maxReservations ?? m.maxReservations ?? -1),
         discountPercentage: Number(m.benefits?.discountPercentage ?? m.discountPercentage ?? 0),
-        status: (m.isActive ? 'active' : 'inactive') as 'active' | 'inactive',
+        status: (m.status || (m.isActive ? 'active' : 'inactive')) as 'active' | 'inactive',
         subscribersCount: Number(m.subscribersCount ?? 0),
         createdAt: m.createdAt || new Date().toISOString(),
       }));
@@ -225,7 +251,7 @@ export default function MembershipsPage() {
     setSelectedMembership(null);
     setError(null);
     setSuccess(null);
-    // Resetear formulario
+    // Resetear formularios
     setNewMembershipForm({
       name: '',
       type: 'basic',
@@ -236,7 +262,18 @@ export default function MembershipsPage() {
       benefits: [],
       isActive: true,
     });
+    setEditMembershipForm({
+      name: '',
+      price: 0,
+      discountPercentage: 0,
+      maxReservations: -1,
+      isActive: true,
+      type: 'BASIC',
+      duration: 1,
+      benefits: [],
+    });
     setNewBenefit('');
+    setEditBenefit('');
   };
 
   const handleNewMembership = () => {
@@ -255,6 +292,24 @@ export default function MembershipsPage() {
 
   const removeBenefit = (index: number) => {
     setNewMembershipForm(prev => ({
+      ...prev,
+      benefits: prev.benefits.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Funciones para el formulario de edición
+  const addEditBenefit = () => {
+    if (editBenefit.trim()) {
+      setEditMembershipForm(prev => ({
+        ...prev,
+        benefits: [...prev.benefits, editBenefit.trim()]
+      }));
+      setEditBenefit('');
+    }
+  };
+
+  const removeEditBenefit = (index: number) => {
+    setEditMembershipForm(prev => ({
       ...prev,
       benefits: prev.benefits.filter((_, i) => i !== index)
     }));
@@ -321,7 +376,7 @@ export default function MembershipsPage() {
                  Array.isArray(m.benefits) ? m.benefits : [],
         maxReservations: Number(m.benefits?.maxReservations ?? m.maxReservations ?? -1),
         discountPercentage: Number(m.benefits?.discountPercentage ?? m.discountPercentage ?? 0),
-        status: (m.isActive ? 'active' : 'inactive') as 'active' | 'inactive',
+        status: (m.status || (m.isActive ? 'active' : 'inactive')) as 'active' | 'inactive',
         subscribersCount: Number(m.subscribersCount ?? 0),
         createdAt: m.createdAt || new Date().toISOString(),
       }));
@@ -331,6 +386,84 @@ export default function MembershipsPage() {
       closeModals();
     } catch (err: any) {
       setError(err?.message || 'Error creando el plan de membresía');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateMembership = async () => {
+    if (!selectedMembership) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      // Validar campos requeridos
+      if (!editMembershipForm.name.trim()) {
+        setError('El nombre del plan es requerido');
+        return;
+      }
+      if (editMembershipForm.price <= 0) {
+        setError('El precio debe ser mayor a 0');
+        return;
+      }
+
+      // Crear el payload para la API
+      const payload = {
+        name: editMembershipForm.name,
+        type: editMembershipForm.type,
+        price: editMembershipForm.price,
+        durationMonths: editMembershipForm.duration,
+        benefits: {
+          features: editMembershipForm.benefits,
+          maxReservations: editMembershipForm.maxReservations,
+          discountPercentage: editMembershipForm.discountPercentage,
+          priorityBooking: editMembershipForm.type !== 'BASIC',
+          freeHours: editMembershipForm.type === 'VIP' ? 2 : 0,
+          guestPasses: editMembershipForm.type === 'VIP' ? 2 : 0,
+          accessToEvents: editMembershipForm.type !== 'BASIC',
+          personalTrainer: editMembershipForm.type === 'VIP',
+        },
+        isActive: editMembershipForm.isActive,
+      };
+
+      // Llamar a la API para actualizar la membresía
+      await adminApi.memberships?.update?.(selectedMembership.id, payload);
+
+      // Recargar la lista
+      const res = await adminApi.memberships?.getAll?.({ page: 1, limit: 200 });
+      const list = Array.isArray(res?.membershipPlans)
+        ? res.membershipPlans
+        : Array.isArray(res?.data?.membershipPlans)
+          ? res.data.membershipPlans
+          : Array.isArray(res?.memberships)
+            ? res.memberships
+            : Array.isArray(res?.data?.memberships)
+              ? res.data.memberships
+              : Array.isArray(res)
+                ? res
+                : [];
+      const mapped: UiMembership[] = list.map((m: any) => ({
+        id: m.id,
+        name: m.name || m.type || 'Membresía',
+        type: (m.type || 'basic').toLowerCase(),
+        price: Number(m.price || m.monthlyPrice || 0),
+        duration: Number(m.durationMonths || m.duration || 1),
+        benefits: Array.isArray(m.benefits?.features) ? m.benefits.features : 
+                 Array.isArray(m.benefits) ? m.benefits : [],
+        maxReservations: Number(m.benefits?.maxReservations ?? m.maxReservations ?? -1),
+        discountPercentage: Number(m.benefits?.discountPercentage ?? m.discountPercentage ?? 0),
+        status: (m.status || (m.isActive ? 'active' : 'inactive')) as 'active' | 'inactive',
+        subscribersCount: Number(m.subscribersCount ?? 0),
+        createdAt: m.createdAt || new Date().toISOString(),
+      }));
+      setMemberships(mapped);
+
+      setSuccess('Plan de membresía actualizado exitosamente');
+      closeModals();
+    } catch (err: any) {
+      setError(err?.message || 'Error actualizando el plan de membresía');
     } finally {
       setLoading(false);
     }
@@ -707,39 +840,143 @@ export default function MembershipsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Plan</label>
                 <input
                   type="text"
+                  value={editMembershipForm.name}
+                  onChange={(e) => setEditMembershipForm(prev => ({ ...prev, name: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                  defaultValue={selectedMembership.name}
                 />
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Precio (€)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                    defaultValue={selectedMembership.price}
-                  />
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editMembershipForm.price || ''}
+                      onChange={(e) => setEditMembershipForm(prev => ({ 
+                        ...prev, 
+                        price: e.target.value === '' ? 0 : Number(e.target.value) 
+                      }))}
+                      className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                      placeholder="0.00"
+                    />
+                    {editMembershipForm.price > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setEditMembershipForm(prev => ({ ...prev, price: 0 }))}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        title="Limpiar campo"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Descuento (%)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={editMembershipForm.discountPercentage || ''}
+                      onChange={(e) => setEditMembershipForm(prev => ({ 
+                        ...prev, 
+                        discountPercentage: e.target.value === '' ? 0 : Number(e.target.value) 
+                      }))}
+                      className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                      placeholder="0"
+                    />
+                    {editMembershipForm.discountPercentage > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setEditMembershipForm(prev => ({ ...prev, discountPercentage: 0 }))}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        title="Limpiar campo"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Plan</label>
+                  <select
+                    value={editMembershipForm.type}
+                    onChange={(e) => setEditMembershipForm(prev => ({ ...prev, type: e.target.value as 'BASIC' | 'PREMIUM' | 'VIP' }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                  >
+                    <option value="BASIC">Básica</option>
+                    <option value="PREMIUM">Premium</option>
+                    <option value="VIP">VIP</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Duración (meses)</label>
                   <input
                     type="number"
-                    min="0"
-                    max="100"
+                    min="1"
+                    value={editMembershipForm.duration}
+                    onChange={(e) => setEditMembershipForm(prev => ({ ...prev, duration: Number(e.target.value) }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                    defaultValue={selectedMembership.discountPercentage}
                   />
                 </div>
+              </div>
+
+              {/* Beneficios */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Beneficios</label>
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={editBenefit}
+                    onChange={(e) => setEditBenefit(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addEditBenefit()}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                    placeholder="Ej: Acceso a todas las instalaciones"
+                  />
+                  <button
+                    type="button"
+                    onClick={addEditBenefit}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Agregar
+                  </button>
+                </div>
+                
+                {editMembershipForm.benefits.length > 0 && (
+                  <div className="space-y-2">
+                    {editMembershipForm.benefits.map((benefit, index) => (
+                      <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded-lg">
+                        <span className="text-sm text-black">{benefit}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeEditBenefit(index)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reservas Máximas</label>
                 <input
                   type="number"
+                  value={editMembershipForm.maxReservations === -1 ? '' : editMembershipForm.maxReservations}
+                  onChange={(e) => setEditMembershipForm(prev => ({ 
+                    ...prev, 
+                    maxReservations: e.target.value === '' ? -1 : Number(e.target.value) 
+                  }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                  defaultValue={selectedMembership.maxReservations === -1 ? '' : selectedMembership.maxReservations}
                   placeholder="Dejar vacío para ilimitadas"
                 />
               </div>
@@ -748,7 +985,8 @@ export default function MembershipsPage() {
                 <input 
                   id="isActive" 
                   type="checkbox" 
-                  defaultChecked={selectedMembership.status === 'active'}
+                  checked={editMembershipForm.isActive}
+                  onChange={(e) => setEditMembershipForm(prev => ({ ...prev, isActive: e.target.checked }))}
                   className="w-4 h-4"
                 />
                 <label htmlFor="isActive" className="text-sm text-gray-700">Plan Activo</label>
@@ -762,13 +1000,18 @@ export default function MembershipsPage() {
                   Cancelar
                 </button>
                 <button 
-                  onClick={() => {
-                    // TODO: Implementar actualización
-                    closeModals();
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  onClick={updateMembership}
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                 >
-                  Guardar Cambios
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Guardando...
+                    </>
+                  ) : (
+                    'Guardar Cambios'
+                  )}
                 </button>
               </div>
             </div>

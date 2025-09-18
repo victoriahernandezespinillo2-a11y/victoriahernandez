@@ -32,22 +32,45 @@ export async function GET(request: NextRequest) {
     });
     if (!order) return ApiResponse.notFound('Pedido');
 
+    // Verificar si hay productos que requieren check-in
+    const itemsRequiringCheckIn = (order.items || []).filter((item: any) => 
+      item.product?.requiresCheckIn === true
+    );
+
+    const canCheckIn = order.status === 'PAID' && itemsRequiringCheckIn.length > 0;
+    const alreadyRedeemed = order.status === 'REDEEMED';
+
     return ApiResponse.success({
-      ok: order.status === 'PAID',
+      ok: canCheckIn && !alreadyRedeemed,
       order: {
         id: order.id,
         status: order.status,
         user: { id: order.userId, name: order.user?.name, email: order.user?.email },
-        items: (order.items || []).map((it: any) => ({ name: it.product?.name || 'Producto', qty: it.qty })),
+        items: (order.items || []).map((it: any) => ({ 
+          name: it.product?.name || 'Producto', 
+          qty: it.qty,
+          type: it.product?.type,
+          requiresCheckIn: it.product?.requiresCheckIn
+        })),
+        itemsRequiringCheckIn: itemsRequiringCheckIn.map((item: any) => ({
+          name: item.product?.name,
+          quantity: item.qty,
+          type: item.product?.type
+        })),
+        canCheckIn,
+        alreadyRedeemed,
         createdAt: order.createdAt,
       },
-    }, order.status === 'PAID' ? 200 : 409);
+    }, canCheckIn && !alreadyRedeemed ? 200 : 409);
   } catch (e) {
     return ApiResponse.internalError('Error verificando pase');
   }
 }
 
 export async function OPTIONS() { return ApiResponse.success(null); }
+
+
+
 
 
 

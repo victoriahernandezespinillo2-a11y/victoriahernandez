@@ -633,7 +633,7 @@ export class MembershipService {
   }
 
   /**
-   * Obtener tipos de membresía disponibles
+   * Obtener tipos de membresía disponibles (solo activos)
    */
   async getMembershipTypes() {
     try {
@@ -686,6 +686,64 @@ export class MembershipService {
   }
 
   /**
+   * Obtener TODOS los planes de membresía (activos e inactivos) - para administración
+   */
+  async getAllMembershipPlans() {
+    try {
+      const plans = await db.membershipPlan.findMany({
+        orderBy: { sortOrder: 'asc' },
+        select: {
+          id: true,
+          type: true,
+          name: true,
+          monthlyPrice: true,
+          description: true,
+          benefits: true,
+          isActive: true,
+          isPopular: true,
+          sortOrder: true,
+          createdAt: true,
+          updatedAt: true,
+        }
+      });
+
+      console.log(`✅ [MEMBERSHIP-SERVICE] Obtenidos ${plans.length} planes de membresía (todos) desde la base de datos`);
+      
+      return plans.map(plan => ({
+        id: plan.id,
+        type: plan.type,
+        name: plan.name,
+        monthlyPrice: Number(plan.monthlyPrice),
+        description: plan.description,
+        benefits: plan.benefits as Record<string, any>,
+        popular: plan.isPopular,
+        isActive: plan.isActive,
+        sortOrder: plan.sortOrder,
+        createdAt: plan.createdAt,
+        updatedAt: plan.updatedAt,
+      }));
+    } catch (error) {
+      console.error('❌ [MEMBERSHIP-SERVICE] Error obteniendo todos los planes de membresía:', error);
+      
+      // Fallback a configuración hardcodeada si hay error en la base de datos
+      console.log('🔄 [MEMBERSHIP-SERVICE] Usando configuración hardcodeada como fallback');
+      return Object.entries(MEMBERSHIP_CONFIG).map(([key, config]) => ({
+        id: `fallback-${key}`,
+        type: key,
+        name: config.name,
+        monthlyPrice: config.monthlyPrice,
+        description: null,
+        benefits: config.benefits,
+        popular: false,
+        isActive: true, // Fallback siempre activo
+        sortOrder: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+    }
+  }
+
+  /**
    * Crear un nuevo plan de membresía
    */
   async createMembershipPlan(data: z.infer<typeof CreateMembershipPlanSchema>) {
@@ -714,5 +772,114 @@ export class MembershipService {
     });
 
     return membershipPlan;
+  }
+
+  /**
+   * Obtener plan de membresía por ID
+   */
+  async getMembershipPlanById(id: string) {
+    const plan = await db.membershipPlan.findUnique({
+      where: { id },
+    });
+
+    if (!plan) {
+      throw new Error('Plan de membresía no encontrado');
+    }
+
+    return plan;
+  }
+
+  /**
+   * Actualizar plan de membresía
+   */
+  async updateMembershipPlan(id: string, data: Partial<z.infer<typeof CreateMembershipPlanSchema>>) {
+    const plan = await db.membershipPlan.findUnique({
+      where: { id },
+    });
+
+    if (!plan) {
+      throw new Error('Plan de membresía no encontrado');
+    }
+
+    // Si se está cambiando el nombre, verificar que no existe otro plan con ese nombre
+    if (data.name && data.name !== plan.name) {
+      const existingPlan = await db.membershipPlan.findFirst({
+        where: { 
+          name: data.name,
+          id: { not: id }
+        }
+      });
+
+      if (existingPlan) {
+        throw new Error('Ya existe un plan con ese nombre');
+      }
+    }
+
+    // Preparar datos de actualización
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.type !== undefined) updateData.type = data.type;
+    if (data.price !== undefined) updateData.monthlyPrice = data.price;
+    if (data.benefits !== undefined) updateData.benefits = data.benefits;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    if (data.description !== undefined) updateData.description = data.description;
+
+    const updatedPlan = await db.membershipPlan.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return updatedPlan;
+  }
+
+  /**
+   * Eliminar plan de membresía
+   */
+  async deleteMembershipPlan(id: string) {
+    const plan = await db.membershipPlan.findUnique({
+      where: { id },
+    });
+
+    if (!plan) {
+      throw new Error('Plan de membresía no encontrado');
+    }
+
+    // Verificar si hay membresías activas usando este plan
+    const activeMemberships = await db.membership.count({
+      where: {
+        type: plan.type as any,
+        status: 'active',
+        validUntil: { gte: new Date() },
+      },
+    });
+
+    if (activeMemberships > 0) {
+      throw new Error('No se puede eliminar un plan que tiene suscriptores activos');
+    }
+
+    await db.membershipPlan.delete({
+      where: { id },
+    });
+
+    return { id, deleted: true };
+  }
+
+  /**
+   * Eliminar membresía de usuario
+   */
+  async deleteMembership(id: string) {
+    const membership = await db.membership.findUnique({
+      where: { id },
+    });
+
+    if (!membership) {
+      throw new Error('Membresía no encontrada');
+    }
+
+    await db.membership.delete({
+      where: { id },
+    });
+
+    return { id, deleted: true };
   }
 }

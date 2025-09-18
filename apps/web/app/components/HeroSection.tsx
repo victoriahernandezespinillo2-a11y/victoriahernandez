@@ -21,7 +21,7 @@ export function HeroSection() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   const router = useRouter();
-  const { hero: heroFromApi } = useLandingData();
+  const { hero: heroFromApi, stats: statsFromApi } = useLandingData();
 
   // Fallback local por si la API aún no tiene contenido
   const fallbackSlides = [
@@ -179,22 +179,36 @@ export function HeroSection() {
 
           {/* Quick Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
-            <div className="glass rounded-2xl p-6 text-center hover:scale-105 transition-transform duration-300">
-              <div className="text-3xl font-bold text-white mb-2">15+</div>
-              <div className="text-white/80 text-sm font-medium">Deportes Disponibles</div>
-            </div>
-            <div className="glass rounded-2xl p-6 text-center hover:scale-105 transition-transform duration-300">
-              <div className="text-3xl font-bold text-white mb-2">5K+</div>
-              <div className="text-white/80 text-sm font-medium">Miembros Activos</div>
-            </div>
-            <div className="glass rounded-2xl p-6 text-center hover:scale-105 transition-transform duration-300">
-              <div className="text-3xl font-bold text-white mb-2">24/7</div>
-              <div className="text-white/80 text-sm font-medium">Disponibilidad</div>
-            </div>
-            <div className="glass rounded-2xl p-6 text-center hover:scale-105 transition-transform duration-300">
-              <div className="text-3xl font-bold text-white mb-2">10</div>
-              <div className="text-white/80 text-sm font-medium">Años de Experiencia</div>
-            </div>
+            {statsFromApi && statsFromApi.length > 0 ? (
+              statsFromApi.map((stat) => (
+                <div key={stat.id} className="glass rounded-2xl p-6 text-center hover:scale-105 transition-transform duration-300">
+                  <div className="text-3xl font-bold text-white mb-2">
+                    {stat.value}{stat.suffix}
+                  </div>
+                  <div className="text-white/80 text-sm font-medium">{stat.label}</div>
+                </div>
+              ))
+            ) : (
+              // Fallback si no hay estadísticas en la BD
+              <>
+                <div className="glass rounded-2xl p-6 text-center hover:scale-105 transition-transform duration-300">
+                  <div className="text-3xl font-bold text-white mb-2">15+</div>
+                  <div className="text-white/80 text-sm font-medium">Deportes Disponibles</div>
+                </div>
+                <div className="glass rounded-2xl p-6 text-center hover:scale-105 transition-transform duration-300">
+                  <div className="text-3xl font-bold text-white mb-2">5K+</div>
+                  <div className="text-white/80 text-sm font-medium">Miembros Activos</div>
+                </div>
+                <div className="glass rounded-2xl p-6 text-center hover:scale-105 transition-transform duration-300">
+                  <div className="text-3xl font-bold text-white mb-2">24/7</div>
+                  <div className="text-white/80 text-sm font-medium">Disponibilidad</div>
+                </div>
+                <div className="glass rounded-2xl p-6 text-center hover:scale-105 transition-transform duration-300">
+                  <div className="text-3xl font-bold text-white mb-2">10</div>
+                  <div className="text-white/80 text-sm font-medium">Años de Experiencia</div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

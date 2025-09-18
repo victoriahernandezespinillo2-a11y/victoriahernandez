@@ -3,3 +3,5 @@ ALTER TABLE "public"."maintenance_schedules"
 ADD COLUMN "estimated_duration" INTEGER;
 
 
+
+

@@ -197,8 +197,8 @@ export default function PWAManager() {
         </div>
       )}
 
-      {/* Acciones PWA - Ocultas en producción */}
-      <div className="hidden">
+      {/* Acciones PWA */}
+      <div className="space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <button
             onClick={sendTestNotification}
@@ -223,9 +223,9 @@ export default function PWAManager() {
         </div>
       </div>
 
-      {/* Información del Service Worker - Oculto en producción */}
+      {/* Información del Service Worker */}
       {swRegistration && (
-        <div className="hidden">
+        <div className="space-y-3">
           <div className="bg-gray-50 p-3 rounded-lg">
             <h4 className="text-sm font-medium text-gray-900 mb-2">Estado del Service Worker</h4>
             <div className="space-y-1 text-xs text-gray-600">

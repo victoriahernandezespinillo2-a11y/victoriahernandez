@@ -22,6 +22,7 @@ type ApiMembershipType = {
   monthlyPrice: number;
   benefits: Record<string, any>;
   popular?: boolean;
+  isActive?: boolean;
 };
 
 type ApiMembership = {
@@ -202,7 +203,18 @@ export default function MembershipsPage() {
             </div>
           ) : planTypes.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500">No hay planes de membresía configurados. Por favor, contacta al administrador.</p>
+              <div className="max-w-md mx-auto">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Crown className="w-8 h-8 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Próximamente Nuevos Planes
+                </h3>
+                <p className="text-gray-500 text-sm">
+                  Estamos preparando nuevos planes de membresía con beneficios exclusivos. 
+                  Te notificaremos cuando estén disponibles.
+                </p>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -219,6 +231,8 @@ export default function MembershipsPage() {
                         ? 'border-green-500 bg-green-50'
                         : plan.popular
                         ? 'border-blue-500 bg-blue-50'
+                        : plan.isActive === false
+                        ? 'border-gray-300 bg-gray-100 opacity-75'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -234,6 +248,14 @@ export default function MembershipsPage() {
                       <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                         <span className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-medium">
                           Plan Actual
+                        </span>
+                      </div>
+                    )}
+                    
+                    {plan.isActive === false && !isCurrentPlan && (
+                      <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                        <span className="bg-gray-500 text-white px-3 py-1 rounded-full text-xs font-medium">
+                          No Disponible
                         </span>
                       </div>
                     )}
@@ -259,15 +281,24 @@ export default function MembershipsPage() {
                     </ul>
 
                     <button
-                      onClick={() => !isCurrentPlan && handleUpgradePlan(planKey)}
-                      disabled={isCurrentPlan || isLoading}
+                      onClick={() => !isCurrentPlan && plan.isActive !== false && handleUpgradePlan(planKey)}
+                      disabled={isCurrentPlan || isLoading || plan.isActive === false}
                       className={`w-full py-2 px-4 rounded-md font-medium transition-colors ${
                         isCurrentPlan
                           ? 'bg-green-100 text-green-800 cursor-not-allowed'
+                          : plan.isActive === false
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                           : 'bg-gray-900 text-white hover:bg-gray-800'
                       }`}
                     >
-                      {isCurrentPlan ? 'Plan Actual' : isLoading ? 'Procesando...' : 'Seleccionar Plan'}
+                      {isCurrentPlan 
+                        ? 'Plan Actual' 
+                        : plan.isActive === false 
+                        ? 'No Disponible' 
+                        : isLoading 
+                        ? 'Procesando...' 
+                        : 'Seleccionar Plan'
+                      }
                     </button>
                   </div>
                 );

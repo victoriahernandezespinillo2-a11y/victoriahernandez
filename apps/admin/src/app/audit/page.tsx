@@ -39,23 +39,28 @@ export default function AuditPage() {
         const res = await fetch('/api/admin/audit?limit=200', { credentials: 'include' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        const list = Array.isArray(json?.data?.auditLogs) ? json.data.auditLogs : Array.isArray(json?.auditLogs) ? json.auditLogs : [];
-        const mapped: AuditLog[] = list.map((e: any) => ({
-          id: e.id,
-          timestamp: e.createdAt || e.timestamp,
-          userId: e.user?.id || null,
-          userName: e.user?.name || 'Sistema',
-          action: e.action || e.eventType || 'EVENT',
-          resource: e.entityType || null,
-          resourceId: e.entityId || null,
-          details: typeof e.details === 'string' ? e.details : JSON.stringify(e.details),
-          ipAddress: e.ipAddress || null,
-          userAgent: e.userAgent || null,
-          status: 'success',
-        }));
-        setAuditLogs(mapped);
+        
+        if (json.success && json.data?.auditLogs) {
+          const mapped: AuditLog[] = json.data.auditLogs.map((e: any) => ({
+            id: e.id,
+            timestamp: e.timestamp || e.createdAt,
+            userId: e.userId || null,
+            userName: e.userName || 'Sistema',
+            action: e.action || 'EVENT',
+            resource: e.resource || null,
+            resourceId: e.resourceId || null,
+            details: typeof e.details === 'string' ? e.details : JSON.stringify(e.details),
+            ipAddress: e.ipAddress || null,
+            userAgent: e.userAgent || null,
+            status: e.status?.toLowerCase() || 'success',
+          }));
+          setAuditLogs(mapped);
+        } else {
+          setAuditLogs([]);
+        }
       } catch (e: any) {
         setError(e?.message || 'Error cargando auditoría');
+        setAuditLogs([]);
       } finally {
         setLoading(false);
       }

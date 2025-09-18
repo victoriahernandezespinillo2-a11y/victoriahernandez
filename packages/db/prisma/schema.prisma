@@ -413,11 +413,13 @@ model Product {
   name               String
   sku                String              @unique
   category           String
+  type               String              @default("PHYSICAL") // PHYSICAL, DIGITAL, SERVICE
   priceEuro          Decimal             @map("price_euro")
   taxRate            Decimal             @default(0.0) @map("tax_rate")
   stockQty           Int                 @default(0) @map("stock_qty")
   isActive           Boolean             @default(true) @map("is_active")
   isPerishable       Boolean             @default(false) @map("is_perishable")
+  requiresCheckIn    Boolean             @default(false) @map("requires_check_in")
   expiresAt          DateTime?           @map("expires_at")
   creditMultiplier   Decimal?            @map("credit_multiplier")
   media              Json?               @default("[]")
@@ -440,6 +442,7 @@ model Order {
   creditsUsed     Int                @default(0) @map("credits_used")
   paymentIntentId String?            @map("payment_intent_id")
   idempotencyKey  String?            @unique @map("idempotency_key")
+  redeemedAt      DateTime?          @map("redeemed_at")
   createdAt       DateTime           @default(now()) @map("created_at")
   updatedAt       DateTime           @updatedAt @map("updated_at")
   type            OrderType          @default(ORDER)
@@ -838,6 +841,7 @@ enum OrderStatus {
   PENDING
   PAID
   FULFILLED
+  REDEEMED
   REFUNDED
   CANCELLED
 }
@@ -888,4 +892,73 @@ enum SponsorTier {
   GOLD
   SILVER
   BRONZE
+}
+
+/// Sistema de Auditoría Enterprise
+model AuditLog {
+  id          String      @id @default(cuid())
+  timestamp   DateTime    @default(now())
+  userId      String?     @map("user_id")
+  userName    String      @map("user_name")
+  userEmail   String?     @map("user_email")
+  userRole    String?     @map("user_role")
+  action      String      // CREATE, UPDATE, DELETE, VIEW, LOGIN, LOGOUT, etc.
+  resource    String?     // user, reservation, court, payment, etc.
+  resourceId  String?     @map("resource_id")
+  entityType  String?     @map("entity_type")
+  entityId    String?     @map("entity_id")
+  details     String?     // JSON string with additional details
+  metadata    Json?       // Additional structured data
+  ipAddress   String?     @map("ip_address")
+  userAgent   String?     @map("user_agent")
+  sessionId   String?     @map("session_id")
+  status      AuditStatus @default(SUCCESS)
+  severity    AuditSeverity @default(LOW)
+  category    AuditCategory @default(SYSTEM)
+  tags        String[]    // Array of tags for categorization
+  duration    Int?        // Duration in milliseconds for operations
+  errorCode   String?     @map("error_code")
+  errorMessage String?    @map("error_message")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  
+  // Indexes for performance
+  @@index([timestamp])
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([status])
+  @@index([category])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum AuditStatus {
+  SUCCESS
+  WARNING
+  ERROR
+  FAILED
+}
+
+enum AuditSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AuditCategory {
+  AUTHENTICATION
+  AUTHORIZATION
+  DATA_ACCESS
+  DATA_MODIFICATION
+  SYSTEM
+  SECURITY
+  PAYMENT
+  RESERVATION
+  USER_MANAGEMENT
+  CONFIGURATION
+  MAINTENANCE
+  API
+  EXTERNAL
 }

@@ -169,7 +169,7 @@ export function TestimonialsSection() {
         }`}>
           <div className="inline-flex items-center space-x-2 bg-purple-100 text-purple-800 rounded-full px-6 py-2 mb-6">
             <i className="fas fa-quote-left text-purple-600"></i>
-            <span className="font-semibold text-sm">Testimonios Reales</span>
+            <span className="font-semibold text-sm">Experiencias de Nuestros Clientes</span>
           </div>
           
           <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-6">

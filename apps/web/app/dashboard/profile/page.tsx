@@ -318,7 +318,7 @@ export default function ProfilePage() {
                   value={formData.city || ''}
                   onChange={(e) => handleInputChange('city', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
-                  placeholder="Victoria Hernandez"
+                  placeholder="Victoria Hernández"
                 />
               ) : (
                 <p className="text-gray-900">{profile.city || 'No especificado'}</p>

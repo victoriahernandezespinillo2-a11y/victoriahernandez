@@ -24,8 +24,8 @@ export async function GET(req: NextRequest) {
       const type = searchParams.get('type') || undefined;
       const status = searchParams.get('status') || undefined;
 
-      // Obtener planes de membresía
-      const membershipPlans = await membershipService.getMembershipTypes();
+      // Obtener TODOS los planes de membresía (activos e inactivos) para el admin
+      const membershipPlans = await membershipService.getAllMembershipPlans();
       
       // Obtener membresías activas
       const memberships = await membershipService.getMemberships({
@@ -60,11 +60,11 @@ export async function GET(req: NextRequest) {
         benefits: plan.benefits || [],
         maxReservations: (plan.benefits as any)?.maxReservations || -1,
         discountPercentage: (plan.benefits as any)?.discountPercentage || 0,
-        status: 'active', // Los planes están activos
+        status: plan.isActive ? 'active' : 'inactive',
         subscribersCount: memberships.memberships.filter(m => 
           m.planId === plan.id && m.status === 'active'
         ).length,
-        createdAt: new Date().toISOString(),
+        createdAt: plan.createdAt || new Date().toISOString(),
         isPopular: plan.popular || false,
         description: plan.description
       }));

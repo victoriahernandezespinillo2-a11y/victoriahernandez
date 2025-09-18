@@ -27,6 +27,8 @@ import {
   ChevronLeftIcon,
 } from '@heroicons/react/24/outline';
 import { useAdminNotifications } from '@/lib/hooks';
+import { useSidebarBadges } from '@/lib/hooks/useSidebarBadges';
+import { SidebarBadge } from './Badge';
 
 // Definir el tipo para los elementos del menú
 interface MenuItem {
@@ -41,16 +43,7 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
   const pathname = usePathname();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const { notifications } = useAdminNotifications();
-
-  // Calcular contadores dinámicos
-  const getNotificationCount = () => {
-    return (notifications || []).filter((n: any) => !n.readAt).length;
-  };
-
-  const getMaintenanceCount = () => {
-    // TODO: Implementar cuando tengamos el hook de mantenimiento
-    return 2; // Temporalmente hardcodeado hasta implementar
-  };
+  const { badgeCounts, loading: badgesLoading } = useSidebarBadges();
 
   const menuItems: MenuItem[] = [
     {
@@ -62,10 +55,11 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
       name: 'Gestión',
       href: '#',
       icon: UsersIcon,
+      badge: badgeCounts.pendingReservations + badgeCounts.newUsers,
       submenu: [
-        { name: 'Reservas', href: '/reservations', icon: CalendarIcon },
+        { name: 'Reservas', href: '/reservations', icon: CalendarIcon, badge: badgeCounts.pendingReservations },
         { name: 'Nueva Reserva', href: '/reservations/new', icon: CalendarIcon },
-        { name: 'Usuarios', href: '/users', icon: UsersIcon },
+        { name: 'Usuarios', href: '/users', icon: UsersIcon, badge: badgeCounts.newUsers },
         { name: 'Centros', href: '/centers', icon: GlobeAltIcon },
         { name: 'Canchas', href: '/courts', icon: TrophyIcon },
         { name: 'Productos', href: '/products', icon: FolderIcon },
@@ -76,9 +70,10 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
       name: 'Finanzas',
       href: '#',
       icon: CreditCardIcon,
+      badge: badgeCounts.pendingPayments + badgeCounts.pendingOrders,
       submenu: [
-        { name: 'Pagos', href: '/payments', icon: CreditCardIcon },
-        { name: 'Pedidos', href: '/orders', icon: DocumentTextIcon },
+        { name: 'Pagos', href: '/payments', icon: CreditCardIcon, badge: badgeCounts.pendingPayments },
+        { name: 'Pedidos', href: '/orders', icon: DocumentTextIcon, badge: badgeCounts.pendingOrders },
         { name: 'Precios', href: '/pricing', icon: ChartBarIcon },
         { name: 'Membresías', href: '/memberships', icon: UsersIcon },
       ],
@@ -87,7 +82,7 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
       name: 'Mantenimiento',
       href: '/maintenance',
       icon: WrenchScrewdriverIcon,
-      badge: getMaintenanceCount,
+      badge: badgeCounts.maintenance,
     },
     {
       name: 'Reportes',
@@ -105,7 +100,7 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
       name: 'Notificaciones',
       href: '/notifications',
       icon: BellIcon,
-      badge: getNotificationCount,
+      badge: badgeCounts.notifications,
     },
     {
       name: 'Configuración',
@@ -116,6 +111,7 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
       name: 'Auditoría',
       href: '/audit',
       icon: DocumentTextIcon,
+      badge: badgeCounts.auditAlerts,
     },
     {
       name: 'Control de acceso',
@@ -236,15 +232,29 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
                           <subItem.icon className="h-4 w-4" />
                           <span className="text-sm">{subItem.name}</span>
                         </div>
-                        {typeof subItem.badge === 'number' && (
-                          <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                            {subItem.badge}
-                          </span>
+                        {typeof subItem.badge === 'number' && subItem.badge > 0 && (
+                          <SidebarBadge 
+                            count={subItem.badge} 
+                            variant={
+                              subItem.name === 'Reservas' ? 'warning' :
+                              subItem.name === 'Usuarios' ? 'info' :
+                              subItem.name === 'Pagos' ? 'error' :
+                              subItem.name === 'Pedidos' ? 'warning' :
+                              'default'
+                            }
+                          />
                         )}
-                        {typeof subItem.badge === 'function' && (
-                          <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                            {subItem.badge()}
-                          </span>
+                        {typeof subItem.badge === 'function' && subItem.badge() > 0 && (
+                          <SidebarBadge 
+                            count={subItem.badge()} 
+                            variant={
+                              subItem.name === 'Reservas' ? 'warning' :
+                              subItem.name === 'Usuarios' ? 'info' :
+                              subItem.name === 'Pagos' ? 'error' :
+                              subItem.name === 'Pedidos' ? 'warning' :
+                              'default'
+                            }
+                          />
                         )}
                       </Link>
                     ))}
@@ -267,15 +277,37 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
                     <span className="font-medium">{item.name}</span>
                   )}
                 </div>
-                {typeof item.badge === 'number' && (
-                  <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                    {item.badge}
-                  </span>
-                )}
-                {typeof item.badge === 'function' && (
-                  <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                    {item.badge()}
-                  </span>
+                {badgesLoading ? (
+                  <div className="w-5 h-5 bg-gray-400 rounded-full animate-pulse"></div>
+                ) : (
+                  <>
+                    {typeof item.badge === 'number' && item.badge > 0 && (
+                      <SidebarBadge 
+                        count={item.badge} 
+                        variant={
+                          item.name === 'Gestión' ? 'info' :
+                          item.name === 'Finanzas' ? 'error' :
+                          item.name === 'Mantenimiento' ? 'maintenance' :
+                          item.name === 'Notificaciones' ? 'notification' :
+                          item.name === 'Auditoría' ? 'warning' :
+                          'default'
+                        }
+                      />
+                    )}
+                    {typeof item.badge === 'function' && item.badge() > 0 && (
+                      <SidebarBadge 
+                        count={item.badge()} 
+                        variant={
+                          item.name === 'Gestión' ? 'info' :
+                          item.name === 'Finanzas' ? 'error' :
+                          item.name === 'Mantenimiento' ? 'maintenance' :
+                          item.name === 'Notificaciones' ? 'notification' :
+                          item.name === 'Auditoría' ? 'warning' :
+                          'default'
+                        }
+                      />
+                    )}
+                  </>
                 )}
               </Link>
             )}
