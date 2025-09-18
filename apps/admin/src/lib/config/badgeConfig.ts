@@ -34,9 +34,12 @@ export const BADGE_CONFIG = {
   
   // Configuración de pedidos
   orders: {
-    statuses: ['PENDING', 'PROCESSING'] as const,
+    statuses: ['PENDING', 'PAID'] as const, // Solo estados válidos del enum OrderStatus
     limit: 100,
-    description: 'Pedidos pendientes de procesamiento'
+    description: 'Pedidos pendientes de procesamiento',
+    // Utilidades de validación
+    validateStatus: (status: string) => ['PENDING', 'PAID', 'FULFILLED', 'REDEEMED', 'REFUNDED', 'CANCELLED'].includes(status),
+    getValidStatuses: () => ['PENDING', 'PAID', 'FULFILLED', 'REDEEMED', 'REFUNDED', 'CANCELLED']
   },
   
   // Configuración de auditoría

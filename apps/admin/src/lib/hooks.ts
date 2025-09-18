@@ -512,8 +512,16 @@ export function useAdminReservations() {
   }, [setData]);
 
   const cancelReservation = useCallback(async (id: string) => {
-    await adminApi.reservations.cancel(id);
-    setData(prev => prev ? prev.filter(res => res.id !== id) : []);
+    const result = await adminApi.reservations.cancel(id);
+    // Actualizar el estado local marcando como cancelada en lugar de eliminar
+    setData(prev => 
+      prev ? prev.map(res => 
+        res.id === id 
+          ? { ...res, status: 'CANCELLED' as const }
+          : res
+      ) : []
+    );
+    return result;
   }, [setData]);
 
   return {

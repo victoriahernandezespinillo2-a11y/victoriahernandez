@@ -111,11 +111,19 @@ export function useSidebarBadges() {
   // Contador de pedidos pendientes
   const getPendingOrdersCount = useCallback(async () => {
     try {
-      const { statuses, limit } = BADGE_CONFIG.orders;
+      const { statuses, limit, validateStatus } = BADGE_CONFIG.orders;
       let totalCount = 0;
       
-      // Obtener contadores para cada estado
-      for (const status of statuses) {
+      // Validar estados antes de hacer requests
+      const validStatuses = statuses.filter(status => validateStatus(status));
+      
+      if (validStatuses.length === 0) {
+        console.warn('No hay estados válidos para pedidos en la configuración');
+        return 0;
+      }
+      
+      // Obtener contadores para cada estado válido
+      for (const status of validStatuses) {
         try {
           const orders = await adminApi.orders.getAll({
             status,
@@ -124,15 +132,21 @@ export function useSidebarBadges() {
           const ordersData = (orders as any)?.items || (orders as any)?.data || orders || [];
           const data = Array.isArray(ordersData) ? ordersData : [];
           totalCount += data.length;
+          
+          // Log para debugging en desarrollo
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`Orders ${status}:`, data.length);
+          }
         } catch (statusError) {
           console.warn(`Error obteniendo pedidos con estado ${status}:`, statusError);
+          // Continuar con el siguiente estado en lugar de fallar completamente
         }
       }
       
       return totalCount;
     } catch (error) {
       console.warn('Error obteniendo pedidos pendientes:', error);
-      return 0;
+      return 0; // Fallback seguro
     }
   }, []);
 

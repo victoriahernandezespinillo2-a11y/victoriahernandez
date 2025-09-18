@@ -1,36 +1,103 @@
 import { NextRequest } from 'next/server';
 import { withStaffMiddleware, ApiResponse } from '@/lib/middleware';
+import { OrderQuerySchema, validateOrderStatus, VALID_ORDER_STATUSES } from '@/lib/validators/order.validator';
 import { db } from '@repo/db';
+import { z } from 'zod';
 
 export async function GET(request: NextRequest) {
   return withStaffMiddleware(async (req) => {
     try {
       const { searchParams } = req.nextUrl;
-      const page = Math.max(1, Number(searchParams.get('page') || '1'));
-      const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') || '20')));
-      const status = searchParams.get('status');
-      const skip = (page - 1) * limit;
       
-      // Construir filtros
-      const where: any = {};
-      if (status) {
-        where.status = status;
+      // Validar parámetros de consulta
+      const query = OrderQuerySchema.parse(Object.fromEntries(searchParams.entries()));
+      
+      const skip = (query.page - 1) * query.limit;
+      
+      // Construir filtros dinámicamente
+      const whereClause: any = {};
+      
+      if (query.status) {
+        // Validar que el estado sea válido
+        if (!validateOrderStatus(query.status)) {
+          return ApiResponse.badRequest(`Estado de orden inválido: ${query.status}. Estados válidos: ${Object.values(VALID_ORDER_STATUSES).join(', ')}`);
+        }
+        whereClause.status = query.status;
+      }
+      
+      if (query.userId) {
+        whereClause.userId = query.userId;
+      }
+      
+      // Filtros de fecha
+      if (query.startDate || query.endDate) {
+        whereClause.createdAt = {};
+        if (query.startDate) {
+          whereClause.createdAt.gte = new Date(query.startDate);
+        }
+        if (query.endDate) {
+          whereClause.createdAt.lte = new Date(query.endDate);
+        }
+      }
+      
+      // Configurar ordenamiento
+      const orderBy: any = {};
+      if (query.sortBy) {
+        orderBy[query.sortBy] = query.sortOrder;
+      } else {
+        orderBy.createdAt = 'desc';
       }
       
       const [items, total] = await Promise.all([
-        (db as any).order.findMany({
-          where,
-          orderBy: { createdAt: 'desc' },
+        db.order.findMany({
+          where: whereClause,
+          orderBy,
           skip,
-          take: limit,
-          include: { user: { select: { id: true, email: true } }, items: { include: { product: { select: { name: true } } } } },
+          take: query.limit,
+          include: { 
+            user: { select: { id: true, email: true, name: true } }, 
+            items: { 
+              include: { 
+                product: { 
+                  select: { 
+                    id: true,
+                    name: true, 
+                    priceEuro: true,
+                    sku: true,
+                    category: true
+                  } 
+                } 
+              } 
+            } 
+          },
         }),
-        (db as any).order.count({ where }),
+        db.order.count({ where: whereClause }),
       ]);
-      return ApiResponse.success({ items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+      
+      return ApiResponse.success({ 
+        items, 
+        pagination: { 
+          page: query.page, 
+          limit: query.limit, 
+          total, 
+          pages: Math.ceil(total / query.limit),
+          hasNext: query.page * query.limit < total,
+          hasPrev: query.page > 1
+        } 
+      });
     } catch (error) {
-      console.error('Error en endpoint de pedidos:', error);
-      return ApiResponse.internalError('Error listando pedidos');
+      console.error('Error en /api/admin/orders:', error);
+      
+      if (error instanceof z.ZodError) {
+        return ApiResponse.validation(
+          error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message,
+          }))
+        );
+      }
+      
+      return ApiResponse.internalError(`Error listando pedidos: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
   })(request);
 }

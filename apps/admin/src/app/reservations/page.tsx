@@ -17,7 +17,7 @@ import {
 import { useAdminReservations } from '@/lib/hooks';
 import { adminApi } from '@/lib/api';
 import { useToast } from '@/components/ToastProvider';
-import ConfirmDialog from '@/components/ConfirmDialog';
+import { confirm } from '@/components/ConfirmDialog';
 import PaymentConfirmationModal from '@/components/PaymentConfirmationModal';
 
 interface Reservation {
@@ -79,14 +79,13 @@ export default function ReservationsPage() {
     getReservations({ page: 1, limit: 200 }).catch(() => {});
   }, [getReservations]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>('ACTIVE'); // Filtrar reservas activas por defecto
   const [paymentFilter, setPaymentFilter] = useState<string>('ALL');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('ALL');
   const [overrideFilter, setOverrideFilter] = useState<string>('ALL');
   const [dateFilter, setDateFilter] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [confirmState, setConfirmState] = useState<{ open: boolean; id?: string }>(() => ({ open: false }));
   const [refundState, setRefundState] = useState<{ open: boolean; id?: string; amount?: string; reason: string }>(() => ({ open: false, reason: '' }));
   const [resendState, setResendState] = useState<{ open: boolean; id?: string; type: 'CONFIRMATION'|'PAYMENT_LINK' }>({ open: false, type: 'CONFIRMATION' });
   const [payOnSiteState, setPayOnSiteState] = useState<{ open: boolean; id?: string; userName?: string; courtName?: string; totalAmount?: number; currentMethod?: string }>({ open: false });
@@ -190,7 +189,8 @@ export default function ReservationsPage() {
       (reservation.courtName as string)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (reservation.centerName as string)?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = statusFilter === 'ALL' || reservation.status === statusFilter;
+    const matchesStatus = statusFilter === 'ALL' || 
+      (statusFilter === 'ACTIVE' ? !['CANCELLED', 'NO_SHOW'].includes(reservation.status as string) : reservation.status === statusFilter);
     const matchesPayment = paymentFilter === 'ALL' || reservation.paymentStatus === paymentFilter;
     const normalizedMethod = normalizeMethod((reservation as any).paymentMethod as string);
     const matchesPaymentMethod = paymentMethodFilter === 'ALL' || normalizedMethod === paymentMethodFilter;
@@ -207,7 +207,24 @@ export default function ReservationsPage() {
   const paginatedReservations = filteredReservations.slice(startIndex, startIndex + itemsPerPage);
 
   const handleDeleteReservation = async (reservationId: string) => {
-    setConfirmState({ open: true, id: reservationId });
+    const confirmed = await confirm({
+      title: 'Cancelar Reserva',
+      description: '¿Estás seguro de que quieres cancelar esta reserva? La reserva se marcará como cancelada.',
+      confirmText: 'Cancelar Reserva',
+      cancelText: 'No cancelar',
+      tone: 'danger'
+    });
+    
+    if (confirmed) {
+      try {
+        await cancelReservation(reservationId);
+        showToast({ variant: 'success', title: 'Reserva cancelada', message: 'La reserva ha sido cancelada correctamente.' });
+        await getReservations({ page: 1, limit: 200 });
+      } catch (error) {
+        console.error('Error al cancelar reserva:', error);
+        showToast({ variant: 'error', title: 'Error', message: 'No se pudo cancelar la reserva.' });
+      }
+    }
   };
 
   const handleGenerateLink = async (reservationId: string, r: any) => {
@@ -236,15 +253,6 @@ export default function ReservationsPage() {
     }
   };
 
-  const confirmDeletion = async () => {
-    const id = confirmState.id as string;
-    setConfirmState({ open: false, id: undefined });
-    try {
-      await cancelReservation(id);
-    } catch (error) {
-      console.error('Error al eliminar reserva:', error);
-    }
-  };
 
   const confirmRefund = async () => {
     const id = refundState.id as string;
@@ -285,11 +293,11 @@ export default function ReservationsPage() {
   };
 
   // Calcular estadísticas
-  const totalRevenue = reservations
-    ?.filter((r: any) => r.paymentStatus === 'PAID')
-    .reduce((sum, r: any) => sum + (r.totalAmount as number), 0) || 0;
+  const totalRevenue = filteredReservations
+    .filter((r: any) => r.paymentStatus === 'PAID')
+    .reduce((sum, r: any) => sum + (r.totalAmount as number), 0);
   
-  const todayReservations = reservations?.filter((r: any) => r.date === new Date().toISOString().split('T')[0]) || [];
+  const todayReservations = filteredReservations.filter((r: any) => r.date === new Date().toISOString().split('T')[0]);
 
   return (
     <div className="space-y-6">
@@ -326,7 +334,7 @@ export default function ReservationsPage() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total Reservas</p>
-              <p className="text-2xl font-semibold text-gray-900">{reservations?.length || 0}</p>
+              <p className="text-2xl font-semibold text-gray-900">{filteredReservations.length}</p>
             </div>
           </div>
         </div>
@@ -360,7 +368,7 @@ export default function ReservationsPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Confirmadas</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {reservations?.filter(r => r.status === 'PAID').length || 0}
+                {filteredReservations.filter(r => r.status === 'PAID').length}
               </p>
             </div>
           </div>
@@ -392,10 +400,12 @@ export default function ReservationsPage() {
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="ALL">Todos los estados</option>
+              <option value="ACTIVE">Activas</option>
               <option value="PENDING">Pendiente</option>
-              <option value="CONFIRMED">Confirmada</option>
-              <option value="CANCELLED">Cancelada</option>
+              <option value="PAID">Pagada</option>
+              <option value="IN_PROGRESS">En curso</option>
               <option value="COMPLETED">Completada</option>
+              <option value="CANCELLED">Cancelada</option>
               <option value="NO_SHOW">No se presentó</option>
             </select>
           </div>
@@ -811,12 +821,29 @@ export default function ReservationsPage() {
         </div>
       )}
 
-      {confirmState.open && (
-        <ConfirmDialog />
-      )}
-
       {resendState.open && (
-        <ConfirmDialog />
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold mb-4">Reenviar Notificación</h3>
+            <p className="text-sm text-gray-600 mb-6">
+              ¿Deseas reenviar la {resendState.type === 'CONFIRMATION' ? 'confirmación' : 'enlace de pago'}?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setResendState({ open: false, id: undefined, type: 'CONFIRMATION' })}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleResend}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Reenviar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal Auditoría */}
@@ -867,7 +894,52 @@ export default function ReservationsPage() {
       )}
 
       {refundState.open && (
-        <ConfirmDialog />
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold mb-4">Reembolsar Pago</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Importe (€)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={refundState.amount || ''}
+                  onChange={(e) => setRefundState(prev => ({ ...prev, amount: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Razón del reembolso
+                </label>
+                <textarea
+                  value={refundState.reason}
+                  onChange={(e) => setRefundState(prev => ({ ...prev, reason: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                  placeholder="Describe la razón del reembolso..."
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setRefundState({ open: false, id: undefined, amount: undefined, reason: '' })}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmRefund}
+                className="px-4 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700"
+              >
+                Reembolsar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal: Confirmar pago en sede */}
