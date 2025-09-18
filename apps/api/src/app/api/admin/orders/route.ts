@@ -8,18 +8,28 @@ export async function GET(request: NextRequest) {
       const { searchParams } = req.nextUrl;
       const page = Math.max(1, Number(searchParams.get('page') || '1'));
       const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') || '20')));
+      const status = searchParams.get('status');
       const skip = (page - 1) * limit;
+      
+      // Construir filtros
+      const where: any = {};
+      if (status) {
+        where.status = status;
+      }
+      
       const [items, total] = await Promise.all([
         (db as any).order.findMany({
+          where,
           orderBy: { createdAt: 'desc' },
           skip,
           take: limit,
           include: { user: { select: { id: true, email: true } }, items: { include: { product: { select: { name: true } } } } },
         }),
-        (db as any).order.count(),
+        (db as any).order.count({ where }),
       ]);
       return ApiResponse.success({ items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
     } catch (error) {
+      console.error('Error en endpoint de pedidos:', error);
       return ApiResponse.internalError('Error listando pedidos');
     }
   })(request);
