@@ -56,21 +56,73 @@ export default function EditFacilityPage() {
     e.preventDefault();
     setSaving(true);
     try {
+      // Validaciones básicas antes de enviar
+      if (!form.name?.trim()) {
+        showToast({ variant: 'error', title: 'Error', message: 'El nombre es requerido' });
+        setSaving(false);
+        return;
+      }
+      
+      if (!form.description?.trim()) {
+        showToast({ variant: 'error', title: 'Error', message: 'La descripción es requerida' });
+        setSaving(false);
+        return;
+      }
+      
+      if (!form.price?.trim()) {
+        showToast({ variant: 'error', title: 'Error', message: 'El precio es requerido' });
+        setSaving(false);
+        return;
+      }
+      
+      if (!form.availability?.trim()) {
+        showToast({ variant: 'error', title: 'Error', message: 'La disponibilidad es requerida' });
+        setSaving(false);
+        return;
+      }
+
+      // Preparar datos para el backend con validaciones correctas
+      const submitData = {
+        ...form,
+        // Asegurar que rating sea un número válido entre 0 y 5
+        rating: Math.max(0, Math.min(5, typeof form.rating === 'string' ? parseFloat(form.rating) || 0 : form.rating || 0)),
+        // Asegurar que order sea un número entero no negativo
+        order: Math.max(0, typeof form.order === 'string' ? parseInt(form.order) || 0 : form.order || 0),
+        // Asegurar que features sea un array de strings
+        features: Array.isArray(form.features) ? form.features : (form.features || '').split(',').map((f: string) => f.trim()).filter((f: string) => f),
+        // Asegurar que isActive sea booleano
+        isActive: Boolean(form.isActive),
+        // Limpiar el campo de precio
+        price: form.price ? form.price.toString().trim() : '',
+        // Asegurar que los campos requeridos no estén vacíos
+        name: form.name?.trim() || '',
+        description: form.description?.trim() || '',
+        availability: form.availability?.trim() || ''
+      };
+
+      console.log('Enviando datos:', submitData);
+      
       const res = await fetch(`/api/admin/landing/sports/facilities/${facilityId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(submitData),
       });
       
       if (!res.ok) {
         const err = await res.json().catch(() => null);
-        showToast({ variant: 'error', title: 'No se pudo actualizar', message: err?.error || 'Error al actualizar' });
+        console.error('Error response:', err);
+        showToast({ 
+          variant: 'error', 
+          title: 'No se pudo actualizar', 
+          message: err?.error || err?.details?.[0]?.message || 'Error al actualizar' 
+        });
         return;
       }
       
       showToast({ variant: 'success', title: 'Instalación actualizada', message: 'Los cambios fueron guardados.' });
       router.push(`/landing/sports/facilities/${facilityId}`);
     } catch (e) {
+      console.error('Submit error:', e);
       showToast({ variant: 'error', title: 'Error', message: 'Error al actualizar la instalación' });
     } finally {
       setSaving(false);
@@ -172,8 +224,8 @@ export default function EditFacilityPage() {
         <div>
           <label className="block text-sm text-gray-700 mb-1">Características (separadas por comas)</label>
           <input 
-            value={Array.isArray(form.features) ? form.features.join(', ') : ''} 
-            onChange={(e) => setForm({ ...form, features: e.target.value.split(',').map(f => f.trim()).filter(f => f) })} 
+            value={Array.isArray(form.features) ? form.features.join(', ') : (form.features || '')} 
+            onChange={(e) => setForm({ ...form, features: e.target.value })} 
             className="w-full border rounded px-3 py-2" 
             placeholder="Ej: Iluminación, Vestuarios, Estacionamiento"
           />
@@ -211,6 +263,8 @@ export default function EditFacilityPage() {
     </div>
   );
 }
+
+
 
 
 

@@ -710,7 +710,7 @@ export class ReservationService {
           { completedAt: { gte: startOfDay, lte: endOfDay } },
         ],
       },
-      select: { scheduledAt: true, startedAt: true, completedAt: true },
+      select: { scheduledAt: true, startedAt: true, completedAt: true, estimatedDuration: true },
     });
     
     // Si el día está cerrado o no hay rangos configurados -> sin disponibilidad
@@ -748,7 +748,9 @@ export class ReservationService {
           // Verificar conflictos de mantenimiento
           const isInMaintenance = maintenanceSchedules.some((m: any) => {
             const maintStart = m.startedAt ?? m.scheduledAt ?? startOfDay;
-            const maintEnd = m.completedAt ?? endOfDay;
+            // Usar estimatedDuration de la base de datos, con fallback a 2 horas (120 minutos)
+            const durationMinutes = m.estimatedDuration || 120;
+            const maintEnd = m.completedAt ?? new Date(maintStart.getTime() + durationMinutes * 60 * 1000);
             return slotStart < maintEnd && slotEnd > maintStart;
           });
 

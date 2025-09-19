@@ -272,6 +272,8 @@ model MaintenanceSchedule {
   id                String            @id @default(cuid())
   courtId           String            @map("court_id")
   type              MaintenanceType
+  activityType      ActivityType      @default(MAINTENANCE) @map("activity_type")
+  activityCategory  String?           @map("activity_category") // Categoría específica (ej: "Fútbol", "Yoga", "Limpieza")
   status            MaintenanceStatus @default(SCHEDULED)
   scheduledAt       DateTime          @map("scheduled_at")
   startedAt         DateTime?         @map("started_at")
@@ -281,6 +283,10 @@ model MaintenanceSchedule {
   cost              Decimal?
   estimatedDuration Int?              @map("estimated_duration") // Duración estimada en minutos
   assignedTo        String?           @map("assigned_to")
+  instructor        String?           @map("instructor") // Para entrenamientos y clases
+  capacity          Int?              @map("capacity") // Capacidad de participantes
+  requirements      String?           @map("requirements") // Requerimientos especiales
+  isPublic          Boolean           @default(true) @map("is_public") // Público/Privado
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
   court             Court             @relation(fields: [courtId], references: [id], onDelete: Cascade)
@@ -814,6 +820,16 @@ enum MaintenanceType {
   REPAIR
   INSPECTION
   RENOVATION
+}
+
+enum ActivityType {
+  MAINTENANCE
+  TRAINING
+  CLASS
+  WARMUP
+  EVENT
+  MEETING
+  OTHER
 }
 
 enum MaintenanceStatus {

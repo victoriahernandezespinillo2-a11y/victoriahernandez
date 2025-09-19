@@ -119,7 +119,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           scheduledAt: true,
           completedAt: true,
           type: true,
-          description: true
+          description: true,
+          estimatedDuration: true
         }
       }),
 
@@ -294,7 +295,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           // 2. SI NO, COMPROBAR MANTENIMIENTO
           const maintenanceConflict = maintenanceSchedules.find((m: any) => {
             const maintenanceStart = m.scheduledAt;
-            const maintenanceEnd = m.completedAt || new Date(maintenanceStart.getTime() + 2 * 60 * 60000); // 2h por defecto
+            // Usar estimatedDuration de la base de datos, con fallback a 2 horas (120 minutos)
+            const durationMinutes = m.estimatedDuration || 120;
+            const maintenanceEnd = m.completedAt || new Date(maintenanceStart.getTime() + durationMinutes * 60 * 1000);
             return slotStart < maintenanceEnd && slotEnd > maintenanceStart;
           });
 

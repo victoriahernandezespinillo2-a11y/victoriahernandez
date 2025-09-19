@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAdminMaintenance, useAdminCourts, useAdminCenters } from '@/lib/hooks';
 import { useToast } from '@/components/ToastProvider';
+import { getCategoryFieldLabel, getCategoryOptions } from '@/lib/activityCategories';
 import {
   WrenchScrewdriverIcon,
   ExclamationTriangleIcon,
@@ -10,6 +11,8 @@ import {
   ClockIcon,
   PlusIcon,
   XMarkIcon,
+  PencilIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 
 export default function MaintenancePage() {
@@ -19,6 +22,8 @@ export default function MaintenancePage() {
     error,
     getMaintenanceRecords,
     createMaintenanceRecord,
+    updateMaintenanceRecord,
+    deleteMaintenanceRecord,
     startMaintenance,
     completeMaintenance,
   } = useAdminMaintenance();
@@ -34,13 +39,42 @@ export default function MaintenancePage() {
   const [newTaskForm, setNewTaskForm] = useState({
     courtId: '',
     type: '',
+    activityType: 'MAINTENANCE',
+    activityCategory: '',
     description: '',
     scheduledAt: '',
     estimatedDuration: 60,
     assignedTo: '',
+    instructor: '',
+    capacity: '',
+    requirements: '',
+    isPublic: true,
     cost: '',
     notes: '',
   });
+
+  // Estado para edición
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingMaintenance, setEditingMaintenance] = useState<any>(null);
+  const [editForm, setEditForm] = useState({
+    type: '',
+    activityType: 'MAINTENANCE',
+    activityCategory: '',
+    description: '',
+    scheduledAt: '',
+    estimatedDuration: 60,
+    assignedTo: '',
+    instructor: '',
+    capacity: '',
+    requirements: '',
+    isPublic: true,
+    cost: '',
+    notes: '',
+  });
+
+  // Estado para eliminación
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deletingMaintenance, setDeletingMaintenance] = useState<any>(null);
 
   useEffect(() => {
     getMaintenanceRecords({ limit: 50 }).catch(() => {});
@@ -107,10 +141,16 @@ export default function MaintenancePage() {
     setNewTaskForm({
       courtId: '',
       type: '',
+      activityType: 'MAINTENANCE',
+      activityCategory: '',
       description: '',
       scheduledAt: new Date().toISOString().slice(0, 16),
       estimatedDuration: 60,
       assignedTo: '',
+      instructor: '',
+      capacity: '',
+      requirements: '',
+      isPublic: true,
       cost: '',
       notes: '',
     });
@@ -124,10 +164,16 @@ export default function MaintenancePage() {
     setNewTaskForm({
       courtId: '',
       type: '',
+      activityType: 'MAINTENANCE',
+      activityCategory: '',
       description: '',
       scheduledAt: '',
       estimatedDuration: 60,
       assignedTo: '',
+      instructor: '',
+      capacity: '',
+      requirements: '',
+      isPublic: true,
       cost: '',
       notes: '',
     });
@@ -174,11 +220,17 @@ export default function MaintenancePage() {
     const maintenanceData = {
       courtId: newTaskForm.courtId,
       type: newTaskForm.type,
+      activityType: newTaskForm.activityType,
+      activityCategory: newTaskForm.activityCategory || undefined,
       description: newTaskForm.description,
       scheduledAt: scheduledDate.toISOString(), // Asegurar formato ISO 8601
       // assignedTo debe ser un UUID válido, no un email
       // Por ahora lo omitimos hasta implementar la búsqueda de usuarios
       // assignedTo: newTaskForm.assignedTo || undefined,
+      instructor: newTaskForm.instructor || undefined,
+      capacity: newTaskForm.capacity ? parseInt(newTaskForm.capacity) : undefined,
+      requirements: newTaskForm.requirements || undefined,
+      isPublic: newTaskForm.isPublic,
       cost: newTaskForm.cost ? parseFloat(newTaskForm.cost) : undefined,
       estimatedDuration: newTaskForm.estimatedDuration,
       notes: newTaskForm.notes || undefined,
@@ -297,6 +349,92 @@ export default function MaintenancePage() {
     }
   };
 
+  // Función para editar mantenimiento
+  const handleEditMaintenance = (maintenance: any) => {
+    setEditingMaintenance(maintenance);
+    setEditForm({
+      type: maintenance.type || '',
+      activityType: maintenance.activityType || 'MAINTENANCE',
+      activityCategory: maintenance.activityCategory || '',
+      description: maintenance.description || '',
+      scheduledAt: maintenance.scheduledAt ? new Date(maintenance.scheduledAt).toISOString().slice(0, 16) : '',
+      estimatedDuration: maintenance.estimatedDuration || 60,
+      assignedTo: maintenance.assignedTo || '',
+      instructor: maintenance.instructor || '',
+      capacity: maintenance.capacity || '',
+      requirements: maintenance.requirements || '',
+      isPublic: maintenance.isPublic !== undefined ? maintenance.isPublic : true,
+      cost: maintenance.cost || '',
+      notes: maintenance.notes || '',
+    });
+    setShowEditModal(true);
+  };
+
+  // Función para guardar edición
+  const handleSaveEdit = async () => {
+    if (!editingMaintenance) return;
+    
+    try {
+      setIsSubmitting(true);
+      // Mapear scheduledAt a scheduledDate para el backend
+      const { scheduledAt, ...restForm } = editForm;
+      const updateData = {
+        ...restForm,
+        scheduledDate: editForm.scheduledAt,
+      };
+      
+      await updateMaintenanceRecord(editingMaintenance.id, updateData);
+      showToast({
+        title: 'Éxito',
+        message: 'Mantenimiento actualizado correctamente',
+        variant: 'success'
+      });
+      await getMaintenanceRecords({ limit: 50 });
+      setShowEditModal(false);
+      setEditingMaintenance(null);
+    } catch (error: any) {
+      showToast({
+        title: 'Error',
+        message: error.message || 'Error al actualizar el mantenimiento',
+        variant: 'error'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Función para eliminar mantenimiento
+  const handleDeleteMaintenance = (maintenance: any) => {
+    setDeletingMaintenance(maintenance);
+    setShowDeleteDialog(true);
+  };
+
+  // Función para confirmar eliminación
+  const handleConfirmDelete = async () => {
+    if (!deletingMaintenance) return;
+    
+    try {
+      setIsSubmitting(true);
+      await deleteMaintenanceRecord(deletingMaintenance.id);
+      showToast({
+        title: 'Éxito',
+        message: 'Mantenimiento eliminado correctamente',
+        variant: 'success'
+      });
+      await getMaintenanceRecords({ limit: 50 });
+      setShowDeleteDialog(false);
+      setDeletingMaintenance(null);
+    } catch (error: any) {
+      showToast({
+        title: 'Error',
+        message: error.message || 'Error al eliminar el mantenimiento',
+        variant: 'error'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -304,8 +442,8 @@ export default function MaintenancePage() {
         <div className="flex items-center space-x-3">
           <WrenchScrewdriverIcon className="h-8 w-8 text-blue-600" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Mantenimiento</h1>
-            <p className="text-gray-600">Gestión de tareas de mantenimiento de instalaciones</p>
+            <h1 className="text-2xl font-bold text-gray-900">Gestión de Instalaciones</h1>
+            <p className="text-gray-600">Gestión de mantenimiento, entrenamientos, clases y eventos</p>
           </div>
         </div>
         <button 
@@ -368,12 +506,15 @@ export default function MaintenancePage() {
       {/* Tasks List */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Tareas de Mantenimiento</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Tareas de Instalaciones</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Tipo
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Tarea
                 </th>
@@ -403,20 +544,44 @@ export default function MaintenancePage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">Cargando...</td>
+                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">Cargando...</td>
                 </tr>
               )}
               {error && !loading && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-red-600">{String(error)}</td>
+                  <td colSpan={9} className="px-6 py-8 text-center text-red-600">{String(error)}</td>
                 </tr>
               )}
               {!loading && !error && (maintenanceRecords || []).map((record: any) => (
                 <tr key={record.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      record.activityType === 'MAINTENANCE' ? 'bg-blue-100 text-blue-800' :
+                      record.activityType === 'TRAINING' ? 'bg-green-100 text-green-800' :
+                      record.activityType === 'CLASS' ? 'bg-purple-100 text-purple-800' :
+                      record.activityType === 'WARMUP' ? 'bg-orange-100 text-orange-800' :
+                      record.activityType === 'EVENT' ? 'bg-pink-100 text-pink-800' :
+                      record.activityType === 'MEETING' ? 'bg-gray-100 text-gray-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {record.activityType === 'MAINTENANCE' ? 'Mantenimiento' :
+                       record.activityType === 'TRAINING' ? 'Entrenamiento' :
+                       record.activityType === 'CLASS' ? 'Clase' :
+                       record.activityType === 'WARMUP' ? 'Calentamiento' :
+                       record.activityType === 'EVENT' ? 'Evento' :
+                       record.activityType === 'MEETING' ? 'Reunión' :
+                       'Otro'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">{record.title}</div>
                       <div className="text-sm text-gray-500">{record.description}</div>
+                      {record.activityCategory && (
+                        <div className="text-xs text-blue-600 mt-1">
+                          {record.activityCategory}
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -469,6 +634,24 @@ export default function MaintenancePage() {
                         >
                           Completar
                         </button>
+                      )}
+                      {record.status !== 'COMPLETED' && (
+                        <>
+                          <button
+                            onClick={() => handleEditMaintenance(record)}
+                            className="inline-flex items-center px-3 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            title="Editar mantenimiento"
+                          >
+                            <PencilIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMaintenance(record)}
+                            className="inline-flex items-center px-3 py-1 border border-gray-300 text-xs font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                            title="Eliminar mantenimiento"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>
@@ -544,22 +727,58 @@ export default function MaintenancePage() {
               </div>
 
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tipo de Mantenimiento *
-                  </label>
-                  <select
-                    value={newTaskForm.type}
-                    onChange={(e) => setNewTaskForm(prev => ({ ...prev, type: e.target.value }))}
-                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
-                    required
-                  >
-                    <option value="">Selecciona el tipo</option>
-                    <option value="CLEANING">Limpieza</option>
-                    <option value="REPAIR">Reparación</option>
-                    <option value="INSPECTION">Inspección</option>
-                    <option value="RENOVATION">Renovación</option>
-                  </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tipo de Actividad *
+                    </label>
+                    <select
+                      value={newTaskForm.activityType}
+                      onChange={(e) => {
+                        const newActivityType = e.target.value;
+                        setNewTaskForm(prev => ({ 
+                          ...prev, 
+                          activityType: newActivityType,
+                          activityCategory: '', // Reset category when activity type changes
+                          type: newActivityType === 'MAINTENANCE' ? prev.type : '' // Reset type if not maintenance
+                        }));
+                      }}
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                      required
+                    >
+                      <option value="MAINTENANCE">Mantenimiento</option>
+                      <option value="TRAINING">Entrenamiento</option>
+                      <option value="CLASS">Clase</option>
+                      <option value="WARMUP">Calentamiento</option>
+                      <option value="EVENT">Evento</option>
+                      <option value="MEETING">Reunión</option>
+                      <option value="OTHER">Otro</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {getCategoryFieldLabel(newTaskForm.activityType)} *
+                    </label>
+                    <select
+                      value={newTaskForm.activityType === 'MAINTENANCE' ? newTaskForm.type : newTaskForm.activityCategory}
+                      onChange={(e) => {
+                        if (newTaskForm.activityType === 'MAINTENANCE') {
+                          setNewTaskForm(prev => ({ ...prev, type: e.target.value }));
+                        } else {
+                          setNewTaskForm(prev => ({ ...prev, activityCategory: e.target.value }));
+                        }
+                      }}
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                      required
+                    >
+                      <option value="">Selecciona una opción</option>
+                      {getCategoryOptions(newTaskForm.activityType).map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 
                 <div>
@@ -626,22 +845,77 @@ export default function MaintenancePage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Asignado a (Técnico)
-                </label>
-                <input
-                  type="text"
-                  value={newTaskForm.assignedTo}
-                  onChange={(e) => setNewTaskForm(prev => ({ ...prev, assignedTo: e.target.value }))}
-                  className="w-full px-3 py-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
-                  placeholder="Próximamente disponible"
-                  disabled
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Asignación de técnicos estará disponible próximamente
-                </p>
-              </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Asignado a (Técnico)
+                    </label>
+                    <input
+                      type="text"
+                      value={newTaskForm.assignedTo}
+                      onChange={(e) => setNewTaskForm(prev => ({ ...prev, assignedTo: e.target.value }))}
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                      placeholder="Próximamente disponible"
+                      disabled
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Asignación de técnicos estará disponible próximamente
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Instructor/Responsable
+                    </label>
+                    <input
+                      type="text"
+                      value={newTaskForm.instructor}
+                      onChange={(e) => setNewTaskForm(prev => ({ ...prev, instructor: e.target.value }))}
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                      placeholder="Nombre del instructor o responsable"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Capacidad (participantes)
+                    </label>
+                    <input
+                      type="number"
+                      value={newTaskForm.capacity}
+                      onChange={(e) => setNewTaskForm(prev => ({ ...prev, capacity: e.target.value }))}
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                      placeholder="Número de participantes"
+                      min="1"
+                      max="1000"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <label className="inline-flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={newTaskForm.isPublic}
+                        onChange={(e) => setNewTaskForm(prev => ({ ...prev, isPublic: e.target.checked }))}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">Actividad Pública</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Requerimientos Especiales
+                  </label>
+                  <textarea
+                    value={newTaskForm.requirements}
+                    onChange={(e) => setNewTaskForm(prev => ({ ...prev, requirements: e.target.value }))}
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                    rows={2}
+                    placeholder="Equipamiento especial, materiales, etc."
+                  />
+                </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -684,6 +958,244 @@ export default function MaintenancePage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edición de Mantenimiento */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[95vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 md:px-6 md:py-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg md:text-xl font-bold text-gray-900">Editar Mantenimiento</h2>
+                <button 
+                  onClick={() => setShowEditModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                >
+                  <XMarkIcon className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            <form onSubmit={(e) => { e.preventDefault(); handleSaveEdit(); }} className="p-4 md:p-6 space-y-4 md:space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tipo de Actividad *
+                  </label>
+                  <select
+                    value={editForm.activityType}
+                    onChange={(e) => {
+                      const newActivityType = e.target.value;
+                      setEditForm(prev => ({ 
+                        ...prev, 
+                        activityType: newActivityType,
+                        activityCategory: '', // Reset category when activity type changes
+                        type: newActivityType === 'MAINTENANCE' ? prev.type : '' // Reset type if not maintenance
+                      }));
+                    }}
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                    required
+                  >
+                    <option value="MAINTENANCE">Mantenimiento</option>
+                    <option value="TRAINING">Entrenamiento</option>
+                    <option value="CLASS">Clase</option>
+                    <option value="WARMUP">Calentamiento</option>
+                    <option value="EVENT">Evento</option>
+                    <option value="MEETING">Reunión</option>
+                    <option value="OTHER">Otro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {getCategoryFieldLabel(editForm.activityType)} *
+                  </label>
+                  <select
+                    value={editForm.activityType === 'MAINTENANCE' ? editForm.type : editForm.activityCategory}
+                    onChange={(e) => {
+                      if (editForm.activityType === 'MAINTENANCE') {
+                        setEditForm(prev => ({ ...prev, type: e.target.value }));
+                      } else {
+                        setEditForm(prev => ({ ...prev, activityCategory: e.target.value }));
+                      }
+                    }}
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                    required
+                  >
+                    <option value="">Selecciona una opción</option>
+                    {getCategoryOptions(editForm.activityType).map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Fecha y Hora Programada *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={editForm.scheduledAt}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, scheduledAt: e.target.value }))}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Descripción *
+                </label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                  rows={3}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Duración Estimada (minutos) *
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.estimatedDuration}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, estimatedDuration: parseInt(e.target.value) || 60 }))}
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                    min="15"
+                    max="480"
+                    step="15"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Duración en minutos (15-480 min)
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Costo Estimado (€)
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.cost}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, cost: e.target.value }))}
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Asignado a (Técnico)
+                </label>
+                <input
+                  type="text"
+                  value={editForm.assignedTo}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, assignedTo: e.target.value }))}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                  placeholder="Próximamente disponible"
+                  disabled
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Asignación de técnicos estará disponible próximamente
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notas Adicionales
+                </label>
+                <textarea
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                  rows={2}
+                  placeholder="Información adicional sobre el mantenimiento..."
+                />
+              </div>
+
+              {/* Botones */}
+              <div className="flex flex-col sm:flex-row sm:justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="w-full sm:w-auto px-4 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto px-4 py-3 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Guardando...
+                    </div>
+                  ) : (
+                    'Guardar Cambios'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Diálogo de Confirmación de Eliminación */}
+      {showDeleteDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Confirmar Eliminación</h3>
+            </div>
+            <div className="px-6 py-4">
+              <p className="text-sm text-gray-600 mb-4">
+                ¿Estás seguro de que quieres eliminar este mantenimiento? Esta acción no se puede deshacer.
+              </p>
+              {deletingMaintenance && (
+                <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                  <p className="text-sm font-medium text-gray-900">{deletingMaintenance.description}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formatDate(deletingMaintenance.scheduledAt)}
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex flex-col sm:flex-row sm:justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteDialog(false)}
+                className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={isSubmitting}
+                className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Eliminando...
+                  </div>
+                ) : (
+                  'Eliminar'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
