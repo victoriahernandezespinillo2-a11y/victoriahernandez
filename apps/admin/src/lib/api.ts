@@ -90,6 +90,7 @@ class ApiClient {
     const absoluteUrl = `${this.baseURL}${endpoint}`;
     const relativeUrl = `${endpoint}`;
 
+
     const config: RequestInit = {
       ...options,
       headers: {
@@ -102,6 +103,7 @@ class ApiClient {
     const doRequest = async (): Promise<T> => {
       try {
         let response: Response | null = null;
+        
         // Preferir relativo para evitar CORS; si falla, probar absoluto si hay baseURL
         try {
           response = await fetch(relativeUrl, { ...config, credentials: 'include' });
@@ -118,6 +120,7 @@ class ApiClient {
           }
         }
 
+        
         if (!response.ok) {
                   let message = '';
         let code = '';

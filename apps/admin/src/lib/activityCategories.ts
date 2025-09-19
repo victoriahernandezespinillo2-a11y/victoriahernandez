@@ -88,3 +88,4 @@ export const getCategoryFieldLabel = (activityType: string) => {
 export const getCategoryOptions = (activityType: string) => {
   return getActivityCategories(activityType).options;
 };
+

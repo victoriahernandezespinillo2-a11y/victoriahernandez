@@ -16,7 +16,7 @@ const UpdateCourtSchema = z.object({
   sport: z.enum(['FOOTBALL', 'FOOTBALL7', 'FUTSAL', 'BASKETBALL', 'TENNIS', 'VOLLEYBALL', 'PADDLE', 'SQUASH', 'BADMINTON', 'MULTIPURPOSE']).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'MAINTENANCE', 'RESERVED']).optional(),
   capacity: z.number().int().min(2).max(50).optional(),
-  hourlyRate: z.number().min(0).optional(),
+  basePricePerHour: z.number().min(0).optional(),
   centerId: z.string().optional(),
   // Iluminación (directo para facilitar desde Admin)
   lighting: z.boolean().optional(),
@@ -221,6 +221,7 @@ export async function PUT(request: NextRequest) {
       const pathname = req.nextUrl.pathname;
       const courtId = pathname.split('/').pop() as string;
       const body = await req.json();
+      
       const courtData = UpdateCourtSchema.parse(body);
       
       // Verificar que la cancha existe
@@ -270,24 +271,28 @@ export async function PUT(request: NextRequest) {
         }
       }
 
+      // Preparar datos para actualización
+      const updateData: any = {
+        ...(courtData.name ? { name: courtData.name } : {}),
+        ...(courtData.centerId ? { centerId: courtData.centerId } : {}),
+        ...(courtData.sport ? { sportType: courtData.sport } : {}),
+        ...(typeof courtData.capacity !== 'undefined' ? { capacity: courtData.capacity } : {}),
+        ...(typeof courtData.basePricePerHour !== 'undefined' ? { basePricePerHour: courtData.basePricePerHour as any } : {}),
+        ...(typeof courtData.lighting !== 'undefined' ? { hasLighting: courtData.lighting } : {}),
+        ...(typeof courtData.lightingExtraPerHour !== 'undefined' ? { lightingExtraPerHour: courtData.lightingExtraPerHour as any } : {}),
+        ...(courtData.status ? {
+          isActive: courtData.status === 'ACTIVE' ? true : (courtData.status === 'INACTIVE' ? false : existingCourt.isActive),
+          maintenanceStatus: courtData.status === 'MAINTENANCE' ? 'maintenance' : existingCourt.maintenanceStatus
+        } : {}),
+        ...(typeof courtData.isMultiuse === 'boolean' ? { isMultiuse: courtData.isMultiuse } : {}),
+        ...(Array.isArray(courtData.allowedSports) ? { allowedSports: courtData.allowedSports } : {}),
+      };
+      
+      
       // Actualizar cancha
       const updatedCourt = await db.court.update({
         where: { id: courtId },
-        data: {
-          ...(courtData.name ? { name: courtData.name } : {}),
-          ...(courtData.centerId ? { centerId: courtData.centerId } : {}),
-          ...(courtData.sport ? { sportType: courtData.sport } : {}),
-          ...(typeof courtData.capacity !== 'undefined' ? { capacity: courtData.capacity } : {}),
-          ...(typeof courtData.hourlyRate !== 'undefined' ? { basePricePerHour: courtData.hourlyRate as any } : {}),
-          ...(typeof courtData.lighting !== 'undefined' ? { hasLighting: courtData.lighting } : {}),
-          ...(typeof courtData.lightingExtraPerHour !== 'undefined' ? { lightingExtraPerHour: courtData.lightingExtraPerHour as any } : {}),
-          ...(courtData.status ? {
-            isActive: courtData.status === 'ACTIVE' ? true : (courtData.status === 'INACTIVE' ? false : existingCourt.isActive),
-            maintenanceStatus: courtData.status === 'MAINTENANCE' ? 'maintenance' : existingCourt.maintenanceStatus
-          } : {}),
-          ...(typeof courtData.isMultiuse === 'boolean' ? { isMultiuse: courtData.isMultiuse } : {}),
-          ...(Array.isArray(courtData.allowedSports) ? { allowedSports: courtData.allowedSports } : {}),
-        },
+        data: updateData,
         include: {
           center: {
             select: {
@@ -302,6 +307,7 @@ export async function PUT(request: NextRequest) {
           }
         }
       });
+      
       
       // Log de auditoría removido temporalmente - modelo no existe en schema
       

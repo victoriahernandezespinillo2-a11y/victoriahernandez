@@ -419,8 +419,12 @@ export function useAdminCourts() {
     // Adaptar campos a payload backend
     const payload: any = { ...updateData };
     if (payload.hourlyRate !== undefined) {
-      payload.pricePerHour = payload.hourlyRate;
+      payload.basePricePerHour = payload.hourlyRate; // ✅ CORREGIDO: backend espera basePricePerHour
       delete payload.hourlyRate;
+    }
+    if (payload.type !== undefined) {
+      payload.sport = payload.type; // ✅ Mapear type -> sport para el backend
+      delete payload.type;
     }
     if (payload.capacity !== undefined) {
       payload.capacity = Math.max(1, Math.floor(payload.capacity));
@@ -437,8 +441,10 @@ export function useAdminCourts() {
     if (payload.isMultiuse === false) {
       payload.allowedSports = [];
     }
+    
     const updatedRaw = await adminApi.courts.update(id, payload);
     const updatedCourt = normalizeCourt(updatedRaw);
+    
     setData(prev => prev ? prev.map(court => court.id === id ? updatedCourt : court) : [updatedCourt]);
     return updatedCourt as any;
   }, [setData]);

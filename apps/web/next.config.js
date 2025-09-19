@@ -86,7 +86,7 @@ const nextConfig = {
       "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com",
       "frame-ancestors 'self'",
       "base-uri 'self'",
-      "form-action 'self'",
+      "form-action 'self' https://sis.redsys.es https://sis-t.redsys.es",
       "upgrade-insecure-requests",
     ].join('; ');
 

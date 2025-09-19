@@ -212,6 +212,7 @@ export default function CourtsPage() {
     // Poblar el estado del formulario de edición con los datos de la cancha seleccionada
     setEditForm({
       name: court.name,
+      type: court.type, // ✅ Agregar el deporte
       hourlyRate: court.hourlyRate,
       status: court.status,
       isMultiuse: court.isMultiuse ?? false,
@@ -489,11 +490,36 @@ export default function CourtsPage() {
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Deporte</label>
+                <select
+                  value={editForm.type || ''}
+                  onChange={(e) => setEditForm({ ...editForm, type: e.target.value as Court['type'] })}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="FOOTBALL7">Fútbol 7</option>
+                  <option value="PADDLE">Pádel</option>
+                  <option value="TENNIS">Tenis</option>
+                  <option value="FUTSAL">Fútbol Sala / Balonmano</option>
+                  <option value="BASKETBALL">Baloncesto</option>
+                  <option value="VOLLEYBALL">Voleibol</option>
+                  <option value="MULTIPURPOSE">Multiusos</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tarifa por Hora (€)</label>
                 <input
                   type="number"
-                  value={editForm.hourlyRate || 0}
-                  onChange={(e) => setEditForm({ ...editForm, hourlyRate: Number(e.target.value) })}
+                  min={0}
+                  step={0.01}
+                  value={editForm.hourlyRate ?? ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setEditForm({ 
+                      ...editForm, 
+                      hourlyRate: value === '' ? undefined : Number(value) 
+                    });
+                  }}
+                  placeholder="0.00"
                   className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -526,8 +552,16 @@ export default function CourtsPage() {
                     <input
                       type="number"
                       min={0}
-                      value={Number((editForm as any).lightingExtraPerHour ?? 0)}
-                      onChange={(e) => setEditForm({ ...editForm, lightingExtraPerHour: Number(e.target.value) as any })}
+                      step={0.01}
+                      value={(editForm as any).lightingExtraPerHour ?? ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setEditForm({ 
+                          ...editForm, 
+                          lightingExtraPerHour: value === '' ? undefined : Number(value) 
+                        });
+                      }}
+                      placeholder="0.00"
                       className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
