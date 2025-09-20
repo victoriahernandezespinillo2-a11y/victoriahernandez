@@ -63,7 +63,7 @@ export function ActivitiesSection() {
 
         <div className="text-center mt-12">
           <button 
-            onClick={() => router.push('/dashboard/activities')}
+            onClick={() => router.push('/dashboard/reservations/new')}
             className="bg-gradient-to-r from-emerald-500 to-blue-600 text-white px-8 py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
           >
             <i className="fas fa-calendar-plus mr-2"></i>
