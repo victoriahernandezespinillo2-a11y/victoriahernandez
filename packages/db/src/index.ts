@@ -68,14 +68,18 @@ const __dirname = path.dirname(__filename);
   }
 })();
 
-console.log('--- DEBUGGING DATABASE_URL (FIXED) ---');
 // Asegurar SSL para Supabase/Neon en cualquier entorno
 if (process.env.DATABASE_URL && !/[?&]sslmode=/.test(process.env.DATABASE_URL)) {
   const sep = process.env.DATABASE_URL.includes('?') ? '&' : '?';
   process.env.DATABASE_URL = `${process.env.DATABASE_URL}${sep}sslmode=require`;
 }
-console.log('DATABASE_URL en db/index.ts:', process.env.DATABASE_URL?.replace(/:[^:@]*@/, ':***@'));
-console.log('--- FIN DEBUGGING ---');
+
+// Logs de debugging solo en desarrollo
+if (process.env.NODE_ENV !== 'production') {
+  console.log('--- DEBUGGING DATABASE_URL (FIXED) ---');
+  console.log('DATABASE_URL en db/index.ts:', process.env.DATABASE_URL?.replace(/:[^:@]*@/, ':***@'));
+  console.log('--- FIN DEBUGGING ---');
+}
 
 // Configurar el cliente de Prisma
 const globalForPrisma = globalThis as unknown as {

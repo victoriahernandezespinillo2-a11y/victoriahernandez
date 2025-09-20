@@ -107,12 +107,14 @@ const nextConfig = {
     // 🔧 CONFIGURACIÓN ROBUSTA DEL BACKEND
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://polideportivo-api.vercel.app';
     
-    // 📊 LOGGING ENTERPRISE PARA DEBUGGING
-    console.log('🚀 [NEXT-CONFIG] === POLIDEPORTIVO REWRITES CONFIGURATION ===');
-    console.log('🔧 [NEXT-CONFIG] Backend API URL:', apiUrl);
-    console.log('🔧 [NEXT-CONFIG] Environment:', process.env.NODE_ENV);
-    console.log('🔧 [NEXT-CONFIG] Timestamp:', new Date().toISOString());
-    console.log('🔧 [NEXT-CONFIG] Strategy: beforeFiles + negative regex');
+    // 📊 LOGGING ENTERPRISE PARA DEBUGGING (solo en desarrollo)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🚀 [NEXT-CONFIG] === POLIDEPORTIVO REWRITES CONFIGURATION ===');
+      console.log('🔧 [NEXT-CONFIG] Backend API URL:', apiUrl);
+      console.log('🔧 [NEXT-CONFIG] Environment:', process.env.NODE_ENV);
+      console.log('🔧 [NEXT-CONFIG] Timestamp:', new Date().toISOString());
+      console.log('🔧 [NEXT-CONFIG] Strategy: beforeFiles + negative regex');
+    }
 
     return {
       // 🎯 ESTRATEGIA ENTERPRISE: beforeFiles previene conflictos con rutas locales

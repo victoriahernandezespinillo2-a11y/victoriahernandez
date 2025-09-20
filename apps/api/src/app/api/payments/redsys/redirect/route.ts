@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@repo/db';
 import { paymentService, RedsysService } from '@repo/payments';
+import { logger } from '@/lib/logger';
 
 // Forzamos runtime Node.js (evita edge y asegura compatibilidad)
 export const runtime = 'nodejs';
@@ -252,19 +253,19 @@ export async function GET(request: NextRequest) {
     // 🔍 DEBUG REDSYS: decodificar y loggear parámetros enviados (RESERVATION)
     try {
       const decoded = JSON.parse(Buffer.from(Ds_MerchantParameters, 'base64').toString('utf8'));
-      console.log('🔍 [REDSYS-PARAMETERS] Decoded MerchantParameters:', decoded);
+      logger.debug('🔍 [REDSYS-PARAMETERS] Decoded MerchantParameters:', decoded);
       
       // Validaciones pre-envío
       const expectedAmount = amount; // amount ya está en céntimos
       if (decoded.DS_MERCHANT_AMOUNT !== expectedAmount) {
-        console.error('❌ [REDSYS-CHECK] Mismatch en amount (centavos). Enviando:', decoded.DS_MERCHANT_AMOUNT, ' Esperado:', expectedAmount);
+        logger.error('❌ [REDSYS-CHECK] Mismatch en amount (centavos). Enviando:', decoded.DS_MERCHANT_AMOUNT, ' Esperado:', expectedAmount);
       }
       if (!decoded.DS_MERCHANT_ORDER || decoded.DS_MERCHANT_ORDER.length < 4 || decoded.DS_MERCHANT_ORDER.length > 12) {
-        console.error('❌ [REDSYS-CHECK] Ds_Order inválido:', decoded.DS_MERCHANT_ORDER);
+        logger.error('❌ [REDSYS-CHECK] Ds_Order inválido:', decoded.DS_MERCHANT_ORDER);
       }
       
       // Log de configuración para troubleshooting
-      console.log('📋 [REDSYS-CONFIG] Configuración del pago:', {
+      logger.debug('📋 [REDSYS-CONFIG] Configuración del pago:', {
         merchantCode: decoded.DS_MERCHANT_MERCHANTCODE,
         terminal: decoded.DS_MERCHANT_TERMINAL,
         currency: decoded.DS_MERCHANT_CURRENCY,
@@ -276,11 +277,11 @@ export async function GET(request: NextRequest) {
       });
       
     } catch (e) {
-      console.warn('⚠️ [REDSYS-PARAMETERS] No pude decodificar Ds_MerchantParameters:', e);
+      logger.warn('⚠️ [REDSYS-PARAMETERS] No pude decodificar Ds_MerchantParameters:', e);
     }
 
     const html = buildAutoPostHtml(action, Ds_SignatureVersion, Ds_MerchantParameters, Ds_Signature);
-    console.log('🔍 [REDSYS-HTML] Generated HTML:', html);
+    logger.debug('🔍 [REDSYS-HTML] Generated HTML:', html);
     return htmlResponse(html);
   } catch (error) {
     console.error('Error preparando redirección Redsys:', error);

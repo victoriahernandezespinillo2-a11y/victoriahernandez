@@ -103,7 +103,13 @@ export function useSidebarBadges() {
       });
       return Array.isArray(users) ? users.length : 0;
     } catch (error) {
-      console.warn('Error obteniendo usuarios nuevos:', error);
+      // Silenciar errores 401 en producción para evitar spam de logs
+      if (process.env.NODE_ENV === 'production' && (error as any)?.status === 401) {
+        return 0;
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('Error obteniendo usuarios nuevos:', error);
+      }
       return 0;
     }
   }, []);
@@ -138,7 +144,12 @@ export function useSidebarBadges() {
             console.log(`Orders ${status}:`, data.length);
           }
         } catch (statusError) {
-          console.warn(`Error obteniendo pedidos con estado ${status}:`, statusError);
+          // Silenciar errores 401 en producción para evitar spam de logs
+          if (process.env.NODE_ENV === 'production' && (statusError as any)?.status === 401) {
+            // Continuar sin log
+          } else if (process.env.NODE_ENV !== 'production') {
+            console.warn(`Error obteniendo pedidos con estado ${status}:`, statusError);
+          }
           // Continuar con el siguiente estado en lugar de fallar completamente
         }
       }
@@ -164,7 +175,12 @@ export function useSidebarBadges() {
           : [];
         totalCount += highData.length;
       } catch (highError) {
-        console.warn('Error obteniendo logs de alta severidad:', highError);
+        // Silenciar errores 401 en producción para evitar spam de logs
+        if (process.env.NODE_ENV === 'production' && (highError as any)?.status === 401) {
+          // Continuar sin log
+        } else if (process.env.NODE_ENV !== 'production') {
+          console.warn('Error obteniendo logs de alta severidad:', highError);
+        }
       }
       
       // Obtener logs críticos
@@ -175,7 +191,12 @@ export function useSidebarBadges() {
           : [];
         totalCount += criticalData.length;
       } catch (criticalError) {
-        console.warn('Error obteniendo logs críticos:', criticalError);
+        // Silenciar errores 401 en producción para evitar spam de logs
+        if (process.env.NODE_ENV === 'production' && (criticalError as any)?.status === 401) {
+          // Continuar sin log
+        } else if (process.env.NODE_ENV !== 'production') {
+          console.warn('Error obteniendo logs críticos:', criticalError);
+        }
       }
       
       return totalCount;

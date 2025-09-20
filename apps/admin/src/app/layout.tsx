@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { SessionWrapper } from '../components/SessionWrapper'
 import { ToastProvider } from '../components/ToastProvider'
@@ -10,8 +10,6 @@ export const metadata: Metadata = {
   title: 'Admin - Polideportivo Victoria Hernandez',
   description: 'Panel de administración del polideportivo de Victoria Hernandez',
   manifest: '/manifest.json',
-  themeColor: '#1f2937',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -20,6 +18,14 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false
   }
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#1f2937'
 }
 
 export default function RootLayout({

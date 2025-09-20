@@ -63,10 +63,66 @@ export default function AccessControlPage() {
   useEffect(() => {
     const checkCameraSupport = async () => {
       try {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Checking camera support...');
+        }
+        
+        // Verificar si estamos en HTTPS (requerido para cámara)
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('Not HTTPS - camera not available');
+          }
+          setHasCamera(false);
+          return;
+        }
+
+        // Verificar soporte básico del navegador
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('MediaDevices not supported');
+          }
+          setHasCamera(false);
+          return;
+        }
+
+        // Usar QrScanner.hasCamera()
         const hasCamera = await QrScanner.hasCamera();
-        setHasCamera(hasCamera);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('QrScanner.hasCamera result:', hasCamera);
+        }
+        
+        if (hasCamera) {
+          // Intentar listar cámaras para verificar permisos
+          try {
+            const cameras = await QrScanner.listCameras();
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('Available cameras:', cameras);
+            }
+            
+            // Filtrar cámaras virtuales y usar solo cámaras reales
+            const realCameras = cameras.filter(camera => 
+              !camera.label.toLowerCase().includes('virtual') &&
+              !camera.label.toLowerCase().includes('obs') &&
+              !camera.label.toLowerCase().includes('screen')
+            );
+            
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('Real cameras (filtered):', realCameras);
+            }
+            setHasCamera(realCameras.length > 0);
+          } catch (listError) {
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('Cannot list cameras (permission needed):', listError);
+            }
+            setHasCamera(true); // Asumir que hay cámara pero sin permisos
+          }
+        } else {
+          setHasCamera(false);
+        }
       } catch (error) {
-        console.error('Error checking camera support:', error);
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('Error checking camera support:', error);
+        }
         setHasCamera(false);
       }
     };
@@ -90,7 +146,16 @@ export default function AccessControlPage() {
     setVerifyResult(null);
     
     if (!hasCamera) {
-      setVerifyError("No se encontró ninguna cámara en el dispositivo.");
+      let errorMessage = "No se encontró ninguna cámara en el dispositivo.";
+      
+      // Verificar el protocolo
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        errorMessage = "Se requiere HTTPS para acceder a la cámara. Usa la entrada manual como alternativa.";
+      } else if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        errorMessage = "Tu navegador no soporta acceso a la cámara. Usa la entrada manual como alternativa.";
+      }
+      
+      setVerifyError(errorMessage);
       return;
     }
 
@@ -100,12 +165,82 @@ export default function AccessControlPage() {
     }
 
     try {
-      // Create QR Scanner instance
+      // Verificar que el elemento video esté en el DOM
+      if (!videoRef.current.isConnected) {
+        setVerifyError("El elemento de video no está conectado al DOM.");
+        return;
+      }
+
+      // Verificar que estemos en HTTPS (requerido para cámara)
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        setVerifyError("Se requiere HTTPS para acceder a la cámara en producción.");
+        return;
+      }
+
+      // Obtener lista de cámaras reales (no virtuales)
+      let selectedCameraId = 'environment'; // Por defecto
+      try {
+        const cameras = await QrScanner.listCameras();
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('All cameras found:', cameras.map(c => ({ id: c.id, label: c.label })));
+        }
+        
+        // Filtrar cámaras reales más agresivamente
+        const realCameras = cameras.filter(camera => {
+          const label = camera.label.toLowerCase();
+          const isVirtual = label.includes('virtual') || 
+                           label.includes('obs') || 
+                           label.includes('screen') || 
+                           label.includes('fake') ||
+                           label.includes('webcam') ||
+                           label.includes('usb') && label.includes('camera') === false;
+          
+          // En móviles, preferir cámaras que no sean front-facing por defecto
+          const isFrontFacing = label.includes('front') || 
+                               label.includes('facing') ||
+                               label.includes('user');
+          
+          return !isVirtual && !isFrontFacing;
+        });
+        
+        // Si no hay cámaras reales filtradas, usar todas las no virtuales
+        const fallbackCameras = cameras.filter(camera => {
+          const label = camera.label.toLowerCase();
+          return !label.includes('virtual') && 
+                 !label.includes('obs') && 
+                 !label.includes('screen') && 
+                 !label.includes('fake');
+        });
+        
+        const camerasToUse = realCameras.length > 0 ? realCameras : fallbackCameras;
+        
+        if (camerasToUse.length > 0) {
+          const selectedCamera = camerasToUse[0];
+          if (selectedCamera) {
+            selectedCameraId = selectedCamera.id;
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('Selected camera:', selectedCamera.label, selectedCameraId);
+            }
+          }
+        } else {
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('No suitable cameras found, using default environment camera');
+          }
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Could not list cameras, using default:', error);
+        }
+      }
+
+      // Create QR Scanner instance con worker path
       const qrScanner = new QrScanner(
         videoRef.current,
-        (result) => {
-          console.log('QR Code detected:', result);
-          const resultText = result.data;
+        (result: string) => {
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('QR Code detected:', result);
+          }
+          const resultText = result;
           if (resultText && resultText !== lastScanText) {
             setLastScanText(resultText);
             const token = extractTokenFromText(resultText);
@@ -118,12 +253,6 @@ export default function AccessControlPage() {
               handleVerify(token);
             }
           }
-        },
-        {
-          highlightScanRegion: true,
-          highlightCodeOutline: true,
-          maxScansPerSecond: 5,
-          preferredCamera: 'environment', // Usar cámara trasera por defecto
         }
       );
 
@@ -135,7 +264,9 @@ export default function AccessControlPage() {
       setVerifyError("");
       
     } catch (error: any) {
-      console.error('Error accessing camera:', error);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Error accessing camera:', error);
+      }
       let errorMessage = "No se pudo acceder a la cámara.";
       
       if (error.name === 'NotAllowedError') {
@@ -195,7 +326,9 @@ export default function AccessControlPage() {
       }
       
     } catch (error) {
-      console.error('Verification error:', error);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Verification error:', error);
+      }
       setVerifyError("Error de red al verificar el token.");
     } finally {
       setVerifying(false);
@@ -259,7 +392,9 @@ export default function AccessControlPage() {
       }
       
     } catch (error) {
-      console.error('Check-in error:', error);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Check-in error:', error);
+      }
       setCheckInError("Error de red durante el check-in.");
     } finally {
       setCheckInLoading(false);
@@ -311,14 +446,75 @@ export default function AccessControlPage() {
             {/* Camera Controls */}
             <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
               {!cameraActive ? (
-                <button
-                  onClick={startCamera}
-                  disabled={!hasCamera}
-                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  <CameraIcon className="h-5 w-5 mr-2" />
-                  {hasCamera ? "Iniciar Cámara" : "Cámara No Disponible"}
-                </button>
+                <>
+                  <button
+                    onClick={startCamera}
+                    disabled={!hasCamera}
+                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    <CameraIcon className="h-5 w-5 mr-2" />
+                    {hasCamera ? "Iniciar Cámara" : "Cámara No Disponible"}
+                  </button>
+                  
+                  {/* Botón de diagnóstico */}
+                  <button
+                    onClick={async () => {
+                      if (process.env.NODE_ENV !== 'production') {
+                        console.log('=== DIAGNÓSTICO DE CÁMARA ===');
+                        console.log('Protocolo:', location.protocol);
+                        console.log('Hostname:', location.hostname);
+                        console.log('MediaDevices:', !!navigator.mediaDevices);
+                        console.log('getUserMedia:', !!navigator.mediaDevices?.getUserMedia);
+                      }
+                      
+                      try {
+                        const hasCamera = await QrScanner.hasCamera();
+                        if (process.env.NODE_ENV !== 'production') {
+                          console.log('QrScanner.hasCamera():', hasCamera);
+                        }
+                        
+                        const cameras = await QrScanner.listCameras();
+                        if (process.env.NODE_ENV !== 'production') {
+                          console.log('QrScanner.listCameras():', cameras);
+                        }
+                        
+                        // Filtrar cámaras reales
+                        const realCameras = cameras.filter(camera => 
+                          !camera.label.toLowerCase().includes('virtual') &&
+                          !camera.label.toLowerCase().includes('obs') &&
+                          !camera.label.toLowerCase().includes('screen') &&
+                          !camera.label.toLowerCase().includes('fake')
+                        );
+                        
+                        if (process.env.NODE_ENV !== 'production') {
+                          console.log('Real cameras (filtered):', realCameras);
+                        }
+                        
+                        const message = `Diagnóstico completo en consola.
+                        
+Cámara disponible: ${hasCamera}
+Total cámaras: ${cameras.length}
+Cámaras reales: ${realCameras.length}
+
+Cámaras encontradas:
+${cameras.map(c => `- ${c.label}`).join('\n')}
+
+Cámaras reales:
+${realCameras.map(c => `- ${c.label}`).join('\n')}`;
+                        
+                        alert(message);
+                      } catch (error) {
+                        if (process.env.NODE_ENV !== 'production') {
+                          console.error('Error en diagnóstico:', error);
+                        }
+                        alert(`Error en diagnóstico: ${error instanceof Error ? error.message : String(error)}`);
+                      }
+                    }}
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    🔍 Diagnóstico
+                  </button>
+                </>
               ) : (
                 <button
                   onClick={stopCamera}

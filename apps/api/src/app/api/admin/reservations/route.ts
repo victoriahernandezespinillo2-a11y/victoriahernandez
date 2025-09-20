@@ -41,7 +41,15 @@ export async function GET(request: NextRequest) {
       } catch {}
 
       const { searchParams } = req.nextUrl;
-      const params = GetAdminReservationsSchema.parse(Object.fromEntries(searchParams.entries()));
+      console.log('Admin reservations request params:', Object.fromEntries(searchParams.entries()));
+      
+      let params;
+      try {
+        params = GetAdminReservationsSchema.parse(Object.fromEntries(searchParams.entries()));
+      } catch (error) {
+        console.error('Error parsing admin reservations params:', error);
+        return ApiResponse.validation([{ field: 'params', message: 'Parámetros de consulta inválidos' }]);
+      }
 
       const skip = (params.page - 1) * params.limit;
 
@@ -74,6 +82,9 @@ export async function GET(request: NextRequest) {
         ];
       }
 
+      console.log('Admin reservations query where:', JSON.stringify(where, null, 2));
+      console.log('Admin reservations query params:', { skip, limit: params.limit, sortBy: params.sortBy, sortOrder: params.sortOrder });
+
       const [items, total] = await Promise.all([
         db.reservation.findMany({
           where,
@@ -87,6 +98,8 @@ export async function GET(request: NextRequest) {
         }),
         db.reservation.count({ where }),
       ]);
+
+      console.log('Admin reservations query results:', { itemsCount: items.length, total });
 
       // Detectar reembolsos recientes por reservationId a partir de outbox
       const idsSet = new Set(items.map((r: any) => r.id));
@@ -165,12 +178,18 @@ export async function GET(request: NextRequest) {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error('Zod validation error in admin reservations:', error.errors);
         return ApiResponse.validation(
           error.errors.map((err) => ({ field: err.path.join('.'), message: err.message }))
         );
       }
-      console.error('Error admin reservations:', error);
-      return ApiResponse.internalError('Error interno del servidor');
+      
+      console.error('Error in admin reservations GET:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      
+      // Proporcionar más información del error
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      return ApiResponse.internalError(`Error interno del servidor: ${errorMessage}`);
     }
   })(request);
 }

@@ -1,10 +1,11 @@
 import { db } from '@repo/db';
 import type { Prisma } from '@prisma/client';
+import { logger } from '@/lib/logger';
 
 export class ProductService {
   async listActive(params: { centerId?: string; search?: string; category?: string; page?: number; limit?: number }) {
     try {
-      console.log('🔍 [ProductService] Iniciando listActive con params:', params);
+      logger.debug('🔍 [ProductService] Iniciando listActive con params:', params);
       
       const { centerId, search, category } = params;
       const page = Math.max(1, Number(params.page || 1));
@@ -22,19 +23,19 @@ export class ProductService {
         ];
       }
 
-      console.log('🔍 [ProductService] Query where:', JSON.stringify(where, null, 2));
-      console.log('🔍 [ProductService] Pagination:', { page, limit, skip });
+      logger.debug('🔍 [ProductService] Query where:', JSON.stringify(where, null, 2));
+      logger.debug('🔍 [ProductService] Pagination:', { page, limit, skip });
 
       const [items, total] = await Promise.all([
         db.product.findMany({ where, skip, take: limit, orderBy: { updatedAt: 'desc' } }),
         db.product.count({ where }),
       ]);
 
-      console.log('🔍 [ProductService] Resultados:', { itemsCount: items.length, total });
+      logger.debug('🔍 [ProductService] Resultados:', { itemsCount: items.length, total });
 
       return { items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
     } catch (error) {
-      console.error('❌ [ProductService] Error en listActive:', error);
+      logger.error('❌ [ProductService] Error en listActive:', error);
       throw error;
     }
   }
