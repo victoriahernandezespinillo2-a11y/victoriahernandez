@@ -1,6 +1,6 @@
 import { db } from '@repo/db';
 import type { Prisma } from '@prisma/client';
-import { logger } from '@/lib/logger';
+import { logger } from '../logger';
 
 export class ProductService {
   async listActive(params: { centerId?: string; search?: string; category?: string; page?: number; limit?: number }) {

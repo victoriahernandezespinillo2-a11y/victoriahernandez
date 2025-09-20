@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@repo/db';
 import { paymentService, RedsysService } from '@repo/payments';
-import { logger } from '@/lib/logger';
+import { logger } from '../../../../../lib/logger';
 
 // Forzamos runtime Node.js (evita edge y asegura compatibilidad)
 export const runtime = 'nodejs';
