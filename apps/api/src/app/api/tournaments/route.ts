@@ -6,7 +6,7 @@
 
 import { NextRequest } from 'next/server';
 import { TournamentService, GetTournamentsSchema, CreateTournamentSchema } from '@/lib/services/tournament.service';
-import { withPublicMiddleware, withAdminMiddleware, ApiResponse } from '@/lib/middleware';
+import { withAuthMiddleware, withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { z } from 'zod';
 
 const tournamentService = new TournamentService();
@@ -25,7 +25,7 @@ export async function OPTIONS() {
  * Acceso: PÃºblico (solo torneos pÃºblicos) / STAFF+ (todos)
  */
 export async function GET(request: NextRequest) {
-  return withPublicMiddleware(async (req) => {
+  return withAuthMiddleware(async (req) => {
     try {
       const { searchParams } = new URL(req.url);
       const rawParams = Object.fromEntries(searchParams.entries());
@@ -33,6 +33,20 @@ export async function GET(request: NextRequest) {
       // Si no hay usuario autenticado, solo mostrar torneos pÃºblicos
       if (!(req as any).user) {
         rawParams.isPublic = 'true';
+        // Excluir torneos en estado DRAFT para usuarios no autenticados
+        if (!rawParams.status) {
+          rawParams.excludeStatus = 'DRAFT';
+        }
+      } else {
+        // Si hay usuario autenticado, verificar si es admin
+        const user = (req as any).user;
+        if (user.role !== 'ADMIN' && user.role !== 'STAFF') {
+          // Usuarios normales no deben ver torneos DRAFT
+          if (!rawParams.status) {
+            rawParams.excludeStatus = 'DRAFT';
+          }
+        }
+        // Los admins y staff pueden ver todos los torneos sin restricciones
       }
       
       // Validar y convertir parÃ¡metros usando el schema

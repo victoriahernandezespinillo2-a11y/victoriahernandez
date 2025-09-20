@@ -9,6 +9,7 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon,
   ClockIcon,
+  TrophyIcon,
 } from '@heroicons/react/24/outline';
 import { useAdminDashboard, useAdminReports } from '@/lib/hooks';
 import { adminApi } from '@/lib/api';
@@ -144,6 +145,13 @@ export default function AdminHomePage() {
       changeType: dashboardData?.metrics?.growth?.memberships?.isPositive !== false ? 'increase' : 'decrease',
     },
     {
+      name: 'Torneos Activos',
+      stat: dashboardData?.metrics?.totalTournaments || '0',
+      icon: TrophyIcon,
+      change: dashboardData?.metrics?.growth?.tournaments?.value || '+0.00',
+      changeType: dashboardData?.metrics?.growth?.tournaments?.isPositive !== false ? 'increase' : 'decrease',
+    },
+    {
       name: 'Ingresos Totales',
       stat: `$${Number(dashboardData?.metrics?.totalRevenue || 0).toLocaleString()}`,
       icon: CurrencyDollarIcon,
@@ -163,6 +171,14 @@ export default function AdminHomePage() {
       icon: CalendarDaysIcon,
       iconForeground: 'text-teal-700',
       iconBackground: 'bg-teal-50',
+    },
+    {
+      name: 'Gestionar Torneos',
+      description: 'Administrar torneos',
+      href: '/tournaments',
+      icon: TrophyIcon,
+      iconForeground: 'text-amber-700',
+      iconBackground: 'bg-amber-50',
     },
     {
       name: 'Agregar Usuario',

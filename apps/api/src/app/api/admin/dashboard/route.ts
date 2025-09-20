@@ -53,16 +53,18 @@ export async function GET(request: NextRequest) {
       const baseFilter = { createdAt: { gte: startDate, lte: now }, ...(params.centerId && { centerId: params.centerId }) } as any;
       
       // Ejecutar consultas con tolerancia a fallos
-      const [curRevRes, curResRes, curUsrRes, curMemRes] = await Promise.allSettled([
+      const [curRevRes, curResRes, curUsrRes, curMemRes, curTourRes] = await Promise.allSettled([
         prisma.reservation.aggregate({ where: { ...baseFilter, status: 'PAID' as any }, _sum: { totalPrice: true } }),
         prisma.reservation.count({ where: baseFilter }),
         prisma.user.count({ where: { createdAt: { gte: startDate, lte: now } } }),
         prisma.membership.count({ where: baseFilter }),
+        prisma.tournament.count({ where: baseFilter }),
       ]);
       const currentRevenue = curRevRes.status === 'fulfilled' ? curRevRes.value : { _sum: { totalPrice: 0 } };
       const currentReservations = curResRes.status === 'fulfilled' ? curResRes.value : 0;
       const currentUsers = curUsrRes.status === 'fulfilled' ? curUsrRes.value : 0;
       const currentMemberships = curMemRes.status === 'fulfilled' ? curMemRes.value : 0;
+      const currentTournaments = curTourRes.status === 'fulfilled' ? curTourRes.value : 0;
 
       // Período anterior
       const previousStartDate = new Date(startDate);
@@ -71,16 +73,18 @@ export async function GET(request: NextRequest) {
       previousStartDate.setDate(previousStartDate.getDate() - periodDays);
       const previousFilter = { createdAt: { gte: previousStartDate, lte: previousEndDate }, ...(params.centerId && { centerId: params.centerId }) } as any;
 
-      const [prevRevRes, prevResRes, prevUsrRes, prevMemRes] = await Promise.allSettled([
+      const [prevRevRes, prevResRes, prevUsrRes, prevMemRes, prevTourRes] = await Promise.allSettled([
         prisma.reservation.aggregate({ where: { ...previousFilter, status: 'PAID' as any }, _sum: { totalPrice: true } }),
         prisma.reservation.count({ where: previousFilter }),
         prisma.user.count({ where: { createdAt: { gte: previousStartDate, lte: previousEndDate } } }),
         prisma.membership.count({ where: previousFilter }),
+        prisma.tournament.count({ where: previousFilter }),
       ]);
       const previousRevenue = prevRevRes.status === 'fulfilled' ? prevRevRes.value : { _sum: { totalPrice: 0 } };
       const previousReservations = prevResRes.status === 'fulfilled' ? prevResRes.value : 0;
       const previousUsers = prevUsrRes.status === 'fulfilled' ? prevUsrRes.value : 0;
       const previousMemberships = prevMemRes.status === 'fulfilled' ? prevMemRes.value : 0;
+      const previousTournaments = prevTourRes.status === 'fulfilled' ? prevTourRes.value : 0;
 
       const calculateGrowth = (current: number, previous: number): { value: string; isPositive: boolean } => {
         if (!Number.isFinite(current)) current = 0; if (!Number.isFinite(previous)) previous = 0;
@@ -99,11 +103,12 @@ export async function GET(request: NextRequest) {
         try { return await fn(); } catch { return []; }
       };
 
-      const [resByDate, paidRevenueByDate, usersByDate, membershipsByDate] = await Promise.all([
+      const [resByDate, paidRevenueByDate, usersByDate, membershipsByDate, tournamentsByDate] = await Promise.all([
         safeGroupCount(() => prisma.reservation.groupBy({ by: ['createdAt'], where: baseFilter, _count: { id: true } } as any)),
         safeGroupCount(() => prisma.reservation.groupBy({ by: ['createdAt'], where: { ...baseFilter, status: 'PAID' as any }, _sum: { totalPrice: true } } as any)),
         safeGroupCount(() => prisma.user.groupBy({ by: ['createdAt'], where: { createdAt: { gte: startDate, lte: now } }, _count: { id: true } } as any)),
         safeGroupCount(() => prisma.membership.groupBy({ by: ['createdAt'], where: baseFilter, _count: { id: true } } as any)),
+        safeGroupCount(() => prisma.tournament.groupBy({ by: ['createdAt'], where: baseFilter, _count: { id: true } } as any)),
       ]);
 
       const mapCounts = (arr: any[], key: 'count' | 'sum'): Record<string, number> => {
@@ -119,12 +124,14 @@ export async function GET(request: NextRequest) {
       const revMap = mapCounts(paidRevenueByDate, 'sum');
       const usersMap = mapCounts(usersByDate, 'count');
       const memMap = mapCounts(membershipsByDate, 'count');
+      const tourMap = mapCounts(tournamentsByDate, 'count');
 
       const dailyStats = days.map((d) => ({
         date: d,
         reservations: resMap[d] || 0,
         users: usersMap[d] || 0,
         memberships: memMap[d] || 0,
+        tournaments: tourMap[d] || 0,
         revenue: revMap[d] || 0,
       }));
 
@@ -134,11 +141,13 @@ export async function GET(request: NextRequest) {
           totalReservations: currentReservations,
           totalUsers: currentUsers,
           totalMemberships: currentMemberships,
+          totalTournaments: currentTournaments,
           growth: {
             revenue: calculateGrowth(Number(currentRevenue._sum.totalPrice || 0), Number(previousRevenue._sum.totalPrice || 0)),
             reservations: calculateGrowth(currentReservations, previousReservations),
             users: calculateGrowth(currentUsers, previousUsers),
             memberships: calculateGrowth(currentMemberships, previousMemberships),
+            tournaments: calculateGrowth(currentTournaments, previousTournaments),
           },
         },
         trends: { daily: dailyStats, period: params.period },
@@ -155,7 +164,7 @@ export async function GET(request: NextRequest) {
       }
       console.error('Error obteniendo dashboard:', error);
       const res = ApiResponse.success({
-        metrics: { totalRevenue: 0, totalReservations: 0, totalUsers: 0, totalMemberships: 0, growth: { revenue: { value: '0.00', isPositive: true }, reservations: { value: '0.00', isPositive: true }, users: { value: '0.00', isPositive: true }, memberships: { value: '0.00', isPositive: true } } },
+        metrics: { totalRevenue: 0, totalReservations: 0, totalUsers: 0, totalMemberships: 0, totalTournaments: 0, growth: { revenue: { value: '0.00', isPositive: true }, reservations: { value: '0.00', isPositive: true }, users: { value: '0.00', isPositive: true }, memberships: { value: '0.00', isPositive: true }, tournaments: { value: '0.00', isPositive: true } } },
         trends: { daily: [], period: '30d' },
         charts: { topCourts: [], sportDistribution: [], reservationStatus: [], popularTimes: [] },
         filters: { period: '30d', centerId: undefined, dateRange: { start: new Date().toISOString(), end: new Date().toISOString() } },

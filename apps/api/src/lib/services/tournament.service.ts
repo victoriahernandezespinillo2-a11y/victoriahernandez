@@ -15,7 +15,7 @@ export const CreateTournamentSchema = z.object({
   sport: z.enum(['TENNIS', 'FOOTBALL', 'BASKETBALL', 'VOLLEYBALL', 'PADDLE'], {
     errorMap: () => ({ message: 'Deporte inválido' }),
   }),
-  centerId: z.string().uuid('ID de centro inválido'),
+  centerId: z.string().min(1, 'ID de centro inválido'),
   type: z.enum(['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'ROUND_ROBIN', 'SWISS'], {
     errorMap: () => ({ message: 'Tipo de torneo inválido' }),
   }),
@@ -54,6 +54,7 @@ export const UpdateTournamentSchema = z.object({
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
   rules: z.string().min(20).optional(),
+  status: z.enum(['DRAFT', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
   requirements: z.array(z.string()).optional(),
   prizes: z.array(z.object({
     position: z.number().min(1),
@@ -67,8 +68,8 @@ export const UpdateTournamentSchema = z.object({
 });
 
 export const RegisterParticipantSchema = z.object({
-  userId: z.string().uuid('ID de usuario inválido'),
-  partnerId: z.string().uuid('ID de compañero inválido').optional(),
+  userId: z.string().min(1, 'ID de usuario inválido'),
+  partnerId: z.string().min(1, 'ID de compañero inválido').optional(),
   teamName: z.string().min(3, 'El nombre del equipo debe tener al menos 3 caracteres').optional(),
   emergencyContact: z.object({
     name: z.string().min(3),
@@ -82,12 +83,13 @@ export const RegisterParticipantSchema = z.object({
 export const GetTournamentsSchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
-  centerId: z.string().uuid().optional(),
+  centerId: z.string().min(1).optional(),
   sport: z.enum(['TENNIS', 'FOOTBALL', 'BASKETBALL', 'VOLLEYBALL', 'PADDLE']).optional(),
   type: z.enum(['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'ROUND_ROBIN', 'SWISS']).optional(),
   format: z.enum(['INDIVIDUAL', 'DOUBLES', 'TEAM']).optional(),
   category: z.enum(['OPEN', 'JUNIOR', 'SENIOR', 'AMATEUR', 'PROFESSIONAL']).optional(),
   status: z.enum(['DRAFT', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
+  excludeStatus: z.enum(['DRAFT', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
   isPublic: z.coerce.boolean().optional(),
@@ -186,6 +188,7 @@ export class TournamentService {
       format,
       category,
       status,
+      excludeStatus,
       startDate,
       endDate,
       isPublic,
@@ -220,6 +223,12 @@ export class TournamentService {
 
     if (status) {
       where.status = status;
+    }
+
+    if (excludeStatus) {
+      where.status = {
+        not: excludeStatus
+      };
     }
 
     if (isPublic !== undefined) {
@@ -257,8 +266,15 @@ export class TournamentService {
     
     const total = await db.tournament.count({ where });
 
+    // Convertir campos Decimal a números para serialización JSON
+    const tournamentsWithNumbers = tournaments.map(tournament => ({
+      ...tournament,
+      registrationFee: Number(tournament.registrationFee || 0),
+      prizePool: tournament.prizePool ? Number(tournament.prizePool) : null,
+    }));
+
     return {
-      tournaments,
+      tournaments: tournamentsWithNumbers,
       pagination: {
         page,
         limit,
@@ -293,7 +309,12 @@ export class TournamentService {
       throw new Error('Torneo no encontrado');
     }
 
-    return tournament;
+    // Convertir campos Decimal a números para serialización JSON
+    return {
+      ...tournament,
+      registrationFee: Number(tournament.registrationFee || 0),
+      prizePool: tournament.prizePool ? Number(tournament.prizePool) : null,
+    };
   }
 
   /**

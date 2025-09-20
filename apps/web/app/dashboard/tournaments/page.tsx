@@ -622,7 +622,7 @@ export default function TournamentsPage() {
                     <div>
                       <div className="text-sm text-gray-500 mb-1">Costo de Inscripción</div>
                       <div className="text-lg font-semibold text-blue-600">
-                        {formatCurrency(selectedTournament.entryFee ?? 0)}
+                        {formatCurrency(selectedTournament.registrationFee ?? 0)}
                       </div>
                     </div>
                   </div>
@@ -708,7 +708,7 @@ export default function TournamentsPage() {
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Costo de inscripción:</span>
                   <span className="font-semibold text-lg">
-                    {formatCurrency(selectedTournament.entryFee ?? 0)}
+                    {formatCurrency(selectedTournament.registrationFee ?? 0)}
                   </span>
                 </div>
               </div>

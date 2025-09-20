@@ -556,14 +556,30 @@ export function useAdminTournaments() {
 
   const createTournament = useCallback(async (tournamentData: {
     name: string;
-    description?: string;
+    description: string;
     sport: string;
     centerId: string;
+    type: string;
+    format: string;
+    category: string;
+    maxParticipants: number;
+    registrationFee: number;
+    prizePool: number;
+    registrationStartDate: string;
+    registrationEndDate: string;
     startDate: string;
     endDate: string;
-    maxParticipants: number;
-    entryFee: number;
-    rules?: string;
+    rules: string;
+    requirements?: string[];
+    prizes?: Array<{
+      position: number;
+      description: string;
+      value?: number;
+    }>;
+    organizer: string;
+    contactEmail: string;
+    contactPhone?: string;
+    isPublic: boolean;
   }) => {
     const newTournament = await adminApi.tournaments.create(tournamentData) as Tournament;
     setData(prev => prev ? [newTournament, ...prev] : [newTournament]);

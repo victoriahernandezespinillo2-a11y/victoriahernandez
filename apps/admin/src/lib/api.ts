@@ -670,14 +670,30 @@ export const adminApi = {
     
     create: (data: {
       name: string;
-      description?: string;
+      description: string;
       sport: string;
       centerId: string;
+      type: string;
+      format: string;
+      category: string;
+      maxParticipants: number;
+      registrationFee: number;
+      prizePool: number;
+      registrationStartDate: string;
+      registrationEndDate: string;
       startDate: string;
       endDate: string;
-      maxParticipants: number;
-      entryFee: number;
-      rules?: string;
+      rules: string;
+      requirements?: string[];
+      prizes?: Array<{
+        position: number;
+        description: string;
+        value?: number;
+      }>;
+      organizer: string;
+      contactEmail: string;
+      contactPhone?: string;
+      isPublic: boolean;
     }) => 
       apiClient.request('/api/tournaments', {
         method: 'POST',
@@ -690,11 +706,29 @@ export const adminApi = {
     update: (id: string, data: Partial<{
       name: string;
       description: string;
+      sport: string;
+      centerId: string;
+      type: string;
+      format: string;
+      category: string;
+      maxParticipants: number;
+      registrationFee: number;
+      prizePool: number;
+      registrationStartDate: string;
+      registrationEndDate: string;
       startDate: string;
       endDate: string;
-      maxParticipants: number;
-      entryFee: number;
       rules: string;
+      requirements?: string[];
+      prizes?: Array<{
+        position: number;
+        description: string;
+        value?: number;
+      }>;
+      organizer: string;
+      contactEmail: string;
+      contactPhone?: string;
+      isPublic: boolean;
       status: string;
     }>) => 
       apiClient.request(`/api/tournaments/${id}`, {

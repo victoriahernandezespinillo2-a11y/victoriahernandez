@@ -85,6 +85,11 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
       badge: badgeCounts.maintenance,
     },
     {
+      name: 'Torneos',
+      href: '/tournaments',
+      icon: TrophyIcon,
+    },
+    {
       name: 'Reportes',
       href: '#',
       icon: ChartBarIcon,
