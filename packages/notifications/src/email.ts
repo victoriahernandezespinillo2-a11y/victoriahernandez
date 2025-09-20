@@ -297,116 +297,251 @@ export class EmailService {
       
       reservationConfirmation: {
         name: 'reservationConfirmation',
-        subject: '✅ Reserva confirmada - {{courtName}}',
+        subject: '🎾 Reserva confirmada - {{courtName}} - {{date}}',
         html: `
           <!DOCTYPE html>
-          <html>
+          <html lang="es">
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta http-equiv="X-UA-Compatible" content="IE=edge">
+            <title>Reserva Confirmada - Polideportivo Victoria Hernández</title>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+              @media only screen and (max-width: 600px) {
+                .mobile-padding { padding: 20px !important; }
+                .mobile-text { font-size: 14px !important; }
+                .mobile-header { font-size: 24px !important; }
+                .qr-code { width: 120px !important; height: 120px !important; }
+              }
+            </style>
           </head>
-          <body style="margin: 0; padding: 0; font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%); min-height: 100vh;">
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+          <body style="margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; line-height: 1.6;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh;">
               <tr>
-                <td style="padding: 40px 20px;">
+                <td style="padding: 30px 20px;" class="mobile-padding">
                   
                   <!-- Container principal -->
-                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px rgba(0,0,0,0.15);">
+                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 650px; margin: 0 auto; background: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.1), 0 8px 25px rgba(0,0,0,0.08);">
                     
-                    <!-- Header con gradiente -->
+                    <!-- Header moderno con gradiente -->
                     <tr>
-                      <td style="background: linear-gradient(135deg, #10b981, #3b82f6); padding: 40px 30px; text-align: center;">
-                        <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
-                          🎾 Reserva Confirmada
-                        </h1>
-                        <p style="margin: 8px 0 0 0; color: #e2e8f0; font-size: 16px; font-weight: 500;">
-                          ¡Todo listo para tu sesión!
-                        </p>
+                      <td style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #ec4899 100%); padding: 50px 40px 40px; text-align: center; position: relative; overflow: hidden;">
+                        <!-- Elementos decorativos -->
+                        <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: rgba(255,255,255,0.1); border-radius: 50%; opacity: 0.6;"></div>
+                        <div style="position: absolute; bottom: -30px; left: -30px; width: 100px; height: 100px; background: rgba(255,255,255,0.08); border-radius: 50%; opacity: 0.7;"></div>
+                        
+                        <!-- Contenido del header -->
+                        <div style="position: relative; z-index: 2;">
+                          <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px);">
+                            <span style="font-size: 36px;">🎾</span>
+                          </div>
+                          <h1 style="margin: 0; color: #ffffff; font-size: 32px; font-weight: 700; letter-spacing: -0.8px; line-height: 1.2;" class="mobile-header">
+                            ¡Reserva Confirmada!
+                          </h1>
+                          <p style="margin: 12px 0 0 0; color: rgba(255,255,255,0.9); font-size: 18px; font-weight: 400;">
+                            Todo está listo para tu sesión deportiva
+                          </p>
+                        </div>
                       </td>
                     </tr>
                     
                     <!-- Contenido principal -->
                     <tr>
-                      <td style="padding: 40px 30px;">
-                        <p style="margin: 0 0 24px 0; color: #374151; font-size: 16px; line-height: 1.6;">
-                          Hola <strong>{{userName}}</strong>,
-                        </p>
-                        <p style="margin: 0 0 32px 0; color: #6b7280; font-size: 15px; line-height: 1.6;">
-                          Tu reserva ha sido confirmada exitosamente. Aquí tienes todos los detalles:
-                        </p>
+                      <td style="padding: 50px 40px;" class="mobile-padding">
                         
-                        <!-- Card de detalles -->
-                        <div style="background: linear-gradient(135deg, #f0fdf4, #ecfdf5); border: 2px solid #10b981; border-radius: 12px; padding: 24px; margin: 24px 0;">
-                          <h3 style="margin: 0 0 20px 0; color: #065f46; font-size: 18px; font-weight: 600;">
-                            📋 Detalles de la reserva
-                          </h3>
+                        <!-- Saludo personalizado -->
+                        <div style="text-align: center; margin-bottom: 40px;">
+                          <h2 style="margin: 0 0 12px 0; color: #1f2937; font-size: 24px; font-weight: 600;">
+                            Hola, {{userName}}! 👋
+                          </h2>
+                          <p style="margin: 0; color: #6b7280; font-size: 16px;" class="mobile-text">
+                            Tu reserva ha sido procesada exitosamente. Aquí tienes todos los detalles importantes:
+                          </p>
+                        </div>
+                        
+                        <!-- Card de detalles moderno -->
+                        <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px; margin: 32px 0; position: relative; overflow: hidden;">
+                          <!-- Elemento decorativo -->
+                          <div style="position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, #4f46e5, #7c3aed, #ec4899);"></div>
                           
-                          <table style="width: 100%; border-collapse: collapse;">
-                            <tr>
-                              <td style="padding: 8px 0; color: #374151; font-weight: 600; width: 120px;">🏟️ Pista:</td>
-                              <td style="padding: 8px 0; color: #6b7280;">{{courtName}}</td>
-                            </tr>
-                            <tr>
-                              <td style="padding: 8px 0; color: #374151; font-weight: 600;">📅 Fecha:</td>
-                              <td style="padding: 8px 0; color: #6b7280;">{{date}}</td>
-                            </tr>
-                            <tr>
-                              <td style="padding: 8px 0; color: #374151; font-weight: 600;">⏰ Horario:</td>
-                              <td style="padding: 8px 0; color: #6b7280;">{{startTime}} - {{endTime}}</td>
-                            </tr>
-                            <tr>
-                              <td style="padding: 8px 0; color: #374151; font-weight: 600;">⏱️ Duración:</td>
-                              <td style="padding: 8px 0; color: #6b7280;">{{duration}} minutos</td>
-                            </tr>
-                            <tr>
-                              <td style="padding: 8px 0; color: #374151; font-weight: 600;">💰 Precio:</td>
-                              <td style="padding: 8px 0; color: #10b981; font-weight: 600;">{{price}}€</td>
-                            </tr>
-                            <tr>
-                              <td style="padding: 8px 0; color: #374151; font-weight: 600;">🔢 Código:</td>
-                              <td style="padding: 8px 0; color: #3b82f6; font-weight: 600; font-family: monospace;">{{reservationCode}}</td>
-                            </tr>
-                          </table>
+                          <div style="display: flex; align-items: center; margin-bottom: 24px;">
+                            <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #4f46e5, #7c3aed); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 16px;">
+                              <span style="font-size: 20px;">📋</span>
+                            </div>
+                            <h3 style="margin: 0; color: #1f2937; font-size: 20px; font-weight: 600;">
+                              Detalles de tu reserva
+                            </h3>
+                          </div>
+                          
+                          <!-- Grid de información -->
+                          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div style="background: #ffffff; border-radius: 12px; padding: 20px; border: 1px solid #e5e7eb;">
+                              <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                                <span style="font-size: 18px; margin-right: 8px;">🏟️</span>
+                                <span style="color: #6b7280; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Pista</span>
+                              </div>
+                              <div style="color: #1f2937; font-size: 16px; font-weight: 600;">{{courtName}}</div>
+                            </div>
+                            
+                            <div style="background: #ffffff; border-radius: 12px; padding: 20px; border: 1px solid #e5e7eb;">
+                              <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                                <span style="font-size: 18px; margin-right: 8px;">📅</span>
+                                <span style="color: #6b7280; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Fecha</span>
+                              </div>
+                              <div style="color: #1f2937; font-size: 16px; font-weight: 600;">{{date}}</div>
+                            </div>
+                            
+                            <div style="background: #ffffff; border-radius: 12px; padding: 20px; border: 1px solid #e5e7eb;">
+                              <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                                <span style="font-size: 18px; margin-right: 8px;">⏰</span>
+                                <span style="color: #6b7280; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Horario</span>
+                              </div>
+                              <div style="color: #1f2937; font-size: 16px; font-weight: 600;">{{startTime}} - {{endTime}}</div>
+                            </div>
+                            
+                            <div style="background: #ffffff; border-radius: 12px; padding: 20px; border: 1px solid #e5e7eb;">
+                              <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                                <span style="font-size: 18px; margin-right: 8px;">⏱️</span>
+                                <span style="color: #6b7280; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Duración</span>
+                              </div>
+                              <div style="color: #1f2937; font-size: 16px; font-weight: 600;">{{duration}} minutos</div>
+                            </div>
+                          </div>
+                          
+                          <!-- Información destacada -->
+                          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
+                            <div>
+                              <div style="color: #6b7280; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">💰 Precio Total</div>
+                              <div style="color: #059669; font-size: 24px; font-weight: 700;">{{price}}€</div>
+                            </div>
+                            <div style="text-align: right;">
+                              <div style="color: #6b7280; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">🔢 Código</div>
+                              <div style="color: #4f46e5; font-size: 18px; font-weight: 700; font-family: 'Monaco', 'Menlo', monospace; background: #f3f4f6; padding: 8px 12px; border-radius: 8px; display: inline-block;">{{reservationCode}}</div>
+                            </div>
+                          </div>
                         </div>
                         
-                        <!-- QR Code Section -->
-                        <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 2px solid #3b82f6; border-radius: 12px; padding: 24px; margin: 24px 0; text-align: center;">
-                          <h3 style="margin: 0 0 16px 0; color: #1e40af; font-size: 18px; font-weight: 600;">
-                            📱 Tu pase de acceso
+                        <!-- QR Code Section mejorado -->
+                        <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #93c5fd; border-radius: 20px; padding: 40px; margin: 32px 0; text-align: center; position: relative; overflow: hidden;">
+                          <!-- Elemento decorativo -->
+                          <div style="position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; background: rgba(79, 70, 229, 0.1); border-radius: 50%; opacity: 0.6;"></div>
+                          
+                          <div style="position: relative; z-index: 2;">
+                            <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
+                              <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #4f46e5, #7c3aed); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-right: 16px;">
+                                <span style="font-size: 24px;">📱</span>
+                              </div>
+                              <h3 style="margin: 0; color: #1e40af; font-size: 22px; font-weight: 600;">
+                                Tu pase de acceso digital
+                              </h3>
+                            </div>
+                            
+                            <p style="margin: 0 0 24px 0; color: #4b5563; font-size: 16px; max-width: 400px; margin-left: auto; margin-right: auto;">
+                              Presenta este código QR al personal de acceso para verificar tu reserva
+                            </p>
+                            
+                            <!-- Botones de acción -->
+                            <div style="margin-bottom: 30px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+                              <a href="{{accessPassUrl}}" style="display: inline-block; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff; text-decoration: none; padding: 16px 32px; border-radius: 12px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3); transition: all 0.3s ease;">
+                                📱 Ver mi pase de acceso
+                              </a>
+                              <a href="{{googleCalendarUrl}}" style="display: inline-block; background: linear-gradient(135deg, #34a853, #4285f4); color: #ffffff; text-decoration: none; padding: 16px 32px; border-radius: 12px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(52, 168, 83, 0.3); transition: all 0.3s ease;">
+                                📅 Agregar a Google Calendar
+                              </a>
+                            </div>
+                            
+                            <!-- QR Code container -->
+                            <div style="display: inline-block; padding: 24px; background: #ffffff; border-radius: 20px; box-shadow: 0 10px 30px rgba(79, 70, 229, 0.15); border: 3px solid #ffffff;">
+                              <img src="{{qrCodeDataUrl}}" alt="Código QR de acceso" style="width: 180px; height: 180px; border-radius: 12px; display: block;" class="qr-code">
+                            </div>
+                            
+                            <div style="margin-top: 24px; padding: 16px; background: rgba(79, 70, 229, 0.05); border-radius: 12px; border: 1px solid rgba(79, 70, 229, 0.1);">
+                              <p style="margin: 0; color: #6b7280; font-size: 14px; font-weight: 500;">
+                                ✅ Válido únicamente el día de tu reserva
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <!-- Instrucciones importantes mejoradas -->
+                        <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #f59e0b; border-radius: 16px; padding: 32px; margin: 32px 0; position: relative; overflow: hidden;">
+                          <div style="position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
+                          
+                          <div style="display: flex; align-items: center; margin-bottom: 20px;">
+                            <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 16px;">
+                              <span style="font-size: 20px; color: white;">⚠️</span>
+                            </div>
+                            <h4 style="margin: 0; color: #92400e; font-size: 20px; font-weight: 600;">
+                              Instrucciones importantes
+                            </h4>
+                          </div>
+                          
+                          <div style="display: grid; gap: 16px;">
+                            <div style="display: flex; align-items: flex-start;">
+                              <div style="width: 24px; height: 24px; background: #f59e0b; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 12px; margin-top: 2px; flex-shrink: 0;">
+                                <span style="color: white; font-size: 12px; font-weight: 600;">1</span>
+                              </div>
+                              <div>
+                                <p style="margin: 0; color: #78350f; font-size: 15px; font-weight: 500;">Llega 10 minutos antes de tu hora de reserva</p>
+                                <p style="margin: 4px 0 0 0; color: #a16207; font-size: 13px;">Esto te permitirá completar el proceso de acceso sin prisa</p>
+                              </div>
+                            </div>
+                            
+                            <div style="display: flex; align-items: flex-start;">
+                              <div style="width: 24px; height: 24px; background: #f59e0b; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 12px; margin-top: 2px; flex-shrink: 0;">
+                                <span style="color: white; font-size: 12px; font-weight: 600;">2</span>
+                              </div>
+                              <div>
+                                <p style="margin: 0; color: #78350f; font-size: 15px; font-weight: 500;">Presenta tu código QR o ID de reserva al acceder</p>
+                                <p style="margin: 4px 0 0 0; color: #a16207; font-size: 13px;">El personal verificará tu identidad y te dará acceso</p>
+                              </div>
+                            </div>
+                            
+                            <div style="display: flex; align-items: flex-start;">
+                              <div style="width: 24px; height: 24px; background: #f59e0b; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 12px; margin-top: 2px; flex-shrink: 0;">
+                                <span style="color: white; font-size: 12px; font-weight: 600;">3</span>
+                              </div>
+                              <div>
+                                <p style="margin: 0; color: #78350f; font-size: 15px; font-weight: 500;">Puedes cancelar hasta 2 horas antes del inicio</p>
+                                <p style="margin: 4px 0 0 0; color: #a16207; font-size: 13px;">Contacta con nosotros para gestionar cancelaciones</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <!-- Mensaje de despedida -->
+                        <div style="text-align: center; margin: 40px 0 0 0; padding: 32px; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 16px; border: 1px solid #bbf7d0;">
+                          <div style="font-size: 32px; margin-bottom: 16px;">🏆</div>
+                          <h3 style="margin: 0 0 12px 0; color: #166534; font-size: 22px; font-weight: 600;">
+                            ¡Que disfrutes tu sesión!
                           </h3>
-                          <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 14px;">
-                            Presenta este código QR al personal de acceso
-                          </p>
-                          <img src="{{qrCodeDataUrl}}" alt="Código QR de acceso" style="width: 160px; height: 160px; border-radius: 8px; border: 3px solid #ffffff; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);">
-                          <p style="margin: 16px 0 0 0; color: #9ca3af; font-size: 12px;">
-                            Válido el día de tu reserva
+                          <p style="margin: 0; color: #15803d; font-size: 16px; font-weight: 500;">
+                            Estamos emocionados de verte en nuestras instalaciones
                           </p>
                         </div>
-                        
-                        <!-- Instrucciones importantes -->
-                        <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
-                          <h4 style="margin: 0 0 12px 0; color: #92400e; font-size: 16px; font-weight: 600;">
-                            ⚠️ Instrucciones importantes
-                          </h4>
-                          <ul style="margin: 0; padding-left: 20px; color: #78350f;">
-                            <li style="margin-bottom: 8px;">Llega 10 minutos antes de tu hora de reserva</li>
-                            <li style="margin-bottom: 8px;">Presenta tu código QR o ID de reserva al acceder</li>
-                            <li style="margin-bottom: 8px;">Puedes cancelar hasta 2 horas antes del inicio</li>
-                          </ul>
-                        </div>
-                        
-                        <p style="margin: 32px 0 0 0; color: #6b7280; font-size: 15px; line-height: 1.6; text-align: center;">
-                          ¡Disfruta tu tiempo en nuestras instalaciones! 🏆
-                        </p>
                       </td>
                     </tr>
                     
-                    <!-- Footer -->
+                    <!-- Footer moderno -->
                     <tr>
-                      <td style="background: #f8fafc; padding: 24px 30px; border-top: 1px solid #e5e7eb; text-align: center;">
-                        <p style="margin: 0; color: #9ca3af; font-size: 13px;">
-                          ¿Necesitas ayuda? Responde a este email o contacta con nosotros
+                      <td style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 32px 40px; border-top: 1px solid #e5e7eb; text-align: center;">
+                        <div style="margin-bottom: 20px;">
+                          <div style="width: 60px; height: 4px; background: linear-gradient(90deg, #4f46e5, #7c3aed, #ec4899); border-radius: 2px; margin: 0 auto;"></div>
+                        </div>
+                        <p style="margin: 0 0 12px 0; color: #6b7280; font-size: 15px; font-weight: 500;">
+                          ¿Necesitas ayuda o tienes alguna pregunta?
                         </p>
+                        <p style="margin: 0; color: #9ca3af; font-size: 14px;">
+                          Responde a este email o contacta con nuestro equipo de soporte
+                        </p>
+                        
+                        <!-- Información adicional -->
+                        <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                          <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+                            Este es un correo automático del sistema de reservas del Polideportivo Victoria Hernández
+                          </p>
+                        </div>
                       </td>
                     </tr>
                     
@@ -417,7 +552,7 @@ export class EmailService {
           </body>
           </html>
         `,
-        variables: ['userName', 'courtName', 'date', 'startTime', 'endTime', 'duration', 'price', 'reservationCode', 'qrCodeDataUrl'],
+        variables: ['userName', 'courtName', 'date', 'startTime', 'endTime', 'duration', 'price', 'reservationCode', 'qrCodeDataUrl', 'accessPassUrl', 'googleCalendarUrl'],
       },
       
       reservationReminder: {

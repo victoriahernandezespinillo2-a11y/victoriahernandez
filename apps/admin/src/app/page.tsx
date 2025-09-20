@@ -92,7 +92,6 @@ export default function AdminHomePage() {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      console.log('Ejecutando getDashboardStats...');
       getDashboardStats().catch(err => {
         console.error('Error en getDashboardStats:', err);
       });
@@ -103,6 +102,7 @@ export default function AdminHomePage() {
       });
     }
   }, [status, getDashboardStats, getGeneralReport, fetchRecentActivity]);
+
 
   const handleSignOut = async () => {
     await signOut({ callbackUrl: '/auth/signin' });
@@ -117,6 +117,8 @@ export default function AdminHomePage() {
   }
 
   // No redirigimos en cliente. El middleware protege las rutas.
+
+  // Log de debug para verificar datos
 
   // Datos del dashboard con crecimiento real
   const stats = [
@@ -149,6 +151,7 @@ export default function AdminHomePage() {
       changeType: dashboardData?.metrics?.growth?.revenue?.isPositive !== false ? 'increase' : 'decrease',
     },
   ];
+
 
 
 

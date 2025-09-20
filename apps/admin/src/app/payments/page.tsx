@@ -24,6 +24,11 @@ type PaymentRow = {
   status: string;
   date: string;
   transactionId: string;
+  // Campos enterprise
+  paymentType: string;
+  description: string;
+  courtName: string;
+  centerName: string;
 };
 
 const getStatusIcon = (status: string) => {
@@ -59,11 +64,13 @@ const getStatusColor = (status: string) => {
 const mapPaymentStatus = (status: string) => {
   const statusMap: { [key: string]: string } = {
     'PAID': 'completed',
+    'COMPLETED': 'completed',
     'PENDING': 'pending',
     'FAILED': 'failed',
     'CANCELLED': 'failed',
     'REFUNDED': 'refunded',
     'PROCESSING': 'pending',
+    'IN_PROGRESS': 'completed',
     'completed': 'completed',
     'pending': 'pending',
     'failed': 'failed',
@@ -125,16 +132,22 @@ export default function PaymentsPage() {
     console.log('🔍 [PAYMENTS] Datos originales:', list.slice(0, 3)); // Primeros 3 para debug
     const mapped = list.map((p: any) => ({
       id: p.id,
-      user: p.user?.name || p.userName || p.userId || '—',
-      reservation: p.reservationId || p.reservation?.id || '—',
+      user: p.user?.name || p.user?.firstName + ' ' + p.user?.lastName || p.userName || p.userId || '—',
+      reservation: p.reservationId || p.reservation?.id || p.metadata?.reservationId || '—',
       amount: Number(p.totalPrice || p.amount || 0),
       method: (p.paymentMethod || p.method || 'UNKNOWN').toLowerCase(),
       status: mapPaymentStatus(p.status || 'PENDING'),
       date: p.createdAt || p.paidAt || new Date().toISOString(),
       transactionId: p.transactionId || p.externalId || p.id,
+      // Nuevos campos enterprise
+      paymentType: p.paymentType || 'UNKNOWN',
+      description: p.description || p.metadata?.description || '—',
+      courtName: p.metadata?.courtName || '—',
+      centerName: p.metadata?.centerName || '—',
     }));
     console.log('🔍 [PAYMENTS] Datos mapeados:', mapped.slice(0, 3)); // Primeros 3 para debug
     console.log('📊 [PAYMENTS] Estados únicos:', [...new Set(mapped.map(p => p.status))]);
+    console.log('🏗️ [PAYMENTS] Tipos de pago únicos:', [...new Set(mapped.map(p => p.paymentType))]);
     return mapped;
   }, [payments]);
 
@@ -327,7 +340,7 @@ export default function PaymentsPage() {
                   Usuario
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Reserva
+                  Tipo / Referencia
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Monto
@@ -356,7 +369,25 @@ export default function PaymentsPage() {
                     {payment.user}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {payment.reservation}
+                    <div className="flex flex-col">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        payment.paymentType === 'ORDER' 
+                          ? 'bg-blue-100 text-blue-800' 
+                          : payment.paymentType === 'RESERVATION'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {payment.paymentType === 'ORDER' ? '🛒 Pedido' : 
+                         payment.paymentType === 'RESERVATION' ? '🏟️ Reserva' : 
+                         '❓ Desconocido'}
+                      </span>
+                      <span className="text-xs text-gray-500 mt-1">
+                        {payment.paymentType === 'RESERVATION' && payment.courtName !== '—' 
+                          ? `${payment.courtName}`
+                          : payment.description
+                        }
+                      </span>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     ${payment.amount.toLocaleString()}
@@ -463,8 +494,27 @@ export default function PaymentsPage() {
                 <span className="font-medium">{payment.user}</span>
               </div>
               <div className="flex justify-between">
-                <span>Reserva:</span>
-                <span className="font-medium">{payment.reservation}</span>
+                <span>Tipo:</span>
+                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                  payment.paymentType === 'ORDER' 
+                    ? 'bg-blue-100 text-blue-800' 
+                    : payment.paymentType === 'RESERVATION'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {payment.paymentType === 'ORDER' ? '🛒 Pedido' : 
+                   payment.paymentType === 'RESERVATION' ? '🏟️ Reserva' : 
+                   '❓ Desconocido'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Referencia:</span>
+                <span className="font-medium">
+                  {payment.paymentType === 'RESERVATION' && payment.courtName !== '—' 
+                    ? payment.courtName
+                    : payment.description
+                  }
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>ID Transacción:</span>

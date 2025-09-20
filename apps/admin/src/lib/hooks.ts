@@ -106,9 +106,7 @@ function useApiState<T>(initialData: T | null = null) {
   const initialDataRef = useRef(initialData);
 
   const execute = useCallback(async (apiCall: () => Promise<T>) => {
-    console.log('[useApiState] execute called.');
     if (isExecutingRef.current && currentPromiseRef.current) {
-      console.log('[useApiState] API call already in progress, returning in-flight promise.');
       return currentPromiseRef.current;
     }
     isExecutingRef.current = true;
@@ -155,7 +153,10 @@ export function useAdminDashboard() {
   const { data, loading, error, execute, reset } = useApiState<any>(null);
 
   const getDashboardStats = useCallback(() => {
-    return execute(() => adminApi.dashboard.getStats());
+    return execute(async () => {
+      const result = await adminApi.dashboard.getStats();
+      return result;
+    });
   }, [execute]);
 
   const getGeneralStats = useCallback(() => {

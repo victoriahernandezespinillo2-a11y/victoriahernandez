@@ -851,40 +851,45 @@ export default function ReservationsPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-xl">
             <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Auditoría de reserva</h3>
-              <button onClick={() => setAuditState({ open: false, id: undefined, loading: false, events: [] })} className="text-gray-500 hover:text-gray-700">✕</button>
+              <h3 className="text-lg font-semibold text-black">Auditoría de Reservas</h3>
+              <button 
+                onClick={() => setAuditState({ open: false, id: undefined, loading: false, events: [] })} 
+                className="text-black hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-md transition-colors duration-200 font-bold text-lg"
+              >
+                ✕
+              </button>
             </div>
             <div className="p-4 max-h-[60vh] overflow-y-auto">
               {auditState.loading ? (
-                <div className="text-sm text-gray-500">Cargando...</div>
+                <div className="text-sm text-black font-medium">Cargando eventos de auditoría...</div>
               ) : auditState.events.length === 0 ? (
-                <div className="text-sm text-gray-500">Sin eventos de auditoría.</div>
+                <div className="text-sm text-black font-medium">Sin eventos de auditoría.</div>
               ) : (
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {auditState.events.map((e) => (
-                    <li key={e.id} className="text-sm">
-                      <div className="font-medium text-gray-900">{new Date(e.createdAt).toLocaleString()}</div>
-                      <div className="text-gray-700">{e.summary}</div>
-                      <div className="text-xs text-gray-400">{e.type}</div>
+                    <li key={e.id} className="text-sm bg-gray-50 p-3 rounded-lg border border-gray-200">
+                      <div className="font-bold text-black text-base">{new Date(e.createdAt).toLocaleString('es-ES')}</div>
+                      <div className="text-black font-medium mt-1">{e.summary}</div>
+                      <div className="text-xs text-gray-600 mt-1 bg-blue-100 px-2 py-1 rounded inline-block">{e.type}</div>
                     </li>
                   ))}
                 </ul>
               )}
             </div>
-            <div className="p-3 border-t flex justify-end">
+            <div className="p-4 border-t bg-gray-50 flex justify-end space-x-2">
               {auditState.id && (
                 <div className="flex gap-2">
                   <a
-                    className="text-sm px-3 py-1.5 border rounded hover:bg-gray-50"
+                    className="text-sm px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors duration-200 font-medium shadow-sm"
                     href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/admin/reservations/${auditState.id}/audit/csv`}
                   >
-                    Exportar CSV
+                    📊 Exportar CSV
                   </a>
                   <a
-                    className="text-sm px-3 py-1.5 border rounded hover:bg-gray-50"
+                    className="text-sm px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors duration-200 font-medium shadow-sm"
                     href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/admin/reservations/${auditState.id}/audit/zip`}
                   >
-                    PDF + Auditoría
+                    📄 PDF + Auditoría
                   </a>
                 </div>
               )}

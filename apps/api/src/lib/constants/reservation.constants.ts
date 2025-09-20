@@ -13,10 +13,10 @@ export const RESERVATION_STATUS = {
 } as const;
 
 export const RESERVATION_STATUS_MESSAGES = {
-  [RESERVATION_STATUS.PENDING]: 'No se puede generar pase para reserva pendiente de pago',
-  [RESERVATION_STATUS.CANCELLED]: 'No se puede generar pase para reserva cancelada',
-  [RESERVATION_STATUS.COMPLETED]: 'No se puede generar pase para reserva completada',
-  [RESERVATION_STATUS.NO_SHOW]: 'No se puede generar pase para reserva sin presentación'
+  [RESERVATION_STATUS.PENDING]: 'Para generar tu pase de acceso, primero debes completar el pago de la reserva.',
+  [RESERVATION_STATUS.CANCELLED]: 'No es posible generar un pase de acceso para reservas canceladas.',
+  [RESERVATION_STATUS.COMPLETED]: 'El pase de acceso ya no está disponible para reservas completadas.',
+  [RESERVATION_STATUS.NO_SHOW]: 'No es posible generar un pase de acceso para reservas donde no te presentaste.'
 } as const;
 
 export const VALID_PASS_STATUSES = [

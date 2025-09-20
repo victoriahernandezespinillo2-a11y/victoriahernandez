@@ -170,17 +170,49 @@ export function useReservations() {
         const start = new Date(r.startTime);
         const end = new Date(r.endTime);
         const toTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const statusMap: Record<string, 'confirmed' | 'pending' | 'cancelled' | 'completed'> = {
+        // Mapeo robusto y específico de estados
+        const statusMap: Record<string, 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no-show'> = {
           PENDING: 'pending',
           PAID: 'confirmed',
           IN_PROGRESS: 'confirmed',
           COMPLETED: 'completed',
           CANCELLED: 'cancelled',
-          NO_SHOW: 'cancelled',
+          NO_SHOW: 'no-show', // Estado específico para no presentarse
         };
         const uiStatus = statusMap[(r.status || '').toUpperCase()] || 'pending';
-        const paymentStatus: 'paid' | 'pending' | 'refunded' =
-          uiStatus === 'completed' || uiStatus === 'confirmed' ? 'paid' : 'pending';
+        
+        // Determinar estado de pago de manera robusta y específica
+        let paymentStatus: 'paid' | 'pending' | 'refunded' = 'pending';
+        const reservationStatus = (r.status || '').toUpperCase();
+        
+        switch (reservationStatus) {
+          case 'PENDING':
+            paymentStatus = 'pending'; // Reserva pendiente = no pagada
+            break;
+          case 'PAID':
+          case 'IN_PROGRESS':
+          case 'COMPLETED':
+            paymentStatus = 'paid'; // Reserva pagada, en progreso o completada = pagada
+            break;
+          case 'NO_SHOW':
+            // NO_SHOW: El usuario no se presentó, pero la reserva estaba pagada
+            paymentStatus = r.paymentMethod ? 'paid' : 'pending';
+            break;
+          case 'CANCELLED':
+            // CANCELLED: Reserva cancelada, verificar si se había pagado
+            if (r.paymentMethod) {
+              // Si tenía método de pago, verificar si ya pasó la fecha (reembolso)
+              const reservationDate = new Date(r.startTime);
+              const now = new Date();
+              paymentStatus = reservationDate < now ? 'refunded' : 'paid';
+            } else {
+              paymentStatus = 'pending';
+            }
+            break;
+          default:
+            paymentStatus = 'pending';
+            break;
+        }
         return {
           id: r.id,
           courtName: r.court?.name || '—',
@@ -194,6 +226,8 @@ export function useReservations() {
           paymentStatus,
           createdAt: r.createdAt,
           notes: r.notes || undefined,
+          // Incluir información del centro para cálculos precisos
+          center: r.court?.center || null,
         };
       });
       return mapped as any[];
@@ -207,17 +241,49 @@ export function useReservations() {
       const start = new Date(r.startTime);
       const end = new Date(r.endTime);
       const toTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const statusMap: Record<string, 'confirmed' | 'pending' | 'cancelled' | 'completed'> = {
+      // Mapeo robusto y específico de estados
+      const statusMap: Record<string, 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no-show'> = {
         PENDING: 'pending',
         PAID: 'confirmed',
         IN_PROGRESS: 'confirmed',
         COMPLETED: 'completed',
         CANCELLED: 'cancelled',
-        NO_SHOW: 'cancelled',
+        NO_SHOW: 'no-show', // Estado específico para no presentarse
       };
       const uiStatus = statusMap[(r.status || '').toUpperCase()] || 'pending';
-      const paymentStatus: 'paid' | 'pending' | 'refunded' =
-        uiStatus === 'completed' || uiStatus === 'confirmed' ? 'paid' : 'pending';
+      
+      // Determinar estado de pago de manera robusta y específica
+      let paymentStatus: 'paid' | 'pending' | 'refunded' = 'pending';
+      const reservationStatus = (r.status || '').toUpperCase();
+      
+      switch (reservationStatus) {
+        case 'PENDING':
+          paymentStatus = 'pending'; // Reserva pendiente = no pagada
+          break;
+        case 'PAID':
+        case 'IN_PROGRESS':
+        case 'COMPLETED':
+          paymentStatus = 'paid'; // Reserva pagada, en progreso o completada = pagada
+          break;
+        case 'NO_SHOW':
+          // NO_SHOW: El usuario no se presentó, pero la reserva estaba pagada
+          paymentStatus = r.paymentMethod ? 'paid' : 'pending';
+          break;
+        case 'CANCELLED':
+          // CANCELLED: Reserva cancelada, verificar si se había pagado
+          if (r.paymentMethod) {
+            // Si tenía método de pago, verificar si ya pasó la fecha (reembolso)
+            const reservationDate = new Date(r.startTime);
+            const now = new Date();
+            paymentStatus = reservationDate < now ? 'refunded' : 'paid';
+          } else {
+            paymentStatus = 'pending';
+          }
+          break;
+        default:
+          paymentStatus = 'pending';
+          break;
+      }
       const mapped = {
         id: r.id,
         courtName: r.court?.name || '—',
@@ -231,6 +297,8 @@ export function useReservations() {
         paymentStatus,
         createdAt: r.createdAt,
         notes: r.notes || undefined,
+        // Incluir información del centro para cálculos precisos
+        center: r.court?.center || null,
       };
       setData(prev => (prev ? [mapped, ...prev] : [mapped]));
       return response;

@@ -33,7 +33,7 @@ export class PassValidationService {
     if (endTime < new Date()) {
       return {
         isValid: false,
-        message: 'No se puede generar pase para reserva expirada',
+        message: 'El pase de acceso ya no está disponible. Los pases solo son válidos durante el horario de tu reserva y hasta 1 hora después de finalizada.',
         statusCode: 410
       };
     }

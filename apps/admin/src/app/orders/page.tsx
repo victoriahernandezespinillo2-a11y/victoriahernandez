@@ -108,15 +108,15 @@ export default function OrdersPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PENDING':
-        return <Badge variant="secondary">Pendiente</Badge>;
+        return <Badge variant="secondary" className="!text-black !bg-gray-200">Pendiente</Badge>;
       case 'PAID':
-        return <Badge variant="default">Pagado</Badge>;
+        return <Badge variant="default" className="!text-white !bg-blue-600">Pagado</Badge>;
       case 'CANCELLED':
-        return <Badge variant="destructive">Cancelado</Badge>;
+        return <Badge variant="destructive" className="!text-white !bg-red-600">Cancelado</Badge>;
       case 'REFUNDED':
-        return <Badge variant="outline">Reembolsado</Badge>;
+        return <Badge variant="outline" className="!text-black !bg-white !border-gray-300">Reembolsado</Badge>;
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <Badge variant="secondary" className="!text-black !bg-gray-200">{status}</Badge>;
     }
   };
 

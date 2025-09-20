@@ -17,6 +17,7 @@ import {
 import Link from 'next/link';
 import { getFirebaseIdTokenSafe } from '@/lib/api';
 import { useReservations } from '@/lib/hooks';
+import { useErrorModal } from '@/app/components/ErrorModal';
 
 interface Reservation {
   id: string;
@@ -26,7 +27,7 @@ interface Reservation {
   startTime: string;
   endTime: string;
   duration: number;
-  status: 'confirmed' | 'pending' | 'cancelled' | 'completed';
+  status: 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no-show';
   cost: number;
   paymentStatus: 'paid' | 'pending' | 'refunded';
   paymentMethod?: 'CARD' | 'BIZUM' | 'ONSITE' | 'CASH' | 'TRANSFER' | 'CREDITS';
@@ -56,6 +57,11 @@ const statusConfig = {
     label: 'Completada',
     color: 'bg-blue-100 text-blue-800',
     icon: CheckCircle
+  },
+  'no-show': {
+    label: 'No se presentó',
+    color: 'bg-orange-100 text-orange-800',
+    icon: XCircle
   }
 };
 
@@ -82,6 +88,7 @@ const paymentConfig: Record<Reservation['paymentStatus'], { label: string; color
 
 export default function ReservationsPage() {
   const { reservations, loading, error, cancelReservation, getReservations } = useReservations();
+  const { showError, ErrorModalComponent } = useErrorModal();
   const [linkLoadingId, setLinkLoadingId] = useState<string | null>(null);
   const [filteredReservations, setFilteredReservations] = useState<Reservation[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -118,19 +125,31 @@ export default function ReservationsPage() {
       if (!response.ok) {
         const text = await response.text();
         const msg = text?.trim().toLowerCase();
-        if (response.status === 401) throw new Error('No autorizado. Inicia sesión para continuar.');
-        if (response.status === 404) throw new Error('La reserva no fue encontrada.');
-        if (response.status === 410 || (msg && msg.includes('expirada'))) {
-          throw new Error('Este pase ya no está disponible porque la reserva ha finalizado.');
+        if (response.status === 401) {
+          showError('No autorizado. Inicia sesión para continuar.', 'Sesión Expirada', 'warning');
+          return;
         }
-        throw new Error(text || `HTTP ${response.status}`);
+        if (response.status === 404) {
+          showError('La reserva no fue encontrada.', 'Reserva No Encontrada', 'error');
+          return;
+        }
+        if (response.status === 410 || (msg && msg.includes('expirada'))) {
+          showError(
+            'El pase de acceso ya no está disponible. Los pases solo son válidos durante el horario de tu reserva y hasta 1 hora después de finalizada.',
+            'Pase No Disponible',
+            'info'
+          );
+          return;
+        }
+        showError(text || `Error del servidor (${response.status})`, 'Error del Sistema', 'error');
+        return;
       }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (e: any) {
-      alert(e?.message || 'No se pudo abrir el documento');
+      showError(e?.message || 'No se pudo abrir el documento', 'Error del Sistema', 'error');
     }
   };
 
@@ -436,10 +455,10 @@ export default function ReservationsPage() {
                                   if (res.ok && data?.url) {
                                     window.open(data.url, '_blank');
                                   } else {
-                                    alert('No se pudo generar el enlace de pago');
+                                    showError('No se pudo generar el enlace de pago', 'Error de Pago', 'error');
                                   }
                                 } catch (e) {
-                                  alert('Error generando enlace de pago');
+                                  showError('Error generando enlace de pago', 'Error de Sistema', 'error');
                                 } finally {
                                   setLinkLoadingId(null);
                                 }
@@ -633,6 +652,9 @@ export default function ReservationsPage() {
           </div>
         </div>
       )}
+      
+      {/* Modal de Error Profesional */}
+      <ErrorModalComponent />
     </div>
   );
 }

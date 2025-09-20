@@ -260,9 +260,10 @@ async function generateRevenueReport(startDate: Date, endDate: Date, centerId?: 
     groupBy
   });
 
-  // Filtrar por startTime (fecha real de la reserva) - igual que el dashboard
+  // Filtrar por createdAt (fecha de pago) para reportes de ingresos
+  // Esto incluye reservas pagadas independientemente de cuándo se usen
   const baseFilter = {
-    startTime: { gte: startDate, lte: endDate },
+    createdAt: { gte: startDate, lte: endDate },
     ...(centerId && { court: { centerId } })
   } as const;
 
@@ -286,12 +287,13 @@ async function generateRevenueReport(startDate: Date, endDate: Date, centerId?: 
       where: paidWhere,
       select: {
         startTime: true,
+        createdAt: true,
         totalPrice: true,
         id: true
       },
       take: 1000, // Límite para evitar problemas de memoria
       orderBy: {
-        startTime: 'desc'
+        createdAt: 'desc'
       }
     })
   ]);
@@ -303,8 +305,24 @@ async function generateRevenueReport(startDate: Date, endDate: Date, centerId?: 
     byMethod: revenueByMethod.length
   });
 
-  // Agrupar por período manualmente
-  const revenueByPeriod = groupReservationsByPeriod(allReservations, groupBy);
+  // Agrupar por período manualmente usando createdAt (fecha de pago)
+  const revenueByPeriod = groupReservationsByPeriod(allReservations, groupBy, 'createdAt');
+
+  // Mapear métodos de pago a nombres más descriptivos
+  const mapPaymentMethod = (method: string | null) => {
+    const methodMap: { [key: string]: string } = {
+      'CARD': 'Tarjeta',
+      'CASH': 'Efectivo',
+      'TRANSFER': 'Transferencia',
+      'PAYPAL': 'PayPal',
+      'STRIPE': 'Stripe',
+      'REDSYS': 'Redsys',
+      'UNKNOWN': 'Desconocido',
+      null: 'No especificado',
+      undefined: 'No especificado'
+    };
+    return methodMap[method || 'null'] || method || 'No especificado';
+  };
 
   const result = {
     summary: {
@@ -312,7 +330,8 @@ async function generateRevenueReport(startDate: Date, endDate: Date, centerId?: 
       totalTransactions: reservationRevenue._count.id,
     },
     byMethod: revenueByMethod.map((r: any) => ({
-      method: r.paymentMethod || 'UNKNOWN',
+      method: mapPaymentMethod(r.paymentMethod),
+      originalMethod: r.paymentMethod,
       totalAmount: Number(r._sum.totalPrice || 0),
       count: r._count.id,
     })),
@@ -323,11 +342,11 @@ async function generateRevenueReport(startDate: Date, endDate: Date, centerId?: 
   return result;
 }
 
-function groupReservationsByPeriod(reservations: any[], groupBy: string) {
+function groupReservationsByPeriod(reservations: any[], groupBy: string, dateField: string = 'startTime') {
   const groups = new Map<string, { totalAmount: number, count: number }>();
   
   reservations.forEach(reservation => {
-    const date = new Date(reservation.startTime);
+    const date = new Date(reservation[dateField]);
     let key: string = '';
     
     switch (groupBy) {
@@ -363,15 +382,15 @@ function groupReservationsByPeriod(reservations: any[], groupBy: string) {
 }
 
 async function generateUsageReport(startDate: Date, endDate: Date, centerId?: string, groupBy: string = 'day') {
-  // Filtrar por startTime (fecha real de la reserva)
+  // Filtrar por createdAt (fecha de creación/pago de la reserva) para consistencia con revenue
   const baseFilter = {
-    startTime: { gte: startDate, lte: endDate },
+    createdAt: { gte: startDate, lte: endDate },
     ...(centerId && { court: { centerId } })
   };
   
   // Optimización: Usar una sola consulta con join en lugar de consultas N+1
   const [totalReservations, reservationsWithCourts, reservationsByStatus] = await Promise.all([
-    // Contar solo reservas que realmente ocupan la cancha
+    // Contar reservas creadas/pagadas en el período
     prisma.reservation.count({ where: { ...baseFilter, status: { in: ['PAID','IN_PROGRESS','COMPLETED'] } as any } }),
     
     // Consulta optimizada con join para obtener datos de canchas
@@ -415,7 +434,8 @@ async function generateUsageReport(startDate: Date, endDate: Date, centerId?: st
     }
   });
 
-  return {
+
+  const result = {
     summary: {
       totalReservations
     },
@@ -429,6 +449,8 @@ async function generateUsageReport(startDate: Date, endDate: Date, centerId?: st
       count: r._count.id
     }))
   };
+
+  return result;
 }
 
 async function generateUsersReport(startDate: Date, endDate: Date, groupBy: string = 'day') {

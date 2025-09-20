@@ -89,3 +89,4 @@ export const getCategoryOptions = (activityType: string) => {
   return getActivityCategories(activityType).options;
 };
 
+

@@ -438,7 +438,8 @@ export class PaymentService {
   }
 
   /**
-   * Obtener lista de pagos
+   * Obtener lista unificada de pagos (órdenes + reservas)
+   * Arquitectura enterprise que combina múltiples fuentes de datos
    */
   async getPayments(params: GetPaymentsData) {
     const validatedParams = GetPaymentsSchema.parse(params);
@@ -446,10 +447,57 @@ export class PaymentService {
 
     const skip = (page - 1) * limit;
 
-    // Intento principal: usar tabla payment si existe
+    try {
+      // === ESTRATEGIA ENTERPRISE: AGREGACIÓN DE MÚLTIPLES FUENTES ===
+      console.log('🏗️ [PAYMENT-SERVICE] Iniciando agregación enterprise de pagos');
+      
+      const [orderPayments, reservationPayments] = await Promise.all([
+        this._getOrderPayments({ validatedParams, skip, limit, status, userId, provider, dateFrom, dateTo, centerId }),
+        this._getReservationPayments({ validatedParams, skip, limit, status, userId, provider, dateFrom, dateTo, centerId })
+      ]);
+
+      // === UNIFICACIÓN Y ORDENACIÓN ENTERPRISE ===
+      const allPayments = [...orderPayments, ...reservationPayments];
+      
+      // Ordenar por fecha de creación (más reciente primero)
+      allPayments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      // Aplicar paginación sobre el conjunto unificado
+      const paginatedPayments = allPayments.slice(skip, skip + limit);
+      const total = allPayments.length;
+
+      console.log(`✅ [PAYMENT-SERVICE] Pagos unificados: ${total} total, ${paginatedPayments.length} en página ${page}`);
+      console.log(`📊 [PAYMENT-SERVICE] Desglose: ${orderPayments.length} órdenes, ${reservationPayments.length} reservas`);
+
+      return {
+        items: paginatedPayments,
+        pagination: { 
+          page, 
+          limit, 
+          total, 
+          pages: Math.ceil(total / limit),
+          breakdown: {
+            orders: orderPayments.length,
+            reservations: reservationPayments.length
+          }
+        },
+      };
+    } catch (error) {
+      console.error('❌ [PAYMENT-SERVICE] Error en agregación enterprise:', error);
+      throw new Error('Error interno del servidor al obtener pagos');
+    }
+  }
+
+  /**
+   * Obtener pagos de órdenes (tienda online)
+   * Método privado para separación de responsabilidades
+   */
+  private async _getOrderPayments(params: any): Promise<any[]> {
+    const { validatedParams, skip, limit, status, userId, provider, dateFrom, dateTo, centerId } = params;
+    
     try {
       const where: any = {};
-      if (status) where.status = status;
+      if (status) where.status = status as any;
       if (userId) where.userId = userId;
       if (provider) where.provider = provider;
       if (dateFrom || dateTo) {
@@ -457,59 +505,61 @@ export class PaymentService {
         if (dateFrom) (where.createdAt as any).gte = new Date(dateFrom);
         if (dateTo) (where.createdAt as any).lte = new Date(dateTo);
       }
-      if (centerId) {
-        where.OR = [
-          { reservation: { court: { centerId } } },
-          { membership: { centerId } },
-        ];
-      }
 
-      const [orders, total] = await Promise.all([
-        (prisma as any).order.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { createdAt: 'desc' },
-          include: {
-            user: { select: { id: true, firstName: true, lastName: true, email: true } },
-            items: {
-              include: {
-                product: { select: { name: true, sku: true } }
-              }
+      const orders = await (prisma as any).order.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { id: true, firstName: true, lastName: true, email: true } },
+          items: {
+            include: {
+              product: { select: { name: true, sku: true } }
             }
-          },
-        }),
-        (prisma as any).order.count({ where }),
-      ]);
+          }
+        },
+      });
 
-      // Mapear orders a formato de pagos para compatibilidad
-      const payments = orders.map((order: any) => ({
+      return orders.map((order: any) => ({
         id: order.id,
+        paymentType: 'ORDER',
         userId: order.userId,
         user: order.user,
         amount: order.totalEuro,
+        totalPrice: order.totalEuro,
         status: order.status,
         paymentMethod: order.paymentMethod,
         paymentIntentId: order.paymentIntentId,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
         items: order.items,
-        // Campos adicionales para compatibilidad
-        totalPrice: order.totalEuro,
-        provider: 'MANUAL', // Por defecto, se puede mejorar
+        provider: 'MANUAL',
         currency: 'EUR',
         description: `Pedido ${order.id}`,
+        // Metadatos enterprise
+        metadata: {
+          source: 'orders',
+          orderId: order.id,
+          itemCount: order.items?.length || 0
+        }
       }));
+    } catch (error) {
+      console.warn('⚠️ [PAYMENT-SERVICE] Error obteniendo órdenes, continuando con reservas:', error instanceof Error ? error.message : String(error));
+      return [];
+    }
+  }
 
-      return {
-        items: payments,
-        pagination: { page, limit, total, pages: Math.ceil(total / limit) },
-      };
-    } catch (e) {
-      // Fallback: sintetizar pagos a partir de reservas pagadas/completadas
+  /**
+   * Obtener pagos de reservas (reservas de canchas)
+   * Método privado para separación de responsabilidades
+   */
+  private async _getReservationPayments(params: any): Promise<any[]> {
+    const { validatedParams, skip, limit, status, userId, provider, dateFrom, dateTo, centerId } = params;
+    
+    try {
       const whereRes: any = {
-        status: { in: ['PAID', 'COMPLETED'] },
+        status: { in: ['PAID', 'COMPLETED', 'IN_PROGRESS'] },
       };
+      
       if (userId) whereRes.userId = userId;
       if (dateFrom || dateTo) {
         whereRes.createdAt = {} as any;
@@ -518,41 +568,49 @@ export class PaymentService {
       }
       if (centerId) whereRes.court = { centerId };
 
-      const [reservations, total] = await Promise.all([
-        prisma.reservation.findMany({
-          where: whereRes,
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: limit,
-          select: {
-            id: true,
-            totalPrice: true,
-            createdAt: true,
-            paymentMethod: true,
-            status: true,
-            user: { select: { id: true, name: true, email: true } },
-          },
-        }),
-        prisma.reservation.count({ where: whereRes }),
-      ]);
+      const reservations = await prisma.reservation.findMany({
+        where: whereRes,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          court: { 
+            select: { 
+              id: true, 
+              name: true, 
+              center: { select: { id: true, name: true } }
+            } 
+          }
+        },
+      });
 
-      const payments = reservations.map((r: any) => ({
-        id: r.id,
-        amount: Number(r.totalPrice || 0),
-        status: (r.status as any) || 'COMPLETED',
-        method: r.paymentMethod || 'CARD',
+      return reservations.map((reservation: any) => ({
+        id: reservation.id,
+        paymentType: 'RESERVATION',
+        userId: reservation.userId,
+        user: reservation.user,
+        amount: Number(reservation.totalPrice || 0),
+        totalPrice: Number(reservation.totalPrice || 0),
+        status: reservation.status, // Mantener el estado original de la reserva
+        paymentMethod: reservation.paymentMethod || 'CARD',
+        paymentIntentId: reservation.paymentIntentId,
+        createdAt: reservation.createdAt,
+        updatedAt: reservation.updatedAt,
         provider: 'MANUAL',
-        createdAt: r.createdAt,
-        user: r.user,
-        reservationId: r.id,
-        membershipId: null,
-        refunds: [],
+        currency: 'EUR',
+        description: `Reserva ${reservation.court?.name || 'Cancha'}`,
+        // Metadatos enterprise
+        metadata: {
+          source: 'reservations',
+          reservationId: reservation.id,
+          courtName: reservation.court?.name,
+          centerName: reservation.court?.center?.name,
+          startTime: reservation.startTime,
+          endTime: reservation.endTime
+        }
       }));
-
-      return {
-        items: payments,
-        pagination: { page, limit, total, pages: Math.ceil(total / limit) },
-      };
+    } catch (error) {
+      console.warn('⚠️ [PAYMENT-SERVICE] Error obteniendo reservas:', error instanceof Error ? error.message : String(error));
+      return [];
     }
   }
 
@@ -583,47 +641,190 @@ export class PaymentService {
   }
 
   /**
-   * Obtener estadísticas de pagos
+   * Obtener estadísticas unificadas de pagos (órdenes + reservas)
+   * Arquitectura enterprise con agregación de múltiples fuentes
    */
   async getPaymentStats(centerId?: string) {
     try {
-      const where: any = {};
-      if (centerId) where.OR = [{ reservation: { court: { centerId } } }, { membership: { centerId } }];
-      const [totalRevenue, monthlyRevenue, paymentsByStatus, paymentsByMethod] = await Promise.all([
-        (prisma as any).payment.aggregate({ where: { ...where, status: 'COMPLETED' }, _sum: { amount: true } }),
-        (prisma as any).payment.aggregate({
-          where: { ...where, status: 'COMPLETED', createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } },
-          _sum: { amount: true },
-        }),
-        (prisma as any).payment.groupBy({ by: ['status'], where, _count: { _all: true }, _sum: { amount: true } }),
-        (prisma as any).payment.groupBy({ by: ['method'], where: { ...where, status: 'COMPLETED' }, _count: { _all: true }, _sum: { amount: true } }),
+      console.log('📊 [PAYMENT-SERVICE] Calculando estadísticas enterprise unificadas');
+      
+      // === AGREGACIÓN PARALELA DE MÚLTIPLES FUENTES ===
+      const [orderStats, reservationStats] = await Promise.all([
+        this._getOrderPaymentStats(centerId),
+        this._getReservationPaymentStats(centerId)
       ]);
-      return {
-        totalRevenue: totalRevenue._sum.amount || 0,
-        monthlyRevenue: monthlyRevenue._sum.amount || 0,
-        paymentsByStatus,
-        paymentsByMethod,
+
+      // === CONSOLIDACIÓN ENTERPRISE ===
+      const totalRevenue = (orderStats.totalRevenue || 0) + (reservationStats.totalRevenue || 0);
+      const monthlyRevenue = (orderStats.monthlyRevenue || 0) + (reservationStats.monthlyRevenue || 0);
+      
+      // Combinar estadísticas por estado
+      const combinedStatusStats = this._combineStatusStats(orderStats.statusStats, reservationStats.statusStats);
+      const combinedMethodStats = this._combineMethodStats(orderStats.methodStats, reservationStats.methodStats);
+
+      const result = {
+        totalRevenue,
+        monthlyRevenue,
+        paymentsByStatus: combinedStatusStats,
+        paymentsByMethod: combinedMethodStats,
+        breakdown: {
+          orders: {
+            totalRevenue: orderStats.totalRevenue || 0,
+            monthlyRevenue: orderStats.monthlyRevenue || 0,
+            count: orderStats.count || 0
+          },
+          reservations: {
+            totalRevenue: reservationStats.totalRevenue || 0,
+            monthlyRevenue: reservationStats.monthlyRevenue || 0,
+            count: reservationStats.count || 0
+          }
+        }
       };
-    } catch {
-      // Fallback usando reservas como proxy de pagos
-      const whereRes: any = { status: { in: ['PAID', 'COMPLETED'] } };
+
+      console.log(`✅ [PAYMENT-SERVICE] Estadísticas calculadas: €${totalRevenue} total, €${monthlyRevenue} mensual`);
+      return result;
+    } catch (error) {
+      console.error('❌ [PAYMENT-SERVICE] Error calculando estadísticas enterprise:', error);
+      throw new Error('Error interno del servidor al calcular estadísticas');
+    }
+  }
+
+  /**
+   * Obtener estadísticas de pagos de órdenes
+   */
+  private async _getOrderPaymentStats(centerId?: string) {
+    try {
+      const where: any = { status: 'COMPLETED' as any };
+      const whereMonth = { 
+        ...where, 
+        createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } 
+      };
+
+      const [totalRevenue, monthlyRevenue, count, statusStats, methodStats] = await Promise.all([
+        (prisma as any).order.aggregate({ where, _sum: { totalEuro: true } }),
+        (prisma as any).order.aggregate({ where: whereMonth, _sum: { totalEuro: true } }),
+        (prisma as any).order.count({ where }),
+        (prisma as any).order.groupBy({ by: ['status'], where, _count: { _all: true }, _sum: { totalEuro: true } }),
+        (prisma as any).order.groupBy({ by: ['paymentMethod'], where, _count: { _all: true }, _sum: { totalEuro: true } }),
+      ]);
+
+      return {
+        totalRevenue: Number(totalRevenue._sum.totalEuro || 0),
+        monthlyRevenue: Number(monthlyRevenue._sum.totalEuro || 0),
+        count,
+        statusStats,
+        methodStats
+      };
+    } catch (error) {
+      console.warn('⚠️ [PAYMENT-SERVICE] Error obteniendo estadísticas de órdenes:', error instanceof Error ? error.message : String(error));
+      return { totalRevenue: 0, monthlyRevenue: 0, count: 0, statusStats: [], methodStats: [] };
+    }
+  }
+
+  /**
+   * Obtener estadísticas de pagos de reservas
+   */
+  private async _getReservationPaymentStats(centerId?: string) {
+    try {
+      const whereRes: any = { status: { in: ['PAID', 'COMPLETED', 'IN_PROGRESS'] } };
       if (centerId) whereRes.court = { centerId };
-      const [reservationsAll, reservationsMonth, byStatus, byMethod] = await Promise.all([
+      
+      const whereMonth = { 
+        ...whereRes, 
+        createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } 
+      };
+
+      const [totalRevenue, monthlyRevenue, count, statusStats, methodStats] = await Promise.all([
         prisma.reservation.aggregate({ where: whereRes, _sum: { totalPrice: true } }),
-        prisma.reservation.aggregate({
-          where: { ...whereRes, createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } },
-          _sum: { totalPrice: true },
-        }),
+        prisma.reservation.aggregate({ where: whereMonth, _sum: { totalPrice: true } }),
+        prisma.reservation.count({ where: whereRes }),
         prisma.reservation.groupBy({ by: ['status'], where: whereRes, _count: { _all: true } }),
         prisma.reservation.groupBy({ by: ['paymentMethod'], where: whereRes, _count: { _all: true } }),
       ]);
+
       return {
-        totalRevenue: Number(reservationsAll._sum.totalPrice || 0),
-        monthlyRevenue: Number(reservationsMonth._sum.totalPrice || 0),
-        paymentsByStatus: byStatus,
-        paymentsByMethod: byMethod.map((m: any) => ({ method: m.paymentMethod, _count: { _all: m._count._all }, _sum: { amount: null } })),
+        totalRevenue: Number(totalRevenue._sum.totalPrice || 0),
+        monthlyRevenue: Number(monthlyRevenue._sum.totalPrice || 0),
+        count,
+        statusStats: statusStats.map((s: any) => ({ 
+          status: s.status, // Mantener el estado original
+          _count: s._count, 
+          _sum: { amount: null } 
+        })),
+        methodStats: methodStats.map((m: any) => ({ 
+          method: m.paymentMethod, 
+          _count: m._count, 
+          _sum: { amount: null } 
+        }))
       };
+    } catch (error) {
+      console.warn('⚠️ [PAYMENT-SERVICE] Error obteniendo estadísticas de reservas:', error instanceof Error ? error.message : String(error));
+      return { totalRevenue: 0, monthlyRevenue: 0, count: 0, statusStats: [], methodStats: [] };
     }
+  }
+
+  /**
+   * Combinar estadísticas por estado de diferentes fuentes
+   */
+  private _combineStatusStats(orderStats: any[], reservationStats: any[]) {
+    const combined = new Map();
+    
+    // Agregar estadísticas de órdenes
+    orderStats.forEach(stat => {
+      combined.set(stat.status, {
+        status: stat.status,
+        _count: { _all: stat._count._all },
+        _sum: { amount: stat._sum.totalEuro || 0 }
+      });
+    });
+    
+    // Agregar/combinar estadísticas de reservas
+    reservationStats.forEach(stat => {
+      const existing = combined.get(stat.status);
+      if (existing) {
+        existing._count._all += stat._count._all;
+      } else {
+        combined.set(stat.status, {
+          status: stat.status,
+          _count: { _all: stat._count._all },
+          _sum: { amount: 0 }
+        });
+      }
+    });
+    
+    return Array.from(combined.values());
+  }
+
+  /**
+   * Combinar estadísticas por método de diferentes fuentes
+   */
+  private _combineMethodStats(orderStats: any[], reservationStats: any[]) {
+    const combined = new Map();
+    
+    // Agregar estadísticas de órdenes
+    orderStats.forEach(stat => {
+      combined.set(stat.method, {
+        method: stat.method,
+        _count: { _all: stat._count._all },
+        _sum: { amount: stat._sum.totalEuro || 0 }
+      });
+    });
+    
+    // Agregar/combinar estadísticas de reservas
+    reservationStats.forEach(stat => {
+      const existing = combined.get(stat.method);
+      if (existing) {
+        existing._count._all += stat._count._all;
+      } else {
+        combined.set(stat.method, {
+          method: stat.method,
+          _count: { _all: stat._count._all },
+          _sum: { amount: 0 }
+        });
+      }
+    });
+    
+    return Array.from(combined.values());
   }
 
   /**

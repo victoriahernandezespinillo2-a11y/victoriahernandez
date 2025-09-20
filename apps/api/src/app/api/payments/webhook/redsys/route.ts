@@ -203,6 +203,31 @@ export async function POST(request: NextRequest) {
                   // Construir variables de plantilla
                   const durationMin = Math.round((reservation.endTime.getTime() - reservation.startTime.getTime()) / 60000);
                   const price = Number((reservation.totalPrice as any)?.toString?.() || reservation.totalPrice || 0);
+                  // Generar URL de Google Calendar
+                  const generateGoogleCalendarUrl = (reservation: any) => {
+                    const startDate = reservation.startTime.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+                    const endDate = reservation.endTime.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+                    
+                    const title = encodeURIComponent(`🎾 Reserva: ${reservation.court?.name || 'Cancha'} - Polideportivo Victoria Hernández`);
+                    const details = encodeURIComponent(`Reserva confirmada en ${reservation.court?.name || 'Cancha'}
+
+Detalles:
+• Pista: ${reservation.court?.name || 'Cancha'}
+• Fecha: ${reservation.startTime.toLocaleDateString('es-ES')}
+• Horario: ${reservation.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - ${reservation.endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+• Duración: ${durationMin} minutos
+• Precio: ${price.toFixed(2)}€
+• Código: ${reservation.id.slice(0, 10).toUpperCase()}
+
+¡No olvides llegar 10 minutos antes!
+
+Ver detalles: ${process.env.NEXT_PUBLIC_WEB_URL || 'https://polideportivovictoriahernandez.es'}/dashboard/reservations/${reservation.id}`);
+                    
+                    const location = encodeURIComponent('Polideportivo Victoria Hernández');
+                    
+                    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}/${endDate}&details=${details}&location=${location}&sf=true&output=xml`;
+                  };
+
                   const variables = {
                     userName: reservation.user?.name || reservation.user?.email || 'Usuario',
                     courtName: reservation.court?.name || 'Cancha',
@@ -213,6 +238,8 @@ export async function POST(request: NextRequest) {
                     price: price.toFixed(2),
                     reservationCode: reservation.id.slice(0, 10).toUpperCase(),
                     qrCodeDataUrl,
+                    accessPassUrl: `${process.env.NEXT_PUBLIC_WEB_URL || 'https://polideportivovictoriahernandez.es'}/dashboard/reservations/${reservation.id}`,
+                    googleCalendarUrl: generateGoogleCalendarUrl(reservation),
                   } as Record<string, string>;
 
                   const notifier = new NotificationService();

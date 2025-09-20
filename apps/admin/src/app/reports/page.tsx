@@ -233,6 +233,7 @@ export default function ReportsPage() {
         occupancyRate: calculateOccupancyRate(use as any)
       };
 
+
       // Calcular métricas anteriores
       const previousMetricsData = {
         totalRevenue: (prevRev as any)?.summary?.totalRevenue || 0,
@@ -703,8 +704,8 @@ export default function ReportsPage() {
           </div>
           <div className="space-y-2">
             {Array.isArray(usageData?.byStatus) && usageData.byStatus.length > 0 ? usageData.byStatus.map((item: any, index: number) => {
-              const maxCount = Math.max(...(usageData?.byStatus || []).map((r: any) => r?._count?.id || 0));
-              const percentage = maxCount > 0 ? ((item?._count?.id || 0) / maxCount) * 100 : 0;
+              const maxCount = Math.max(...(usageData?.byStatus || []).map((r: any) => r?.count || r?._count?.id || 0));
+              const percentage = maxCount > 0 ? ((item?.count || item?._count?.id || 0) / maxCount) * 100 : 0;
               const statusLabels: { [key: string]: string } = {
                 'PAID': 'Pagadas',
                 'PENDING': 'Pendientes',
@@ -727,7 +728,7 @@ export default function ReportsPage() {
                     ></div>
                   </div>
                   <span className="text-xs font-medium text-gray-900 w-8 text-right">
-                    {item?._count?.id ?? 0}
+                    {item?.count ?? item?._count?.id ?? 0}
                   </span>
                 </div>
               );
@@ -749,8 +750,8 @@ export default function ReportsPage() {
           <div className="grid grid-cols-2 gap-2">
             {Array.isArray(usageData?.bySport) && usageData.bySport.length > 0 ? usageData.bySport.slice(0, 4).map((court: any, index: number) => (
               <div key={index} className="text-center p-3 bg-gray-50 rounded-lg">
-                <div className="text-lg font-bold text-blue-600 mb-1">{court?._count?.id ?? 0}</div>
-                <div className="text-xs text-gray-600 font-medium truncate">{court.court}</div>
+                <div className="text-lg font-bold text-blue-600 mb-1">{court?.count ?? court?._count?.id ?? 0}</div>
+                <div className="text-xs text-gray-600 font-medium truncate">{court.court || court.sportType}</div>
                 <div className="text-xs text-gray-500 mt-1">reservas</div>
               </div>
             )) : (

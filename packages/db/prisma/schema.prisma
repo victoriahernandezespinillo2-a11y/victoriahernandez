@@ -65,14 +65,14 @@ model Center {
   phone       String?
   email       String?
   settings    Json         @default("{}")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
   /// Zona horaria IANA del centro (para cálculos locales)
   timezone    String?      @map("timezone")
   /// Inicio de día local (HH:MM). El tramo [day_start, night_start) se considera día.
   dayStart    String?      @map("day_start")
   /// Inicio de noche local (HH:MM). El resto del día es noche.
   nightStart  String?      @map("night_start")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
   courts      Court[]
   products    Product[]
   tournaments Tournament[]
@@ -87,17 +87,16 @@ model Court {
   sportType            String                @map("sport_type")
   capacity             Int?
   basePricePerHour     Decimal               @map("base_price_per_hour")
-  /// Indica si la cancha dispone de iluminación artificial
-  hasLighting          Boolean               @default(false) @map("has_lighting")
-  /// Precio adicional por hora cuando el usuario elige iluminación en horario diurno
-  lightingExtraPerHour Decimal?              @map("lighting_extra_per_hour")
   isActive             Boolean               @default(true) @map("is_active")
   maintenanceStatus    String                @default("operational") @map("maintenance_status")
   createdAt            DateTime              @default(now()) @map("created_at")
   updatedAt            DateTime              @updatedAt @map("updated_at")
-  // Multiuso: permite varios deportes en la misma cancha
   isMultiuse           Boolean               @default(false) @map("is_multiuse")
   allowedSports        String[]              @default([]) @map("allowed_sports")
+  /// Indica si la cancha dispone de iluminación artificial
+  hasLighting          Boolean               @default(false) @map("has_lighting")
+  /// Precio adicional por hora cuando el usuario elige iluminación en horario diurno
+  lightingExtraPerHour Decimal?              @map("lighting_extra_per_hour")
   center               Center                @relation(fields: [centerId], references: [id], onDelete: Cascade)
   maintenanceSchedules MaintenanceSchedule[]
   pricingRules         PricingRule[]
@@ -111,33 +110,32 @@ model Court {
 }
 
 model Reservation {
-  id                String            @id @default(cuid())
-  courtId           String            @map("court_id")
-  userId            String            @map("user_id")
-  startTime         DateTime          @map("start_time")
-  endTime           DateTime          @map("end_time")
-  status            ReservationStatus @default(PENDING)
-  totalPrice        Decimal           @map("total_price")
+  id                 String            @id @default(cuid())
+  courtId            String            @map("court_id")
+  userId             String            @map("user_id")
+  startTime          DateTime          @map("start_time")
+  endTime            DateTime          @map("end_time")
+  status             ReservationStatus @default(PENDING)
+  totalPrice         Decimal           @map("total_price")
+  paymentMethod      String?           @map("payment_method")
+  paymentIntentId    String?           @map("payment_intent_id")
+  isRecurring        Boolean           @default(false) @map("is_recurring")
+  recurringParentId  String?           @map("recurring_parent_id")
+  checkInTime        DateTime?         @map("check_in_time")
+  checkOutTime       DateTime?         @map("check_out_time")
+  expiresAt          DateTime?         @map("expires_at")
+  notes              String?
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
   /// Si el usuario seleccionó iluminación al reservar (o se forzó por horario nocturno)
-  lightingSelected  Boolean           @default(false) @map("lighting_selected")
+  lightingSelected   Boolean           @default(false) @map("lighting_selected")
   /// Monto total adicional cobrado por iluminación para esta reserva
-  lightingExtraTotal Decimal          @default(0) @map("lighting_extra_total")
-  paymentMethod     String?           @map("payment_method")
-  paymentIntentId   String?           @map("payment_intent_id")
-  isRecurring       Boolean           @default(false) @map("is_recurring")
-  recurringParentId String?           @map("recurring_parent_id")
-  checkInTime       DateTime?         @map("check_in_time")
-  checkOutTime      DateTime?         @map("check_out_time")
-  expiresAt         DateTime?         @map("expires_at")
-  notes             String?
-  // Deporte seleccionado cuando la cancha es multiuso
-  sport             String?           @map("sport")
-  createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
-  court             Court             @relation(fields: [courtId], references: [id], onDelete: Cascade)
-  recurringParent   Reservation?      @relation("RecurringReservations", fields: [recurringParentId], references: [id])
-  recurringChildren Reservation[]     @relation("RecurringReservations")
-  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lightingExtraTotal Decimal           @default(0) @map("lighting_extra_total")
+  sport              String?           @map("sport")
+  court              Court             @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  recurringParent    Reservation?      @relation("RecurringReservations", fields: [recurringParentId], references: [id])
+  recurringChildren  Reservation[]     @relation("RecurringReservations")
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([startTime, status])
   @@index([courtId, startTime])
@@ -272,8 +270,6 @@ model MaintenanceSchedule {
   id                String            @id @default(cuid())
   courtId           String            @map("court_id")
   type              MaintenanceType
-  activityType      ActivityType      @default(MAINTENANCE) @map("activity_type")
-  activityCategory  String?           @map("activity_category") // Categoría específica (ej: "Fútbol", "Yoga", "Limpieza")
   status            MaintenanceStatus @default(SCHEDULED)
   scheduledAt       DateTime          @map("scheduled_at")
   startedAt         DateTime?         @map("started_at")
@@ -281,14 +277,16 @@ model MaintenanceSchedule {
   description       String
   notes             String?
   cost              Decimal?
-  estimatedDuration Int?              @map("estimated_duration") // Duración estimada en minutos
   assignedTo        String?           @map("assigned_to")
-  instructor        String?           @map("instructor") // Para entrenamientos y clases
-  capacity          Int?              @map("capacity") // Capacidad de participantes
-  requirements      String?           @map("requirements") // Requerimientos especiales
-  isPublic          Boolean           @default(true) @map("is_public") // Público/Privado
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
+  estimatedDuration Int?              @map("estimated_duration")
+  activityCategory  String?           @map("activity_category")
+  activityType      ActivityType      @default(MAINTENANCE) @map("activity_type")
+  capacity          Int?              @map("capacity")
+  instructor        String?           @map("instructor")
+  isPublic          Boolean           @default(true) @map("is_public")
+  requirements      String?           @map("requirements")
   court             Court             @relation(fields: [courtId], references: [id], onDelete: Cascade)
 
   @@map("maintenance_schedules")
@@ -419,18 +417,18 @@ model Product {
   name               String
   sku                String              @unique
   category           String
-  type               String              @default("PHYSICAL") // PHYSICAL, DIGITAL, SERVICE
   priceEuro          Decimal             @map("price_euro")
   taxRate            Decimal             @default(0.0) @map("tax_rate")
   stockQty           Int                 @default(0) @map("stock_qty")
   isActive           Boolean             @default(true) @map("is_active")
   isPerishable       Boolean             @default(false) @map("is_perishable")
-  requiresCheckIn    Boolean             @default(false) @map("requires_check_in")
   expiresAt          DateTime?           @map("expires_at")
   creditMultiplier   Decimal?            @map("credit_multiplier")
   media              Json?               @default("[]")
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
+  requiresCheckIn    Boolean             @default(false) @map("requires_check_in")
+  type               String              @default("PHYSICAL")
   inventoryMovements InventoryMovement[]
   orderItems         OrderItem[]
   center             Center              @relation(fields: [centerId], references: [id], onDelete: Cascade)
@@ -448,10 +446,10 @@ model Order {
   creditsUsed     Int                @default(0) @map("credits_used")
   paymentIntentId String?            @map("payment_intent_id")
   idempotencyKey  String?            @unique @map("idempotency_key")
-  redeemedAt      DateTime?          @map("redeemed_at")
   createdAt       DateTime           @default(now()) @map("created_at")
   updatedAt       DateTime           @updatedAt @map("updated_at")
   type            OrderType          @default(ORDER)
+  redeemedAt      DateTime?          @map("redeemed_at")
   items           OrderItem[]
   user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -757,15 +755,53 @@ model LandingSportFacility {
 
 /// Suscriptores del boletín de noticias
 model NewsletterSubscriber {
-  id             String   @id @default(cuid())
-  email          String   @unique
-  status         String   @default("subscribed")
-  source         String?  @default("web")
+  id             String    @id @default(cuid())
+  email          String    @unique
+  status         String    @default("subscribed")
+  source         String?   @default("web")
   unsubscribedAt DateTime? @map("unsubscribed_at")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   @@map("newsletter_subscribers")
+}
+
+/// Sistema de Auditoría Enterprise
+model AuditLog {
+  id           String        @id @default(cuid())
+  timestamp    DateTime      @default(now())
+  userId       String?       @map("user_id")
+  userName     String        @map("user_name")
+  userEmail    String?       @map("user_email")
+  userRole     String?       @map("user_role")
+  action       String
+  resource     String?
+  resourceId   String?       @map("resource_id")
+  entityType   String?       @map("entity_type")
+  entityId     String?       @map("entity_id")
+  details      String?
+  metadata     Json?
+  ipAddress    String?       @map("ip_address")
+  userAgent    String?       @map("user_agent")
+  sessionId    String?       @map("session_id")
+  status       AuditStatus   @default(SUCCESS)
+  severity     AuditSeverity @default(LOW)
+  category     AuditCategory @default(SYSTEM)
+  tags         String[]
+  duration     Int?
+  errorCode    String?       @map("error_code")
+  errorMessage String?       @map("error_message")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  @@index([timestamp])
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([status])
+  @@index([category])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
 
 enum UserRole {
@@ -857,9 +893,9 @@ enum OrderStatus {
   PENDING
   PAID
   FULFILLED
-  REDEEMED
   REFUNDED
   CANCELLED
+  REDEEMED
 }
 
 enum OrderPaymentMethod {
@@ -908,45 +944,6 @@ enum SponsorTier {
   GOLD
   SILVER
   BRONZE
-}
-
-/// Sistema de Auditoría Enterprise
-model AuditLog {
-  id          String      @id @default(cuid())
-  timestamp   DateTime    @default(now())
-  userId      String?     @map("user_id")
-  userName    String      @map("user_name")
-  userEmail   String?     @map("user_email")
-  userRole    String?     @map("user_role")
-  action      String      // CREATE, UPDATE, DELETE, VIEW, LOGIN, LOGOUT, etc.
-  resource    String?     // user, reservation, court, payment, etc.
-  resourceId  String?     @map("resource_id")
-  entityType  String?     @map("entity_type")
-  entityId    String?     @map("entity_id")
-  details     String?     // JSON string with additional details
-  metadata    Json?       // Additional structured data
-  ipAddress   String?     @map("ip_address")
-  userAgent   String?     @map("user_agent")
-  sessionId   String?     @map("session_id")
-  status      AuditStatus @default(SUCCESS)
-  severity    AuditSeverity @default(LOW)
-  category    AuditCategory @default(SYSTEM)
-  tags        String[]    // Array of tags for categorization
-  duration    Int?        // Duration in milliseconds for operations
-  errorCode   String?     @map("error_code")
-  errorMessage String?    @map("error_message")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
-  
-  // Indexes for performance
-  @@index([timestamp])
-  @@index([userId])
-  @@index([action])
-  @@index([resource])
-  @@index([status])
-  @@index([category])
-  @@index([createdAt])
-  @@map("audit_logs")
 }
 
 enum AuditStatus {

@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { redirect } from 'next/navigation';
-import { useUserProfile, useReservations } from '@/lib/hooks';
+import { useUserProfile, useReservations, useCenters } from '@/lib/hooks';
+import { apiRequest } from '@/lib/api';
 
 
 
@@ -22,6 +23,7 @@ export default function DashboardPage() {
   const { data: session, status } = useSession();
   const { profile, loading: profileLoading, error: profileError, getProfile } = useUserProfile();
   const { reservations, loading: reservationsLoading, error: reservationsError, getReservations } = useReservations();
+  const { centers, loading: centersLoading, getCenters } = useCenters();
   const [userStats, setUserStats] = useState({
     totalReservations: 0,
     upcomingReservations: 0,
@@ -34,13 +36,26 @@ export default function DashboardPage() {
   type ActivityItem = { id: string; type: 'reservation' | 'payment' | 'other'; description: string; date: string; time: string };
   const [upcomingReservations, setUpcomingReservations] = useState<UpcomingItem[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
 
   // Calcular estadísticas del usuario
   useEffect(() => {
     if (reservations && reservations.length > 0) {
       const now = new Date();
       const upcoming = reservations.filter(r => new Date(r.date) >= now && r.status === 'confirmed');
-      const totalHours = reservations.reduce((acc, r) => acc + (r.duration || 60), 0) / 60;
+      
+      // Calcular horas totales SOLO de reservas que realmente se completaron
+      // Solo contar reservas con estado COMPLETED (realmente completadas)
+      // NO contar: cancelled (incluye NO_SHOW), pending (no pagadas), confirmed (solo pagadas pero no completadas)
+      const playedReservations = reservations.filter(r => 
+        r.status === 'completed' // Solo reservas que realmente se completaron exitosamente
+      );
+      
+      const totalHours = playedReservations.reduce((acc, r) => {
+        // Usar la duración calculada correctamente del hook, o calcular desde startTime/endTime si no está disponible
+        const duration = r.duration || 60; // El hook ya calcula la duración correctamente
+        return acc + duration;
+      }, 0) / 60; // Convertir minutos a horas
       
       // Encontrar deporte favorito
       const sportCounts = reservations.reduce((acc, r) => {
@@ -50,10 +65,57 @@ export default function DashboardPage() {
       const favoriteCourtType = Object.keys(sportCounts).reduce((a, b) => 
         sportCounts[a] > sportCounts[b] ? a : b, '');
 
+      // Calcular créditos usados correctamente usando datos reales
+      // INCLUIR TANTO RESERVAS COMO PEDIDOS
+      
+      // 1. Créditos usados en RESERVAS
+      const totalCostInEuros = reservations.reduce((acc, r) => acc + (r.cost || 0), 0);
+      const centerConfigs = new Map();
+      let totalCreditsUsedReservations = 0;
+      
+      // Procesar cada reserva con su centro específico
+      for (const reservation of reservations) {
+        const centerId = reservation.center?.id;
+        const cost = reservation.cost || 0;
+        
+        if (centerId && cost > 0) {
+          // Obtener configuración del centro si no la tenemos
+          if (!centerConfigs.has(centerId)) {
+            const center = centers?.find(c => c.id === centerId);
+            if (center) {
+              const settings = center.settings || {};
+              const creditsConfig = settings.credits || {};
+              const euroPerCredit = typeof creditsConfig.euroPerCredit === 'number' && creditsConfig.euroPerCredit > 0 
+                ? creditsConfig.euroPerCredit 
+                : null;
+              centerConfigs.set(centerId, euroPerCredit);
+            }
+          }
+          
+          const euroPerCredit = centerConfigs.get(centerId);
+          if (euroPerCredit !== null) {
+            // Usar configuración real del centro
+            totalCreditsUsedReservations += Math.ceil(cost / euroPerCredit);
+          } else {
+            // Si no hay configuración, no podemos calcular créditos reales
+            console.warn(`No se encontró configuración de créditos para el centro ${centerId}`);
+          }
+        }
+      }
+      
+      // 2. Créditos usados en PEDIDOS (datos directos de la base de datos)
+      const totalCreditsUsedOrders = orders.reduce((acc, order) => {
+        // Los pedidos ya tienen el campo creditsUsed calculado correctamente
+        return acc + (order.creditsUsed || 0);
+      }, 0);
+      
+      // 3. Total de créditos usados (reservas + pedidos)
+      const creditsUsed = totalCreditsUsedReservations + totalCreditsUsedOrders;
+
       setUserStats({
         totalReservations: reservations.length,
         upcomingReservations: upcoming.length,
-        creditsUsed: reservations.reduce((acc, r) => acc + (r.cost || 0), 0) / 1000, // Convertir a créditos
+        creditsUsed: creditsUsed,
         favoriteCourtType,
         memberSince: profile?.createdAt || '',
         totalHoursPlayed: Math.round(totalHours),
@@ -84,13 +146,29 @@ export default function DashboardPage() {
         }));
       setRecentActivity(recent);
     }
-  }, [reservations, profile]);
+  }, [reservations, profile, centers, orders]);
 
-  // Cargar datos (perfil y reservas) al montar
+  // Cargar datos (perfil, reservas, centros y pedidos) al montar
   useEffect(() => {
-    getProfile().catch(() => {});
-    getReservations().catch(() => {});
-  }, [getProfile, getReservations]);
+    const loadData = async () => {
+      try {
+        await Promise.all([
+          getProfile().catch(() => {}),
+          getReservations().catch(() => {}),
+          getCenters().catch(() => {}), // Cargar centros para obtener configuración de créditos
+          // Cargar pedidos para incluir créditos usados en pedidos
+          apiRequest('/api/orders').then((res: any) => {
+            const items = res?.items || res || [];
+            setOrders(items);
+          }).catch(() => setOrders([]))
+        ]);
+      } catch (error) {
+        console.error('Error cargando datos del dashboard:', error);
+      }
+    };
+    
+    loadData();
+  }, [getProfile, getReservations, getCenters]);
 
   if (status === 'loading' || profileLoading || reservationsLoading) {
     return (

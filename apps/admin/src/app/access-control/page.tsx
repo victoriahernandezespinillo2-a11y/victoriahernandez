@@ -90,7 +90,20 @@ export default function AccessControlPage() {
         setScanning(true);
       }
     } catch (e: any) {
-      setVerifyError("No se pudo acceder a la cámara. Conceda permisos o use la entrada manual.");
+      console.error('Error accessing camera:', e);
+      let errorMessage = "No se pudo acceder a la cámara.";
+      
+      if (e.name === 'NotAllowedError') {
+        errorMessage = "Permisos de cámara denegados. Haz clic en el ícono de candado 🔒 en la barra de direcciones y permite el acceso a la cámara.";
+      } else if (e.name === 'NotFoundError') {
+        errorMessage = "No se encontró ninguna cámara en el dispositivo.";
+      } else if (e.name === 'NotSupportedError') {
+        errorMessage = "El navegador no soporta acceso a la cámara.";
+      } else {
+        errorMessage = `Error de cámara: ${e.message}. Usa la entrada manual como alternativa.`;
+      }
+      
+      setVerifyError(errorMessage);
     }
   }, [hasBarcodeDetector]);
 
@@ -392,6 +405,28 @@ export default function AccessControlPage() {
               <span className="font-medium text-sm sm:text-base">Error de verificación</span>
             </div>
             <p className="text-sm text-red-600 dark:text-red-400 mt-2">{verifyError}</p>
+            
+            {/* Botón para solicitar permisos de cámara */}
+            {verifyError.includes("cámara") && (
+              <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                <button
+                  onClick={() => {
+                    setVerifyError("");
+                    startCamera();
+                  }}
+                  className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <CameraIcon className="h-4 w-4 mr-2" />
+                  Solicitar Permisos de Cámara
+                </button>
+                <button
+                  onClick={() => setVerifyError("")}
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Usar Entrada Manual
+                </button>
+              </div>
+            )}
           </div>
         )}
 
