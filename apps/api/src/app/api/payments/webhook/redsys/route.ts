@@ -221,7 +221,7 @@ Detalles:
 
 ¡No olvides llegar 10 minutos antes!
 
-Ver detalles: ${process.env.NEXT_PUBLIC_WEB_URL || 'https://polideportivovictoriahernandez.es'}/dashboard/reservations/${reservation.id}`);
+Ver detalles: ${process.env.NEXT_PUBLIC_WEB_URL || 'https://www.polideportivovictoriahernandez.es'}/dashboard/reservations/${reservation.id}`);
                     
                     const location = encodeURIComponent('Polideportivo Victoria Hernández');
                     
@@ -238,7 +238,7 @@ Ver detalles: ${process.env.NEXT_PUBLIC_WEB_URL || 'https://polideportivovictori
                     price: price.toFixed(2),
                     reservationCode: reservation.id.slice(0, 10).toUpperCase(),
                     qrCodeDataUrl,
-                    accessPassUrl: `${process.env.NEXT_PUBLIC_WEB_URL || 'https://polideportivovictoriahernandez.es'}/dashboard/reservations/${reservation.id}`,
+                    accessPassUrl: `${process.env.NEXT_PUBLIC_WEB_URL || 'https://www.polideportivovictoriahernandez.es'}/dashboard/reservations/${reservation.id}`,
                     googleCalendarUrl: generateGoogleCalendarUrl(reservation),
                   } as Record<string, string>;
 
