@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
 
     const reservationId = String(payload?.reservationId || '');
     if (!reservationId) {
-      return new Response(JSON.stringify({ ok: false, error: 'Token sin datos de reserva' }), { status: 400 });
+      // Si no hay reservationId, este token no es de una reserva
+      return new Response(JSON.stringify({ ok: false, error: 'Token no válido para reserva' }), { status: 400 });
     }
 
     const reservation = await db.reservation.findUnique({
