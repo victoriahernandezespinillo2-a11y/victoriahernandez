@@ -1,17 +1,18 @@
 /**
- * Script para debuggear el problema de verificación del QR
+ * Script para probar la verificación de pedidos directamente
  */
 
-import { PrismaClient } from '@prisma/client';
+const { PrismaClient } = require('@prisma/client');
+const jwt = require('jsonwebtoken');
 
 const prisma = new PrismaClient();
 
-async function debugQRVerification() {
+async function testOrderVerification() {
   try {
-    console.log('🔍 Debuggeando verificación del QR del pedido...\n');
+    console.log('🔍 Probando verificación de pedido...\n');
     
-    // 1. Verificar el pedido específico
-    const orderId = 'cmfrjgp940001ia049xx5d2h8'; // ID del pedido de agua mineral
+    // 1. Obtener el pedido específico
+    const orderId = 'cmfrjgp940001ia049xx5d2h8';
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -58,39 +59,43 @@ async function debugQRVerification() {
     console.log(`   - Puede hacer check-in: ${canCheckIn}`);
     console.log(`   - Ya fue canjeado: ${alreadyRedeemed}`);
     
-    // 4. Simular la verificación que hace la API
-    const jwt = await import('jsonwebtoken');
+    // 4. Generar un token válido para el pedido
+    const JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
+    const ttlMin = 240; // 4 horas
+    const expSeconds = Math.floor(Date.now() / 1000) + ttlMin * 60;
     
-    // Crear un token válido para el pedido
     const token = jwt.sign(
       { 
         type: 'order-pass', 
         orderId: order.id, 
         uid: order.userId,
-        exp: Math.floor(Date.now() / 1000) + 3600 // 1 hora
+        exp: expSeconds
       },
-      process.env.JWT_SECRET || 'test-secret'
+      JWT_SECRET
     );
     
     console.log('\n🔑 TOKEN GENERADO:');
     console.log(`   - Token: ${token.substring(0, 50)}...`);
+    console.log(`   - Expira: ${new Date(expSeconds * 1000).toISOString()}`);
     
-    // 5. Verificar el token
+    // 5. Simular la verificación que hace la API
+    console.log('\n🧪 SIMULANDO VERIFICACIÓN API:');
+    
+    // Verificar el token
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'test-secret');
-      console.log('\n✅ TOKEN VÁLIDO:');
+      const decoded = jwt.verify(token, JWT_SECRET);
+      console.log('✅ Token válido');
       console.log(`   - Tipo: ${decoded.type}`);
       console.log(`   - Order ID: ${decoded.orderId}`);
       console.log(`   - User ID: ${decoded.uid}`);
-      console.log(`   - Expira: ${new Date(decoded.exp * 1000).toISOString()}`);
       
-      // 6. Verificar si el token es del tipo correcto
+      // Verificar si el token es del tipo correcto
       if (decoded.type !== 'order-pass') {
         console.log('❌ ERROR: Token no es de tipo order-pass');
         return;
       }
       
-      // 7. Verificar si el pedido existe y está en estado correcto
+      // Verificar si el pedido existe y está en estado correcto
       if (decoded.orderId !== order.id) {
         console.log('❌ ERROR: Order ID del token no coincide');
         return;
@@ -102,32 +107,64 @@ async function debugQRVerification() {
       console.log('   - Estado correcto');
       console.log('   - Productos requieren check-in');
       
+      // 6. Simular la respuesta de la API
+      const apiResponse = {
+        ok: canCheckIn && !alreadyRedeemed,
+        order: {
+          id: order.id,
+          status: order.status,
+          user: { id: order.userId, name: order.user?.name, email: order.user?.email },
+          items: order.items.map(item => ({ 
+            name: item.product?.name || 'Producto', 
+            qty: item.qty,
+            type: item.product?.type,
+            requiresCheckIn: item.product?.requiresCheckIn
+          })),
+          itemsRequiringCheckIn: itemsRequiringCheckIn.map(item => ({
+            name: item.product?.name,
+            quantity: item.qty,
+            type: item.product?.type
+          })),
+          canCheckIn,
+          alreadyRedeemed,
+          createdAt: order.createdAt,
+        },
+      };
+      
+      console.log('\n📋 RESPUESTA DE LA API:');
+      console.log(JSON.stringify(apiResponse, null, 2));
+      
+      if (apiResponse.ok) {
+        console.log('\n✅ EL PEDIDO SE PUEDE ESCANEAR CORRECTAMENTE');
+      } else {
+        console.log('\n❌ EL PEDIDO NO SE PUEDE ESCANEAR');
+        if (!canCheckIn) {
+          console.log('   - Razón: No puede hacer check-in');
+        }
+        if (alreadyRedeemed) {
+          console.log('   - Razón: Ya fue canjeado');
+        }
+      }
+      
     } catch (error) {
       console.log('\n❌ ERROR VERIFICANDO TOKEN:');
       console.log(`   - Error: ${error.message}`);
     }
     
-    // 8. Verificar configuración del JWT_SECRET
-    console.log('\n🔐 CONFIGURACIÓN JWT:');
-    console.log(`   - JWT_SECRET configurado: ${process.env.JWT_SECRET ? 'SÍ' : 'NO'}`);
-    if (process.env.JWT_SECRET) {
-      console.log(`   - Longitud: ${process.env.JWT_SECRET.length} caracteres`);
-    }
-    
   } catch (error) {
-    console.error('❌ Error en debug:', error);
+    console.error('❌ Error en test:', error);
     throw error;
   } finally {
     await prisma.$disconnect();
   }
 }
 
-debugQRVerification()
+testOrderVerification()
   .then(() => {
-    console.log('\n✅ Debug completado');
+    console.log('\n✅ Test completado');
     process.exit(0);
   })
   .catch((error) => {
-    console.error('\n❌ Error en debug:', error);
+    console.error('\n❌ Error en test:', error);
     process.exit(1);
   });

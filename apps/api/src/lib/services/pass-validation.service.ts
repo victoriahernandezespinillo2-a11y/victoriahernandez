@@ -17,7 +17,7 @@ export class PassValidationService {
     status: ReservationStatus,
     endTime: Date
   ): PassValidationResult {
-    // Validar estado de la reserva
+    // Validar estado de la reserva PRIMERO (prioridad sobre expiración)
     if (!VALID_PASS_STATUSES.includes(status as any)) {
       const message = RESERVATION_STATUS_MESSAGES[status as keyof typeof RESERVATION_STATUS_MESSAGES] || 
                      `No se puede generar pase para reserva en estado: ${status}`;
@@ -29,8 +29,17 @@ export class PassValidationService {
       };
     }
 
-    // Validar expiración
-    if (endTime < new Date()) {
+    // Para reservas IN_PROGRESS (ya utilizadas), mostrar mensaje específico
+    if (status === 'IN_PROGRESS') {
+      return {
+        isValid: false,
+        message: 'Esta reserva ya fue utilizada. El pase de acceso no está disponible para reservas que ya fueron canjeadas.',
+        statusCode: 400
+      };
+    }
+
+    // Para reservas PAID, validar expiración solo si no han sido utilizadas
+    if (status === 'PAID' && endTime < new Date()) {
       return {
         isValid: false,
         message: 'El pase de acceso ya no está disponible. Los pases solo son válidos durante el horario de tu reserva y hasta 1 hora después de finalizada.',

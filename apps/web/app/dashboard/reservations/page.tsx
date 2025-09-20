@@ -141,6 +141,12 @@ export default function ReservationsPage() {
           );
           return;
         }
+        if (response.status === 400) {
+          // Mensaje específico para reservas ya utilizadas o con problemas de estado
+          const errorMessage = text || 'No se puede generar el pase de acceso en este momento.';
+          showError(errorMessage, 'Pase No Disponible', 'warning');
+          return;
+        }
         showError(text || `Error del servidor (${response.status})`, 'Error del Sistema', 'error');
         return;
       }
