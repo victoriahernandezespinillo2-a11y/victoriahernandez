@@ -13,11 +13,32 @@ import {
   CheckCircle,
   AlertCircle,
   XCircle,
+  ChevronRight,
+  Download,
+  QrCode,
+  CreditCard,
 } from 'lucide-react';
 import Link from 'next/link';
 import { getFirebaseIdTokenSafe } from '@/lib/api';
 import { useReservations } from '@/lib/hooks';
 import { useErrorModal } from '@/app/components/ErrorModal';
+
+// Hook para detectar dispositivo móvil
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkDevice = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkDevice();
+    window.addEventListener('resize', checkDevice);
+    return () => window.removeEventListener('resize', checkDevice);
+  }, []);
+
+  return isMobile;
+}
 
 interface Reservation {
   id: string;
@@ -88,6 +109,7 @@ const paymentConfig: Record<Reservation['paymentStatus'], { label: string; color
 
 export default function ReservationsPage() {
   const { reservations, loading, error, cancelReservation, getReservations } = useReservations();
+  const isMobile = useIsMobile();
   const { showError, ErrorModalComponent } = useErrorModal();
   const [linkLoadingId, setLinkLoadingId] = useState<string | null>(null);
   const [filteredReservations, setFilteredReservations] = useState<Reservation[]>([]);
@@ -273,7 +295,7 @@ export default function ReservationsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -389,166 +411,339 @@ export default function ReservationsPage() {
             </Link>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className={isMobile ? "space-y-3 p-3 pb-6" : "divide-y divide-gray-200"}>
             {filteredReservations.map((reservation) => {
               const StatusIcon = statusConfig[reservation.status].icon;
               const now = new Date();
               const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
               const reservationDate = new Date(reservation.date);
               const isPastDate = reservationDate < today;
-              return (
-                <div key={reservation.id} className="p-6 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-start space-x-4">
-                      <div className="flex-shrink-0">
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <MapPin className="h-6 w-6 text-blue-600" />
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <h3 className="text-lg font-medium text-gray-900">
-                            {reservation.courtName}
-                          </h3>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig[reservation.status].color}`}>
-                            <StatusIcon className="h-3 w-3 mr-1" />
-                            {statusConfig[reservation.status].label}
-                          </span>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${paymentStatusConfig[reservation.paymentStatus].color}`}>
-                            <span className="mr-1">{paymentStatusConfig[reservation.paymentStatus].icon}</span>
-                            {paymentStatusConfig[reservation.paymentStatus].label}
-                          </span>
-                        </div>
-                        
-                        {/* Información de pago más detallada */}
-                        <div className="mt-2 space-y-1">
-                          {reservation.paymentMethod && (
-                            <div className="flex items-center text-sm text-gray-600">
-                              <span className="mr-2">Método:</span>
-                              <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${paymentMethodConfig[reservation.paymentMethod]?.color || 'bg-gray-100 text-gray-800'}`}>
-                                <span className="mr-1">{paymentMethodConfig[reservation.paymentMethod]?.icon || '💳'}</span>
-                                {paymentMethodConfig[reservation.paymentMethod]?.label || reservation.paymentMethod}
+              
+              if (isMobile) {
+                // 🎨 DISEÑO MÓVIL OPTIMIZADO
+                return (
+                  <div key={reservation.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    {/* Header con icono y estados */}
+                    <div className="p-4 pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-sm">
+                            <MapPin className="h-5 w-5 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-gray-900 text-lg leading-tight">
+                              {reservation.courtName}
+                            </h3>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${statusConfig[reservation.status].color}`}>
+                                <StatusIcon className="h-3 w-3 mr-1" />
+                                {statusConfig[reservation.status].label}
+                              </span>
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${paymentStatusConfig[reservation.paymentStatus].color}`}>
+                                <span className="mr-1">{paymentStatusConfig[reservation.paymentStatus].icon}</span>
+                                {paymentStatusConfig[reservation.paymentStatus].label}
                               </span>
                             </div>
-                          )}
-                          
-                          {reservation.paymentStatus === 'pending' && reservation.paymentMethod === 'ONSITE' && (
-                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mt-2">
-                              <div className="flex items-start">
-                                <span className="text-orange-600 mr-2">⚠️</span>
-                                <div className="text-sm">
-                                  <p className="text-orange-800 font-medium">Pago pendiente en el centro</p>
-                                  <p className="text-orange-700 text-xs mt-1">
-                                    Presenta este comprobante en recepción para completar tu pago
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {reservation.paymentStatus === 'pending' && reservation.paymentMethod !== 'ONSITE' && (
-                            <button
-                              disabled={linkLoadingId === reservation.id}
-                              onClick={async () => {
-                                try {
-                                  setLinkLoadingId(reservation.id);
-                                  const res = await fetch(`/api/reservations/${reservation.id}/payment-link`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    credentials: 'include',
-                                  });
-                                  const data = await res.json();
-                                  if (res.ok && data?.url) {
-                                    window.open(data.url, '_blank');
-                                  } else {
-                                    showError('No se pudo generar el enlace de pago', 'Error de Pago', 'error');
-                                  }
-                                } catch (e) {
-                                  showError('Error generando enlace de pago', 'Error de Sistema', 'error');
-                                } finally {
-                                  setLinkLoadingId(null);
-                                }
-                              }}
-                              className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                            >
-                              {linkLoadingId === reservation.id ? 'Abriendo…' : 'Pagar ahora'}
-                            </button>
-                          )}
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-4 text-sm text-gray-500">
+                        
+                        {/* Botón principal de acción */}
+                        <button
+                          onClick={() => setSelectedReservation(reservation)}
+                          className="flex-shrink-0 w-10 h-10 bg-blue-50 hover:bg-blue-100 rounded-xl flex items-center justify-center transition-colors"
+                        >
+                          <ChevronRight className="h-5 w-5 text-blue-600" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Información de fecha y hora */}
+                    <div className="px-4 pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4 text-sm text-gray-600">
                           <span className="flex items-center">
-                            <Calendar className="h-4 w-4 mr-1" />
+                            <Calendar className="h-4 w-4 mr-1.5 text-blue-500" />
                             {formatDate(reservation.date)}
                           </span>
                           <span className="flex items-center">
-                            <Clock className="h-4 w-4 mr-1" />
+                            <Clock className="h-4 w-4 mr-1.5 text-blue-500" />
                             {reservation.startTime} - {reservation.endTime}
                           </span>
-                          <span className="font-medium text-gray-900">
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-gray-900">
                             {formatCurrency(reservation.cost)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Información de pago */}
+                    {reservation.paymentMethod && (
+                      <div className="px-4 pb-3">
+                        <div className="flex items-center text-sm text-gray-600">
+                          <CreditCard className="h-4 w-4 mr-2 text-gray-400" />
+                          <span className="mr-2">Método:</span>
+                          <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium ${paymentMethodConfig[reservation.paymentMethod]?.color || 'bg-gray-100 text-gray-800'}`}>
+                            <span className="mr-1">{paymentMethodConfig[reservation.paymentMethod]?.icon || '💳'}</span>
+                            {paymentMethodConfig[reservation.paymentMethod]?.label || reservation.paymentMethod}
                           </span>
                         </div>
-                        {reservation.notes && (
-                          <p className="text-sm text-gray-600 mt-2">
-                            {reservation.notes}
-                          </p>
+                      </div>
+                    )}
+
+                    {/* Alerta de pago pendiente */}
+                    {reservation.paymentStatus === 'pending' && reservation.paymentMethod === 'ONSITE' && (
+                      <div className="mx-4 mb-3">
+                        <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
+                          <div className="flex items-start">
+                            <span className="text-orange-600 mr-2 text-lg">⚠️</span>
+                            <div className="text-sm">
+                              <p className="text-orange-800 font-semibold">Pago pendiente en el centro</p>
+                              <p className="text-orange-700 text-xs mt-1">
+                                Presenta este comprobante en recepción
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Botón de pago para pendientes online */}
+                    {reservation.paymentStatus === 'pending' && reservation.paymentMethod !== 'ONSITE' && (
+                      <div className="px-4 pb-3">
+                        <button
+                          disabled={linkLoadingId === reservation.id}
+                          onClick={async () => {
+                            try {
+                              setLinkLoadingId(reservation.id);
+                              const res = await fetch(`/api/reservations/${reservation.id}/payment-link`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'include',
+                              });
+                              const data = await res.json();
+                              if (res.ok && data?.url) {
+                                window.open(data.url, '_blank');
+                              } else {
+                                showError('No se pudo generar el enlace de pago', 'Error de Pago', 'error');
+                              }
+                            } catch (e) {
+                              showError('Error generando enlace de pago', 'Error de Sistema', 'error');
+                            } finally {
+                              setLinkLoadingId(null);
+                            }
+                          }}
+                          className="w-full bg-blue-600 text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        >
+                          {linkLoadingId === reservation.id ? 'Abriendo…' : 'Pagar ahora'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Acciones secundarias */}
+                    <div className="px-4 pb-4">
+                      <div className="flex space-x-2">
+                        {(reservation.status === 'confirmed' || reservation.paymentStatus === 'paid') && !isPastDate && (
+                          <button
+                            onClick={() => openReservationPdf(reservation.id, 'pass')}
+                            className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 py-2.5 rounded-xl font-medium text-sm flex items-center justify-center transition-colors"
+                          >
+                            <QrCode className="h-4 w-4 mr-2" />
+                            Pase QR
+                          </button>
+                        )}
+                        
+                        {reservation.paymentStatus === 'paid' && (
+                          <button
+                            onClick={() => openReservationPdf(reservation.id, 'receipt')}
+                            className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-700 py-2.5 rounded-xl font-medium text-sm flex items-center justify-center transition-colors"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Recibo
+                          </button>
+                        )}
+                        
+                        {(reservation.status === 'confirmed' || reservation.status === 'pending') && (
+                          <button
+                            onClick={() => handleCancelReservation(reservation.id)}
+                            className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 py-2.5 rounded-xl font-medium text-sm flex items-center justify-center transition-colors"
+                          >
+                            <X className="h-4 w-4 mr-2" />
+                            Cancelar
+                          </button>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => setSelectedReservation(reservation)}
-                        className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        Ver
-                      </button>
-                      
-                      {(reservation.status === 'confirmed' || reservation.paymentStatus === 'paid') && !isPastDate && (
+
+                    {/* Notas si existen */}
+                    {reservation.notes && (
+                      <div className="px-4 pb-4">
+                        <div className="bg-gray-50 rounded-xl p-3">
+                          <p className="text-sm text-gray-600">
+                            <span className="font-medium">Nota:</span> {reservation.notes}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              } else {
+                // 🖥️ DISEÑO ESCRITORIO ORIGINAL
+                return (
+                  <div key={reservation.id} className="p-6 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-start space-x-4">
+                        <div className="flex-shrink-0">
+                          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <MapPin className="h-6 w-6 text-blue-600" />
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <h3 className="text-lg font-medium text-gray-900">
+                              {reservation.courtName}
+                            </h3>
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig[reservation.status].color}`}>
+                              <StatusIcon className="h-3 w-3 mr-1" />
+                              {statusConfig[reservation.status].label}
+                            </span>
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${paymentStatusConfig[reservation.paymentStatus].color}`}>
+                              <span className="mr-1">{paymentStatusConfig[reservation.paymentStatus].icon}</span>
+                              {paymentStatusConfig[reservation.paymentStatus].label}
+                            </span>
+                          </div>
+                          
+                          {/* Información de pago más detallada */}
+                          <div className="mt-2 space-y-1">
+                            {reservation.paymentMethod && (
+                              <div className="flex items-center text-sm text-gray-600">
+                                <span className="mr-2">Método:</span>
+                                <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${paymentMethodConfig[reservation.paymentMethod]?.color || 'bg-gray-100 text-gray-800'}`}>
+                                  <span className="mr-1">{paymentMethodConfig[reservation.paymentMethod]?.icon || '💳'}</span>
+                                  {paymentMethodConfig[reservation.paymentMethod]?.label || reservation.paymentMethod}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {reservation.paymentStatus === 'pending' && reservation.paymentMethod === 'ONSITE' && (
+                              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mt-2">
+                                <div className="flex items-start">
+                                  <span className="text-orange-600 mr-2">⚠️</span>
+                                  <div className="text-sm">
+                                    <p className="text-orange-800 font-medium">Pago pendiente en el centro</p>
+                                    <p className="text-orange-700 text-xs mt-1">
+                                      Presenta este comprobante en recepción para completar tu pago
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {reservation.paymentStatus === 'pending' && reservation.paymentMethod !== 'ONSITE' && (
+                              <button
+                                disabled={linkLoadingId === reservation.id}
+                                onClick={async () => {
+                                  try {
+                                    setLinkLoadingId(reservation.id);
+                                    const res = await fetch(`/api/reservations/${reservation.id}/payment-link`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      credentials: 'include',
+                                    });
+                                    const data = await res.json();
+                                    if (res.ok && data?.url) {
+                                      window.open(data.url, '_blank');
+                                    } else {
+                                      showError('No se pudo generar el enlace de pago', 'Error de Pago', 'error');
+                                    }
+                                  } catch (e) {
+                                    showError('Error generando enlace de pago', 'Error de Sistema', 'error');
+                                  } finally {
+                                    setLinkLoadingId(null);
+                                  }
+                                }}
+                                className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                              >
+                                {linkLoadingId === reservation.id ? 'Abriendo…' : 'Pagar ahora'}
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-4 text-sm text-gray-500">
+                            <span className="flex items-center">
+                              <Calendar className="h-4 w-4 mr-1" />
+                              {formatDate(reservation.date)}
+                            </span>
+                            <span className="flex items-center">
+                              <Clock className="h-4 w-4 mr-1" />
+                              {reservation.startTime} - {reservation.endTime}
+                            </span>
+                            <span className="font-medium text-gray-900">
+                              {formatCurrency(reservation.cost)}
+                            </span>
+                          </div>
+                          {reservation.notes && (
+                            <p className="text-sm text-gray-600 mt-2">
+                              {reservation.notes}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => openReservationPdf(reservation.id, 'pass')}
-                          className="inline-flex items-center px-3 py-1.5 border border-emerald-300 rounded-md text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors"
-                          title="Descargar pase de acceso con código QR"
-                        >
-                          <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 16h4.01M4 8h4m0 0V4m0 4L4 8l4 4m6-4h2.01M8 16H4.01" />
-                          </svg>
-                          Pase QR
-                        </button>
-                      )}
-                      
-                      {/* Descargar recibo si está pagado */}
-                      {reservation.paymentStatus === 'paid' && (
-                        <button
-                          onClick={() => openReservationPdf(reservation.id, 'receipt')}
+                          onClick={() => setSelectedReservation(reservation)}
                           className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
-                          <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          Recibo
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver
                         </button>
-                      )}
-                      
-                      {(reservation.status === 'confirmed' || reservation.status === 'pending') && (
-                        <button
-                          onClick={() => handleCancelReservation(reservation.id)}
-                          className="inline-flex items-center px-3 py-1.5 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                        >
-                          <X className="h-4 w-4 mr-1" />
-                          Cancelar
-                        </button>
-                      )}
+                        
+                        {(reservation.status === 'confirmed' || reservation.paymentStatus === 'paid') && !isPastDate && (
+                          <button
+                            onClick={() => openReservationPdf(reservation.id, 'pass')}
+                            className="inline-flex items-center px-3 py-1.5 border border-emerald-300 rounded-md text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors"
+                            title="Descargar pase de acceso con código QR"
+                          >
+                            <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 16h4.01M4 8h4m0 0V4m0 4L4 8l4 4m6-4h2.01M8 16H4.01" />
+                            </svg>
+                            Pase QR
+                          </button>
+                        )}
+                        
+                        {/* Descargar recibo si está pagado */}
+                        {reservation.paymentStatus === 'paid' && (
+                          <button
+                            onClick={() => openReservationPdf(reservation.id, 'receipt')}
+                            className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          >
+                            <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Recibo
+                          </button>
+                        )}
+                        
+                        {(reservation.status === 'confirmed' || reservation.status === 'pending') && (
+                          <button
+                            onClick={() => handleCancelReservation(reservation.id)}
+                            className="inline-flex items-center px-3 py-1.5 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Cancelar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {/* Estado de pago */}
+                    <div className="mt-2">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${paymentConfig[reservation.paymentStatus].color}`}>
+                        {paymentConfig[reservation.paymentStatus].label}
+                      </span>
                     </div>
                   </div>
-                  {/* Estado de pago */}
-                  <div className="mt-2">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${paymentConfig[reservation.paymentStatus].color}`}>
-                      {paymentConfig[reservation.paymentStatus].label}
-                    </span>
-                  </div>
-                </div>
-              );
+                );
+              }
             })}
           </div>
         )}

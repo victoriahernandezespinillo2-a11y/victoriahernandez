@@ -101,10 +101,60 @@ export default function SettingsPage() {
     new: false,
     confirm: false
   });
+  const [notification, setNotification] = useState<{
+    show: boolean;
+    type: 'success' | 'error' | 'info';
+    message: string;
+  }>({
+    show: false,
+    type: 'success',
+    message: ''
+  });
 
   useEffect(() => {
     getProfile().catch(() => {});
+    loadSavedSettings();
   }, [getProfile]);
+
+  const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
+    setNotification({
+      show: true,
+      type,
+      message
+    });
+    
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+      setNotification(prev => ({ ...prev, show: false }));
+    }, 3000);
+  };
+
+  const loadSavedSettings = () => {
+    try {
+      // Cargar configuraciones de app
+      const savedAppSettings = localStorage.getItem('appSettings');
+      if (savedAppSettings) {
+        const parsed = JSON.parse(savedAppSettings);
+        setAppSettings(parsed);
+        // Aplicar tema guardado
+        applyTheme(parsed.theme);
+      }
+
+      // Cargar configuraciones de notificaciones
+      const savedNotificationSettings = localStorage.getItem('notificationSettings');
+      if (savedNotificationSettings) {
+        setNotifications(JSON.parse(savedNotificationSettings));
+      }
+
+      // Cargar configuraciones de privacidad
+      const savedPrivacySettings = localStorage.getItem('privacySettings');
+      if (savedPrivacySettings) {
+        setPrivacy(JSON.parse(savedPrivacySettings));
+      }
+    } catch (error) {
+      console.error('Error loading saved settings:', error);
+    }
+  };
 
   const tabs = [
     { id: 'account', label: 'Cuenta', icon: User },
@@ -123,18 +173,113 @@ export default function SettingsPage() {
         const phone = (document.querySelector('#phone') as HTMLInputElement)?.value;
         await updateProfile({ firstName, lastName, phone });
       }
-      alert('Configuraciones guardadas exitosamente');
+      
+      // Guardar configuraciones de aplicación si estamos en esa tab
+      if (activeTab === 'app') {
+        await saveAppSettings();
+      }
+      
+      // Guardar configuraciones de notificaciones si estamos en esa tab
+      if (activeTab === 'notifications') {
+        await saveNotificationSettings();
+      }
+      
+      // Guardar configuraciones de privacidad si estamos en esa tab
+      if (activeTab === 'privacy') {
+        await savePrivacySettings();
+      }
+      
+      showNotification('success', 'Configuraciones guardadas exitosamente');
     } catch (error) {
       console.error('Error saving settings:', error);
-      alert('Error al guardar configuraciones');
+      showNotification('error', 'Error al guardar configuraciones');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const saveAppSettings = async () => {
+    try {
+      // Aquí iría la llamada a la API para guardar configuraciones de app
+      // Por ahora simulamos el guardado
+      console.log('Guardando configuraciones de app:', appSettings);
+      
+      // Simular llamada a API
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Guardar en localStorage
+      localStorage.setItem('appSettings', JSON.stringify(appSettings));
+      
+      // Aplicar tema inmediatamente
+      applyTheme(appSettings.theme);
+      
+    } catch (error) {
+      console.error('Error saving app settings:', error);
+      throw error;
+    }
+  };
+
+  const applyTheme = (theme: string) => {
+    const root = document.documentElement;
+    
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else if (theme === 'light') {
+      root.classList.remove('dark');
+    } else if (theme === 'system') {
+      // Usar preferencia del sistema
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (prefersDark) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    }
+  };
+
+  // Aplicar tema cuando cambie
+  const handleThemeChange = (theme: string) => {
+    setAppSettings(prev => ({ ...prev, theme: theme as any }));
+    applyTheme(theme);
+  };
+
+  // Aplicar configuración de sonidos
+  const handleSoundToggle = (enabled: boolean) => {
+    setAppSettings(prev => ({ ...prev, soundEnabled: enabled }));
+    
+    // Aplicar inmediatamente
+    if (enabled) {
+      console.log('Sonidos habilitados');
+      // Aquí se podrían habilitar sonidos de notificación
+    } else {
+      console.log('Sonidos deshabilitados');
+      // Aquí se podrían deshabilitar sonidos de notificación
+    }
+  };
+
+  const saveNotificationSettings = async () => {
+    try {
+      console.log('Guardando configuraciones de notificaciones:', notifications);
+      localStorage.setItem('notificationSettings', JSON.stringify(notifications));
+    } catch (error) {
+      console.error('Error saving notification settings:', error);
+      throw error;
+    }
+  };
+
+  const savePrivacySettings = async () => {
+    try {
+      console.log('Guardando configuraciones de privacidad:', privacy);
+      localStorage.setItem('privacySettings', JSON.stringify(privacy));
+    } catch (error) {
+      console.error('Error saving privacy settings:', error);
+      throw error;
+    }
+  };
+
   const handlePasswordChange = async () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert('Las contraseñas no coinciden');
+      showNotification('error', 'Las contraseñas no coinciden');
       return;
     }
 
@@ -150,12 +295,12 @@ export default function SettingsPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.error || `HTTP ${res.status}`);
       }
-      alert('Contraseña actualizada exitosamente');
+      showNotification('success', 'Contraseña actualizada exitosamente');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setShowPasswordForm(false);
     } catch (error) {
       console.error('Error changing password:', error);
-      alert('Error al cambiar contraseña');
+      showNotification('error', 'Error al cambiar contraseña');
     } finally {
       setIsLoading(false);
     }
@@ -169,12 +314,12 @@ export default function SettingsPage() {
       if (!res.ok) {
         throw new Error(data?.error || `HTTP ${res.status}`);
       }
-      alert('Cuenta eliminada exitosamente. Cerraremos tu sesión.');
+      showNotification('success', 'Cuenta eliminada exitosamente. Cerraremos tu sesión.');
       try { await fetch('/api/auth/signout', { method: 'POST' }); } catch {}
       window.location.href = '/';
     } catch (error) {
       console.error('Error deleting account:', error);
-      alert((error as any)?.message || 'Error al eliminar cuenta');
+      showNotification('error', (error as any)?.message || 'Error al eliminar cuenta');
     } finally {
       setIsLoading(false);
       setShowDeleteModal(false);
@@ -198,7 +343,7 @@ export default function SettingsPage() {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error exportando datos:', error);
-      alert((error as any)?.message || 'Error al exportar datos');
+      showNotification('error', (error as any)?.message || 'Error al exportar datos');
     } finally {
       setIsLoading(false);
     }
@@ -206,72 +351,92 @@ export default function SettingsPage() {
 
   const renderAccountSettings = () => (
     <div className="space-y-6">
-      {/* Personal Information */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Información Personal</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nombre
-            </label>
-            <input
-              id="firstName"
-              type="text"
-              defaultValue={profile?.firstName || ''}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
-            />
+      {/* Personal Information - adaptativo */}
+      <div className="bg-gradient-to-br from-blue-50 to-green-50 rounded-2xl p-4 md:p-6 border border-blue-100">
+        <div className="flex items-center gap-3 mb-4 md:mb-6">
+          <div className="p-2 bg-blue-600 rounded-xl">
+            <User className="h-4 w-4 md:h-5 md:w-5 text-white" />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Apellido
-            </label>
-            <input
-              id="lastName"
-              type="text"
-              defaultValue={profile?.lastName || ''}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
-            />
+          <h3 className="text-lg md:text-xl font-bold text-gray-900">Información Personal</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 gap-3 md:gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">
+                Nombre
+              </label>
+              <input
+                id="firstName"
+                type="text"
+                defaultValue={profile?.firstName || ''}
+                className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 placeholder-gray-500 bg-white"
+                placeholder="Tu nombre"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">
+                Apellido
+              </label>
+              <input
+                id="lastName"
+                type="text"
+                defaultValue={profile?.lastName || ''}
+                className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 placeholder-gray-500 bg-white"
+                placeholder="Tu apellido"
+              />
+            </div>
           </div>
+          
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">
               Email
             </label>
             <input
               type="email"
               defaultValue={profile?.email || ''}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+              className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-gray-600 cursor-not-allowed"
               disabled
             />
+            <p className="text-xs text-gray-500 mt-1">El email no se puede cambiar</p>
           </div>
+          
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">
               Teléfono
             </label>
             <input
               id="phone"
               type="tel"
               defaultValue={profile?.phone || ''}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+              className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 placeholder-gray-500 bg-white"
+              placeholder="Tu número de teléfono"
             />
           </div>
         </div>
       </div>
 
-      {/* Password Change */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Seguridad</h3>
+      {/* Seguridad - adaptativo */}
+      <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-4 md:p-6 border border-green-100">
+        <div className="flex items-center gap-3 mb-4 md:mb-6">
+          <div className="p-2 bg-green-600 rounded-xl">
+            <Lock className="h-4 w-4 md:h-5 md:w-5 text-white" />
+          </div>
+          <h3 className="text-lg md:text-xl font-bold text-gray-900">Seguridad</h3>
+        </div>
+        
         {!showPasswordForm ? (
           <button
             onClick={() => setShowPasswordForm(true)}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            className="w-full flex items-center justify-center px-6 py-4 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-xl font-semibold hover:from-green-700 hover:to-blue-700 transition-all shadow-lg"
           >
-            <Lock className="h-4 w-4 mr-2" />
+            <Lock className="h-5 w-5 mr-2" />
             Cambiar Contraseña
           </button>
         ) : (
-          <div className="space-y-4 max-w-md">
+          <div className="space-y-3 md:space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">
                 Contraseña Actual
               </label>
               <div className="relative">
@@ -279,19 +444,20 @@ export default function SettingsPage() {
                   type={showPasswords.current ? 'text' : 'password'}
                   value={passwordData.currentPassword}
                   onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                  className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 pr-10 md:pr-12 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors text-gray-900 placeholder-gray-500 bg-white"
+                  placeholder="Tu contraseña actual"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 md:right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  {showPasswords.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPasswords.current ? <EyeOff className="h-4 w-4 md:h-5 md:w-5" /> : <Eye className="h-4 w-4 md:h-5 md:w-5" />}
                 </button>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">
                 Nueva Contraseña
               </label>
               <div className="relative">
@@ -299,19 +465,20 @@ export default function SettingsPage() {
                   type={showPasswords.new ? 'text' : 'password'}
                   value={passwordData.newPassword}
                   onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                  className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 pr-10 md:pr-12 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors text-gray-900 placeholder-gray-500 bg-white"
+                  placeholder="Nueva contraseña"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 md:right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  {showPasswords.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPasswords.new ? <EyeOff className="h-4 w-4 md:h-5 md:w-5" /> : <Eye className="h-4 w-4 md:h-5 md:w-5" />}
                 </button>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">
                 Confirmar Nueva Contraseña
               </label>
               <div className="relative">
@@ -319,31 +486,32 @@ export default function SettingsPage() {
                   type={showPasswords.confirm ? 'text' : 'password'}
                   value={passwordData.confirmPassword}
                   onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                  className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 pr-10 md:pr-12 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors text-gray-900 placeholder-gray-500 bg-white"
+                  placeholder="Confirma tu nueva contraseña"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 md:right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  {showPasswords.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPasswords.confirm ? <EyeOff className="h-4 w-4 md:h-5 md:w-5" /> : <Eye className="h-4 w-4 md:h-5 md:w-5" />}
                 </button>
               </div>
             </div>
-            <div className="flex space-x-3">
+            <div className="flex gap-3 pt-2">
               <button
                 onClick={handlePasswordChange}
                 disabled={isLoading}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+                className="flex-1 px-4 md:px-6 py-2 md:py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-xl font-semibold hover:from-green-700 hover:to-blue-700 transition-all disabled:opacity-50 shadow-lg text-sm md:text-base"
               >
-                {isLoading ? 'Guardando...' : 'Guardar'}
+                {isLoading ? 'Guardando...' : 'Guardar Contraseña'}
               </button>
               <button
                 onClick={() => {
                   setShowPasswordForm(false);
                   setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
                 }}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
+                className="px-4 md:px-6 py-2 md:py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors text-sm md:text-base"
               >
                 Cancelar
               </button>
@@ -352,29 +520,51 @@ export default function SettingsPage() {
         )}
       </div>
 
-      {/* Danger Zone */}
-      <div className="border-t border-gray-200 pt-6">
-        <h3 className="text-lg font-semibold text-red-600 mb-4">Zona de Peligro</h3>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-start">
-            <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 mr-3" />
-            <div className="flex-1">
-              <h4 className="text-sm font-medium text-red-800">Eliminar Cuenta</h4>
-              <p className="text-sm text-red-700 mt-1">
-                Una vez eliminada tu cuenta, no podrás recuperarla. Esta acción es permanente.
-              </p>
-              <button
-                onClick={() => setShowDeleteModal(true)}
-                className="mt-3 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-              >
-                Eliminar Cuenta
-              </button>
-              <button
-                onClick={handleExportData}
-                className="mt-3 ml-3 px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 transition-colors"
-              >
-                Exportar mis datos (GDPR)
-              </button>
+      {/* Zona de Peligro - adaptativo */}
+      <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-2xl p-4 md:p-6 border border-red-200">
+        <div className="flex items-center gap-3 mb-4 md:mb-6">
+          <div className="p-2 bg-red-600 rounded-xl">
+            <AlertTriangle className="h-4 w-4 md:h-5 md:w-5 text-white" />
+          </div>
+          <h3 className="text-lg md:text-xl font-bold text-red-600">Zona de Peligro</h3>
+        </div>
+        
+        <div className="space-y-3 md:space-y-4">
+          <div className="bg-white rounded-xl p-3 md:p-4 border border-red-200">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 md:h-6 md:w-6 text-red-600 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-base md:text-lg font-semibold text-red-800 mb-1 md:mb-2">Eliminar Cuenta</h4>
+                <p className="text-red-700 mb-3 md:mb-4 text-sm md:text-base">
+                  Una vez eliminada tu cuenta, no podrás recuperarla. Esta acción es permanente y eliminará todos tus datos.
+                </p>
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  className="px-4 md:px-6 py-2 md:py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 transition-colors shadow-lg text-sm md:text-base"
+                >
+                  Eliminar Cuenta
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl p-3 md:p-4 border border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-gray-600 rounded-lg">
+                <Check className="h-4 w-4 md:h-5 md:w-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-base md:text-lg font-semibold text-gray-800 mb-1 md:mb-2">Exportar Datos</h4>
+                <p className="text-gray-600 mb-3 md:mb-4 text-sm md:text-base">
+                  Descarga una copia de todos tus datos personales (GDPR).
+                </p>
+                <button
+                  onClick={handleExportData}
+                  className="px-4 md:px-6 py-2 md:py-3 bg-gray-800 text-white rounded-xl font-semibold hover:bg-gray-900 transition-colors shadow-lg text-sm md:text-base"
+                >
+                  Exportar mis datos
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -567,7 +757,7 @@ export default function SettingsPage() {
                   name="theme"
                   value={theme.value}
                   checked={appSettings.theme === theme.value}
-                  onChange={(e) => setAppSettings(prev => ({ ...prev, theme: e.target.value as any }))}
+                  onChange={(e) => handleThemeChange(e.target.value)}
                   className="sr-only peer"
                 />
                 <div className="border-2 border-gray-200 rounded-lg p-4 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:border-gray-300 transition-colors">
@@ -600,7 +790,7 @@ export default function SettingsPage() {
               <input
                 type="checkbox"
                 checked={appSettings.soundEnabled}
-                onChange={(e) => setAppSettings(prev => ({ ...prev, soundEnabled: e.target.checked }))}
+                onChange={(e) => handleSoundToggle(e.target.checked)}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-none after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -643,97 +833,190 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Configuraciones</h1>
-        <p className="text-gray-500 mt-1">
-          Gestiona tu cuenta, notificaciones y preferencias
-        </p>
+    <>
+      <style jsx>{`
+        @keyframes slideInRight {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        
+        @keyframes slideOutRight {
+          from {
+            transform: translateX(0);
+            opacity: 1;
+          }
+          to {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+        }
+      `}</style>
+      <div className="min-h-screen bg-gray-50 pb-24">
+      {/* Header con gradiente - adaptativo */}
+      <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 text-white">
+        <div className="px-4 py-6 md:py-8">
+          <div className="text-center">
+            <h1 className="text-2xl md:text-3xl font-bold mb-2">⚙️ Configuraciones</h1>
+            <p className="text-blue-100 text-sm md:text-base">Gestiona tu cuenta, notificaciones y preferencias</p>
+          </div>
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        {/* Tabs */}
-        <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6" aria-label="Tabs">
-            {tabs.map((tab) => {
-              const IconComponent = tab.icon;
-              return (
+      {/* Contenedor principal con tabs modernas - adaptativo */}
+      <div className="px-4 -mt-4 relative z-10 max-w-4xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          {/* Tabs modernas - adaptativas */}
+          <div className="bg-gradient-to-r from-gray-50 to-blue-50">
+            <nav className="flex overflow-x-auto" aria-label="Tabs">
+              {tabs.map((tab) => {
+                const IconComponent = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center px-3 md:px-4 py-3 md:py-4 text-xs md:text-sm font-medium whitespace-nowrap transition-all ${
+                      activeTab === tab.id
+                        ? 'text-blue-600 bg-white shadow-sm border-b-2 border-blue-600'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                    }`}
+                  >
+                    <IconComponent className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* Tab Content - adaptativo */}
+          <div className="p-4 md:p-6 pb-6 md:pb-8">
+            {activeTab === 'account' && renderAccountSettings()}
+            {activeTab === 'notifications' && renderNotificationSettings()}
+            {activeTab === 'privacy' && renderPrivacySettings()}
+            {activeTab === 'app' && renderAppSettings()}
+            {activeTab === 'billing' && renderBillingSettings()}
+          </div>
+
+          {/* Save Button moderno - adaptativo */}
+          {activeTab !== 'billing' && (
+            <div className="bg-gradient-to-r from-blue-50 to-green-50 px-4 md:px-6 py-3 md:py-4 border-t border-gray-100">
+              <button
+                onClick={handleSaveSettings}
+                disabled={isLoading}
+                className="w-full flex items-center justify-center px-4 md:px-6 py-2 md:py-3 bg-gradient-to-r from-blue-600 to-green-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-green-700 transition-all disabled:opacity-50 shadow-lg text-sm md:text-base"
+              >
+                {isLoading ? (
+                  <div className="animate-spin rounded-full h-4 w-4 md:h-5 md:w-5 border-b-2 border-white mr-2"></div>
+                ) : (
+                  <Save className="h-4 w-4 md:h-5 md:w-5 mr-2" />
+                )}
+                {isLoading ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+        {/* Delete Account Modal */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-center mb-4">
+                <AlertTriangle className="h-6 w-6 text-red-600 mr-3" />
+                <h3 className="text-lg font-semibold text-gray-900">Confirmar Eliminación</h3>
+              </div>
+              <p className="text-gray-600 mb-6">
+                ¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer y perderás todos tus datos.
+              </p>
+              <div className="flex space-x-3">
                 <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                  onClick={handleDeleteAccount}
+                  disabled={isLoading}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
                 >
-                  <IconComponent className="h-4 w-4 mr-2" />
-                  {tab.label}
+                  {isLoading ? 'Eliminando...' : 'Sí, Eliminar'}
                 </button>
-              );
-            })}
-          </nav>
-        </div>
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
-        {/* Tab Content */}
-        <div className="p-6">
-          {activeTab === 'account' && renderAccountSettings()}
-          {activeTab === 'notifications' && renderNotificationSettings()}
-          {activeTab === 'privacy' && renderPrivacySettings()}
-          {activeTab === 'app' && renderAppSettings()}
-          {activeTab === 'billing' && renderBillingSettings()}
-        </div>
-
-        {/* Save Button */}
-        {activeTab !== 'billing' && (
-          <div className="border-t border-gray-200 px-6 py-4">
-            <button
-              onClick={handleSaveSettings}
-              disabled={isLoading}
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+        {/* Toast Notification */}
+        {notification.show && (
+          <div 
+            className="fixed top-4 right-4 z-[100] max-w-sm w-full mx-4"
+            style={{
+              animation: 'slideInRight 0.3s ease-out',
+            }}
+          >
+            <div 
+              className={`bg-white rounded-xl shadow-2xl border backdrop-blur-sm ${
+                notification.type === 'success' ? 'border-green-200' : 
+                notification.type === 'error' ? 'border-red-200' : 
+                'border-blue-200'
+              }`}
+              style={{
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              }}
             >
-              {isLoading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              ) : (
-                <Save className="h-4 w-4 mr-2" />
-              )}
-              {isLoading ? 'Guardando...' : 'Guardar Cambios'}
-            </button>
+              <div className="p-4">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      notification.type === 'success' ? 'bg-green-100' : 
+                      notification.type === 'error' ? 'bg-red-100' : 
+                      'bg-blue-100'
+                    }`}>
+                      {notification.type === 'success' && (
+                        <Check className="h-4 w-4 text-green-600" />
+                      )}
+                      {notification.type === 'error' && (
+                        <AlertTriangle className="h-4 w-4 text-red-600" />
+                      )}
+                      {notification.type === 'info' && (
+                        <Bell className="h-4 w-4 text-blue-600" />
+                      )}
+                    </div>
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <p className={`text-sm font-semibold ${
+                      notification.type === 'success' ? 'text-green-800' : 
+                      notification.type === 'error' ? 'text-red-800' : 
+                      'text-blue-800'
+                    }`}>
+                      {notification.message}
+                    </p>
+                  </div>
+                  <div className="ml-3 flex-shrink-0">
+                    <button
+                      onClick={() => setNotification(prev => ({ ...prev, show: false }))}
+                      className="inline-flex text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300 rounded-full p-1"
+                    >
+                      <span className="sr-only">Cerrar</span>
+                      <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
-
-      {/* Delete Account Modal */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center mb-4">
-              <AlertTriangle className="h-6 w-6 text-red-600 mr-3" />
-              <h3 className="text-lg font-semibold text-gray-900">Confirmar Eliminación</h3>
-            </div>
-            <p className="text-gray-600 mb-6">
-              ¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer y perderás todos tus datos.
-            </p>
-            <div className="flex space-x-3">
-              <button
-                onClick={handleDeleteAccount}
-                disabled={isLoading}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
-              >
-                {isLoading ? 'Eliminando...' : 'Sí, Eliminar'}
-              </button>
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 }
 

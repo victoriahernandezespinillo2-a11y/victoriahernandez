@@ -140,7 +140,7 @@ export default function MembershipsPage() {
   }, [currentMembership, planTypes]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Membresías y Créditos</h1>
@@ -333,7 +333,7 @@ export default function MembershipsPage() {
       </div>
 
       {/* Usage Tips */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 pb-8">
         <h3 className="text-lg font-semibold text-blue-900 mb-3">
           💡 Consejos para Maximizar tus Créditos
         </h3>

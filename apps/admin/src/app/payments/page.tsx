@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useAdminPayments } from '@/lib/hooks';
 import {
   MagnifyingGlassIcon as Search,
@@ -109,6 +109,9 @@ export default function PaymentsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [methodFilter, setMethodFilter] = useState<string>('all');
+  const [sourceTypeFilter, setSourceTypeFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   
@@ -118,14 +121,92 @@ export default function PaymentsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // Exportar CSV desde endpoint admin/ledger
+  const handleExport = useCallback(async () => {
+    try {
+      const mapMethod = (m: string) => {
+        const v = (m || '').toLowerCase();
+        if (v === 'credit_card' || v === 'debit_card') return 'CARD';
+        if (v === 'transfer') return 'TRANSFER';
+        if (v === 'cash') return 'CASH';
+        return undefined;
+      };
+      const mapStatus = (s: string) => {
+        const v = (s || '').toLowerCase();
+        if (v === 'completed') return 'PAID';
+        if (v === 'pending') return 'PENDING';
+        if (v === 'refunded') return 'REFUNDED';
+        return undefined;
+      };
+      const toStartISO = (d: string) => (d ? new Date(`${d}T00:00:00.000Z`).toISOString() : undefined);
+      const toEndISO = (d: string) => (d ? new Date(`${d}T23:59:59.999Z`).toISOString() : undefined);
+      const sp = new URLSearchParams();
+      sp.set('format', 'csv');
+      const m = mapMethod(methodFilter);
+      const st = mapStatus(statusFilter);
+      if (m) sp.set('method', m);
+      if (st) sp.set('status', st);
+      if (sourceTypeFilter !== 'all') sp.set('sourceType', sourceTypeFilter);
+      const df = toStartISO(dateFrom);
+      const dt = toEndISO(dateTo);
+      if (df) sp.set('dateFrom', df);
+      if (dt) sp.set('dateTo', dt);
+
+      const url = `/api/admin/payments?${sp.toString()}`;
+      const resp = await fetch(url, { credentials: 'include' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const blob = await resp.blob();
+      const dlUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = dlUrl;
+      a.download = `pagos_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(dlUrl);
+    } catch (e) {
+      console.error('❌ [PAYMENTS] Error exportando CSV:', e);
+    }
+  }, [methodFilter, statusFilter]);
+
   useEffect(() => {
     console.log('💳 [PAYMENTS] Cargando pagos...');
-    getPayments({ page: 1, limit: 100 }).then((result) => {
-      console.log('✅ [PAYMENTS] Pagos cargados:', result?.length || 0, 'pagos');
-    }).catch((error) => {
-      console.error('❌ [PAYMENTS] Error cargando pagos:', error);
-    });
-  }, [getPayments]);
+    const mapStatus = (s: string) => {
+      const v = (s || '').toLowerCase();
+      if (v === 'completed') return 'PAID';
+      if (v === 'pending') return 'PENDING';
+      if (v === 'refunded') return 'REFUNDED';
+      return undefined;
+    };
+    const mapMethod = (m: string) => {
+      const v = (m || '').toLowerCase();
+      if (v === 'credit_card' || v === 'debit_card') return 'CARD';
+      if (v === 'transfer') return 'TRANSFER';
+      if (v === 'cash') return 'CASH';
+      return undefined;
+    };
+    const toStartISO = (d: string) => (d ? new Date(`${d}T00:00:00.000Z`).toISOString() : undefined);
+    const toEndISO = (d: string) => (d ? new Date(`${d}T23:59:59.999Z`).toISOString() : undefined);
+
+    const params: any = { page: 1, limit: 100 };
+    const st = mapStatus(statusFilter);
+    const mt = mapMethod(methodFilter);
+    if (st) params.status = st;
+    if (mt) params.method = mt;
+    if (sourceTypeFilter !== 'all') params.sourceType = sourceTypeFilter;
+    const df = toStartISO(dateFrom);
+    const dt = toEndISO(dateTo);
+    if (df) params.dateFrom = df;
+    if (dt) params.dateTo = dt;
+
+    getPayments(params)
+      .then((result) => {
+        console.log('✅ [PAYMENTS] Pagos cargados:', result?.length || 0, 'pagos');
+      })
+      .catch((error) => {
+        console.error('❌ [PAYMENTS] Error cargando pagos:', error);
+      });
+  }, [getPayments, statusFilter, methodFilter, sourceTypeFilter, dateFrom, dateTo]);
 
   const rows: PaymentRow[] = useMemo(() => {
     const list = Array.isArray(payments) ? payments : [];
@@ -221,10 +302,10 @@ export default function PaymentsPage() {
             <p className="text-xs text-gray-500">Administra y monitorea todos los pagos</p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="p-2 bg-gray-100 rounded-lg">
+            <button className="p-2 bg-gray-100 rounded-lg" onClick={handleExport}>
               <Filter className="w-4 h-4 text-gray-600" />
             </button>
-            <button className="p-2 bg-blue-600 text-white rounded-lg">
+            <button className="p-2 bg-blue-600 text-white rounded-lg" onClick={handleExport}>
               <Download className="w-4 h-4" />
             </button>
           </div>
@@ -318,8 +399,31 @@ export default function PaymentsPage() {
                 <option value="transfer">Transferencia</option>
                 <option value="cash">Efectivo</option>
               </select>
+              <select
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                value={sourceTypeFilter}
+                onChange={(e) => setSourceTypeFilter(e.target.value)}
+              >
+                <option value="all">Todos los tipos</option>
+                <option value="RESERVATION">Reservas</option>
+                <option value="ORDER">Pedidos</option>
+                <option value="TOPUP">Recargas</option>
+                <option value="MEMBERSHIP">Membresías</option>
+              </select>
+              <input
+                type="date"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+              <input
+                type="date"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
             </div>
-            <button className="hidden md:flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <button className="hidden md:flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" onClick={handleExport}>
               <Download className="w-4 h-4" />
               Exportar
             </button>

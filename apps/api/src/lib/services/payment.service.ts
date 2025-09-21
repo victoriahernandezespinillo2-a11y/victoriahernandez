@@ -9,6 +9,7 @@ import type Stripe from 'stripe';
 import { PaymentService as PaymentServiceCore } from '@repo/payments';
 import { NotificationService } from '@repo/notifications';
 import { db } from '@repo/db';
+import { ledgerService } from './ledger.service';
 
 // Usar el cliente Prisma compartido del monorepo
 const prisma = db;
@@ -419,6 +420,29 @@ export class PaymentService {
           where: { id: payment.id },
           data: { status: 'REFUNDED' }
         });
+      }
+
+      // Registrar en Ledger (DEBIT) de forma idempotente
+      try {
+        let sourceType: 'RESERVATION' | 'ORDER' | 'MEMBERSHIP' | 'OTHER' = 'OTHER';
+        let sourceId: string = payment.id as string;
+        if (payment.reservationId) { sourceType = 'RESERVATION'; sourceId = payment.reservationId; }
+        else if (payment.membershipId) { sourceType = 'MEMBERSHIP'; sourceId = payment.membershipId; }
+        // No tenemos orderId en el modelo payment actual; futuros flujos podrán setearlo
+
+        await ledgerService.recordRefund({
+          sourceType,
+          sourceId,
+          amountEuro: refundAmount,
+          currency: 'EUR',
+          method: (payment.method || 'CARD') as any,
+          paidAt: refund ? new Date() : new Date(),
+          gatewayRef: refund?.id,
+          idempotencyKey: `REFUND:${sourceType}:${sourceId}:${refundRecord.id}`,
+          metadata: { paymentId: payment.id }
+        });
+      } catch (e) {
+        console.warn('Ledger recordRefund failed (PAYMENT):', e);
       }
 
       // Enviar notificación al usuario
@@ -856,9 +880,7 @@ export class PaymentService {
       if (payment.reservationId) {
         await prisma.reservation.update({
           where: { id: payment.reservationId },
-          data: { 
-            status: 'PAID'
-          }
+          data: { paymentStatus: 'PAID', paidAt: new Date() }
         });
       }
 

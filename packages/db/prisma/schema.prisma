@@ -119,6 +119,10 @@ model Reservation {
   totalPrice         Decimal           @map("total_price")
   paymentMethod      String?           @map("payment_method")
   paymentIntentId    String?           @map("payment_intent_id")
+  /// Estado de pago separado del estado operativo
+  paymentStatus      PaymentStatus     @default(PENDING) @map("payment_status")
+  /// Fecha contable real del cobro
+  paidAt             DateTime?         @map("paid_at")
   isRecurring        Boolean           @default(false) @map("is_recurring")
   recurringParentId  String?           @map("recurring_parent_id")
   checkInTime        DateTime?         @map("check_in_time")
@@ -142,6 +146,7 @@ model Reservation {
   @@index([userId, startTime])
   @@index([status, startTime])
   @@index([paymentMethod, startTime])
+  @@index([paymentStatus, paidAt])
   @@map("reservations")
 }
 
@@ -450,11 +455,38 @@ model Order {
   updatedAt       DateTime           @updatedAt @map("updated_at")
   type            OrderType          @default(ORDER)
   redeemedAt      DateTime?          @map("redeemed_at")
+  /// Estado de pago separado de status del pedido
+  paymentStatus   PaymentStatus      @default(PENDING) @map("payment_status")
+  paidAt          DateTime?          @map("paid_at")
   items           OrderItem[]
   user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([paymentStatus, paidAt])
   @@map("orders")
+}
+
+/// Libro mayor de transacciones de pago (fuente única para contabilidad)
+model LedgerTransaction {
+  id             String         @id @default(cuid())
+  sourceType     String         @map("source_type")
+  sourceId       String         @map("source_id")
+  direction      LedgerDirection
+  amountEuro     Decimal        @map("amount_euro")
+  currency       String         @default("EUR")
+  paymentStatus  PaymentStatus  @default(PAID) @map("payment_status")
+  paidAt         DateTime       @map("paid_at")
+  method         String         @map("method")
+  gatewayRef     String?        @map("gateway_ref")
+  idempotencyKey String         @unique @map("idempotency_key")
+  metadata       Json?          @default("{}")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  @@index([paidAt])
+  @@index([paymentStatus, paidAt])
+  @@index([sourceType, sourceId])
+  @@map("ledger_transactions")
 }
 
 model OrderItem {
@@ -896,6 +928,19 @@ enum OrderStatus {
   REFUNDED
   CANCELLED
   REDEEMED
+}
+
+/// Estado del pago (contable), independiente del estado operativo
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+}
+
+/// Dirección contable de la transacción
+enum LedgerDirection {
+  CREDIT
+  DEBIT
 }
 
 enum OrderPaymentMethod {

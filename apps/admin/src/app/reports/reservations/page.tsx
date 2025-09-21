@@ -128,12 +128,12 @@ export default function ReservationsReportPage() {
 
   // Calcular métricas desde datos reales
   const metrics = useMemo(() => {
-    const totalEffective = reservations.filter(r => r.status === 'PAID' || r.status === 'COMPLETED').length;
+    const totalEffective = reservations.filter((r: any) => (r.paymentStatus === 'PAID') || r.status === 'COMPLETED').length;
     const cancelled = reservations.filter(r => r.status === 'CANCELLED').length;
     const pending = reservations.filter(r => r.status === 'PENDING').length;
     const totalRevenue = reservations
-      .filter(r => r.status === 'PAID' || r.status === 'COMPLETED')
-      .reduce((sum, r) => sum + Number(r.totalAmount || 0), 0);
+      .filter((r: any) => (r.paymentStatus === 'PAID') || r.status === 'COMPLETED')
+      .reduce((sum, r: any) => sum + Number(r.totalAmount || 0), 0);
     
     // Agrupar por deporte
     const sportGroups = reservations.reduce((acc: any, r: any) => {
@@ -282,7 +282,7 @@ export default function ReservationsReportPage() {
           <h3 className="text-base font-semibold text-gray-900 mb-3">Por Estado</h3>
           <div className="space-y-2">
             {[
-              { status: 'PAID', label: 'Pagadas', count: reservations.filter(r => r.status === 'PAID').length, color: 'bg-green-500' },
+              { status: 'PAID', label: 'Pagadas', count: reservations.filter((r: any) => r.paymentStatus === 'PAID').length, color: 'bg-green-500' },
               { status: 'COMPLETED', label: 'Completadas', count: reservations.filter(r => r.status === 'COMPLETED').length, color: 'bg-blue-500' },
               { status: 'PENDING', label: 'Pendientes', count: reservations.filter(r => r.status === 'PENDING').length, color: 'bg-yellow-500' },
               { status: 'CANCELLED', label: 'Canceladas', count: reservations.filter(r => r.status === 'CANCELLED').length, color: 'bg-red-500' }

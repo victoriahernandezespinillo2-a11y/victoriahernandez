@@ -8,6 +8,7 @@ import { ApiResponse } from '@/lib/middleware';
 import { paymentService } from '@repo/payments';
 import { db } from '@repo/db';
 import { walletService } from '@/lib/services/wallet.service';
+import { ledgerService } from '@/lib/services/ledger.service';
 import { NotificationService } from '@/lib/services/notification.service';
 
 // Forzar runtime Node.js para poder leer cuerpo/form-data correctamente
@@ -64,6 +65,9 @@ export async function POST(request: NextRequest) {
     try {
       const decoded = Buffer.from(Ds_MerchantParameters, 'base64').toString('utf8');
       const params = JSON.parse(decoded || '{}');
+      // Extraer identificadores de Redsys para idempotencia estricta
+      const dsOrder: string | undefined = (params?.Ds_Order || params?.DS_ORDER || params?.DS_MERCHANT_ORDER || params?.Ds_Merchant_Order)?.toString?.();
+      const dsAuth: string | undefined = (params?.Ds_AuthorisationCode || params?.DS_AUTHORIZATIONCODE || params?.Ds_AuthorizationCode)?.toString?.();
       // Redsys puede devolver el campo como Ds_MerchantData (base64) o, segfn integracidn, como DS_MERCHANT_MERCHANTDATA
       const merchantDataRaw: string | undefined = params?.Ds_MerchantData || params?.DS_MERCHANT_MERCHANTDATA;
       if (merchantDataRaw) {
@@ -100,7 +104,26 @@ export async function POST(request: NextRequest) {
         if ((merchantData?.type === 'shop_order' || merchantData?.type === 'wallet_topup') && merchantData?.orderId) {
           if (result.success) {
             try {
-              await db.order.update({ where: { id: merchantData.orderId }, data: { status: 'PAID' } });
+              await db.order.update({ where: { id: merchantData.orderId }, data: { paymentStatus: 'PAID' as any, paidAt: new Date() } });
+              // Registrar asiento en Ledger (idempotente)
+              try {
+                const order = await db.order.findUnique({ where: { id: merchantData.orderId } });
+                if (order) {
+                  await ledgerService.recordPayment({
+                    paymentStatus: 'PAID',
+                    sourceType: 'ORDER',
+                    sourceId: order.id,
+                    direction: 'CREDIT',
+                    amountEuro: Number(order.totalEuro || 0),
+                    currency: 'EUR',
+                    method: 'CARD',
+                    paidAt: new Date(),
+                    idempotencyKey: `REDSYS:ORDER:${order.id}:${dsOrder || ''}:${dsAuth || ''}`,
+                    gatewayRef: [dsOrder, dsAuth].filter(Boolean).join(':') || undefined,
+                    metadata: { provider: 'REDSYS' }
+                  });
+                }
+              } catch (e) { console.warn('Ledger recordPayment failed (REDSYS ORDER):', e); }
               
               // Verificar si es una recarga de monedero
               if (merchantData.type === 'wallet_topup') {
@@ -165,8 +188,27 @@ export async function POST(request: NextRequest) {
         if (merchantData?.type === 'reservation' && merchantData?.reservationId) {
           if (result.success) {
             try {
-              // 1) Marcar como pagada (idempotente)
-              await db.reservation.update({ where: { id: merchantData.reservationId }, data: { status: 'PAID' } });
+              // 1) Marcar como pagada (idempotente) sin tocar estado operativo
+              await db.reservation.update({ where: { id: merchantData.reservationId }, data: { paymentStatus: 'PAID' as any, paidAt: new Date() } });
+              // Registrar asiento en Ledger (idempotente)
+              try {
+                const res = await db.reservation.findUnique({ where: { id: merchantData.reservationId } });
+                if (res) {
+                  await ledgerService.recordPayment({
+                    paymentStatus: 'PAID',
+                    sourceType: 'RESERVATION',
+                    sourceId: res.id,
+                    direction: 'CREDIT',
+                    amountEuro: Number(res.totalPrice || 0),
+                    currency: 'EUR',
+                    method: 'CARD',
+                    paidAt: new Date(),
+                    idempotencyKey: `REDSYS:RES:${res.id}:${dsOrder || ''}:${dsAuth || ''}`,
+                    gatewayRef: [dsOrder, dsAuth].filter(Boolean).join(':') || undefined,
+                    metadata: { provider: 'REDSYS' }
+                  });
+                }
+              } catch (e) { console.warn('Ledger recordPayment failed (REDSYS RESERVATION):', e); }
               await db.outboxEvent.create({ data: { eventType: 'RESERVATION_PAID', eventData: { reservationId: merchantData.reservationId, provider: 'REDSYS' } as any } });
 
               // 2) Enviar email con links a recibo y pase (idempotente por outbox)

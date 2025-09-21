@@ -361,7 +361,7 @@ export default function TournamentsPage() {
 
       {/* Tournaments Grid */}
       {!loading && !error && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
           {filteredTournaments.length === 0 ? (
              <div className="col-span-full text-center py-12">
                <Trophy className="h-12 w-12 mx-auto mb-4 text-gray-300" />
@@ -480,7 +480,7 @@ export default function TournamentsPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Torneos</h1>
@@ -518,7 +518,7 @@ export default function TournamentsPage() {
           </nav>
         </div>
 
-        <div className="p-6">
+        <div className="p-6 pb-8">
           {activeTab === 'available' ? renderAvailableTournaments() : renderMyTournaments()}
         </div>
       </div>

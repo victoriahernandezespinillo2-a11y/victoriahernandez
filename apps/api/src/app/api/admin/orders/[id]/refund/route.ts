@@ -1,58 +1,60 @@
 import { NextRequest } from 'next/server';
-import { z } from 'zod';
-import { withStaffMiddleware, ApiResponse } from '@/lib/middleware';
+import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
+import { z } from 'zod';
+import { ledgerService } from '@/lib/services/ledger.service';
 
-const RefundSchema = z.object({
+const Schema = z.object({
+  amount: z.number().positive().optional(),
   reason: z.string().min(3),
 });
 
 export async function POST(request: NextRequest) {
-  return withStaffMiddleware(async (req) => {
+  return withAdminMiddleware(async (req) => {
     try {
-      const id = req.nextUrl.pathname.split('/').slice(-2, -1)[0] as string;
-      const body = await req.json();
-      const { reason } = RefundSchema.parse(body);
+      const pathname = req.nextUrl.pathname;
+      const id = pathname.split('/').slice(-2, -1)[0] as string;
+      if (!id) return ApiResponse.badRequest('ID de orden requerido');
 
-      await (db as any).$transaction(async (tx: any) => {
-        const order = await tx.order.findUnique({ where: { id }, include: { items: true } });
-        if (!order) throw new Error('Pedido no encontrado');
-        if (order.status === 'REFUNDED') return;
+      const body = await req.json().catch(() => ({}));
+      const input = Schema.parse(body);
 
-        // Reponer stock
-        for (const it of (order.items || [])) {
-          await tx.product.update({ where: { id: it.productId }, data: { stockQty: { increment: it.qty } } });
-          await tx.inventoryMovement.create({ data: { productId: it.productId, type: 'IN', qty: it.qty, reason: `REFUND ${order.id}` } });
-        }
+      const order = await (db as any).order.findUnique({ where: { id }, select: { id: true, totalEuro: true } });
+      if (!order) return ApiResponse.notFound('Orden no encontrada');
 
-        // Si fue pagado con créditos, reabonar (idempotente por order.id)
-        if (order.paymentMethod === 'CREDITS' && order.creditsUsed > 0) {
-          const existing = await tx.walletLedger.findUnique({ where: { idempotency_key: `REFUND:${order.id}` } }).catch(() => null);
-          if (!existing) {
-            const user = await tx.user.findUnique({ where: { id: order.userId }, select: { creditsBalance: true } });
-            const updated = await tx.user.update({ where: { id: order.userId }, data: { creditsBalance: { increment: order.creditsUsed } }, select: { creditsBalance: true } });
-            await tx.walletLedger.create({ data: { userId: order.userId, type: 'CREDIT', reason: 'REFUND', credits: order.creditsUsed, balanceAfter: updated.creditsBalance, metadata: { orderId: order.id, reason }, idempotencyKey: `REFUND:${order.id}` } });
-          }
-        }
+      const amount = Number(input.amount || order.totalEuro || 0);
+      if (!(amount > 0)) return ApiResponse.badRequest('Monto de reembolso inválido');
 
-        await tx.order.update({ where: { id }, data: { status: 'REFUNDED' } });
-        await tx.outboxEvent.create({ data: { eventType: 'ORDER_REFUNDED', eventData: { orderId: id, reason } as any } });
+      // Registrar reembolso en ledger (DEBIT)
+      await ledgerService.recordRefund({
+        sourceType: 'ORDER',
+        sourceId: order.id,
+        amountEuro: amount,
+        currency: 'EUR',
+        method: 'CARD',
+        paidAt: new Date(),
+        idempotencyKey: `REFUND:ORD:${order.id}:${amount}`,
+        metadata: { reason: input.reason },
       });
 
-      return ApiResponse.success({ success: true });
+      // Mantener paymentStatus si parcial; si total, marcar REFUNDED
+      if (amount >= Number(order.totalEuro || 0)) {
+        await (db as any).order.update({ where: { id: order.id }, data: { paymentStatus: 'REFUNDED' as any } });
+      }
+
+      await (db as any).outboxEvent.create({ data: { eventType: 'ORDER_REFUNDED', eventData: { orderId: order.id, amount, reason: input.reason } as any } });
+
+      return ApiResponse.success({ success: true, orderId: order.id, amount });
     } catch (error) {
-      if (error instanceof z.ZodError) return ApiResponse.validation(error.errors.map(e => ({ field: e.path.join('.'), message: e.message })));
-      return ApiResponse.internalError('Error procesando reembolso');
+      if (error instanceof z.ZodError) {
+        return ApiResponse.validation(error.errors.map(er => ({ field: er.path.join('.'), message: er.message })));
+      }
+      console.error('Error reembolsando orden:', error);
+      return ApiResponse.internalError('No se pudo procesar el reembolso de la orden');
     }
   })(request);
 }
 
-export async function OPTIONS() { return ApiResponse.success(null); }
-
-
-
-
-
-
-
-
+export async function OPTIONS() { 
+  return ApiResponse.success(null); 
+}

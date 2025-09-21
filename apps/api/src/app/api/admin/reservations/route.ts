@@ -6,6 +6,7 @@
 import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
+import { ledgerService } from '@/lib/services/ledger.service';
 import { z } from 'zod';
 import { reservationService } from '@/lib/services/reservation.service';
 import { emailService } from '@repo/notifications';
@@ -289,8 +290,26 @@ export async function POST(request: NextRequest) {
       const method = input.payment?.method || 'CASH';
       const amount = Number(reservation.totalPrice || 0);
       const finalizeAsPaid = async (pm: string) => {
-        await db.reservation.update({ where: { id: reservation.id }, data: { status: 'PAID' as any, paymentMethod: pm } });
+        await db.reservation.update({ where: { id: reservation.id }, data: { paymentStatus: 'PAID' as any, paidAt: new Date(), paymentMethod: pm } });
         await db.outboxEvent.create({ data: { eventType: 'PAYMENT_RECORDED', eventData: { reservationId: reservation.id, userId, method: pm, amount, details: input.payment?.details } as any } });
+        try {
+          const ledgerMethod = pm === 'TPV' ? 'CARD' : pm;
+          await ledgerService.recordPayment({
+            paymentStatus: 'PAID',
+            sourceType: 'RESERVATION',
+            sourceId: reservation.id,
+            direction: 'CREDIT',
+            amountEuro: amount,
+            currency: 'EUR',
+            method: ledgerMethod as any,
+            paidAt: new Date(),
+            idempotencyKey: `MANUAL:${reservation.id}:${ledgerMethod}`,
+            metadata: { admin: true, details: input.payment?.details }
+          });
+        } catch (e) {
+          // No bloquear el flujo administrativo por error contable; quedará para reconciliación
+          console.warn('Ledger recordPayment failed (manual reservation):', e);
+        }
       };
 
       switch (method) {

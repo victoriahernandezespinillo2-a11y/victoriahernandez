@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { z } from 'zod';
 import { useAdminMaintenance, useAdminCourts, useAdminCenters } from '@/lib/hooks';
 import { useToast } from '@/components/ToastProvider';
 import { getCategoryFieldLabel, getCategoryOptions } from '@/lib/activityCategories';
@@ -31,6 +32,45 @@ export default function MaintenancePage() {
   const { courts, getCourts } = useAdminCourts();
   const { centers, getCenters } = useAdminCenters();
   const { showToast } = useToast();
+
+  // --- Utilidades de validación y mapeo ----------------------------
+
+  const CATEGORY_MAP: Record<string, string> = {
+    // Entrenamientos / deportes
+    'Fútbol': 'FOOTBALL',
+    'Baloncesto': 'BASKETBALL',
+    'Natación': 'SWIMMING',
+    // Mantenimiento
+    Pintura: 'PAINT',
+    Limpieza: 'CLEANING',
+    Reparación: 'REPAIR',
+  };
+
+  const MaintenanceBase = z.object({
+    courtId: z.string().regex(/^c[0-9a-z]{24}$/i, 'ID de cancha inválido'),
+    description: z.string().min(10, 'Descripción mínima de 10 caracteres'),
+    scheduledAt: z.string().datetime(),
+    assignedTo: z.string().optional(),
+    cost: z.number().nonnegative('Costo inválido').optional(),
+    estimatedDuration: z.number().int().min(15).max(480),
+    notes: z.string().optional(),
+    activityType: z.enum(['MAINTENANCE','TRAINING','CLASS','WARMUP','EVENT','MEETING','OTHER']),
+    capacity: z.number().int().positive().optional(),
+    instructor: z.string().optional(),
+    isPublic: z.boolean().optional(),
+    requirements: z.string().optional(),
+  });
+
+  const MaintenanceSchema = z.discriminatedUnion('activityType', [
+    MaintenanceBase.extend({
+      activityType: z.literal('MAINTENANCE'),
+      type: z.string().min(1, 'Tipo de mantenimiento requerido'),
+    }),
+    MaintenanceBase.extend({
+      activityType: z.enum(['TRAINING','CLASS','WARMUP','EVENT','MEETING','OTHER']),
+      activityCategory: z.string().min(1, 'Categoría requerida'),
+    }),
+  ]).refine((d) => new Date(d.scheduledAt) > new Date(), { message: 'La fecha debe ser futura' });
 
   // Estado para el modal de nueva tarea
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
@@ -184,7 +224,10 @@ export default function MaintenancePage() {
   const handleSubmitNewTask = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newTaskForm.courtId || !newTaskForm.type || !newTaskForm.description || !newTaskForm.scheduledAt) {
+    const isMaintenance = newTaskForm.activityType === 'MAINTENANCE';
+    const categoryFilled = isMaintenance ? newTaskForm.type : newTaskForm.activityCategory;
+
+    if (!newTaskForm.courtId || !categoryFilled || !newTaskForm.description || !newTaskForm.scheduledAt) {
       showToast({
         title: 'Error',
         message: 'Por favor completa todos los campos obligatorios',
@@ -217,71 +260,53 @@ export default function MaintenancePage() {
     
     // Preparar datos para envío
     const scheduledDate = new Date(newTaskForm.scheduledAt);
-    const maintenanceData = {
-      courtId: newTaskForm.courtId,
-      type: newTaskForm.type,
-      activityType: newTaskForm.activityType,
-      activityCategory: newTaskForm.activityCategory || undefined,
-      description: newTaskForm.description,
-      scheduledAt: scheduledDate.toISOString(), // Asegurar formato ISO 8601
-      // assignedTo debe ser un UUID válido, no un email
-      // Por ahora lo omitimos hasta implementar la búsqueda de usuarios
-      // assignedTo: newTaskForm.assignedTo || undefined,
-      instructor: newTaskForm.instructor || undefined,
-      capacity: newTaskForm.capacity ? parseInt(newTaskForm.capacity) : undefined,
-      requirements: newTaskForm.requirements || undefined,
-      isPublic: newTaskForm.isPublic,
+    // Mapear categoría/ tipo visible al valor esperado por backend
+    const uiValue = newTaskForm.activityType === 'MAINTENANCE' ? newTaskForm.type : newTaskForm.activityCategory;
+    const apiType = CATEGORY_MAP[uiValue] ?? uiValue;
+
+    const isUuid = /^[0-9a-fA-F-]{32,36}$/.test(newTaskForm.assignedTo.trim());
+    const manualAssignee = newTaskForm.assignedTo && !isUuid ? newTaskForm.assignedTo.trim() : '';
+
+    const base = {
+      courtId: newTaskForm.courtId.trim(),
+      description: newTaskForm.description.trim(),
+      scheduledAt: scheduledDate.toISOString(),
+      assignedTo: isUuid ? newTaskForm.assignedTo.trim() : undefined,
       cost: newTaskForm.cost ? parseFloat(newTaskForm.cost) : undefined,
-      estimatedDuration: newTaskForm.estimatedDuration,
-      notes: newTaskForm.notes || undefined,
+      estimatedDuration: Math.round(newTaskForm.estimatedDuration),
+      notes: (() => {
+        const n = newTaskForm.notes?.trim() || '';
+        return manualAssignee ? `${n ? n + '\n' : ''}Asignado a (manual): ${manualAssignee}` : (n || undefined);
+      })(),
+      activityType: newTaskForm.activityType as any,
+      ...(newTaskForm.capacity ? { capacity: parseInt(newTaskForm.capacity) } : {}),
+      ...(newTaskForm.instructor?.trim() ? { instructor: newTaskForm.instructor.trim() } : {}),
+      isPublic: !!newTaskForm.isPublic,
+      ...(newTaskForm.requirements?.trim() ? { requirements: newTaskForm.requirements.trim() } : {}),
+    } as const;
+
+    const maintenanceDataRaw = {
+      ...base,
+      type: apiType?.trim(),
+      ...(newTaskForm.activityType !== 'MAINTENANCE' ? { activityCategory: apiType?.trim() } : {}),
     };
+
+    // Validar con Zod
+    const maintenanceData = MaintenanceSchema.parse(maintenanceDataRaw);
 
     console.log('🔍 [MAINTENANCE] Datos a enviar:', maintenanceData);
     console.log('🔍 [MAINTENANCE] Formulario completo:', newTaskForm);
     console.log('🔍 [MAINTENANCE] Fecha original:', newTaskForm.scheduledAt);
     console.log('🔍 [MAINTENANCE] Fecha convertida:', new Date(newTaskForm.scheduledAt).toISOString());
     console.log('🔍 [MAINTENANCE] Tipo de courtId:', typeof maintenanceData.courtId);
-    console.log('🔍 [MAINTENANCE] Tipo de type:', typeof maintenanceData.type);
+    console.log('🔍 [MAINTENANCE] Tipo de type:', typeof (maintenanceData as any).type);
     console.log('🔍 [MAINTENANCE] Tipo de description:', typeof maintenanceData.description);
     console.log('🔍 [MAINTENANCE] Tipo de scheduledAt:', typeof maintenanceData.scheduledAt);
     
-    // Validar que courtId sea un CUID válido (formato Prisma)
-    const cuidRegex = /^c[0-9a-z]{24}$/i;
-    if (!cuidRegex.test(maintenanceData.courtId)) {
-      console.error('❌ [MAINTENANCE] courtId no es un CUID válido:', maintenanceData.courtId);
-      showToast({
-        title: 'Error',
-        message: 'ID de cancha inválido',
-        variant: 'error'
-      });
-      return;
-    }
-    
-    // Validar que la fecha sea válida
-    if (isNaN(scheduledDate.getTime())) {
-      console.error('❌ [MAINTENANCE] Fecha inválida:', maintenanceData.scheduledAt);
-      showToast({
-        title: 'Error',
-        message: 'Fecha programada inválida',
-        variant: 'error'
-      });
-      return;
-    }
-    
-    // Validar formato datetime de Zod (debe ser ISO 8601 con Z o timezone)
-    const datetimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
-    if (!datetimeRegex.test(maintenanceData.scheduledAt)) {
-      console.error('❌ [MAINTENANCE] Formato datetime inválido para Zod:', maintenanceData.scheduledAt);
-      showToast({
-        title: 'Error',
-        message: 'Formato de fecha inválido',
-        variant: 'error'
-      });
-      return;
-    }
+    // Validaciones específicas ya las hace Zod
     
     try {
-      await createMaintenanceRecord(maintenanceData);
+      await createMaintenanceRecord(maintenanceData as any);
       
       showToast({
         title: 'Éxito',
@@ -294,11 +319,12 @@ export default function MaintenancePage() {
       // Recargar la lista de tareas
       await getMaintenanceRecords({ limit: 50 });
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating maintenance record:', error);
+      const backendDetails = Array.isArray(error?.details) ? error.details.join(', ') : undefined;
       showToast({
         title: 'Error',
-        message: 'Error al crear la tarea de mantenimiento',
+        message: backendDetails || error?.message || 'Error al crear la tarea de mantenimiento',
         variant: 'error'
       });
     } finally {
@@ -854,12 +880,11 @@ export default function MaintenancePage() {
                       type="text"
                       value={newTaskForm.assignedTo}
                       onChange={(e) => setNewTaskForm(prev => ({ ...prev, assignedTo: e.target.value }))}
-                      className="w-full px-3 py-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
-                      placeholder="Próximamente disponible"
-                      disabled
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                      placeholder="Nombre o email del técnico (opcional)"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Asignación de técnicos estará disponible próximamente
+                      Si no existe un ID de técnico, se registrará en notas como asignación manual.
                     </p>
                   </div>
                   <div>

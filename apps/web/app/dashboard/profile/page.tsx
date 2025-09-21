@@ -109,7 +109,7 @@ export default function ProfilePage() {
   const profile = userProfile || {} as UserProfile;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       {/* Header */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="p-6">
@@ -378,7 +378,7 @@ export default function ProfilePage() {
             Información de Membresía
           </h2>
         </div>
-        <div className="p-6">
+        <div className="p-6 pb-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import * as z from 'zod';
 import Link from 'next/link';
 import { Mail, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 
@@ -23,7 +23,7 @@ export default function ForgotPasswordPage() {
     handleSubmit,
     formState: { errors },
   } = useForm<ForgotPasswordFormData>({
-    resolver: zodResolver(forgotPasswordSchema),
+    resolver: zodResolver(forgotPasswordSchema as any),
   });
 
   const onSubmit = async (data: ForgotPasswordFormData) => {

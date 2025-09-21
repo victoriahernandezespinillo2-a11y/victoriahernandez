@@ -253,93 +253,135 @@ function calculateDateRange(params: any) {
 }
 
 async function generateRevenueReport(startDate: Date, endDate: Date, centerId?: string, groupBy: string = 'day') {
-  console.log('🔍 [REVENUE] Generando reporte de ingresos:', {
+  console.log('🔍 [REVENUE] Generando reporte unificado desde Ledger:', {
     startDate: startDate.toISOString(),
     endDate: endDate.toISOString(),
     centerId,
     groupBy
   });
 
-  // Filtrar por createdAt (fecha de pago) para reportes de ingresos
-  // Esto incluye reservas pagadas independientemente de cuándo se usen
-  const baseFilter = {
-    createdAt: { gte: startDate, lte: endDate },
-    ...(centerId && { court: { centerId } })
-  } as const;
+  // Caso 1: Sin centerId -> todo desde ledger
+  if (!centerId) {
+    const credits = await prisma.ledgerTransaction.findMany({
+      where: {
+        direction: 'CREDIT' as any,
+        paymentStatus: 'PAID' as any,
+        paidAt: { gte: startDate, lte: endDate },
+      },
+      select: { amountEuro: true, paidAt: true, method: true, sourceType: true },
+      take: 5000,
+      orderBy: { paidAt: 'desc' },
+    });
 
-  const paidWhere = { ...baseFilter, status: { in: ['PAID','COMPLETED'] } as any } as const;
+    const totalRevenue = credits.reduce((sum, c) => sum + Number(c.amountEuro || 0), 0);
+    const totalTransactions = credits.length;
+    const byMethodMap = new Map<string, { method: string; totalAmount: number; count: number }>();
+    const bySourceMap = new Map<string, { sourceType: string; totalAmount: number; count: number }>();
 
-  console.log('🔍 [REVENUE] Filtro aplicado:', paidWhere);
+    for (const c of credits) {
+      const m = (c.method as any) || 'UNKNOWN';
+      const bm = byMethodMap.get(m) || { method: m, totalAmount: 0, count: 0 };
+      bm.totalAmount += Number(c.amountEuro || 0); bm.count += 1; byMethodMap.set(m, bm);
 
-  const [reservationRevenue, revenueByMethod, allReservations] = await Promise.all([
-    prisma.reservation.aggregate({
-      where: paidWhere,
-      _sum: { totalPrice: true },
-      _count: { id: true },
-    }),
-    prisma.reservation.groupBy({
-      by: ['paymentMethod'],
-      where: paidWhere,
-      _sum: { totalPrice: true },
-      _count: { id: true },
+      const s = (c.sourceType as any) || 'OTHER';
+      const bs = bySourceMap.get(s) || { sourceType: s, totalAmount: 0, count: 0 };
+      bs.totalAmount += Number(c.amountEuro || 0); bs.count += 1; bySourceMap.set(s, bs);
+    }
+
+    const byPeriod = groupLedgerByPeriod(credits, groupBy);
+
+    const result = {
+      summary: { totalRevenue, totalTransactions },
+      byMethod: Array.from(byMethodMap.values()),
+      bySourceType: Array.from(bySourceMap.values()),
+      byPeriod,
+    };
+    console.log('✅ [REVENUE] Ledger unificado (sin centro):', result.summary);
+    return result;
+  }
+
+  // Caso 2: Con centerId -> combinar: RESERVATION filtrado por centro + resto desde ledger
+  const [nonReservationCredits, centerReservations] = await Promise.all([
+    prisma.ledgerTransaction.findMany({
+      where: {
+        direction: 'CREDIT' as any,
+        paymentStatus: 'PAID' as any,
+        paidAt: { gte: startDate, lte: endDate },
+        sourceType: { not: 'RESERVATION' } as any,
+      },
+      select: { amountEuro: true, paidAt: true, method: true, sourceType: true },
+      take: 5000,
+      orderBy: { paidAt: 'desc' },
     }),
     prisma.reservation.findMany({
-      where: paidWhere,
-      select: {
-        startTime: true,
-        createdAt: true,
-        totalPrice: true,
-        id: true
+      where: {
+        paymentStatus: 'PAID' as any,
+        paidAt: { gte: startDate, lte: endDate },
+        court: { centerId },
       },
-      take: 1000, // Límite para evitar problemas de memoria
-      orderBy: {
-        createdAt: 'desc'
-      }
-    })
+      select: { id: true, paidAt: true, totalPrice: true, paymentMethod: true },
+      take: 5000,
+      orderBy: { paidAt: 'desc' },
+    }),
   ]);
 
-  console.log('📊 [REVENUE] Datos obtenidos:', {
-    totalRevenue: reservationRevenue._sum.totalPrice,
-    totalTransactions: reservationRevenue._count.id,
-    reservationsFound: allReservations.length,
-    byMethod: revenueByMethod.length
-  });
+  const credits: Array<{ amountEuro: number; paidAt: Date; method: string | null; sourceType: string }> = [
+    ...nonReservationCredits.map(c => ({ amountEuro: Number(c.amountEuro || 0), paidAt: c.paidAt as Date, method: (c.method as any) || null, sourceType: (c.sourceType as any) || 'OTHER' })),
+    ...centerReservations.map(r => ({ amountEuro: Number(r.totalPrice || 0), paidAt: (r.paidAt as Date) || new Date(), method: (r.paymentMethod as any) || null, sourceType: 'RESERVATION' })),
+  ];
 
-  // Agrupar por período manualmente usando createdAt (fecha de pago)
-  const revenueByPeriod = groupReservationsByPeriod(allReservations, groupBy, 'createdAt');
+  const totalRevenue = credits.reduce((sum, c) => sum + Number(c.amountEuro || 0), 0);
+  const totalTransactions = credits.length;
+  const byMethodMap = new Map<string, { method: string; totalAmount: number; count: number }>();
+  const bySourceMap = new Map<string, { sourceType: string; totalAmount: number; count: number }>();
 
-  // Mapear métodos de pago a nombres más descriptivos
-  const mapPaymentMethod = (method: string | null) => {
-    const methodMap: { [key: string]: string } = {
-      'CARD': 'Tarjeta',
-      'CASH': 'Efectivo',
-      'TRANSFER': 'Transferencia',
-      'PAYPAL': 'PayPal',
-      'STRIPE': 'Stripe',
-      'REDSYS': 'Redsys',
-      'UNKNOWN': 'Desconocido',
-      null: 'No especificado',
-      undefined: 'No especificado'
-    };
-    return methodMap[method || 'null'] || method || 'No especificado';
-  };
+  for (const c of credits) {
+    const m = (c.method as any) || 'UNKNOWN';
+    const bm = byMethodMap.get(m) || { method: m, totalAmount: 0, count: 0 };
+    bm.totalAmount += Number(c.amountEuro || 0); bm.count += 1; byMethodMap.set(m, bm);
+
+    const s = (c.sourceType as any) || 'OTHER';
+    const bs = bySourceMap.get(s) || { sourceType: s, totalAmount: 0, count: 0 };
+    bs.totalAmount += Number(c.amountEuro || 0); bs.count += 1; bySourceMap.set(s, bs);
+  }
+
+  const byPeriod = groupLedgerByPeriod(credits, groupBy);
 
   const result = {
-    summary: {
-      totalRevenue: Number(reservationRevenue._sum.totalPrice || 0),
-      totalTransactions: reservationRevenue._count.id,
-    },
-    byMethod: revenueByMethod.map((r: any) => ({
-      method: mapPaymentMethod(r.paymentMethod),
-      originalMethod: r.paymentMethod,
-      totalAmount: Number(r._sum.totalPrice || 0),
-      count: r._count.id,
-    })),
-    byPeriod: revenueByPeriod,
+    summary: { totalRevenue, totalTransactions },
+    byMethod: Array.from(byMethodMap.values()),
+    bySourceType: Array.from(bySourceMap.values()),
+    byPeriod,
   };
-
-  console.log('✅ [REVENUE] Reporte generado:', result);
+  console.log('✅ [REVENUE] Ledger unificado (con centro):', result.summary);
   return result;
+}
+
+function groupLedgerByPeriod(rows: Array<{ paidAt: Date; amountEuro: any }>, groupBy: string) {
+  const groups = new Map<string, { totalAmount: number; count: number }>();
+  for (const r of rows) {
+    const date = new Date(r.paidAt);
+    let key = '';
+    switch (groupBy) {
+      case 'week': {
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - date.getDay());
+        key = weekStart.toISOString().split('T')[0]!;
+        break;
+      }
+      case 'month':
+        key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        break;
+      case 'day':
+      default:
+        key = date.toISOString().split('T')[0]!;
+    }
+    if (!groups.has(key)) groups.set(key, { totalAmount: 0, count: 0 });
+    const g = groups.get(key)!;
+    g.totalAmount += Number(r.amountEuro || 0);
+    g.count += 1;
+  }
+  return Array.from(groups.entries()).map(([date, data]) => ({ date, totalAmount: data.totalAmount, count: data.count })).sort((a, b) => a.date.localeCompare(b.date));
 }
 
 function groupReservationsByPeriod(reservations: any[], groupBy: string, dateField: string = 'startTime') {

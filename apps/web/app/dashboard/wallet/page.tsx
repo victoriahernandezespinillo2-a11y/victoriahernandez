@@ -96,7 +96,7 @@ export default function WalletPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 pb-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 pb-24">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-100 px-4 py-6 sm:px-6">
         <div className="flex items-center gap-3">
@@ -370,7 +370,7 @@ export default function WalletPage() {
              </div>
           </div>
           
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-100 pb-6">
             {(ledger?.items || []).length === 0 ? (
               <div className="p-8 text-center">
                 <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">

@@ -508,9 +508,9 @@ export function useAdminReservations() {
         res.id === id 
           ? { 
               ...res, 
-              status: 'PAID', 
-              paymentMethod: paymentData.paymentMethod,
-              paymentStatus: 'PAID' 
+              paymentStatus: 'PAID',
+              paidAt: new Date().toISOString(),
+              paymentMethod: paymentData.paymentMethod
             } 
           : res
       ) : []

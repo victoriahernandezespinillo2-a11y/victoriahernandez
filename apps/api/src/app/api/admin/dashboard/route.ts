@@ -53,14 +53,16 @@ export async function GET(request: NextRequest) {
       const baseFilter = { createdAt: { gte: startDate, lte: now }, ...(params.centerId && { centerId: params.centerId }) } as any;
       
       // Ejecutar consultas con tolerancia a fallos
+      // Ingresos desde ledger (CREDIT, PAID)
+      const ledgerFilter: any = { direction: 'CREDIT', paymentStatus: 'PAID', paidAt: { gte: startDate, lte: now } };
       const [curRevRes, curResRes, curUsrRes, curMemRes, curTourRes] = await Promise.allSettled([
-        prisma.reservation.aggregate({ where: { ...baseFilter, status: 'PAID' as any }, _sum: { totalPrice: true } }),
+        prisma.ledgerTransaction.aggregate({ where: ledgerFilter, _sum: { amountEuro: true } } as any),
         prisma.reservation.count({ where: baseFilter }),
         prisma.user.count({ where: { createdAt: { gte: startDate, lte: now } } }),
         prisma.membership.count({ where: baseFilter }),
         prisma.tournament.count({ where: baseFilter }),
       ]);
-      const currentRevenue = curRevRes.status === 'fulfilled' ? curRevRes.value : { _sum: { totalPrice: 0 } };
+      const currentRevenue = curRevRes.status === 'fulfilled' ? curRevRes.value : { _sum: { amountEuro: 0 } };
       const currentReservations = curResRes.status === 'fulfilled' ? curResRes.value : 0;
       const currentUsers = curUsrRes.status === 'fulfilled' ? curUsrRes.value : 0;
       const currentMemberships = curMemRes.status === 'fulfilled' ? curMemRes.value : 0;
@@ -73,14 +75,15 @@ export async function GET(request: NextRequest) {
       previousStartDate.setDate(previousStartDate.getDate() - periodDays);
       const previousFilter = { createdAt: { gte: previousStartDate, lte: previousEndDate }, ...(params.centerId && { centerId: params.centerId }) } as any;
 
+      const prevLedgerFilter: any = { direction: 'CREDIT', paymentStatus: 'PAID', paidAt: { gte: previousStartDate, lte: previousEndDate } };
       const [prevRevRes, prevResRes, prevUsrRes, prevMemRes, prevTourRes] = await Promise.allSettled([
-        prisma.reservation.aggregate({ where: { ...previousFilter, status: 'PAID' as any }, _sum: { totalPrice: true } }),
+        prisma.ledgerTransaction.aggregate({ where: prevLedgerFilter, _sum: { amountEuro: true } } as any),
         prisma.reservation.count({ where: previousFilter }),
         prisma.user.count({ where: { createdAt: { gte: previousStartDate, lte: previousEndDate } } }),
         prisma.membership.count({ where: previousFilter }),
         prisma.tournament.count({ where: previousFilter }),
       ]);
-      const previousRevenue = prevRevRes.status === 'fulfilled' ? prevRevRes.value : { _sum: { totalPrice: 0 } };
+      const previousRevenue = prevRevRes.status === 'fulfilled' ? prevRevRes.value : { _sum: { amountEuro: 0 } };
       const previousReservations = prevResRes.status === 'fulfilled' ? prevResRes.value : 0;
       const previousUsers = prevUsrRes.status === 'fulfilled' ? prevUsrRes.value : 0;
       const previousMemberships = prevMemRes.status === 'fulfilled' ? prevMemRes.value : 0;
@@ -105,7 +108,7 @@ export async function GET(request: NextRequest) {
 
       const [resByDate, paidRevenueByDate, usersByDate, membershipsByDate, tournamentsByDate] = await Promise.all([
         safeGroupCount(() => prisma.reservation.groupBy({ by: ['createdAt'], where: baseFilter, _count: { id: true } } as any)),
-        safeGroupCount(() => prisma.reservation.groupBy({ by: ['createdAt'], where: { ...baseFilter, status: 'PAID' as any }, _sum: { totalPrice: true } } as any)),
+        safeGroupCount(() => prisma.ledgerTransaction.groupBy({ by: ['paidAt'], where: ledgerFilter, _sum: { amountEuro: true } } as any)),
         safeGroupCount(() => prisma.user.groupBy({ by: ['createdAt'], where: { createdAt: { gte: startDate, lte: now } }, _count: { id: true } } as any)),
         safeGroupCount(() => prisma.membership.groupBy({ by: ['createdAt'], where: baseFilter, _count: { id: true } } as any)),
         safeGroupCount(() => prisma.tournament.groupBy({ by: ['createdAt'], where: baseFilter, _count: { id: true } } as any)),
@@ -114,8 +117,8 @@ export async function GET(request: NextRequest) {
       const mapCounts = (arr: any[], key: 'count' | 'sum'): Record<string, number> => {
         const m: Record<string, number> = {}; if (!Array.isArray(arr)) return m;
         for (const it of arr) {
-          const k = toDay(it.createdAt as Date);
-          const value = key === 'count' ? (it._count?.id || 0) : (Number(it._sum?.totalPrice || 0));
+          const k = toDay((it.createdAt || it.paidAt) as Date);
+          const value = key === 'count' ? (it._count?.id || 0) : (Number((it._sum?.amountEuro ?? it._sum?.totalPrice) || 0));
           m[k] = (m[k] || 0) + value;
         }
         return m;
@@ -137,13 +140,13 @@ export async function GET(request: NextRequest) {
 
       const dashboard = {
         metrics: {
-          totalRevenue: currentRevenue._sum.totalPrice || 0,
+          totalRevenue: Number(currentRevenue._sum?.amountEuro || 0),
           totalReservations: currentReservations,
           totalUsers: currentUsers,
           totalMemberships: currentMemberships,
           totalTournaments: currentTournaments,
           growth: {
-            revenue: calculateGrowth(Number(currentRevenue._sum.totalPrice || 0), Number(previousRevenue._sum.totalPrice || 0)),
+            revenue: calculateGrowth(Number(currentRevenue._sum?.amountEuro || 0), Number(previousRevenue._sum?.amountEuro || 0)),
             reservations: calculateGrowth(currentReservations, previousReservations),
             users: calculateGrowth(currentUsers, previousUsers),
             memberships: calculateGrowth(currentMemberships, previousMemberships),

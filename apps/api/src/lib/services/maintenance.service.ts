@@ -8,15 +8,8 @@ import { z } from 'zod';
 import { NotificationService } from '@repo/notifications';
 
 // Esquemas de validación
-export const CreateMaintenanceSchema = z.object({
+const CreateMaintenanceBase = z.object({
   courtId: z.string().cuid('ID de cancha inválido'),
-  type: z.enum(['CLEANING', 'REPAIR', 'INSPECTION', 'RENOVATION'], {
-    errorMap: () => ({ message: 'Tipo de mantenimiento inválido' }),
-  }),
-  activityType: z.enum(['MAINTENANCE', 'TRAINING', 'CLASS', 'WARMUP', 'EVENT', 'MEETING', 'OTHER'], {
-    errorMap: () => ({ message: 'Tipo de actividad inválido' }),
-  }).optional().default('MAINTENANCE'),
-  activityCategory: z.string().min(2, 'La categoría debe tener al menos 2 caracteres').optional(),
   description: z.string().min(10, 'La descripción debe tener al menos 10 caracteres'),
   scheduledAt: z.string().datetime('Fecha programada inválida'),
   assignedTo: z.string().cuid('ID de técnico inválido').optional(),
@@ -28,6 +21,21 @@ export const CreateMaintenanceSchema = z.object({
   estimatedDuration: z.number().min(15).max(480).optional(), // 15 minutos a 8 horas
   notes: z.string().optional(),
 });
+
+export const CreateMaintenanceSchema = z.discriminatedUnion('activityType', [
+  CreateMaintenanceBase.extend({
+    activityType: z.literal('MAINTENANCE'),
+    type: z.enum(['CLEANING', 'REPAIR', 'INSPECTION', 'RENOVATION'], {
+      errorMap: () => ({ message: 'Tipo de mantenimiento inválido' }),
+    }),
+    activityCategory: z.string().min(2).optional(),
+  }),
+  CreateMaintenanceBase.extend({
+    activityType: z.enum(['TRAINING', 'CLASS', 'WARMUP', 'EVENT', 'MEETING', 'OTHER']),
+    activityCategory: z.string().min(2, 'La categoría debe tener al menos 2 caracteres'),
+    type: z.string().optional(),
+  }),
+]);
 
 export const UpdateMaintenanceSchema = z.object({
   type: z.enum(['CLEANING', 'REPAIR', 'INSPECTION', 'RENOVATION']).optional(),
@@ -122,10 +130,12 @@ export class MaintenanceService {
     }
 
     // Crear la tarea de mantenimiento
+    const dbType = validatedData.activityType === 'MAINTENANCE' ? (validatedData as any).type : 'INSPECTION';
+
     const maintenance = await db.maintenanceSchedule.create({
       data: {
         courtId: validatedData.courtId,
-        type: validatedData.type,
+        type: dbType as any,
         activityType: validatedData.activityType,
         activityCategory: validatedData.activityCategory || undefined,
         description: validatedData.description,

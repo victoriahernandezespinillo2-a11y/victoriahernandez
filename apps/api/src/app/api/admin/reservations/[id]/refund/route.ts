@@ -3,6 +3,7 @@ import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { z } from 'zod';
 import { stripeService } from '@repo/payments';
+import { ledgerService } from '@/lib/services/ledger.service';
 
 const RefundSchema = z.object({
   amount: z.number().positive().optional(),
@@ -46,6 +47,23 @@ export async function POST(request: NextRequest) {
           } as any,
         },
       });
+
+      // Registrar reembolso en ledger (idempotente)
+      try {
+        await ledgerService.recordRefund({
+          sourceType: 'RESERVATION',
+          sourceId: reservation.id,
+          amountEuro: input.amount || Number(reservation.totalPrice || 0),
+          currency: 'EUR',
+          method: 'CARD',
+          paidAt: new Date(),
+          gatewayRef: refund.id,
+          idempotencyKey: `REFUND:RES:${reservation.id}:${refund.id}`,
+          metadata: { provider: 'STRIPE' }
+        });
+      } catch (e) {
+        console.warn('Ledger recordRefund failed (ADMIN RESERVATION):', e);
+      }
 
       return ApiResponse.success({ refundId: refund.id, status: refund.status });
     } catch (error) {

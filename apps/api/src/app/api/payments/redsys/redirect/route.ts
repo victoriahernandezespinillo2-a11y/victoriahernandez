@@ -109,6 +109,12 @@ export async function GET(request: NextRequest) {
       }
 
       const orderNumber = paymentService.generateRedsysOrderNumber();
+      // Persistir Ds_Order para trazabilidad e idempotencia
+      try {
+        await db.order.update({ where: { id: order.id }, data: { paymentIntentId: orderNumber } });
+      } catch (e) {
+        console.warn('⚠️ [REDSYS-REDIRECT] No se pudo guardar Ds_Order en order.paymentIntentId:', e);
+      }
 
       // Detectar si es una recarga de monedero
       const isWalletTopup = order.id.startsWith('TOPUP_');
@@ -137,7 +143,8 @@ export async function GET(request: NextRequest) {
         merchantData: { 
           type: isWalletTopup ? 'wallet_topup' : 'shop_order', 
           orderId: order.id, 
-          userId: order.userId 
+          userId: order.userId,
+          dsOrder: orderNumber
         },
         useBizum: false,
       });
@@ -228,6 +235,12 @@ export async function GET(request: NextRequest) {
     }
 
     const order = paymentService.generateRedsysOrderNumber();
+    // Persistir Ds_Order en la reserva para trazabilidad e idempotencia
+    try {
+      await db.reservation.update({ where: { id: reservation.id }, data: { paymentIntentId: order } });
+    } catch (e) {
+      console.warn('⚠️ [REDSYS-REDIRECT] No se pudo guardar Ds_Order en reservation.paymentIntentId:', e);
+    }
 
     const urlOk = `${appUrl}/dashboard/reservations/success?reservationId=${encodeURIComponent(reservation.id)}`;
     const urlKo = `${appUrl}/dashboard/reservations`;
@@ -246,7 +259,7 @@ export async function GET(request: NextRequest) {
       merchantUrl,
       urlOk,
       urlKo,
-      merchantData: { type: 'reservation', reservationId: reservation.id, userId: reservation.userId },
+      merchantData: { type: 'reservation', reservationId: reservation.id, userId: reservation.userId, dsOrder: order },
       useBizum: isBizum,
     });
 

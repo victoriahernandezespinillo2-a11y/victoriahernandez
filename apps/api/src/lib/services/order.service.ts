@@ -1,5 +1,6 @@
 import { db } from '@repo/db';
 import { PaymentService } from './payment.service';
+import { ledgerService } from './ledger.service';
 
 const paymentService = new PaymentService();
 
@@ -143,9 +144,26 @@ export class OrderService {
             idempotencyKey: idempotencyKey || null,
           },
         });
-        await tx.order.update({ where: { id: order.id }, data: { status: 'PAID' } });
+        await tx.order.update({ where: { id: order.id }, data: { paymentStatus: 'PAID' as any, paidAt: new Date() } });
         await tx.outboxEvent.create({ data: { eventType: 'ORDER_PAID', eventData: { orderId: order.id, method: 'CREDITS' } as any } });
       });
+      // Registrar transacción en Ledger (idempotente)
+      try {
+        await ledgerService.recordPayment({
+          paymentStatus: 'PAID',
+          sourceType: 'ORDER',
+          sourceId: order.id,
+          direction: 'CREDIT',
+          amountEuro: Number(order.totalEuro || 0),
+          currency: 'EUR',
+          method: 'CREDITS',
+          paidAt: new Date(),
+          idempotencyKey: `CREDITS:ORDER:${order.id}`,
+          metadata: { items: items?.length || 0 }
+        });
+      } catch (e) {
+        console.warn('Ledger recordPayment failed (ORDER CREDITS):', e);
+      }
       return { order, clientSecret: null };
     }
 

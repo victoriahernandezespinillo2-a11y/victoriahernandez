@@ -677,7 +677,7 @@ export default function NewReservationPage() {
                 onCourtSelect={(court) => {
                   setSelectedCourt(court);
                 }}
-                onContinue={() => setStep(4)}
+                onContinue={() => setStep(hasMultipleCenters ? 4 : 3)}
                 selectedSport={selectedSport}
               />
             ) : (

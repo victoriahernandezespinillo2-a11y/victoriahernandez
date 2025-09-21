@@ -745,32 +745,24 @@ export const adminApi = {
   // Gestión de pagos
   payments: {
     getAll: (params?: {
-      userId?: string;
-      status?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'REFUNDED';
-      provider?: 'STRIPE' | 'REDSYS' | 'MANUAL';
-      dateFrom?: string; // ISO
-      dateTo?: string;   // ISO
-      page?: number;
-      limit?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      method?: string;
+      sourceType?: string;
+      status?: 'PAID' | 'REFUNDED' | 'PENDING';
+      centerId?: string;
+      page?: number; limit?: number; format?: 'json'|'csv';
     }) => {
       const searchParams = new URLSearchParams();
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
           if (value === undefined || value === null) return;
-          // Mapear antiguos nombres a los esperados por la API
-          if (key === 'method') return; // no soportado por schema
-          if (key === 'startDate') { searchParams.append('dateFrom', String(value)); return; }
-          if (key === 'endDate') { searchParams.append('dateTo', String(value)); return; }
-          // Enviar en mayúsculas los enums
-          if (key === 'status' || key === 'provider') {
-            searchParams.append(key, String(value).toUpperCase());
-            return;
-          }
+          if (key === 'status') { searchParams.append('status', String(value).toUpperCase()); return; }
           searchParams.append(key, String(value));
         });
       }
       const query = searchParams.toString();
-      return apiClient.request(`/api/payments${query ? `?${query}` : ''}`);
+      return apiClient.request(`/api/admin/payments${query ? `?${query}` : ''}`);
     },
     
     getById: (id: string) => 

@@ -206,7 +206,7 @@ export default function DashboardPage() {
   const user = session?.user;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 text-white">
         <h1 className="text-2xl font-bold mb-2">
@@ -388,7 +388,7 @@ export default function DashboardPage() {
         <div className="p-6 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Acciones Rápidas</h2>
         </div>
-        <div className="p-6">
+        <div className="p-6 pb-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <a
               href="/dashboard/reservations/new"
