@@ -9,3 +9,5 @@ ADD COLUMN "estimated_duration" INTEGER;
 
 
 
+
+

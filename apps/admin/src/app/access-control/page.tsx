@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { QrCodeIcon, CameraIcon, CheckCircleIcon, ExclamationTriangleIcon, StopIcon } from "@heroicons/react/24/outline";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { QrCodeIcon, CameraIcon, CheckCircleIcon, ExclamationTriangleIcon, StopIcon, BoltIcon } from "@heroicons/react/24/outline";
 import QrScanner from 'qr-scanner';
+
+// Desde la versión ≥1.4 de qr-scanner el worker se resuelve automáticamente, por lo que
+// no es necesario establecer WORKER_PATH manualmente.
 
 type VerifyResponse = {
   ok: boolean;
@@ -16,11 +19,12 @@ type VerifyResponse = {
   order?: {
     id: string;
     user: { id: string; name?: string | null; email?: string | null };
-    product: { id: string; name: string };
     status: string;
     createdAt: string;
-    itemsRequiringCheckIn?: Array<{ id: string; name: string; quantity: number }>;
+    items?: Array<{ name: string; qty?: number; type?: string; requiresCheckIn?: boolean }>;
+    itemsRequiringCheckIn?: Array<{ name: string; quantity: number; type?: string }>;
     alreadyRedeemed?: boolean;
+    canCheckIn?: boolean;
   };
   error?: string;
 };
@@ -58,31 +62,46 @@ export default function AccessControlPage() {
   const [checkInLoading, setCheckInLoading] = useState<boolean>(false);
   const [checkInError, setCheckInError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
+  // Flash
+  const [hasFlash, setHasFlash] = useState<boolean>(false);
+  const [flashOn, setFlashOn] = useState<boolean>(false);
+  // Gestión de dispositivos y arranque
+  const [availableCameras, setAvailableCameras] = useState<Array<{ id: string; label: string }>>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
+  const [startingCamera, setStartingCamera] = useState<boolean>(false);
 
-  // Check camera availability
+  // Comprobar disponibilidad de cámara y precargar lista
   useEffect(() => {
-    const checkCameraSupport = async () => {
+    let mounted = true;
+    const check = async () => {
       try {
-        // Verificación simple de soporte del navegador
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          setHasCamera(false);
+          if (mounted) setHasCamera(false);
           return;
         }
+        const available = await QrScanner.hasCamera();
+        if (mounted) setHasCamera(available);
+        if (available) {
+          try {
+            const cams = await QrScanner.listCameras();
+            if (mounted && Array.isArray(cams)) {
+              setAvailableCameras(cams);
 
-        // Verificar si hay cámara disponible
-        const hasCamera = await QrScanner.hasCamera();
-        setHasCamera(hasCamera);
-      } catch (error) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.error('Error checking camera support:', error);
+              // Filtrar cámaras físicas (excluye virtuales)
+              const real = cams.filter(c => !/virtual|obs|screen|fake/i.test(c.label || ''));
+              if (mounted) setHasCamera(real.length > 0);
+            }
+          } catch {
+            // ignore
+          }
         }
-        setHasCamera(false);
+      } catch (e) {
+        if (mounted) setHasCamera(false);
       }
     };
-    
-    checkCameraSupport();
+    check();
+    return () => { mounted = false; };
   }, []);
-
   const stopCamera = useCallback(() => {
     if (qrScannerRef.current) {
       qrScannerRef.current.stop();
@@ -113,12 +132,11 @@ export default function AccessControlPage() {
         return;
       }
 
-      // Try reservation verification first
-      let response = await fetch(`/api/access/verify?token=${encodeURIComponent(extractedToken)}`);
-      
+      // Primero intentar verificación de pedidos (endpoint existente)
+      let response = await fetch(`/api/orders/verify?token=${encodeURIComponent(extractedToken)}`);
       if (!response.ok) {
-        // If reservation verification fails, try order verification
-        response = await fetch(`/api/orders/verify?token=${encodeURIComponent(extractedToken)}`);
+        // Fallback legacy: intentar verificación de acceso si existiera
+        response = await fetch(`/api/access/verify?token=${encodeURIComponent(extractedToken)}`);
       }
 
       if (!response.ok) {
@@ -149,20 +167,38 @@ export default function AccessControlPage() {
     setVerifyError("");
     setSuccess("");
     setVerifyResult(null);
-    
-    // Verificación básica de soporte del navegador
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setVerifyError("Tu navegador no soporta acceso a la cámara. Usa la entrada manual como alternativa.");
+
+    // Evitar arranques concurrentes o redundantes
+    if (startingCamera || scanning || cameraActive || qrScannerRef.current) {
+      return;
+    }
+    setStartingCamera(true);
+
+    // Verificar contexto seguro (HTTPS) salvo localhost
+    if (window.isSecureContext === false && location.hostname !== 'localhost') {
+      setVerifyError('La cámara sólo puede usarse bajo HTTPS o en localhost. Accede mediante https o usa un túnel seguro.');
+      setStartingCamera(false);
       return;
     }
 
+    // Verificación básica de soporte del navegador
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setVerifyError("Tu navegador no soporta acceso a la cámara. Usa la entrada manual como alternativa.");
+      setStartingCamera(false);
+      return;
+    }
+
+    // Asegurar que el <video> ya esté montado
+    if (!videoRef.current) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
     if (!videoRef.current) {
       setVerifyError("Elemento de video no disponible.");
+      setStartingCamera(false);
       return;
     }
 
     try {
-      // Crear instancia QR Scanner simple
       const qrScanner = new QrScanner(
         videoRef.current,
         (result: string) => {
@@ -175,7 +211,6 @@ export default function AccessControlPage() {
             const token = extractTokenFromText(resultText);
             if (token) {
               stopCamera();
-              // Vibración para feedback táctil en móviles
               if (navigator.vibrate) {
                 navigator.vibrate(100);
               }
@@ -186,40 +221,99 @@ export default function AccessControlPage() {
       );
 
       qrScannerRef.current = qrScanner;
-      
-      // Configurar cámara trasera para móviles (mejor para QR)
-      qrScanner.setCamera('environment');
-      
-      // Iniciar escáner
+
+      // Iniciar (solicita permisos)
       await qrScanner.start();
       setCameraActive(true);
       setScanning(true);
-      setVerifyError("");
-      
+
+      // Comprobar disponibilidad de flash
+      try {
+        const flash = await qrScanner.hasFlash();
+        setHasFlash(flash);
+        setFlashOn(false);
+      } catch {
+        setHasFlash(false);
+      }
+
+      // Enumerar y seleccionar cámara adecuada
+      try {
+        const cameras = await QrScanner.listCameras();
+        setAvailableCameras(cameras);
+
+        const realCameras = cameras.filter(c => !/virtual|obs|screen|fake/i.test(c.label || ''));
+        const preselected = selectedCameraId && cameras.find(c => (c as any).id === selectedCameraId);
+        if (preselected && (preselected as any).id) {
+          await qrScanner.setCamera((preselected as any).id);
+        } else {
+          const rear = realCameras.find(c => /back|rear|environment/i.test(c.label || ''));
+          const chosen = rear ?? realCameras[0] ?? cameras[0];
+          if (chosen && (chosen as any).id) {
+            await qrScanner.setCamera((chosen as any).id);
+            setSelectedCameraId((chosen as any).id);
+          }
+        }
+      } catch (camErr) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('No fue posible enumerar/seleccionar cámaras; usando la predeterminada.', camErr);
+        }
+      }
     } catch (error: any) {
       if (process.env.NODE_ENV !== 'production') {
         console.error('Error accessing camera:', error);
       }
-      
       let errorMessage = "No se pudo acceder a la cámara.";
-      
-      if (error.name === 'NotAllowedError') {
+      const msg = typeof error?.message === 'string' ? error.message : '';
+      const name = error?.name;
+      if (name === 'NotAllowedError') {
         errorMessage = "Permisos de cámara denegados. Permite el acceso a la cámara en tu navegador.";
-      } else if (error.name === 'NotFoundError') {
+      } else if (name === 'NotFoundError' || name === 'OverconstrainedError' || /camera not found|no cameras? found/i.test(msg)) {
         errorMessage = "No se encontró ninguna cámara en el dispositivo.";
-      } else if (error.name === 'NotSupportedError') {
+      } else if (name === 'NotSupportedError') {
         errorMessage = "El navegador no soporta acceso a la cámara.";
-      } else if (error.name === 'NotReadableError') {
+      } else if (name === 'NotReadableError') {
         errorMessage = "La cámara está siendo usada por otra aplicación.";
+      } else if (/no cameras? found|no camera/i.test(msg)) {
+        errorMessage = "No se encontró ninguna cámara física conectada. Conecta una webcam o usa la entrada manual.";
       } else {
-        errorMessage = `Error de cámara: ${error.message || 'Error desconocido'}. Usa la entrada manual como alternativa.`;
+        errorMessage = `No se pudo inicializar la cámara. ${msg || 'Revisa la conexión de tu webcam o usa la entrada manual.'}`;
       }
-      
       setVerifyError(errorMessage);
       setCameraActive(false);
       setScanning(false);
+    } finally {
+      setStartingCamera(false);
     }
-  }, [lastScanText, stopCamera, handleVerify]);
+  }, [handleVerify, lastScanText, startingCamera, scanning, cameraActive, selectedCameraId]);
+
+  // Permitir cambiar de cámara manualmente
+  const switchCamera = useCallback(async (id: string) => {
+    if (!qrScannerRef.current) return;
+    try {
+      await qrScannerRef.current.setCamera(id);
+      setSelectedCameraId(id);
+    } catch (e) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('No se pudo cambiar de cámara:', e);
+      }
+      setVerifyError("No se pudo cambiar de cámara. Intenta otra o reinicia la cámara.");
+    }
+  }, []);
+
+  // Alternar flash
+  const toggleFlash = useCallback(async () => {
+    if (!qrScannerRef.current || !hasFlash) return;
+    try {
+      if (flashOn) {
+        await qrScannerRef.current?.turnFlashOff?.();
+      } else {
+        await qrScannerRef.current?.turnFlashOn?.();
+      }
+      setFlashOn(!flashOn);
+    } catch (e) {
+      if (process.env.NODE_ENV !== 'production') console.warn('Flash toggle error', e);
+    }
+  }, [flashOn, hasFlash]);
 
   const handleCheckIn = useCallback(async () => {
     if (!verifyResult) return;
@@ -261,15 +355,25 @@ export default function AccessControlPage() {
       const result = await response.json();
       
       if (result.ok) {
-        const itemName = verifyResult.reservation 
-          ? `Reserva ${verifyResult.reservation.court.name}` 
-          : `Pedido ${verifyResult.order?.product.name}`;
+        const itemName = verifyResult.reservation
+          ? `Reserva ${verifyResult.reservation.court.name}`
+          : (() => {
+              const items = verifyResult.order?.items;
+              if (items && items.length) {
+                const first = items[0];
+                if (first) {
+                  const extra = items.length > 1 ? ` + ${items.length - 1} más` : '';
+                  return `Pedido ${first.name}${extra}`;
+                }
+              }
+              return `Pedido ${verifyResult.order?.id}`;
+            })();
         
         setSuccess(`✅ Check-in exitoso para ${itemName}`);
         setVerifyResult(null);
         setLastScanText("");
         
-        // Auto-hide success message after 3 seconds
+        // Auto-hide success message after 3 segundos
         setTimeout(() => {
           setSuccess("");
         }, 3000);
@@ -287,7 +391,7 @@ export default function AccessControlPage() {
     }
   }, [verifyResult]);
 
-  const handleManualInput = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleManualInput = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setLastScanText(value);
   }, []);
@@ -309,117 +413,91 @@ export default function AccessControlPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white shadow-xl rounded-2xl overflow-hidden">
-          
-          {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <QrCodeIcon className="h-8 w-8 text-white" />
-                <h1 className="text-2xl font-bold text-white">Control de Acceso</h1>
-              </div>
-              <div className="text-sm text-blue-100">
-                Sistema QR de Reservas y Pedidos
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="container mx-auto px-4 py-6 max-w-5xl">
+        
+        {/* Header Card */}
+        <div className="bg-white/80 backdrop-blur-sm border border-white/20 rounded-3xl shadow-xl mb-8">
+          <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-8 py-12 rounded-t-3xl">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center space-x-4">
+                <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
+                  <QrCodeIcon className="h-8 w-8 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-white">Control de Acceso</h1>
+                  <p className="text-blue-100 text-lg">Sistema QR de Reservas y Pedidos</p>
+                </div>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Main Content */}
-          <div className="p-6 space-y-6">
+        {/* Main Content Card */}
+        <div className="bg-white/90 backdrop-blur-sm border border-white/20 rounded-3xl shadow-xl overflow-hidden">
+          <div className="p-8 space-y-8">
             
             {/* Camera Controls */}
-            <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
+            <div className="flex flex-col sm:flex-row gap-6 items-center justify-center">
               {!cameraActive ? (
                 <>
                   <button
                     onClick={startCamera}
-                    disabled={!hasCamera}
-                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    disabled={!hasCamera || startingCamera}
+                    className="group relative inline-flex items-center px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-2xl shadow-lg shadow-blue-500/25 transition-all duration-300 transform hover:scale-105 disabled:from-gray-400 disabled:to-gray-500 disabled:shadow-none disabled:scale-100 disabled:cursor-not-allowed"
                   >
-                    <CameraIcon className="h-5 w-5 mr-2" />
-                    {hasCamera ? "Iniciar Cámara" : "Cámara No Disponible"}
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent rounded-2xl"></div>
+                    <CameraIcon className="h-6 w-6 mr-3 relative z-10" />
+                    <span className="relative z-10">
+                      {startingCamera ? 'Iniciando…' : (hasCamera ? "Iniciar Cámara" : "Cámara No Disponible")}
+                    </span>
                   </button>
                   
-                  {/* Botón de diagnóstico */}
-                  <button
-                    onClick={async () => {
-                      if (process.env.NODE_ENV !== 'production') {
-                        console.log('=== DIAGNÓSTICO DE CÁMARA ===');
-                        console.log('Protocolo:', location.protocol);
-                        console.log('Hostname:', location.hostname);
-                        console.log('MediaDevices:', !!navigator.mediaDevices);
-                        console.log('getUserMedia:', !!navigator.mediaDevices?.getUserMedia);
-                      }
-                      
-                      try {
-                        const hasCamera = await QrScanner.hasCamera();
-                        if (process.env.NODE_ENV !== 'production') {
-                          console.log('QrScanner.hasCamera():', hasCamera);
-                        }
-                        
-                        const cameras = await QrScanner.listCameras();
-                        if (process.env.NODE_ENV !== 'production') {
-                          console.log('QrScanner.listCameras():', cameras);
-                        }
-                        
-                        // Filtrar cámaras reales
-                        const realCameras = cameras.filter(camera => 
-                          !camera.label.toLowerCase().includes('virtual') &&
-                          !camera.label.toLowerCase().includes('obs') &&
-                          !camera.label.toLowerCase().includes('screen') &&
-                          !camera.label.toLowerCase().includes('fake')
-                        );
-                        
-                        if (process.env.NODE_ENV !== 'production') {
-                          console.log('Real cameras (filtered):', realCameras);
-                        }
-                        
-                        const message = `Diagnóstico completo en consola.
-                        
-Cámara disponible: ${hasCamera}
-Total cámaras: ${cameras.length}
-Cámaras reales: ${realCameras.length}
-
-Cámaras encontradas:
-${cameras.map(c => `- ${c.label}`).join('\n')}
-
-Cámaras reales:
-${realCameras.map(c => `- ${c.label}`).join('\n')}`;
-                        
-                        alert(message);
-                      } catch (error) {
-                        if (process.env.NODE_ENV !== 'production') {
-                          console.error('Error en diagnóstico:', error);
-                        }
-                        alert(`Error en diagnóstico: ${error instanceof Error ? error.message : String(error)}`);
-                      }
-                    }}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    🔍 Diagnóstico
-                  </button>
                 </>
               ) : (
-                <button
-                  onClick={stopCamera}
-                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                >
-                  <StopIcon className="h-5 w-5 mr-2" />
-                  Detener Cámara
-                </button>
+                <div className="flex flex-col sm:flex-row gap-4 items-center">
+                  {availableCameras.length > 0 && (
+                    <select
+                      value={selectedCameraId ?? ''}
+                      onChange={(e) => switchCamera(e.target.value)}
+                      className="px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      title="Seleccionar cámara"
+                    >
+                      {availableCameras.map((cam) => (
+                        <option key={cam.id} value={cam.id}>{cam.label || 'Cámara'}</option>
+                      ))}
+                    </select>
+                  )}
+                  {hasFlash && (
+                    <button
+                      onClick={toggleFlash}
+                      className={`inline-flex items-center px-4 py-3 border border-transparent text-sm font-semibold rounded-xl transition-all duration-200 ${flashOn ? 'bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white shadow-lg shadow-yellow-500/25' : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white shadow-lg shadow-gray-500/25'}`}
+                      title="Encender/Apagar flash"
+                    >
+                      <BoltIcon className="h-5 w-5 mr-2" /> {flashOn ? 'Flash Off' : 'Flash'}
+                    </button>
+                  )}
+                  <button
+                    onClick={stopCamera}
+                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-semibold rounded-xl text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg shadow-red-500/25 transition-all duration-200 transform hover:scale-105"
+                  >
+                    <StopIcon className="h-5 w-5 mr-2" />
+                    Detener Cámara
+                  </button>
+                </div>
               )}
             </div>
 
             {/* Camera Error Display */}
             {verifyError && (
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-4 sm:p-6">
+              <div className="bg-gradient-to-r from-red-50 to-rose-50 border border-red-200/50 rounded-2xl p-6 shadow-sm">
                 <div className="flex items-center gap-3 text-red-700">
-                  <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />
-                  <span className="font-medium text-sm sm:text-base">Error de verificación</span>
+                  <div className="p-2 bg-red-100 rounded-full">
+                    <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />
+                  </div>
+                  <span className="font-semibold text-base">Error de verificación</span>
                 </div>
-                <p className="text-sm text-red-600 mt-2">{verifyError}</p>
+                <p className="text-sm text-red-600 mt-3 leading-relaxed">{verifyError}</p>
                 
                 {/* Botón para solicitar permisos de cámara */}
                 {verifyError.includes("cámara") && (
@@ -447,57 +525,78 @@ ${realCameras.map(c => `- ${c.label}`).join('\n')}`;
 
             {/* Success Message */}
             {success && (
-              <div className="bg-green-50 border border-green-200 rounded-2xl p-4 sm:p-6">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200/50 rounded-2xl p-6 shadow-sm">
                 <div className="flex items-center gap-3 text-green-700">
-                  <CheckCircleIcon className="h-5 w-5 flex-shrink-0" />
-                  <span className="font-medium text-sm sm:text-base">Éxito</span>
+                  <div className="p-2 bg-green-100 rounded-full">
+                    <CheckCircleIcon className="h-5 w-5 flex-shrink-0" />
+                  </div>
+                  <span className="font-semibold text-base">Éxito</span>
                 </div>
-                <p className="text-sm text-green-600 mt-2">{success}</p>
+                <p className="text-sm text-green-600 mt-3 leading-relaxed">{success}</p>
               </div>
             )}
 
-            {/* Video Container */}
-            {cameraActive && (
-              <div className="relative bg-black rounded-2xl overflow-hidden">
-                <video
-                  ref={videoRef}
-                  className="w-full h-auto max-h-96 object-cover"
-                  playsInline
-                  muted
-                />
-                {scanning && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="bg-black bg-opacity-50 text-white px-4 py-2 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        <span>Escaneando...</span>
-                      </div>
+            {/* Video / Placeholder */}
+            <div
+              className={`relative rounded-3xl overflow-hidden transition-all duration-500 shadow-2xl mx-auto max-w-md ${cameraActive ? 'bg-black shadow-blue-500/10' : 'bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center h-48 sm:h-56 border border-gray-200/50'}`}
+            >
+              {/* Video Stream */}
+              <video
+                ref={videoRef}
+                className={`w-full h-auto max-h-96 object-cover transition-opacity duration-500 ${cameraActive ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                playsInline
+                muted
+              />
+
+              {/* Placeholder cuando la cámara está inactiva */}
+              {!cameraActive && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="p-4 bg-white rounded-full shadow-lg">
+                    <CameraIcon className="h-8 w-8 text-gray-400" aria-hidden="true" />
+                  </div>
+                </div>
+              )}
+
+              {/* Overlay de escaneo */}
+              {cameraActive && scanning && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="bg-black/60 backdrop-blur-sm text-white px-6 py-4 rounded-2xl border border-white/20">
+                    <div className="flex items-center space-x-3">
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                      <span className="font-medium">Escaneando QR...</span>
                     </div>
                   </div>
-                )}
+                </div>
+              )}
+            </div>
+
+            {/* Manual Input - Solo visible si hay error de cámara */}
+            {verifyError && (
+              <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-3xl p-6 border border-gray-200/50 shadow-sm">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-xl">
+                    <QrCodeIcon className="h-4 w-4 text-blue-600" />
+                  </div>
+                  Entrada Manual
+                </h3>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    value={lastScanText}
+                    onChange={handleManualInput}
+                    placeholder="Pega aquí el token QR o URL..."
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all duration-200"
+                  />
+                  <button
+                    onClick={handleManualVerify}
+                    disabled={!lastScanText.trim() || verifying}
+                    className="inline-flex items-center px-5 py-3 border border-transparent text-sm font-semibold rounded-xl text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25 transition-all duration-200 transform hover:scale-105 disabled:scale-100"
+                  >
+                    {verifying ? "Verificando..." : "Verificar"}
+                  </button>
+                </div>
               </div>
             )}
-
-            {/* Manual Input */}
-            <div className="bg-gray-50 rounded-2xl p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Entrada Manual</h3>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                  type="text"
-                  value={lastScanText}
-                  onChange={handleManualInput}
-                  placeholder="Pega aquí el token QR o URL..."
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-                <button
-                  onClick={handleManualVerify}
-                  disabled={!lastScanText.trim() || verifying}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  {verifying ? "Verificando..." : "Verificar"}
-                </button>
-              </div>
-            </div>
 
             {/* Verification Results */}
             {verifyResult && verifyResult.ok && (
@@ -554,8 +653,25 @@ ${realCameras.map(c => `- ${c.label}`).join('\n')}`;
                         </p>
                       </div>
                       <div>
-                        <span className="text-sm font-medium text-gray-500">Producto:</span>
-                        <p className="text-sm text-gray-900">{verifyResult.order.product.name}</p>
+                        <span className="text-sm font-medium text-gray-500">Productos:</span>
+                        <div className="text-sm text-gray-900">
+                          {verifyResult.order.items && verifyResult.order.items.length > 0 ? (
+                            <ul className="list-disc list-inside space-y-1">
+                              {verifyResult.order.items.map((it, idx) => (
+                                <li key={idx}>
+                                  {it.name} {it.qty ? `× ${it.qty}` : ''}
+                                  {typeof it.requiresCheckIn === 'boolean' ? (
+                                    <span className={`ml-2 text-xs px-2 py-0.5 rounded ${it.requiresCheckIn ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`}>
+                                      {it.requiresCheckIn ? 'requiere check-in' : 'sin check-in'}
+                                    </span>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span>—</span>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <span className="text-sm font-medium text-gray-500">Estado:</span>
