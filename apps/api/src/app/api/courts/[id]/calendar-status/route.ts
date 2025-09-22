@@ -104,14 +104,29 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         }
       }),
 
-      // 2. Horarios de mantenimiento
+      // 2. Horarios de mantenimiento (solo los que se solapan con el rango de fechas)
       db.maintenanceSchedule.findMany({
         where: {
           courtId,
           status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
           OR: [
-            { scheduledAt: { lte: endOfDay } },
-            { completedAt: { gte: startOfDay } }
+            // Mantenimientos programados que empiezan en este rango
+            { scheduledAt: { gte: startOfDay, lte: endOfDay } },
+            // Mantenimientos en progreso que terminan en este rango
+            { 
+              AND: [
+                { startedAt: { not: null } },
+                { startedAt: { lte: endOfDay } },
+                { completedAt: { gte: startOfDay } }
+              ]
+            },
+            // Mantenimientos completados que terminaron en este rango
+            { 
+              AND: [
+                { completedAt: { not: null } },
+                { completedAt: { gte: startOfDay, lte: endOfDay } }
+              ]
+            }
           ]
         },
         select: {

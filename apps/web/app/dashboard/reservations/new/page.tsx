@@ -95,6 +95,7 @@ export default function NewReservationPage() {
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [timeSlots, setTimeSlots] = useState<any[]>([]);
   const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
+  const [loadingReservation, setLoadingReservation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [createdReservationId, setCreatedReservationId] = useState<string | null>(null);
@@ -307,9 +308,11 @@ export default function NewReservationPage() {
         startTime,
         duration,
         notes,
-        sport: selectedSport || undefined,
+        sport: selectedSport || (selectedCourt as any)?.sportType || undefined,
         selectedDate,
-        originalStartTime: selectedCalendarSlot.startTime
+        originalStartTime: selectedCalendarSlot.startTime,
+        courtSportType: (selectedCourt as any)?.sportType,
+        isMultiuse: (selectedCourt as any)?.isMultiuse
       });
       
       const res: any = await api.reservations.create({
@@ -318,7 +321,7 @@ export default function NewReservationPage() {
         duration,
         // paymentMethod omitido para usar flujo predeterminado en backend
         notes,
-        sport: selectedSport || undefined,
+        sport: selectedSport || (selectedCourt as any)?.sportType || undefined,
       } as any);
       const reservationId = res?.reservation?.id || res?.id;
       if (reservationId) {
@@ -776,11 +779,14 @@ export default function NewReservationPage() {
                   setSelectedSlot(calendarSlot);
                 }}
                 loading={loadingTimeSlots}
+                loadingReservation={loadingReservation}
                 courtName={selectedCourt?.name || ''}
                 onContinue={async () => {
                    // En móvil, crear la reserva directamente con el slot seleccionado
-                   if (selectedSlot && selectedCourt && selectedDate) {
+                   if (selectedSlot && selectedCourt && selectedDate && !loadingReservation) {
                      try {
+                       setLoadingReservation(true);
+                       
                        // Crear fecha ISO para startTime
                        const startDateTime = new Date(`${selectedDate}T${selectedSlot.startTime}`);
                        
@@ -789,7 +795,8 @@ export default function NewReservationPage() {
                          startTime: startDateTime.toISOString(),
                          duration: selectedDuration,
                          paymentMethod: 'redsys' as 'redsys',
-                         notes: notes
+                         notes: notes,
+                         sport: selectedSport || (selectedCourt as any)?.sportType || undefined,
                        });
                        
                        const reservationId = reservationResponse?.reservation?.id || reservationResponse?.id;
@@ -802,6 +809,9 @@ export default function NewReservationPage() {
                        }
                      } catch (error) {
                        console.error('Error creating reservation:', error);
+                       alert('Error al crear la reserva. Intenta nuevamente.');
+                     } finally {
+                       setLoadingReservation(false);
                      }
                    }
                  }}

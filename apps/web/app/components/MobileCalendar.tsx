@@ -30,6 +30,7 @@ interface MobileCalendarProps {
   selectedSlot: TimeSlot | null;
   onSlotSelect: (slot: TimeSlot) => void;
   loading?: boolean;
+  loadingReservation?: boolean;
   courtName?: string;
   onContinue?: () => void;
 }
@@ -43,6 +44,7 @@ export function MobileCalendar({
   selectedSlot,
   onSlotSelect,
   loading = false,
+  loadingReservation = false,
   courtName = '',
   onContinue,
 }: MobileCalendarProps) {
@@ -372,10 +374,10 @@ export function MobileCalendar({
                   onClick={() => slot.available && onSlotSelect(slot)}
                   disabled={!slot.available}
                   className={`
-                    p-4 rounded-xl border-2 transition-all duration-200 text-left
-                    ${selectedSlot?.time === slot.time ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
+                    p-4 rounded-xl border-2 transition-all duration-200 text-left relative
+                    ${selectedSlot?.startTime === slot.startTime ? 'bg-blue-600 text-white border-blue-600' : ''}
                     ${slot.available ? 'active:scale-95' : 'cursor-not-allowed opacity-60'}
-                    ${getSlotColor(slot)}
+                    ${!selectedSlot || selectedSlot?.startTime !== slot.startTime ? getSlotColor(slot) : ''}
                   `}
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -385,21 +387,22 @@ export function MobileCalendar({
                         {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
                       </span>
                     </div>
-                    {selectedSlot?.time === slot.time && (
-                      <Check className="h-5 w-5 text-blue-600" />
+                    {selectedSlot?.startTime === slot.startTime && (
+                      <Check className="h-5 w-5 text-white" />
                     )}
                   </div>
                   
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium">
-                      {slot.status === 'AVAILABLE' ? 'Disponible' :
+                      {selectedSlot?.startTime === slot.startTime ? 'SELECCIONADO' :
+                       slot.status === 'AVAILABLE' ? 'Disponible' :
                        slot.status === 'BOOKED' ? 'Ocupado' :
                        slot.status === 'MAINTENANCE' ? 'Mantenimiento' :
                        slot.status === 'USER_BOOKED' ? 'Tu reserva' :
                        'No disponible'}
                     </span>
                     {slot.available && (
-                      <span className="text-sm font-bold">
+                      <span className={`text-sm font-bold ${selectedSlot?.startTime === slot.startTime ? 'text-white' : ''}`}>
                         {formatCurrency(slot.price)}
                       </span>
                     )}
@@ -416,10 +419,27 @@ export function MobileCalendar({
         <div className="p-4 border-t border-gray-200">
           <button
             onClick={onContinue}
-            className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center"
+            disabled={loadingReservation}
+            className={`
+              w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center
+              ${loadingReservation 
+                ? 'bg-blue-400 cursor-not-allowed' 
+                : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+              }
+              text-white
+            `}
           >
-            <Check className="h-5 w-5 mr-2" />
-            Continuar con la reserva
+            {loadingReservation ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
+                Procesando...
+              </>
+            ) : (
+              <>
+                <Check className="h-5 w-5 mr-2" />
+                Continuar con la reserva
+              </>
+            )}
           </button>
         </div>
       )}

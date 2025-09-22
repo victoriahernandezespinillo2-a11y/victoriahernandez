@@ -264,21 +264,41 @@ export class ReservationService {
     });
     
     if (conflictingReservations.length > 0) {
+      console.log('🚨 [CONFLICT-DEBUG] Conflictos encontrados:', {
+        courtId,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        conflictingReservations: conflictingReservations.map((r: any) => ({
+          id: r.id,
+          status: r.status,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          expiresAt: r.expiresAt
+        })),
+        timestamp: new Date().toISOString()
+      });
       throw new Error('Horario no disponible');
     }
     
-    // Verificar mantenimiento programado
-    // Seleccionar solo campos existentes para evitar fallos en entornos donde falten columnas nuevas
+    // Verificar mantenimiento programado (solo los que se solapan con el horario solicitado)
     const maintenanceSchedules = await tx.maintenanceSchedule.findMany({
       where: {
         courtId,
         status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
         OR: [
-          { scheduledAt: { lte: endTime } },
-          { completedAt: { gte: startTime } },
+          // Mantenimientos programados que empiezan durante el horario solicitado
+          { scheduledAt: { gte: startTime, lt: endTime } },
+          // Mantenimientos en progreso que terminan durante el horario solicitado
+          {
+            AND: [
+              { startedAt: { not: null } },
+              { startedAt: { lt: endTime } },
+              { completedAt: { gt: startTime } }
+            ]
+          }
         ],
       },
-      select: { id: true },
+      select: { id: true, scheduledAt: true, estimatedDuration: true },
     });
     
     if (maintenanceSchedules.length > 0) {
@@ -699,15 +719,29 @@ export class ReservationService {
       endDate: endOfDay,
     });
     
-    // Obtener mantenimientos relevantes del día (adaptado al esquema actual)
+    // Obtener mantenimientos relevantes del día (solo los que se solapan con este día específico)
     const maintenanceSchedules = await db.maintenanceSchedule.findMany({
       where: {
         courtId,
         status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
         OR: [
+          // Mantenimientos programados que empiezan en este día
           { scheduledAt: { gte: startOfDay, lte: endOfDay } },
-          { startedAt: { gte: startOfDay, lte: endOfDay } },
-          { completedAt: { gte: startOfDay, lte: endOfDay } },
+          // Mantenimientos en progreso que terminan en este día
+          { 
+            AND: [
+              { startedAt: { not: null } },
+              { startedAt: { lte: endOfDay } },
+              { completedAt: { gte: startOfDay } }
+            ]
+          },
+          // Mantenimientos completados que terminaron en este día
+          { 
+            AND: [
+              { completedAt: { not: null } },
+              { completedAt: { gte: startOfDay, lte: endOfDay } }
+            ]
+          }
         ],
       },
       select: { scheduledAt: true, startedAt: true, completedAt: true, estimatedDuration: true },

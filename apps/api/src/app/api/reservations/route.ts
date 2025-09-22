@@ -201,11 +201,23 @@ export async function POST(request: NextRequest) {
     // Validación multiuso: si la cancha es multiuso, sport debe estar en allowedSports
     const court = await db.court.findUnique({
       where: { id: validatedData.courtId },
-      select: { isMultiuse: true, allowedSports: true }
+      select: { id: true, name: true, isMultiuse: true, allowedSports: true, sportType: true }
     });
     if (!court) {
       return NextResponse.json({ error: 'Cancha no encontrada' }, { status: 404 });
     }
+    
+    // 🔍 LOGGING PARA DEBUGGING
+    console.log('🏀 [COURT-DEBUG] Datos de la cancha:', {
+      courtId: court.id,
+      courtName: court.name,
+      isMultiuse: court.isMultiuse,
+      sportType: court.sportType,
+      allowedSports: court.allowedSports,
+      requestedSport: validatedData.sport,
+      timestamp: new Date().toISOString()
+    });
+    
     if (court.isMultiuse) {
       const sport = (validatedData.sport || '').trim();
       if (!sport) {

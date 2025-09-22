@@ -93,7 +93,7 @@ export function useCourts() {
       id: c.id,
       name: c.name,
       centerId: (c.centerId ?? (c.center?.id)) || c.center_id || '',
-      sportType: (c.sportType ?? c.type ?? c.sport) || 'MULTIPURPOSE',
+      sportType: c.sportType ?? c.type ?? c.sport ?? 'BASKETBALL',
       pricePerHour: toNumber(c.pricePerHour ?? c.hourlyRate ?? c.basePricePerHour),
       capacity: toNumber(c.capacity),
       amenities,
