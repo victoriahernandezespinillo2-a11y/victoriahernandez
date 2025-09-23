@@ -153,9 +153,7 @@ export class RedsysService {
       order: merchantParameters.DS_MERCHANT_ORDER,
       merchantCode: merchantParameters.DS_MERCHANT_MERCHANTCODE,
       terminal: merchantParameters.DS_MERCHANT_TERMINAL,
-      currency: merchantParameters.DS_MERCHANT_CURRENCY,
-      useBizum: (data as any).useBizum,
-      payMethods: merchantParameters.DS_MERCHANT_PAYMETHODS || 'NO_BIZUM'
+      currency: merchantParameters.DS_MERCHANT_CURRENCY
     });
 
     // Incluir campos opcionales si existen
@@ -337,10 +335,10 @@ export class RedsysService {
 
   // Generar número de pedido único (formato compatible con Redsys)
   generateOrderNumber(): string {
-    // Usar timestamp completo + random más robusto para evitar colisiones
-    const timestamp = Date.now().toString(); // Timestamp completo
-    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0'); // 4 dígitos (0000-9999)
-    const orderNumber = timestamp + random; // Timestamp + 4 dígitos random
+    // Usar timestamp más corto + random para evitar colisiones
+    const timestamp = (Date.now() % 100000000).toString(); // 8 dígitos max
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0'); // 3 dígitos
+    const orderNumber = timestamp + random; // 11 dígitos total
     
     console.log('🔢 [REDSYS-ORDER] Número generado:', orderNumber);
     return orderNumber;

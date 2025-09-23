@@ -246,16 +246,6 @@ export async function GET(request: NextRequest) {
     const urlKo = `${appUrl}/dashboard/reservations`;
 
     const isBizum = request.nextUrl.searchParams.get('bizum') === '1';
-    
-    console.log('🔍 [REDSYS-BIZUM-DEBUG] Parámetros recibidos:', {
-      bizumParam: request.nextUrl.searchParams.get('bizum'),
-      isBizum,
-      reservationId,
-      merchantCode,
-      terminal,
-      amount
-    });
-    
     const { Ds_Signature, Ds_MerchantParameters, Ds_SignatureVersion, action } = await paymentService.createRedsysPayment({
       amount,
       order,
