@@ -263,7 +263,7 @@ export default function PaymentModal(props: PaymentModalProps) {
             </div>
             <small className="text-xs text-gray-500 mt-1 block">
               {method === 'CARD' && 'Serás redirigido a Redsys para pagar con tarjeta.'}
-              {method === 'BIZUM' && 'Serás redirigido a Redsys para pagar con Bizum. Usa móvil 700000000 y OTP 123456 en pruebas.'}
+              {method === 'BIZUM' && 'Serás redirigido a Redsys para pagar con Bizum.'}
               {method === 'ONSITE' && 'Tu reserva quedará pendiente de pago y deberás pagar en recepción.'}
             </small>
           </div>
