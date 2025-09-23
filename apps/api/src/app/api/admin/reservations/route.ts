@@ -154,8 +154,16 @@ export async function GET(request: NextRequest) {
         courtName: r.court?.name || '',
         centerName: r.court?.center?.name || '',
         date: r.startTime.toISOString().split('T')[0],
-        startTime: new Date(r.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-        endTime: new Date(r.endTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+        startTime: new Date(r.startTime).toLocaleTimeString('es-ES', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          timeZone: 'Europe/Madrid'
+        }),
+        endTime: new Date(r.endTime).toLocaleTimeString('es-ES', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          timeZone: 'Europe/Madrid'
+        }),
         duration: Math.max(0, Math.round((r.endTime.getTime() - r.startTime.getTime()) / (60 * 60 * 1000))),
         totalAmount: Number(r.totalPrice || 0),
         status: r.status as any,

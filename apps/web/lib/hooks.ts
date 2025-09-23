@@ -171,10 +171,10 @@ export function useReservations() {
         const end = new Date(r.endTime);
         const toTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         // Mapeo robusto y específico de estados
-        const statusMap: Record<string, 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no-show'> = {
+        const statusMap: Record<string, 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no-show' | 'in_progress'> = {
           PENDING: 'pending',
           PAID: 'confirmed',
-          IN_PROGRESS: 'confirmed',
+          IN_PROGRESS: 'in_progress', // Estado específico para reservas en uso
           COMPLETED: 'completed',
           CANCELLED: 'cancelled',
           NO_SHOW: 'no-show', // Estado específico para no presentarse
@@ -242,10 +242,10 @@ export function useReservations() {
       const end = new Date(r.endTime);
       const toTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       // Mapeo robusto y específico de estados
-      const statusMap: Record<string, 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no-show'> = {
+      const statusMap: Record<string, 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no-show' | 'in_progress'> = {
         PENDING: 'pending',
         PAID: 'confirmed',
-        IN_PROGRESS: 'confirmed',
+        IN_PROGRESS: 'in_progress', // Estado específico para reservas en uso
         COMPLETED: 'completed',
         CANCELLED: 'cancelled',
         NO_SHOW: 'no-show', // Estado específico para no presentarse

@@ -87,75 +87,125 @@ export async function GET(request: NextRequest) {
       const orderBy: any = {};
       orderBy[params.sortBy] = params.sortOrder;
       
-      // Obtener usuarios y total
-      const [users, total] = await Promise.all([
-        db.user.findMany({
-          where,
-          skip,
-          take: params.limit,
-          orderBy,
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            phone: true,
-            role: true,
-            isActive: true,
-            emailVerified: true,
-            emailVerifiedAt: true,
-            createdAt: true,
-            updatedAt: true,
-            lastLoginAt: true,
-            _count: {
-              select: {
-                reservations: true,
-                memberships: true
+      // Obtener usuarios y total con timeout
+      const [users, total] = await Promise.race([
+        Promise.all([
+          db.user.findMany({
+            where,
+            skip,
+            take: params.limit,
+            orderBy,
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              phone: true,
+              role: true,
+              isActive: true,
+              emailVerified: true,
+              emailVerifiedAt: true,
+              createdAt: true,
+              updatedAt: true,
+              lastLoginAt: true,
+              _count: {
+                select: {
+                  reservations: true,
+                  memberships: true
+                }
               }
             }
-          }
-        }),
-        db.user.count({ where })
-      ]);
+          }),
+          db.user.count({ where })
+        ]),
+        // Timeout de 15 segundos para la consulta principal
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout en consulta de usuarios')), 15000)
+        )
+      ]) as [any[], number];
       
-      // Calcular estadísticas adicionales por usuario (tolerante a fallos)
-      const usersWithStats = await Promise.all(
-        users.map(async (user: any) => {
-          try {
-            const [totalSpent, activeReservations, activeMemberships] = await Promise.all([
-              db.reservation.aggregate({
-                where: { userId: user.id, status: 'PAID' },
-                _sum: { totalPrice: true },
-              }),
-              db.reservation.count({
-                where: { userId: user.id, status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] } },
-              }),
-              db.membership.count({ where: { userId: user.id, status: 'active' } }),
-            ]);
-            return {
-              ...user,
-              stats: {
-                totalSpent: Number((totalSpent as any)?._sum?.totalPrice || 0),
-                activeReservations,
-                activeMemberships,
-                totalReservations: user._count?.reservations ?? 0,
-                totalMemberships: user._count?.memberships ?? 0,
+      // Calcular estadísticas adicionales de forma optimizada (batch queries)
+      let usersWithStats = users;
+      
+      try {
+        // Obtener estadísticas en batch para todos los usuarios de una vez
+        const userIds = users.map(u => u.id);
+        
+        const [reservationStats, membershipStats] = await Promise.race([
+          Promise.all([
+            // Estadísticas de reservas por usuario
+            db.reservation.groupBy({
+              by: ['userId'],
+              where: { 
+                userId: { in: userIds },
+                status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] }
               },
-            };
-          } catch (e) {
-            console.error('Error calculando estadísticas de usuario', user?.id, e);
-            return {
-              ...user,
-              stats: {
-                totalSpent: 0,
-                activeReservations: 0,
-                activeMemberships: 0,
-                totalReservations: user._count?.reservations ?? 0,
-                totalMemberships: user._count?.memberships ?? 0,
+              _sum: { totalPrice: true },
+              _count: { id: true }
+            }),
+            // Estadísticas de membresías activas por usuario
+            db.membership.groupBy({
+              by: ['userId'],
+              where: { 
+                userId: { in: userIds },
+                status: 'active'
               },
-            };
-          }
-        })
-      );
+              _count: { id: true }
+            })
+          ]),
+          // Timeout de 10 segundos para las estadísticas
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout en consulta de estadísticas')), 10000)
+          )
+        ]) as [any[], any[]];
+        
+        // Crear mapas para acceso rápido
+        const reservationMap = new Map();
+        const membershipMap = new Map();
+        
+        reservationStats.forEach(stat => {
+          reservationMap.set(stat.userId, {
+            totalSpent: Number(stat._sum.totalPrice || 0),
+            activeReservations: stat._count.id
+          });
+        });
+        
+        membershipStats.forEach(stat => {
+          membershipMap.set(stat.userId, {
+            activeMemberships: stat._count.id
+          });
+        });
+        
+        // Aplicar estadísticas a cada usuario
+        usersWithStats = users.map((user: any) => {
+          const resStats = reservationMap.get(user.id) || { totalSpent: 0, activeReservations: 0 };
+          const memStats = membershipMap.get(user.id) || { activeMemberships: 0 };
+          
+          return {
+            ...user,
+            stats: {
+              totalSpent: resStats.totalSpent,
+              activeReservations: resStats.activeReservations,
+              activeMemberships: memStats.activeMemberships,
+              totalReservations: user._count?.reservations ?? 0,
+              totalMemberships: user._count?.memberships ?? 0,
+            },
+          };
+        });
+        
+      } catch (e) {
+        console.error('Error calculando estadísticas en batch, usando datos básicos:', e);
+        // Fallback: usar solo los datos básicos sin estadísticas adicionales
+        usersWithStats = users.map((user: any) => ({
+          ...user,
+          stats: {
+            totalSpent: 0,
+            activeReservations: 0,
+            activeMemberships: 0,
+            totalReservations: user._count?.reservations ?? 0,
+            totalMemberships: user._count?.memberships ?? 0,
+          },
+        }));
+      }
       
       const result = {
         data: usersWithStats,

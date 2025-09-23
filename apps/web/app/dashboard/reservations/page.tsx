@@ -48,7 +48,7 @@ interface Reservation {
   startTime: string;
   endTime: string;
   duration: number;
-  status: 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no-show';
+  status: 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no-show' | 'in_progress';
   cost: number;
   paymentStatus: 'paid' | 'pending' | 'refunded';
   paymentMethod?: 'CARD' | 'BIZUM' | 'ONSITE' | 'CASH' | 'TRANSFER' | 'CREDITS';
@@ -83,6 +83,11 @@ const statusConfig = {
     label: 'No se presentó',
     color: 'bg-orange-100 text-orange-800',
     icon: XCircle
+  },
+  'in_progress': {
+    label: 'En Uso',
+    color: 'bg-purple-100 text-purple-800',
+    icon: Clock
   }
 };
 
@@ -698,16 +703,33 @@ export default function ReservationsPage() {
                           Ver
                         </button>
                         
+                        {/* Botón de Pase QR con lógica mejorada */}
                         {(reservation.status === 'confirmed' || reservation.paymentStatus === 'paid') && !isPastDate && (
                           <button
-                            onClick={() => openReservationPdf(reservation.id, 'pass')}
-                            className="inline-flex items-center px-3 py-1.5 border border-emerald-300 rounded-md text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors"
-                            title="Descargar pase de acceso con código QR"
+                            onClick={() => {
+                              // Verificar si la reserva ya fue utilizada
+                              if (reservation.status === 'completed' || reservation.status === 'in_progress') {
+                                showError('Esta reserva ya fue utilizada. El pase de acceso no está disponible para reservas que ya fueron canjeadas.');
+                                return;
+                              }
+                              openReservationPdf(reservation.id, 'pass');
+                            }}
+                            className={`inline-flex items-center px-3 py-1.5 border rounded-md text-sm font-medium transition-colors ${
+                              reservation.status === 'completed' || reservation.status === 'in_progress'
+                                ? 'border-gray-300 text-gray-500 bg-gray-100 cursor-not-allowed'
+                                : 'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500'
+                            }`}
+                            title={
+                              reservation.status === 'completed' || reservation.status === 'in_progress'
+                                ? 'Esta reserva ya fue utilizada'
+                                : 'Descargar pase de acceso con código QR'
+                            }
+                            disabled={reservation.status === 'completed' || reservation.status === 'in_progress'}
                           >
                             <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 16h4.01M4 8h4m0 0V4m0 4L4 8l4 4m6-4h2.01M8 16H4.01" />
                             </svg>
-                            Pase QR
+                            {reservation.status === 'completed' || reservation.status === 'in_progress' ? 'Ya Usado' : 'Pase QR'}
                           </button>
                         )}
                         

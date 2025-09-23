@@ -267,26 +267,20 @@ export default function AdminHomePage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
           {stats.map((item) => (
-            <div key={item.name} className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
+            <div key={item.name} className="bg-white overflow-hidden shadow rounded-lg min-w-0">
+              <div className="p-3">
+                <div className="flex items-center mb-2">
                   <div className="flex-shrink-0">
-                    <item.icon className="h-6 w-6 text-gray-600" aria-hidden="true" />
+                    <item.icon className="h-4 w-4 text-gray-600" aria-hidden="true" />
                   </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-700 truncate">{item.name}</dt>
-                      <dd>
-                        <div className="text-lg font-bold text-gray-900">{item.stat}</div>
-                      </dd>
-                    </dl>
+                  <div className="ml-2 flex-1 min-w-0">
+                    <dt className="text-xs font-medium text-gray-700 truncate">{item.name}</dt>
                   </div>
                 </div>
-              </div>
-              <div className="bg-gray-50 px-5 py-3">
-                <div className="text-sm">
+                <div className="text-xl font-bold text-gray-900 mb-2">{item.stat}</div>
+                <div className="text-xs">
                   <span
                     className={`${
                       item.changeType === 'increase' ? 'text-green-700' : 'text-red-700'
@@ -294,7 +288,7 @@ export default function AdminHomePage() {
                   >
                     {item.change}
                   </span>
-                  <span className="text-gray-600"> desde el mes pasado</span>
+                  <span className="text-gray-600 block">desde el mes pasado</span>
                 </div>
               </div>
             </div>
@@ -443,7 +437,7 @@ export default function AdminHomePage() {
                   };
                   
                   return (
-                    <div className="flex items-end h-56 justify-around bg-gray-50 p-4 rounded">
+                    <div className="flex items-end h-56 justify-around bg-gray-50 p-4 rounded overflow-hidden">
                       {bySport.map((s, index) => {
                         const colors = getSportColor(s.sportType);
                         return (
@@ -451,8 +445,9 @@ export default function AdminHomePage() {
                             <div
                               className={`w-12 ${colors.bg} ${colors.hover} transition-colors rounded-t-md shadow-md border ${colors.border}`}
                               style={{ 
-                                height: `${Math.max((Number(s.count || 0) / max) * 200, 20)}px`,
-                                minHeight: '20px'
+                                height: `${Math.max((Number(s.count || 0) / max) * 180, 20)}px`,
+                                minHeight: '20px',
+                                maxHeight: '180px'
                               }}
                               title={`${s.sportType}: ${s.count}`}
                             />
@@ -503,10 +498,13 @@ export default function AdminHomePage() {
                 return (
                   <div className="h-40 md:h-56 bg-gray-50 p-3 md:p-4 rounded">
                     {/* Gráfico de barras móvil */}
-                    <div className="relative h-full flex items-end justify-between gap-1">
+                    <div className="relative h-32 md:h-40 flex items-end justify-between gap-1">
                       {dailyData.slice(-7).map((day, index) => {
                         const revenue = Number(day.revenue || 0);
+                        // Mejorar el cálculo de altura para valores pequeños
                         const heightPercent = maxRevenue > 0 ? (revenue / maxRevenue) * 100 : 0;
+                        // Asegurar que las barras sean visibles incluso con valores pequeños
+                        const barHeight = Math.max(heightPercent, revenue > 0 ? 8 : 0);
                         const date = new Date(day.date);
                         const shortDate = `${date.getDate()}/${date.getMonth() + 1}`;
                         
@@ -514,10 +512,14 @@ export default function AdminHomePage() {
                           <div key={day.date} className="flex flex-col items-center group flex-1">
                             {/* Barra */}
                             <div
-                              className="w-full bg-gradient-to-t from-green-500 to-green-400 rounded-t-md shadow-sm hover:from-green-600 hover:to-green-500 transition-all duration-200"
+                              className={`w-full rounded-t-md shadow-sm transition-all duration-200 ${
+                                revenue > 0 
+                                  ? 'bg-gradient-to-t from-green-500 to-green-400 hover:from-green-600 hover:to-green-500' 
+                                  : 'bg-gray-200'
+                              }`}
                               style={{ 
-                                height: `${Math.max(heightPercent, 2)}%`,
-                                minHeight: '4px'
+                                height: `${barHeight}%`,
+                                minHeight: revenue > 0 ? '8px' : '2px'
                               }}
                               title={`${shortDate}: $${revenue.toLocaleString()}`}
                             />

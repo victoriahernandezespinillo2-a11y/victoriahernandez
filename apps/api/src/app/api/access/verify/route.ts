@@ -34,21 +34,52 @@ export async function GET(request: NextRequest) {
     const validUntil = new Date(reservation.endTime.getTime() + 2 * 60 * 60 * 1000); // 2h después
     const withinWindow = now >= validFrom && now <= validUntil;
 
+    // Verificar si la reserva ya fue utilizada
+    const alreadyUsed = reservation.status === 'IN_PROGRESS' || reservation.status === 'COMPLETED';
+    
+    if (withinWindow && !alreadyUsed && reservation.status === 'PAID') {
+      // Actualizar estado a IN_PROGRESS cuando se escanea por primera vez
+      try {
+        await db.reservation.update({
+          where: { id: reservationId },
+          data: { 
+            status: 'IN_PROGRESS',
+            checkInTime: new Date()
+          }
+        });
+        
+        // Actualizar la reserva local para la respuesta
+        reservation.status = 'IN_PROGRESS';
+        reservation.checkInTime = new Date();
+      } catch (updateError) {
+        console.error('Error actualizando estado de reserva:', updateError);
+        // Continuar con la respuesta aunque falle la actualización
+      }
+    }
+
     return new Response(
       JSON.stringify({
-        ok: withinWindow,
-        reservation: withinWindow
+        ok: withinWindow && !alreadyUsed,
+        reservation: (withinWindow && !alreadyUsed)
           ? {
               id: reservation.id,
               user: { id: reservation.userId, name: reservation.user?.name, email: reservation.user?.email },
               court: { id: reservation.courtId, name: reservation.court.name, center: reservation.court.center.name },
               startTime: reservation.startTime,
               endTime: reservation.endTime,
+              status: reservation.status,
             }
           : undefined,
-        error: withinWindow ? undefined : 'Fuera de ventana horaria',
+        error: alreadyUsed 
+          ? 'Esta reserva ya fue utilizada' 
+          : withinWindow 
+            ? undefined 
+            : 'Fuera de ventana horaria',
       }),
-      { status: withinWindow ? 200 : 403, headers: { 'Content-Type': 'application/json' } }
+      { 
+        status: (withinWindow && !alreadyUsed) ? 200 : 403, 
+        headers: { 'Content-Type': 'application/json' } 
+      }
     );
   } catch (e: any) {
     return new Response(JSON.stringify({ ok: false, error: 'Error interno' }), { status: 500 });

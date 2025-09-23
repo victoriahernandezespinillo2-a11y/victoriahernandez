@@ -101,6 +101,34 @@ export default function ReservationsPage() {
       return new Date(NaN);
     }
   };
+
+  // Helper para convertir hora UTC a hora local (Europe/Madrid)
+  const formatTimeToLocal = (timeString: string) => {
+    try {
+      // Si ya es formato HH:MM, asumir que es hora local y devolverla
+      if (/^\d{1,2}:\d{2}$/.test(timeString)) {
+        return timeString;
+      }
+      
+      // Intentar crear una fecha desde el string
+      const date = new Date(timeString);
+      
+      // Verificar si la fecha es válida
+      if (isNaN(date.getTime())) {
+        return timeString; // No es una fecha válida, devolver la cadena original
+      }
+      
+      // Convertir a hora local de Madrid
+      return date.toLocaleTimeString('es-ES', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZone: 'Europe/Madrid'
+      });
+    } catch (error) {
+      console.error('Error formatting time to local:', error);
+      return timeString; // Fallback a la cadena original en caso de error
+    }
+  };
   const isWithinCheckInWindow = (r: any, toleranceMin: number = 30) => {
     const ymd = r?.date as string;
     const start = toLocalDate(ymd, (r?.startTime as string)?.slice(0,5));
@@ -528,7 +556,7 @@ export default function ReservationsPage() {
                       {new Date(reservation.date as string).toLocaleDateString()}
                     </div>
                     <div className="text-sm text-gray-500">
-                      {reservation.startTime as string} - {reservation.endTime as string}
+                      {formatTimeToLocal(reservation.startTime as string)} - {formatTimeToLocal(reservation.endTime as string)}
                     </div>
                     <div className="text-xs text-gray-400">
                       {reservation.duration as string}h
@@ -549,7 +577,7 @@ export default function ReservationsPage() {
                     >
                       <option value="PENDING">Pendiente</option>
                       <option value="PAID">Pagada</option>
-                      <option value="PAID">Pagada</option>
+                      <option value="IN_PROGRESS">En Uso</option>
                       <option value="CANCELLED">Cancelada</option>
                       <option value="COMPLETED">Completada</option>
                       <option value="NO_SHOW">No se presentó</option>

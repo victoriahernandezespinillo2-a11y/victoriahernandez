@@ -17,10 +17,10 @@ async function setupProduction() {
     // Crear centro deportivo principal
     const center = await prisma.center.create({
       data: {
-        name: 'Polideportivo Oroquieta',
-        address: 'Dirección del polideportivo',
+        name: 'IDB Victoria Hernández',
+        address: 'CALLE CONSENSO, 5, 28041 Madrid, España (Los Rosales, Villaverde)',
         phone: '+34 XXX XXX XXX',
-        email: 'info@polideportivooroquieta.com',
+        email: 'info@polideportivovictoriahernandez.es',
         settings: JSON.stringify({
           timezone: 'Europe/Madrid',
           currency: 'EUR',

@@ -96,7 +96,7 @@ export const db = globalForPrisma.prisma ??
           },
         },
         log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-        errorFormat: 'pretty',
+        errorFormat: 'pretty'
       });
       
       // Configurar manejo de errores de conexión

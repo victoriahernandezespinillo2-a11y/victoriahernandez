@@ -9,13 +9,13 @@ async function simpleSeed() {
     console.log('🏢 Creando centro deportivo...');
     const center = await db.center.create({
       data: {
-        name: 'Polideportivo Oroquieta',
-        address: 'Calle Principal 123, Oroquieta, Misamis Occidental',
-        phone: '+63 88 531 2345',
-        email: 'info@polideportivooroquieta.com',
+        name: 'IDB Victoria Hernández',
+        address: 'CALLE CONSENSO, 5, 28041 Madrid, España (Los Rosales, Villaverde)',
+        phone: '+34 XXX XXX XXX',
+        email: 'info@polideportivovictoriahernandez.es',
         settings: {
-          timezone: 'Asia/Manila',
-          currency: 'PHP',
+          timezone: 'Europe/Madrid',
+          currency: 'EUR',
           language: 'es'
         }
       }
