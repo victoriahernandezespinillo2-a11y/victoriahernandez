@@ -880,7 +880,11 @@ export class PaymentService {
       if (payment.reservationId) {
         await prisma.reservation.update({
           where: { id: payment.reservationId },
-          data: { paymentStatus: 'PAID', paidAt: new Date() }
+          data: { 
+            paymentStatus: 'PAID', 
+            status: 'PAID',  // Sincronizar estado operativo
+            paidAt: new Date() 
+          }
         });
       }
 

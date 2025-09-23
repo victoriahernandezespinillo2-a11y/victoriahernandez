@@ -70,7 +70,11 @@ class LedgerService {
           try {
             await prisma.reservation.update({
               where: { id: payload.sourceId },
-              data: { paymentStatus: 'PAID', paidAt },
+              data: { 
+                paymentStatus: 'PAID', 
+                status: 'PAID',  // Sincronizar estado operativo
+                paidAt 
+              },
             });
           } catch {}
           break;
@@ -196,6 +200,8 @@ class LedgerService {
 }
 
 export const ledgerService = new LedgerService();
+
+
 
 
 

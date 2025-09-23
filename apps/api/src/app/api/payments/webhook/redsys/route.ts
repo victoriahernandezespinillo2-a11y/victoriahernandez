@@ -188,8 +188,15 @@ export async function POST(request: NextRequest) {
         if (merchantData?.type === 'reservation' && merchantData?.reservationId) {
           if (result.success) {
             try {
-              // 1) Marcar como pagada (idempotente) sin tocar estado operativo
-              await db.reservation.update({ where: { id: merchantData.reservationId }, data: { paymentStatus: 'PAID' as any, paidAt: new Date() } });
+              // 1) Marcar como pagada (idempotente) y actualizar estado operativo
+              await db.reservation.update({ 
+                where: { id: merchantData.reservationId }, 
+                data: { 
+                  paymentStatus: 'PAID' as any, 
+                  status: 'PAID' as any,  // Actualizar estado operativo
+                  paidAt: new Date() 
+                } 
+              });
               // Registrar asiento en Ledger (idempotente)
               try {
                 const res = await db.reservation.findUnique({ where: { id: merchantData.reservationId } });
@@ -245,18 +252,23 @@ export async function POST(request: NextRequest) {
                   // Construir variables de plantilla
                   const durationMin = Math.round((reservation.endTime.getTime() - reservation.startTime.getTime()) / 60000);
                   const price = Number((reservation.totalPrice as any)?.toString?.() || reservation.totalPrice || 0);
-                  // Generar URL de Google Calendar
+                  // Formatear fechas con zona horaria correcta (Europe/Madrid)
+                  const centerTimezone = 'Europe/Madrid';
+                  const startTimeLocal = new Date(reservation.startTime.toLocaleString('en-US', { timeZone: centerTimezone }));
+                  const endTimeLocal = new Date(reservation.endTime.toLocaleString('en-US', { timeZone: centerTimezone }));
+                  
+                  // Generar URL de Google Calendar con fechas corregidas
                   const generateGoogleCalendarUrl = (reservation: any) => {
-                    const startDate = reservation.startTime.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-                    const endDate = reservation.endTime.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+                    const startDate = startTimeLocal.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+                    const endDate = endTimeLocal.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
                     
                     const title = encodeURIComponent(`🎾 Reserva: ${reservation.court?.name || 'Cancha'} - Polideportivo Victoria Hernández`);
                     const details = encodeURIComponent(`Reserva confirmada en ${reservation.court?.name || 'Cancha'}
 
 Detalles:
 • Pista: ${reservation.court?.name || 'Cancha'}
-• Fecha: ${reservation.startTime.toLocaleDateString('es-ES')}
-• Horario: ${reservation.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - ${reservation.endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+• Fecha: ${startTimeLocal.toLocaleDateString('es-ES')}
+• Horario: ${startTimeLocal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - ${endTimeLocal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
 • Duración: ${durationMin} minutos
 • Precio: ${price.toFixed(2)}€
 • Código: ${reservation.id.slice(0, 10).toUpperCase()}
@@ -273,9 +285,9 @@ Ver detalles: ${process.env.NEXT_PUBLIC_WEB_URL || 'https://www.polideportivovic
                   const variables = {
                     userName: reservation.user?.name || reservation.user?.email || 'Usuario',
                     courtName: reservation.court?.name || 'Cancha',
-                    date: reservation.startTime.toLocaleDateString('es-ES'),
-                    startTime: reservation.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-                    endTime: reservation.endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+                    date: startTimeLocal.toLocaleDateString('es-ES'),
+                    startTime: startTimeLocal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+                    endTime: endTimeLocal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
                     duration: String(durationMin),
                     price: price.toFixed(2),
                     reservationCode: reservation.id.slice(0, 10).toUpperCase(),
