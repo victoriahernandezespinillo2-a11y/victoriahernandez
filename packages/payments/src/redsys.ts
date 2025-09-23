@@ -153,7 +153,9 @@ export class RedsysService {
       order: merchantParameters.DS_MERCHANT_ORDER,
       merchantCode: merchantParameters.DS_MERCHANT_MERCHANTCODE,
       terminal: merchantParameters.DS_MERCHANT_TERMINAL,
-      currency: merchantParameters.DS_MERCHANT_CURRENCY
+      currency: merchantParameters.DS_MERCHANT_CURRENCY,
+      useBizum: (data as any).useBizum,
+      payMethods: merchantParameters.DS_MERCHANT_PAYMETHODS || 'NO_BIZUM'
     });
 
     // Incluir campos opcionales si existen
