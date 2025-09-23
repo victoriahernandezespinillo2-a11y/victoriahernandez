@@ -7,7 +7,7 @@ const redsysPaymentSchema = z.object({
   amount: z.union([z.number().positive(), z.string().regex(/^\d+$/)]).refine(val => Number(val) > 0, 'El monto debe ser positivo'),
   order: z.string().min(4).max(12),
   merchantCode: z.string(),
-  terminal: z.string().default('001'),
+  terminal: z.string().default('1'),
   currency: z.string().default('978'), // EUR
   transactionType: z.string().default('0'), // Autorización
   productDescription: z.string().optional(),

@@ -58,8 +58,8 @@ export async function GET(request: NextRequest) {
       return htmlResponse(errorHtml('Configuración de Redsys incompleta: REDSYS_MERCHANT_CODE requerido en producción'));
     }
 
-    // USAR TERMINAL '001' según guía oficial Redsys (formato de 3 dígitos)
-    const terminal = (process.env.REDSYS_TERMINAL || '001').toString().padStart(3, '0');
+    // USAR TERMINAL '1' según configuración real de Redsys (sin padding)
+    const terminal = (process.env.REDSYS_TERMINAL || '1').toString();
     const currency = process.env.REDSYS_CURRENCY || '978'; // EUR por defecto
 
     // URLs de retorno al frontend (éxito/cancelación) y webhook al backend
