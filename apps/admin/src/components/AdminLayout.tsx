@@ -94,9 +94,14 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   Soporte
                 </button>
                 <span>•</span>
-                <button className="hover:text-gray-900 transition-colors">
+                <a 
+                  href="https://victoriahernandez-docs.vercel.app/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="hover:text-gray-900 transition-colors"
+                >
                   Documentación
-                </button>
+                </a>
               </div>
             </div>
           </div>

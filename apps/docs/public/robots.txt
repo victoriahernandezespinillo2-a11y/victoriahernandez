@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /
+
+# Documentación privada - No indexar
+# Esta documentación es solo para uso interno

@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   keywords: ["polideportivo", "gestión deportiva", "reservas", "documentación", "manual", "soporte"],
   authors: [{ name: "Equipo de Desarrollo" }],
   viewport: "width=device-width, initial-scale=1",
-  robots: "index, follow",
+  robots: "noindex, nofollow",
   openGraph: {
     title: "Sistema de Gestión Polideportivo - Documentación",
     description: "Documentación completa del sistema de gestión para polideportivos",
@@ -33,6 +33,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
+      <head>
+        <meta name="robots" content="noindex, nofollow, noarchive, nosnippet" />
+        <meta name="googlebot" content="noindex, nofollow" />
+      </head>
       <body 
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning={true}
