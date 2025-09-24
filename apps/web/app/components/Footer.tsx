@@ -567,14 +567,17 @@ export function Footer() {
 
               {/* Development Credit */}
               <div className="text-center lg:text-right">
-                <div className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 p-4 rounded-xl border border-gray-600/30">
-                  <div className="flex items-center justify-center lg:justify-end space-x-2 mb-2">
-                    <span className="text-gray-400 text-sm">Desarrollado con</span>
-                    <i className="fas fa-heart text-red-500 animate-pulse"></i>
-                    <span className="text-gray-400 text-sm">en España</span>
-                  </div>
-
-                </div>
+                <a 
+                  href="https://ve.linkedin.com/in/arturo-nieve-288065105?trk=public_post_follow-view-profile"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center space-x-2 text-gray-400 hover:text-emerald-400 transition-all duration-300 group p-3 rounded-lg hover:bg-white/5 border border-transparent hover:border-emerald-500/20"
+                >
+                  <span className="text-sm">Desarrollado con</span>
+                  <i className="fas fa-heart text-red-500 group-hover:scale-110 transition-transform duration-300"></i>
+                  <span className="text-sm">en España</span>
+                  <i className="fab fa-linkedin-in text-xs opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300"></i>
+                </a>
               </div>
             </div>
 

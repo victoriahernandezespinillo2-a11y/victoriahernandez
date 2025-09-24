@@ -466,6 +466,43 @@ export class MaintenanceService {
   }
 
   /**
+   * Eliminar mantenimiento completamente de la base de datos
+   */
+  async deleteMaintenance(id: string) {
+    const maintenance = await db.maintenanceSchedule.findUnique({
+      where: { id },
+    });
+
+    if (!maintenance) {
+      throw new Error('Mantenimiento no encontrado');
+    }
+
+    if (maintenance.status === 'IN_PROGRESS') {
+      throw new Error('No se puede eliminar un mantenimiento en progreso');
+    }
+
+    // Eliminar completamente de la base de datos
+    const deletedMaintenance = await db.maintenanceSchedule.delete({
+      where: { id },
+    });
+
+    // Registrar evento de eliminación
+    await db.outboxEvent.create({
+      data: {
+        eventType: 'MAINTENANCE_DELETED',
+        eventData: {
+          maintenanceId: id,
+          deletedAt: new Date().toISOString(),
+          description: maintenance.description,
+          courtId: maintenance.courtId
+        } as any,
+      },
+    });
+
+    return deletedMaintenance;
+  }
+
+  /**
    * Verificar conflictos de mantenimiento
    */
   private async checkMaintenanceConflicts(

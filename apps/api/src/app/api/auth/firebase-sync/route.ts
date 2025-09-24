@@ -138,6 +138,23 @@ export async function POST(req: NextRequest) {
           timestamp: new Date().toISOString()
         });
 
+        // Enviar correo de bienvenida solo para nuevos usuarios (signup)
+        if (action === 'signup' && newUser.email) {
+          try {
+            const { NotificationService } = await import('@repo/notifications');
+            const notificationService = new NotificationService();
+            
+            await notificationService.sendEmailTemplate('welcome', newUser.email, {
+              name: newUser.name || newUser.email?.split('@')[0] || 'Usuario'
+            });
+            
+            console.log(`Correo de bienvenida enviado a: ${newUser.email}`);
+          } catch (emailError) {
+            console.error('Error enviando correo de bienvenida:', emailError);
+            // No fallar el registro por error en el correo
+          }
+        }
+
         return ApiResponse.success({
           user: {
             id: newUser.id,

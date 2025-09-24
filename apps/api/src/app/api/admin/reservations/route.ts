@@ -269,9 +269,26 @@ export async function POST(request: NextRequest) {
               isActive: true,
               emailVerified: !!input.newUser?.email,
             },
-            select: { id: true },
+            select: { id: true, email: true, name: true },
           });
           userId = created.id;
+
+          // Enviar correo de bienvenida para usuarios nuevos creados por admin
+          if (created.email && created.email !== `${crypto.randomUUID()}@placeholder.local`) {
+            try {
+              const { NotificationService } = await import('@repo/notifications');
+              const notificationService = new NotificationService();
+              
+              await notificationService.sendEmailTemplate('welcome', created.email, {
+                name: created.name || created.email?.split('@')[0] || 'Usuario'
+              });
+              
+              console.log(`Correo de bienvenida enviado a usuario creado por admin: ${created.email}`);
+            } catch (emailError) {
+              console.error('Error enviando correo de bienvenida:', emailError);
+              // No fallar la creación por error en el correo
+            }
+          }
         }
       }
 

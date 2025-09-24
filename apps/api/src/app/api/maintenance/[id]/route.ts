@@ -92,7 +92,7 @@ export async function PUT(
 
 /**
  * DELETE /api/maintenance/[id]
- * Cancelar mantenimiento
+ * Eliminar mantenimiento completamente
  * Acceso: ADMIN
  */
 export async function DELETE(
@@ -108,23 +108,28 @@ export async function DELETE(
         return ApiResponse.badRequest('ID de mantenimiento requerido');
       }
       
-      const { searchParams } = new URL(req.url);
-      const reason = searchParams.get('reason') || undefined;
+      console.log(`🗑️ [MAINTENANCE] Eliminando mantenimiento ${id} por admin ${user.email}`);
       
-      const maintenance = await maintenanceService.cancelMaintenance(id, reason);
+      const maintenance = await maintenanceService.deleteMaintenance(id);
       
-      return ApiResponse.success(maintenance);
+      console.log(`✅ [MAINTENANCE] Mantenimiento ${id} eliminado exitosamente`);
+      
+      return ApiResponse.success({
+        message: 'Mantenimiento eliminado correctamente',
+        maintenance: maintenance,
+        deletedAt: new Date().toISOString()
+      });
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('no encontrado')) {
           return ApiResponse.notFound('Mantenimiento no encontrado');
         }
-        if (error.message.includes('completado')) {
+        if (error.message.includes('en progreso')) {
           return ApiResponse.badRequest(error.message);
         }
       }
       
-      console.error('Error cancelando mantenimiento:', error);
+      console.error('Error eliminando mantenimiento:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
   })(request);
