@@ -164,145 +164,202 @@ export default function ReservationPassPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Pase Principal */}
-          <div className="space-y-6">
-            <Card className="overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-                <CardTitle className="flex items-center justify-between">
-                  <span>IDB Victoria Hernández</span>
-                  <span className="text-sm bg-white/20 px-2 py-1 rounded-full">
-                    PASE DIGITAL
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              
-              <CardContent className="p-6">
-                {/* Información de la Reserva */}
-                <div className="text-center mb-6">
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">
+        {/* Pase Digital Principal - Diseño Mejorado */}
+        <div className="max-w-md mx-auto">
+          <Card className="overflow-hidden shadow-2xl border-0">
+            {/* Header del Pase */}
+            <CardHeader className="bg-gradient-to-br from-slate-800 to-slate-900 text-white p-8">
+              <div className="text-center">
+                <h1 className="text-2xl font-bold mb-2">IDB VICTORIA HERNÁNDEZ</h1>
+                <p className="text-slate-300 text-sm mb-4">Centro Deportivo Premium</p>
+                <div className="inline-block bg-slate-700 text-slate-200 px-4 py-2 rounded-full text-xs font-medium">
+                  PASE DE ACCESO DIGITAL
+                </div>
+              </div>
+            </CardHeader>
+            
+                <CardContent className="p-8 space-y-10">
+              {/* Información de la Cancha */}
+              <div className="text-center space-y-6">
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">CANCHA</p>
+                  <h2 className="text-xl font-bold text-gray-900">
                     {reservation.court.name}
                   </h2>
-                  <p className="text-gray-600 mb-4">FOOTBALL</p>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-lg font-semibold text-gray-900">
-                      {startTime.toLocaleDateString('es-ES', { 
-                        weekday: 'long',
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })}
-                    </p>
-                    <p className="text-gray-600">
-                      {startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - {endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
                 </div>
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">DEPORTE</p>
+                  <p className="text-sm text-gray-500 uppercase tracking-wider font-medium">
+                    FOOTBALL
+                  </p>
+                </div>
+              </div>
 
-                {/* QR Code */}
-                {qrCodeDataUrl && (
-                  <div className="text-center mb-6">
-                    <div className="inline-block p-4 bg-white rounded-xl shadow-lg border-2 border-gray-200">
-                      <img 
-                        src={qrCodeDataUrl} 
-                        alt="QR Code de acceso" 
-                        className="w-48 h-48 mx-auto"
-                      />
+              {/* Fecha y Hora */}
+              <div className="bg-gray-50 rounded-2xl p-6 text-center space-y-2">
+                <p className="text-lg font-semibold text-gray-900">
+                  {startTime.toLocaleDateString('es-ES', { 
+                    weekday: 'long',
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - {endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+
+                  {/* QR Code con mejor diseño */}
+                  {qrCodeDataUrl && (
+                    <div className="text-center space-y-6">
+                      <div className="inline-block p-5 bg-white rounded-2xl shadow-xl border-2 border-gray-100">
+                        <img 
+                          src={qrCodeDataUrl} 
+                          alt="QR Code de acceso" 
+                          className="w-32 h-32 mx-auto"
+                        />
+                      </div>
+                      <p className="text-sm text-gray-500 font-medium">
+                        Código: #{reservation.id.slice(0, 10).toUpperCase()}
+                      </p>
                     </div>
-                    <p className="text-sm text-gray-500 mt-2">
-                      Código: #{reservation.id.slice(0, 10).toUpperCase()}
-                    </p>
-                  </div>
-                )}
+                  )}
 
-                {/* Información del Usuario */}
-                <div className="bg-gray-50 rounded-lg p-4 text-center">
-                  <p className="font-semibold text-gray-900">
-                    {reservation.user?.name || 'Usuario'}
-                  </p>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Válido hasta: {endTime.toLocaleDateString('es-ES')} {endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                  <div className="mt-2">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      {reservation.status === 'PAID' ? 'RESERVA PAGADA' : reservation.status}
-                    </span>
-                  </div>
+              {/* Información del Usuario */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 text-center space-y-5">
+                <h3 className="font-bold text-gray-900 text-lg">
+                  {reservation.user?.name || 'Usuario'}
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Código: #{reservation.id.slice(0, 10).toUpperCase()}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Válido hasta: {endTime.toLocaleDateString('es-ES')} {endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+                <div className="flex justify-center">
+                  <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-green-500 text-white shadow-lg">
+                    RESERVA PAGADA
+                  </span>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+
+                  {/* Botones de Acción */}
+                  <div className="grid grid-cols-2 gap-8">
+                    <Button 
+                      className="bg-green-600 hover:bg-green-700 text-white py-6 rounded-xl font-bold shadow-xl text-sm border-2 border-green-700 h-16"
+                    >
+                      <Calendar className="w-5 h-5 mr-2" />
+                      Calendario
+                    </Button>
+                    <Button 
+                      className="bg-purple-600 hover:bg-purple-700 text-white py-6 rounded-xl font-bold shadow-xl text-sm border-2 border-purple-700 h-16"
+                    >
+                      <Smartphone className="w-5 h-5 mr-2" />
+                      Wallet
+                    </Button>
+                  </div>
+
+              {/* Instrucciones */}
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+                <p className="text-sm text-amber-800 text-center font-medium">
+                  📱 Presenta este código QR al personal de acceso
+                </p>
+              </div>
+            </CardContent>
+
+            {/* Footer del Pase */}
+            <div className="bg-gray-50 p-6 text-center">
+              <p className="text-xs text-gray-500 mb-2">
+                Para soporte técnico: info@polideportivovictoriahernandez.es
+              </p>
+              <p className="text-xs text-gray-400">
+                © 2024 IDB Victoria Hernández • Todos los derechos reservados
+              </p>
+            </div>
+          </Card>
+        </div>
+
+        {/* Panel de Acciones Adicionales */}
+        <div className="max-w-2xl mx-auto mt-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
             {/* Acciones Rápidas */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
+            <Card className="shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                <CardTitle className="flex items-center text-blue-800">
                   <Share2 className="w-5 h-5 mr-2" />
                   Acciones Rápidas
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <Button onClick={downloadPDF} className="w-full">
+              <CardContent className="p-6 space-y-4">
+                <Button onClick={downloadPDF} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-medium">
                   <Download className="w-4 h-4 mr-2" />
                   Descargar PDF
                 </Button>
                 
-                <Button onClick={sharePass} variant="outline" className="w-full">
+                <Button onClick={sharePass} variant="outline" className="w-full border-gray-300 text-gray-700 hover:bg-gray-50 py-3 rounded-xl font-medium">
                   <Share2 className="w-4 h-4 mr-2" />
                   Compartir Pase
                 </Button>
               </CardContent>
             </Card>
-          </div>
 
-          {/* Panel de Wallet y Calendario */}
-          <div className="space-y-6">
-            {reservation && (
-              <WalletPassGenerator 
-                reservation={reservation} 
-                qrCodeDataUrl={qrCodeDataUrl}
-              />
-            )}
-
-            {/* Instrucciones */}
-            <Card>
-              <CardHeader>
-                <CardTitle>📋 Instrucciones de Uso</CardTitle>
+            {/* Instrucciones Detalladas */}
+            <Card className="shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50">
+                <CardTitle className="flex items-center text-amber-800">
+                  📋 Instrucciones de Uso
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3 text-sm text-gray-600">
-                  <div className="flex items-start space-x-3">
-                    <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-semibold">1</span>
-                    <p>Presenta este código QR al personal de acceso en la entrada</p>
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  <div className="flex items-start space-x-4">
+                    <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
+                    <p className="text-sm text-gray-700 pt-1">Presenta este código QR al personal de acceso en la entrada</p>
                   </div>
-                  <div className="flex items-start space-x-3">
-                    <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-semibold">2</span>
-                    <p>El código es válido únicamente para la fecha y hora indicada</p>
+                  <div className="flex items-start space-x-4">
+                    <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
+                    <p className="text-sm text-gray-700 pt-1">El código es válido únicamente para la fecha y hora indicada</p>
                   </div>
-                  <div className="flex items-start space-x-3">
-                    <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-semibold">3</span>
-                    <p>Agrega el pase a tu wallet móvil para acceso rápido</p>
+                  <div className="flex items-start space-x-4">
+                    <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                    <p className="text-sm text-gray-700 pt-1">Agrega el pase a tu wallet móvil para acceso rápido</p>
                   </div>
-                  <div className="flex items-start space-x-3">
-                    <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-semibold">4</span>
-                    <p>Mantén tu dispositivo cargado para mostrar el código</p>
+                  <div className="flex items-start space-x-4">
+                    <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">4</span>
+                    <p className="text-sm text-gray-700 pt-1">Mantén tu dispositivo cargado para mostrar el código</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
+          </div>
 
-            {/* Contacto de Soporte */}
-            <Card>
-              <CardHeader>
-                <CardTitle>🆘 Soporte Técnico</CardTitle>
+          {/* Panel de Soporte */}
+          <div className="mt-8">
+            <Card className="shadow-lg border-l-4 border-l-green-500">
+              <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
+                <CardTitle className="flex items-center text-green-800">
+                  🆘 Soporte Técnico
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600 mb-3">
+              <CardContent className="p-6">
+                <p className="text-sm text-gray-600 mb-4">
                   ¿Problemas con tu pase? Contáctanos:
                 </p>
-                <div className="space-y-2 text-sm">
-                  <p><strong>Email:</strong> info@polideportivovictoriahernandez.es</p>
-                  <p><strong>Teléfono:</strong> +34 123 456 789</p>
-                  <p><strong>Horario:</strong> Lunes a Viernes, 9:00 - 18:00</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div className="text-center p-4 bg-white rounded-lg shadow">
+                    <p className="font-semibold text-gray-900 mb-1">📧 Email</p>
+                    <p className="text-gray-600">info@polideportivovictoriahernandez.es</p>
+                  </div>
+                  <div className="text-center p-4 bg-white rounded-lg shadow">
+                    <p className="font-semibold text-gray-900 mb-1">📞 Teléfono</p>
+                    <p className="text-gray-600">+34 123 456 789</p>
+                  </div>
+                  <div className="text-center p-4 bg-white rounded-lg shadow">
+                    <p className="font-semibold text-gray-900 mb-1">🕒 Horario</p>
+                    <p className="text-gray-600">Lunes a Viernes<br/>9:00 - 18:00</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>

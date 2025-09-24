@@ -20,45 +20,46 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#1e293b',
-    padding: 30,
+    padding: 25,
     alignItems: 'center',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
   logo: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#ffffff',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#94a3b8',
     textAlign: 'center',
-    marginBottom: 15,
+    marginBottom: 12,
+    display: 'none', // Eliminar "Centro Deportivo Premium"
   },
   passLabel: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#e2e8f0',
     textAlign: 'center',
     backgroundColor: '#334155',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 16,
   },
   mainContent: {
     flex: 1,
-    padding: 30,
+    padding: 25,
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'space-between',
   },
   reservationInfo: {
     backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 20,
+    borderRadius: 14,
+    padding: 20,
+    marginBottom: 18,
     border: '1px solid #e2e8f0',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
@@ -66,22 +67,38 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   courtName: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#1e293b',
     textAlign: 'center',
     marginBottom: 8,
   },
+  courtLabel: {
+    fontSize: 9,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   sportType: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748b',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
+  sportLabel: {
+    fontSize: 9,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   dateTime: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#1e293b',
     textAlign: 'center',
     fontWeight: '600',
@@ -92,7 +109,7 @@ const styles = StyleSheet.create({
   },
   qrFrame: {
     backgroundColor: '#ffffff',
-    padding: 24,
+    padding: 20,
     borderRadius: 16,
     border: '2px solid #e2e8f0',
     shadowColor: '#000000',
@@ -101,66 +118,72 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
   },
   qrImage: {
-    width: 160,
-    height: 160,
+    width: 120,
+    height: 120,
   },
   userInfo: {
     backgroundColor: '#ffffff',
-    borderRadius: 16,
+    borderRadius: 14,
     padding: 20,
     border: '1px solid #e2e8f0',
   },
   userName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#1e293b',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   reservationCode: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#64748b',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   validUntil: {
-    fontSize: 11,
+    fontSize: 9,
     color: '#94a3b8',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   status: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: 'bold',
     color: '#059669',
     textAlign: 'center',
     backgroundColor: '#d1fae5',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  instructionsContainer: {
+    alignItems: 'center',
+    marginTop: 16,
+    paddingHorizontal: 20,
   },
   instructions: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#64748b',
     textAlign: 'center',
-    marginBottom: 20,
   },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginTop: 16,
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
+    gap: 12,
   },
   button: {
     backgroundColor: '#3b82f6',
     color: '#ffffff',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderRadius: 8,
     fontSize: 10,
     textAlign: 'center',
-    minWidth: 80,
+    minWidth: 85,
+    fontWeight: 'bold',
   },
   calendarButton: {
     backgroundColor: '#059669',
@@ -170,13 +193,13 @@ const styles = StyleSheet.create({
   },
   footer: {
     backgroundColor: '#f1f5f9',
-    padding: 16,
+    padding: 14,
     alignItems: 'center',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
   footerText: {
-    fontSize: 9,
+    fontSize: 8,
     color: '#64748b',
     textAlign: 'center',
   },
@@ -229,7 +252,6 @@ export default function PassPDF({ reservation, qrDataUrl, expiresAt, statusLabel
           {/* Header Profesional */}
           <View style={styles.header}>
             <Text style={styles.logo}>IDB VICTORIA HERNÁNDEZ</Text>
-            <Text style={styles.subtitle}>Centro Deportivo Premium</Text>
             <Text style={styles.passLabel}>PASE DE ACCESO DIGITAL</Text>
           </View>
 
@@ -237,9 +259,11 @@ export default function PassPDF({ reservation, qrDataUrl, expiresAt, statusLabel
           <View style={styles.mainContent}>
             {/* Información de Reserva */}
             <View style={styles.reservationInfo}>
+              <Text style={styles.courtLabel}>CANCHA</Text>
               <Text style={styles.courtName}>
                 {reservation.court.name}
               </Text>
+              <Text style={styles.sportLabel}>DEPORTE</Text>
               <Text style={styles.sportType}>{sportType}</Text>
               <Text style={styles.dateTime}>
                 {dateStr} • {timeStr} - {endTimeStr}
@@ -275,7 +299,10 @@ export default function PassPDF({ reservation, qrDataUrl, expiresAt, statusLabel
                   💳 Agregar a Wallet
                 </Link>
               </View>
-              
+            </View>
+
+            {/* Instrucciones */}
+            <View style={styles.instructionsContainer}>
               <Text style={styles.instructions}>
                 Presenta este código QR al personal de acceso
               </Text>
