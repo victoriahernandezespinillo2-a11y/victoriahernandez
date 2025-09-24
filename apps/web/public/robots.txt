@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://www.polideportivovictoriahernandez.es/sitemap.xml
+
+# Permitir indexación del sitio web público
+# Este es el sitio web principal para usuarios

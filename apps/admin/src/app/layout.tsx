@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   title: 'Admin - Polideportivo Victoria Hernandez',
   description: 'Panel de administración del polideportivo de Victoria Hernandez',
   manifest: '/manifest.json',
+  robots: 'noindex, nofollow',
   icons: {
     icon: [
       { url: '/favicon.ico?v=2', sizes: 'any' },
@@ -47,6 +48,10 @@ export default function RootLayout({
   return (
     <html lang="es">
       <head>
+        {/* No-index configuration for admin panel */}
+        <meta name="robots" content="noindex, nofollow, noarchive, nosnippet" />
+        <meta name="googlebot" content="noindex, nofollow" />
+        
         {/* Favicon configuration for maximum compatibility */}
         <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
         <link rel="icon" href="/images/logo.png?v=2" type="image/png" sizes="32x32" />

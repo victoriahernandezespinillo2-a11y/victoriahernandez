@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /
+
+# Panel de administración privado - No indexar
+# Este panel es solo para administradores autorizados
