@@ -128,6 +128,18 @@ const nextConfig = {
           destination: `${apiUrl}/api/:path`,
         },
       ],
+      // 🚫 EXCLUIR archivos estáticos del rewrite para evitar problemas con favicon
+      afterFiles: [
+        {
+          // Asegurar que archivos estáticos no sean interceptados
+          source: '/favicon.ico',
+          destination: '/favicon.ico',
+        },
+        {
+          source: '/:path*.(ico|png|jpg|jpeg|gif|svg|webp|woff|woff2|ttf|eot)',
+          destination: '/:path*',
+        },
+      ],
     };
   },
 };

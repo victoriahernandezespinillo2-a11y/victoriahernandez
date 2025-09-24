@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
         activities.push({ id: `user-${user.id}`, type: 'user', user: user.name || 'Usuario', action: 'Nuevo usuario registrado', target: '', time: getTimeAgo(user.createdAt as any), timestamp: user.createdAt as any, icon: 'UsersIcon' });
       });
       (recentPayments as Array<{ id: string; updatedAt: Date; user?: { name?: string|null } }>).forEach((payment) => {
-        activities.push({ id: `payment-${payment.id}`, type: 'payment', user: payment.user?.name || 'Usuario', action: 'Pago completado', target: `$${Number((payment as any).totalPrice || 0).toLocaleString()}`, time: getTimeAgo(payment.updatedAt), timestamp: payment.updatedAt, icon: 'CurrencyDollarIcon' });
+        activities.push({ id: `payment-${payment.id}`, type: 'payment', user: payment.user?.name || 'Usuario', action: 'Pago completado', target: `€${Number((payment as any).totalPrice || 0).toLocaleString()}`, time: getTimeAgo(payment.updatedAt), timestamp: payment.updatedAt, icon: 'CurrencyDollarIcon' });
       });
       
       const sortedActivities = activities

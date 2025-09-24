@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
+import { AutoCompleteService } from '@/lib/services/auto-complete.service';
 
 export async function POST(request: NextRequest) {
   return withAdminMiddleware(async (req) => {
@@ -49,6 +50,13 @@ export async function POST(request: NextRequest) {
 
       await db.reservation.update({ where: { id: reservation.id }, data: { status: 'IN_PROGRESS' as any, checkInTime: now } });
       await db.outboxEvent.create({ data: { eventType: 'RESERVATION_CHECKED_IN', eventData: { reservationId: reservation.id, at: now.toISOString() } as any } });
+
+      // ✅ AUTO-COMPLETAR: Verificar si hay reservas expiradas que completar
+      try {
+        await AutoCompleteService.autoCompleteExpiredReservations();
+      } catch (error) {
+        console.warn('Auto-complete error (non-critical):', error);
+      }
 
       return ApiResponse.success({ ok: true });
     } catch (error) {

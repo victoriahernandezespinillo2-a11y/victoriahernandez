@@ -27,7 +27,8 @@ interface ReservationDetails {
 export default function ReservationDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { data: session } = useSession();
+  const sessionResult = useSession();
+  const session = sessionResult?.data || null;
   const reservationId = params?.id as string;
 
   const [data, setData] = useState<ReservationDetails | null>(null);
@@ -40,17 +41,41 @@ export default function ReservationDetailPage() {
       try {
         setLoading(true);
         setError(null);
+        
+        // Verificar que tenemos session o al menos un ID de reserva válido
+        if (!reservationId) {
+          throw new Error('ID de reserva no proporcionado');
+        }
+        
+        console.log('🔄 Cargando reserva:', reservationId);
         const res = await api.reservations.getById(reservationId);
+        
         if (!isMounted) return;
+        
+        if (!res) {
+          throw new Error('Reserva no encontrada');
+        }
+        
+        console.log('✅ Reserva cargada exitosamente:', res);
         setData(res as any);
       } catch (e: any) {
+        console.error('❌ Error cargando reserva:', e);
         if (!isMounted) return;
         setError(e?.message || 'Error cargando la reserva');
       } finally {
         if (isMounted) setLoading(false);
       }
     }
-    if (reservationId) load();
+    
+    if (reservationId) {
+      // Pequeño delay para asegurar que la sesión esté cargada
+      const timer = setTimeout(load, 100);
+      return () => {
+        clearTimeout(timer);
+        isMounted = false;
+      };
+    }
+    
     return () => { isMounted = false; };
   }, [reservationId]);
 

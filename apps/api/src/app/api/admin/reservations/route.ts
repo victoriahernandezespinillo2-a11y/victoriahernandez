@@ -10,6 +10,7 @@ import { ledgerService } from '@/lib/services/ledger.service';
 import { z } from 'zod';
 import { reservationService } from '@/lib/services/reservation.service';
 import { emailService } from '@repo/notifications';
+import { AutoCompleteService } from '@/lib/services/auto-complete.service';
 
 const GetAdminReservationsSchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
@@ -40,6 +41,13 @@ export async function GET(request: NextRequest) {
           data: { status: 'NO_SHOW' as any },
         });
       } catch {}
+
+      // ✅ AUTO-COMPLETAR: Marcar como COMPLETED las reservas que ya terminaron
+      try {
+        await AutoCompleteService.autoCompleteExpiredReservations();
+      } catch (error) {
+        console.warn('Auto-complete error (non-critical):', error);
+      }
 
       const { searchParams } = req.nextUrl;
       console.log('Admin reservations request params:', Object.fromEntries(searchParams.entries()));

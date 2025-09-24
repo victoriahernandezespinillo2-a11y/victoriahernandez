@@ -247,15 +247,43 @@ export async function POST(request: NextRequest) {
                   const passUrl = `${apiUrl}/api/reservations/${reservation.id}/pass?token=${encodeURIComponent(passToken)}`;
 
                   // Generar QR data URL embebiendo el enlace del pase
-                  const qrCodeDataUrl = await QRCode.toDataURL(passUrl, { width: 200, margin: 1 });
+                  let qrCodeDataUrl = '';
+                  try {
+                    qrCodeDataUrl = await QRCode.toDataURL(passUrl, { width: 200, margin: 1 });
+                    console.log('✅ QR Code generado exitosamente para reserva:', reservation.id);
+                  } catch (qrError) {
+                    console.error('❌ Error generando QR Code:', qrError);
+                    // Fallback: generar QR con URL básica
+                    qrCodeDataUrl = await QRCode.toDataURL(`${apiUrl}/api/reservations/${reservation.id}/pass`, { width: 200, margin: 1 });
+                  }
 
                   // Construir variables de plantilla
                   const durationMin = Math.round((reservation.endTime.getTime() - reservation.startTime.getTime()) / 60000);
                   const price = Number((reservation.totalPrice as any)?.toString?.() || reservation.totalPrice || 0);
                   // Formatear fechas con zona horaria correcta (Europe/Madrid)
                   const centerTimezone = 'Europe/Madrid';
-                  const startTimeLocal = new Date(reservation.startTime.toLocaleString('en-US', { timeZone: centerTimezone }));
-                  const endTimeLocal = new Date(reservation.endTime.toLocaleString('en-US', { timeZone: centerTimezone }));
+                  
+                  // Convertir fechas UTC a timezone local correctamente
+                  const startTimeLocal = new Date(reservation.startTime);
+                  const endTimeLocal = new Date(reservation.endTime);
+                  
+                  // Aplicar timezone para display (sin cambiar la fecha real)
+                  const startTimeFormatted = new Intl.DateTimeFormat('es-ES', {
+                    timeZone: centerTimezone,
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                  }).format(startTimeLocal);
+                  
+                  const endTimeFormatted = new Intl.DateTimeFormat('es-ES', {
+                    timeZone: centerTimezone,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                  }).format(endTimeLocal);
                   
                   // Generar URL de Google Calendar con fechas corregidas
                   const generateGoogleCalendarUrl = (reservation: any) => {
@@ -267,8 +295,8 @@ export async function POST(request: NextRequest) {
 
 Detalles:
 • Pista: ${reservation.court?.name || 'Cancha'}
-• Fecha: ${startTimeLocal.toLocaleDateString('es-ES')}
-• Horario: ${startTimeLocal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - ${endTimeLocal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+• Fecha: ${datePart || startTimeLocal.toLocaleDateString('es-ES')}
+• Horario: ${startTimeFormatted.split(', ')[1] || startTimeLocal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - ${endTimeFormatted || endTimeLocal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
 • Duración: ${durationMin} minutos
 • Precio: ${price.toFixed(2)}€
 • Código: ${reservation.id.slice(0, 10).toUpperCase()}
@@ -282,17 +310,22 @@ Ver detalles: ${process.env.NEXT_PUBLIC_WEB_URL || 'https://www.polideportivovic
                     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}/${endDate}&details=${details}&location=${location}&sf=true&output=xml`;
                   };
 
+                  // Extraer fecha y hora de los formatos
+                  const [datePart] = startTimeFormatted.split(', ');
+                  const [startHour] = startTimeFormatted.split(', ')[1]?.split(':') || ['00'];
+                  const [endHour] = endTimeFormatted.split(':') || ['00'];
+                  
                   const variables = {
                     userName: reservation.user?.name || reservation.user?.email || 'Usuario',
                     courtName: reservation.court?.name || 'Cancha',
-                    date: startTimeLocal.toLocaleDateString('es-ES'),
-                    startTime: startTimeLocal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-                    endTime: endTimeLocal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+                    date: datePart || startTimeLocal.toLocaleDateString('es-ES'),
+                    startTime: startTimeFormatted.split(', ')[1] || startTimeLocal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+                    endTime: endTimeFormatted || endTimeLocal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
                     duration: String(durationMin),
                     price: price.toFixed(2),
                     reservationCode: reservation.id.slice(0, 10).toUpperCase(),
                     qrCodeDataUrl,
-                    accessPassUrl: `${process.env.NEXT_PUBLIC_WEB_URL || 'https://www.polideportivovictoriahernandez.es'}/dashboard/reservations/${reservation.id}`,
+                    accessPassUrl: `${apiUrl}/api/reservations/${reservation.id}/pass?token=${encodeURIComponent(passToken)}`,
                     googleCalendarUrl: generateGoogleCalendarUrl(reservation),
                   } as Record<string, string>;
 

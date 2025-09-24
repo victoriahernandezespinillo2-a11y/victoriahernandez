@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import jwt from 'jsonwebtoken';
+import { AutoCompleteService } from '@/lib/services/auto-complete.service';
 
 export async function POST(request: NextRequest) {
   return withAdminMiddleware(async (req) => {
@@ -23,14 +24,24 @@ export async function POST(request: NextRequest) {
         return ApiResponse.unauthorized('Token no corresponde');
       }
 
-      const reservation = await db.reservation.findUnique({ where: { id } });
+      const reservation = await db.reservation.findUnique({ 
+        where: { id },
+        include: { court: { include: { center: true } } }
+      });
       if (!reservation) return ApiResponse.notFound('Reserva');
+
+      // ✅ VALIDACIÓN: Verificar si ya está en curso o completada
+      if (reservation.status === 'IN_PROGRESS' || reservation.status === 'COMPLETED') {
+        return ApiResponse.badRequest('La reserva ya está en curso o completada');
+      }
 
       const now = new Date();
       const start = new Date(reservation.startTime);
+      const end = new Date(reservation.endTime);
       const toleranceMin = 30;
       const earliest = new Date(start.getTime() - toleranceMin * 60000);
-      const latest = new Date(start.getTime() + toleranceMin * 60000);
+      const latest = new Date(end.getTime());
+      
       if (now < earliest || now > latest) {
         return ApiResponse.forbidden('Fuera de ventana de check-in');
       }
@@ -39,6 +50,22 @@ export async function POST(request: NextRequest) {
         where: { id },
         data: { status: 'IN_PROGRESS', checkInTime: new Date() },
       });
+      
+      // ✅ REGISTRAR EVENTO DE CHECK-IN
+      await db.outboxEvent.create({ 
+        data: { 
+          eventType: 'RESERVATION_CHECKED_IN', 
+          eventData: { reservationId: reservation.id, at: now.toISOString() } as any 
+        } 
+      });
+
+      // ✅ AUTO-COMPLETAR: Verificar si hay reservas expiradas que completar
+      try {
+        await AutoCompleteService.autoCompleteExpiredReservations();
+      } catch (error) {
+        console.warn('Auto-complete error (non-critical):', error);
+      }
+      
       return ApiResponse.success(updated);
     } catch (e) {
       return ApiResponse.internalError('Error interno del servidor');

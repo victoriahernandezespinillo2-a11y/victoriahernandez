@@ -327,7 +327,7 @@ export default function PaymentsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs md:text-sm font-medium text-gray-600">Ingresos Totales</p>
-                <p className="text-lg md:text-2xl font-bold text-gray-900">${totalAmount.toLocaleString()}</p>
+                <p className="text-lg md:text-2xl font-bold text-gray-900">€{totalAmount.toLocaleString()}</p>
               </div>
               <CreditCardIcon className="w-6 h-6 md:w-8 md:h-8 text-green-500" />
             </div>
@@ -494,7 +494,7 @@ export default function PaymentsPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    ${payment.amount.toLocaleString()}
+                    €{payment.amount.toLocaleString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {getMethodName(payment.method)}
@@ -564,7 +564,7 @@ export default function PaymentsPage() {
                      payment.status === 'failed' ? 'Fallido' : 'Reembolsado'}
                   </span>
                 </div>
-                <p className="text-sm font-medium text-gray-900">${payment.amount.toLocaleString()}</p>
+                <p className="text-sm font-medium text-gray-900">€{payment.amount.toLocaleString()}</p>
                 <p className="text-xs text-gray-500">{getMethodName(payment.method)}</p>
               </div>
               <div className="flex items-center gap-1">
@@ -740,7 +740,7 @@ export default function PaymentsPage() {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Monto</label>
-                  <p className="text-sm text-gray-900">${selectedPayment.amount}</p>
+                  <p className="text-sm text-gray-900">€{selectedPayment.amount}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Método</label>
@@ -859,7 +859,7 @@ export default function PaymentsPage() {
               <div className="bg-gray-50 p-3 rounded-lg">
                 <p className="text-sm font-medium text-gray-900">ID: {selectedPayment.transactionId}</p>
                 <p className="text-sm text-gray-600">Usuario: {selectedPayment.user}</p>
-                <p className="text-sm text-gray-600">Monto: ${selectedPayment.amount}</p>
+                <p className="text-sm text-gray-600">Monto: €{selectedPayment.amount}</p>
               </div>
               <p className="text-xs text-red-600 mt-2">⚠️ Esta acción no se puede deshacer.</p>
             </div>

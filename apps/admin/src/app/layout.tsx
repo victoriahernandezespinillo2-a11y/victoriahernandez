@@ -10,6 +10,17 @@ export const metadata: Metadata = {
   title: 'Admin - Polideportivo Victoria Hernandez',
   description: 'Panel de administración del polideportivo de Victoria Hernandez',
   manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/favicon.ico?v=2', sizes: 'any' },
+      { url: '/images/logo.png?v=2', sizes: '32x32', type: 'image/png' },
+      { url: '/images/logo.png?v=2', sizes: '16x16', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/images/logo.png?v=2', sizes: '180x180', type: 'image/png' },
+    ],
+    shortcut: '/favicon.ico?v=2',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -35,6 +46,18 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
+      <head>
+        {/* Favicon configuration for maximum compatibility */}
+        <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="/images/logo.png?v=2" type="image/png" sizes="32x32" />
+        <link rel="icon" href="/images/logo.png?v=2" type="image/png" sizes="16x16" />
+        <link rel="apple-touch-icon" href="/images/logo.png?v=2" sizes="180x180" />
+        <link rel="shortcut icon" href="/favicon.ico?v=2" />
+        <meta name="msapplication-TileImage" content="/images/logo.png?v=2" />
+        <meta name="msapplication-TileColor" content="#1f2937" />
+        
+        <link rel="manifest" href="/manifest.json" />
+      </head>
       <body className="antialiased h-full" suppressHydrationWarning>
         <SessionWrapper>
           <ToastProvider>

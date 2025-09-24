@@ -153,7 +153,7 @@ export default function AdminHomePage() {
     },
     {
       name: 'Ingresos Totales',
-      stat: `$${Number(dashboardData?.metrics?.totalRevenue || 0).toLocaleString()}`,
+      stat: `€${Number(dashboardData?.metrics?.totalRevenue || 0).toLocaleString()}`,
       icon: CurrencyDollarIcon,
       change: dashboardData?.metrics?.growth?.revenue?.value || '+0.00',
       changeType: dashboardData?.metrics?.growth?.revenue?.isPositive !== false ? 'increase' : 'decrease',
@@ -298,35 +298,35 @@ export default function AdminHomePage() {
         {/* Quick Actions */}
         <div className="mb-8">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Acciones Rápidas</h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5">
             {quickActions.map((action) => (
               <div
                 key={action.name}
-                className="relative group bg-white p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-500 rounded-lg shadow hover:shadow-md transition-shadow"
+                className="relative group bg-white p-4 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-500 rounded-lg shadow hover:shadow-md transition-shadow"
               >
-                <div>
+                <div className="flex flex-col items-center text-center">
                   <span
-                    className={`rounded-lg inline-flex p-3 ring-4 ring-white ${
+                    className={`rounded-lg inline-flex p-2 ring-2 ring-white ${
                       action.iconBackground
                     } ${action.iconForeground}`}
                   >
-                    <action.icon className="h-6 w-6" aria-hidden="true" />
+                    <action.icon className="h-5 w-5" aria-hidden="true" />
                   </span>
-                </div>
-                <div className="mt-8">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    <a href={action.href} className="focus:outline-none">
-                      <span className="absolute inset-0" aria-hidden="true" />
-                      {action.name}
-                    </a>
-                  </h3>
-                  <p className="mt-2 text-sm text-gray-600">{action.description}</p>
+                  <div className="mt-3">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      <a href={action.href} className="focus:outline-none">
+                        <span className="absolute inset-0" aria-hidden="true" />
+                        {action.name}
+                      </a>
+                    </h3>
+                    <p className="mt-1 text-xs text-gray-600">{action.description}</p>
+                  </div>
                 </div>
                 <span
-                  className="pointer-events-none absolute top-6 right-6 text-gray-400 group-hover:text-gray-500"
+                  className="pointer-events-none absolute top-3 right-3 text-gray-400 group-hover:text-gray-500"
                   aria-hidden="true"
                 >
-                  <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                     <path d="m11.293 17.293 1.414 1.414L19.414 12l-6.707-6.707-1.414 1.414L15.586 11H6v2h9.586l-4.293 4.293z" />
                   </svg>
                 </span>
@@ -501,12 +501,29 @@ export default function AdminHomePage() {
                     <div className="relative h-32 md:h-40 flex items-end justify-between gap-1">
                       {dailyData.slice(-7).map((day, index) => {
                         const revenue = Number(day.revenue || 0);
-                        // Mejorar el cálculo de altura para valores pequeños
+                        // Calcular altura proporcional basada en el valor real
                         const heightPercent = maxRevenue > 0 ? (revenue / maxRevenue) * 100 : 0;
-                        // Asegurar que las barras sean visibles incluso con valores pequeños
-                        const barHeight = Math.max(heightPercent, revenue > 0 ? 8 : 0);
+                        
+                        // Para valores pequeños, usar escala más agresiva para diferencias visibles
+                        let barHeight = heightPercent;
+                        if (revenue > 0 && maxRevenue <= 10) {
+                          // Escala más agresiva: 30-100% para valores pequeños
+                          const amplifiedPercent = (revenue / maxRevenue) * 70 + 30; // 30-100% en lugar de 0-100%
+                          barHeight = Math.max(amplifiedPercent, 25); // Mínimo 25% para visibilidad
+                        } else if (revenue > 0) {
+                          barHeight = Math.max(heightPercent, 10); // Para valores grandes, mantener lógica original
+                        } else {
+                          barHeight = 0;
+                        }
                         const date = new Date(day.date);
                         const shortDate = `${date.getDate()}/${date.getMonth() + 1}`;
+                        
+                        // Debug: Log para verificar cálculos
+                        if (revenue > 0) {
+                          const scaleType = maxRevenue <= 10 ? 'AMPLIFICADA-AGRESIVA' : 'NORMAL';
+                          console.log(`📊 Barra ${shortDate}: revenue=${revenue}, maxRevenue=${maxRevenue}, heightPercent=${heightPercent.toFixed(1)}%, barHeight=${barHeight.toFixed(1)}% (${scaleType})`);
+                          console.log(`🎨 Estilo aplicado: height: ${barHeight}%, minHeight: ${revenue > 0 ? '3px' : '2px'}`);
+                        }
                         
                         return (
                           <div key={day.date} className="flex flex-col items-center group flex-1">
@@ -519,9 +536,9 @@ export default function AdminHomePage() {
                               }`}
                               style={{ 
                                 height: `${barHeight}%`,
-                                minHeight: revenue > 0 ? '8px' : '2px'
+                                minHeight: revenue > 0 ? '3px' : '2px'
                               }}
-                              title={`${shortDate}: $${revenue.toLocaleString()}`}
+                              title={`${shortDate}: €${revenue.toLocaleString()}`}
                             />
                             {/* Fecha */}
                             <div className="mt-1 text-[8px] md:text-[10px] text-gray-500 text-center">
@@ -529,7 +546,7 @@ export default function AdminHomePage() {
                             </div>
                             {/* Valor en hover */}
                             <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-gray-800 text-white text-xs px-2 py-1 rounded transition-opacity z-10">
-                              ${revenue.toLocaleString()}
+                              €{revenue.toLocaleString()}
                             </div>
                           </div>
                         );
@@ -539,11 +556,11 @@ export default function AdminHomePage() {
                     {/* Leyenda móvil */}
                     <div className="mt-3 md:mt-4 space-y-1 md:space-y-0">
                       <div className="flex justify-between text-xs text-gray-700 font-medium">
-                        <span>Min: ${minRevenue.toLocaleString()}</span>
-                        <span>Max: ${maxRevenue.toLocaleString()}</span>
+                        <span>Min: €{minRevenue.toLocaleString()}</span>
+                        <span>Max: €{maxRevenue.toLocaleString()}</span>
                       </div>
                       <div className="text-center text-xs text-gray-700 font-medium">
-                        Promedio: ${Math.round(dailyData.reduce((sum, d) => sum + Number(d.revenue || 0), 0) / dailyData.length).toLocaleString()}
+                        Promedio: €{Math.round(dailyData.reduce((sum, d) => sum + Number(d.revenue || 0), 0) / dailyData.length).toLocaleString()}
                       </div>
                     </div>
                   </div>

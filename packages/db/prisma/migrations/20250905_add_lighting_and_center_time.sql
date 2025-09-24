@@ -61,3 +61,4 @@ COMMENT ON COLUMN "reservations"."lighting_extra_total" IS 'Monto cobrado por il
 
 
 
+
