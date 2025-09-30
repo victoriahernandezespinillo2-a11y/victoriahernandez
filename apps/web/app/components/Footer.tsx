@@ -13,6 +13,7 @@ export function Footer() {
   // Evitar hidratación no determinista: inicializar tras montar
   const [mounted, setMounted] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
+  const [centerStatus, setCenterStatus] = useState<{ open: boolean; status: 'OPEN'|'CLOSED'; nextChangeAt?: string } | null>(null);
   const [email, setEmail] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
   const { sports, sportsList } = useLandingData();
@@ -42,6 +43,28 @@ export function Footer() {
       setCurrentTime(new Date());
     }, 60000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Cargar estado del centro (usa el primer centro disponible en Admin/API)
+  useEffect(() => {
+    let cancelled = false;
+    const loadStatus = async () => {
+      try {
+        // Obtener primer centro para derivar el id
+        const centersRes = await fetch('/api/centers', { cache: 'no-store' });
+        const centersJson = await centersRes.json();
+        const list = Array.isArray(centersJson?.data) ? centersJson.data : (Array.isArray(centersJson) ? centersJson : []);
+        const id = list?.[0]?.id as string | undefined;
+        if (!id) return;
+        const res = await fetch(`/api/centers/${id}/status`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled) setCenterStatus(json?.data || json);
+      } catch {}
+    };
+    loadStatus();
+    const t = setInterval(loadStatus, 5 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(t); };
   }, []);
 
   // Auto-cargar mapa en desktop cuando entra en viewport
@@ -191,12 +214,10 @@ export function Footer() {
   };
 
   const getCurrentStatus = () => {
-    const now = currentTime ?? new Date();
-    const hour = now.getHours();
-    if (hour >= 6 && hour < 22) {
-      return { status: 'Abierto', color: 'text-green-400', icon: 'fas fa-circle' };
-    }
-    return { status: 'Cerrado', color: 'text-red-400', icon: 'fas fa-circle' };
+    const open = centerStatus?.status === 'OPEN';
+    return open
+      ? { status: 'Abierto', color: 'text-green-400', icon: 'fas fa-circle' }
+      : { status: 'Cerrado', color: 'text-red-400', icon: 'fas fa-circle' };
   };
 
   const normalizeIcon = (icon?: string) => {

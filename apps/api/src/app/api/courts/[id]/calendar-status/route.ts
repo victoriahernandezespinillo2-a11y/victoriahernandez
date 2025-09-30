@@ -254,119 +254,118 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           });
         }
       }
-    }
 
-    let currentTime = operatingStart.getTime(); // Usar timestamp para evitar mutaciones y problemas de TZ
-    const endTime = operatingEnd.getTime();
-
-    while (currentTime < endTime) {
-      const slotStart = new Date(currentTime);
-      const slotEnd = new Date(currentTime + duration * 60000);
-
-      // Si el slot termina después de la hora de cierre, no lo incluimos.
-      if (slotEnd.getTime() > endTime) {
-        break;
-      }
-
-      // Representaciones en hora local del centro para mostrar al usuario
-      const slotStartLocal = utcToZonedTime(slotStart, centerTz);
-      const slotEndLocal   = utcToZonedTime(slotEnd, centerTz);
-      
-      // 🕐 CONVERTIR SLOTS A HORA DE MADRID PARA COMPARACIONES
-      const slotStartCompare = slotStart; // ya en UTC
-      const slotEndCompare   = slotEnd;
-      
-      // 🔍 DETERMINAR ESTADO DEL SLOT
-      let slotStatus = 'AVAILABLE';
-      let slotColor = '#10b981'; // Verde por defecto
-      let slotMessage = 'Disponible';
-      let conflicts: any[] = [];
-
-      // Verificar si la cancha está activa
-      if (!court?.isActive) {
-        slotStatus = 'UNAVAILABLE';
-        slotColor = '#dc2626';
-        slotMessage = 'Cancha inactiva';
-      } else {
-        // --- LÓGICA DE CONFLICTOS REFACTORIZADA ---
-        // 1. COMPROBAR PRIMERO SI EL USUARIO TIENE UNA RESERVA (MÁXIMA PRIORIDAD)
-        const userConflict = userReservations.find((r: any) => {
-          return slotStartCompare < r.endTime && slotEndCompare > r.startTime;
-        });
-
-        if (userConflict) {
-          slotStatus = 'USER_BOOKED';
-          slotColor = '#6366f1'; // Indigo para reservas del usuario
-          slotMessage = `Ya tienes una reserva a esta hora en la cancha ${userConflict.court.name}`;
-          conflicts.push({
-            type: 'user_reservation',
-            id: userConflict.id,
-            court: userConflict.court.name,
-            start: userConflict.startTime,
-            end: userConflict.endTime,
-            status: userConflict.status
-          });
-        } else {
-          // 2. SI NO, COMPROBAR MANTENIMIENTO
-          const maintenanceConflict = maintenanceSchedules.find((m: any) => {
-            const maintenanceStart = m.scheduledAt;
-            // Usar estimatedDuration de la base de datos, con fallback a 2 horas (120 minutos)
-            const durationMinutes = m.estimatedDuration || 120;
-            const maintenanceEnd = m.completedAt || new Date(maintenanceStart.getTime() + durationMinutes * 60 * 1000);
-            return slotStart < maintenanceEnd && slotEnd > maintenanceStart;
-          });
-
-          if (maintenanceConflict) {
-            slotStatus = 'MAINTENANCE';
-            slotColor = '#f59e0b';
-            slotMessage = `Mantenimiento: ${maintenanceConflict.type}`;
-            conflicts.push({
-              type: 'maintenance',
-              description: maintenanceConflict.description,
-              start: maintenanceConflict.scheduledAt,
-              end: maintenanceConflict.completedAt
-            });
-          } else {
-            // 3. SI NO, COMPROBAR OTRAS RESERVAS
-            const reservationConflict = reservations.find((r: any) => {
-              return slotStartCompare < r.endTime && slotEndCompare > r.startTime;
-            });
-
-            if (reservationConflict) {
-              slotStatus = 'BOOKED';
-              slotColor = '#ef4444';
-              slotMessage = 'Reservado';
-              conflicts.push({
-                type: 'reservation',
-                id: reservationConflict.id,
-                start: reservationConflict.startTime,
-                end: reservationConflict.endTime,
-                status: reservationConflict.status
+      // ✅ Aplicar EXCEPCIONES por fecha (cerrado o rangos específicos)
+      try {
+        const exceptions = Array.isArray(settings?.exceptions) ? settings.exceptions : [];
+        if (exceptions.length > 0) {
+          const localDate = utcToZonedTime(targetDate, centerTz);
+          const ymd = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}`;
+          const ex = exceptions.find((e: any) => e?.date === ymd);
+          if (ex) {
+            if (ex.closed === true) {
+              // Centro cerrado: devolver sin slots
+              return NextResponse.json({
+                courtId,
+                date,
+                duration,
+                summary: { total: 0, available: 0, booked: 0, maintenance: 0, userBooked: 0, past: 0, unavailable: 0 },
+                slots: [],
+                legend: {}
               });
-            } else {
-              // 4. FINALMENTE, VERIFICAR SI LA HORA YA PASÓ
-              const nowUtc = new Date();
-              if (slotEndCompare <= nowUtc) {
-                slotStatus = 'PAST';
-                slotColor = '#9ca3af'; // Gris para pasado
-                slotMessage = 'Hora pasada';
+            }
+            if (Array.isArray(ex.ranges) && ex.ranges.length > 0) {
+              // Construir slots solo dentro de los rangos excepcionales
+              const ranges: Array<{ start: Date; end: Date }> = (ex.ranges as Array<{ start: string; end: string }>)
+                .filter((r) => typeof r?.start === 'string' && typeof r?.end === 'string')
+                .map((r) => ({
+                  start: zonedTimeToUtc(`${date}T${normalizeToHHmm(r.start)}:00`, centerTz),
+                  end: zonedTimeToUtc(`${date}T${normalizeToHHmm(r.end)}:00`, centerTz),
+                }))
+                .filter((r) => r.end > r.start);
+
+              // Reemplazar ventana operativa por la unión mínima que cubra rangos de excepción
+              if (ranges.length > 0) {
+                // Para simplificar: generaremos slots luego iterando rangos en lugar de un único while
+                // Devolvemos señal al bucle principal usando una variable local
+                (globalThis as any).__calendar_exception_ranges = ranges;
               }
             }
           }
         }
+      } catch {}
+    }
+
+    // Si hay rangos excepcionales, generamos para cada rango; de lo contrario usamos [operatingStart, operatingEnd)
+    const exceptionRanges: Array<{ start: Date; end: Date }> = (globalThis as any).__calendar_exception_ranges || [];
+    const buildSlotsForRange = (rangeStart: Date, rangeEnd: Date) => {
+      let currentTime = rangeStart.getTime();
+      const endTime = rangeEnd.getTime();
+      while (currentTime < endTime) {
+        const slotStart = new Date(currentTime);
+        const slotEnd = new Date(currentTime + duration * 60000);
+        if (slotEnd.getTime() > endTime) break;
+        // Representaciones en hora local del centro para mostrar al usuario
+        const slotStartLocal = utcToZonedTime(slotStart, centerTz);
+        const slotEndLocal   = utcToZonedTime(slotEnd, centerTz);
+        const slotStartCompare = slotStart;
+        const slotEndCompare   = slotEnd;
+        let slotStatus = 'AVAILABLE';
+        let slotColor = '#10b981';
+        let slotMessage = 'Disponible';
+        let conflicts: any[] = [];
+        if (!court?.isActive) {
+          slotStatus = 'UNAVAILABLE';
+          slotColor = '#dc2626';
+          slotMessage = 'Cancha inactiva';
+        } else {
+          const userConflict = userReservations.find((r: any) => slotStartCompare < r.endTime && slotEndCompare > r.startTime);
+          if (userConflict) {
+            slotStatus = 'USER_BOOKED';
+            slotColor = '#6366f1';
+            slotMessage = `Ya tienes una reserva a esta hora en la cancha ${userConflict.court.name}`;
+            conflicts.push({ type: 'user_reservation', id: userConflict.id, court: userConflict.court.name, start: userConflict.startTime, end: userConflict.endTime, status: userConflict.status });
+          } else {
+            const maintenanceConflict = maintenanceSchedules.find((m: any) => {
+              const maintenanceStart = m.scheduledAt;
+              const durationMinutes = m.estimatedDuration || 120;
+              const maintenanceEnd = m.completedAt || new Date(maintenanceStart.getTime() + durationMinutes * 60 * 1000);
+              return slotStart < maintenanceEnd && slotEnd > maintenanceStart;
+            });
+            if (maintenanceConflict) {
+              slotStatus = 'MAINTENANCE';
+              slotColor = '#f59e0b';
+              slotMessage = `Mantenimiento: ${maintenanceConflict.type}`;
+              conflicts.push({ type: 'maintenance', description: maintenanceConflict.description, start: maintenanceConflict.scheduledAt, end: maintenanceConflict.completedAt });
+            } else {
+              const reservationConflict = reservations.find((r: any) => slotStartCompare < r.endTime && slotEndCompare > r.startTime);
+              if (reservationConflict) {
+                slotStatus = 'BOOKED';
+                slotColor = '#ef4444';
+                slotMessage = 'Reservado';
+                conflicts.push({ type: 'reservation', id: reservationConflict.id, start: reservationConflict.startTime, end: reservationConflict.endTime, status: reservationConflict.status });
+              } else {
+                const nowUtc = new Date();
+                if (slotEndCompare <= nowUtc) {
+                  slotStatus = 'PAST';
+                  slotColor = '#9ca3af';
+                  slotMessage = 'Hora pasada';
+                }
+              }
+            }
+          }
+        }
+        calendarSlots.push({ startTime: formatInTimeZone(slotStart, centerTz, 'HH:mm'), endTime: formatInTimeZone(slotEnd, centerTz, 'HH:mm'), status: slotStatus, message: slotMessage, color: slotColor, available: slotStatus === 'AVAILABLE', conflicts });
+        currentTime += slotMinutes * 60000;
       }
+    };
 
-      calendarSlots.push({
-        startTime: formatInTimeZone(slotStart, centerTz, 'HH:mm'),
-        endTime: formatInTimeZone(slotEnd,   centerTz, 'HH:mm'),
-        status: slotStatus,
-        message: slotMessage,
-        color: slotColor,
-        available: slotStatus === 'AVAILABLE',
-        conflicts,
-      });
-
-      currentTime += slotMinutes * 60000; // Incrementar el timestamp
+    if (exceptionRanges.length > 0) {
+      exceptionRanges.forEach(r => buildSlotsForRange(r.start, r.end));
+      // Limpiar señal global
+      (globalThis as any).__calendar_exception_ranges = undefined;
+    } else {
+      buildSlotsForRange(operatingStart, operatingEnd);
     }
 
     return NextResponse.json({

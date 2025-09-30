@@ -11,7 +11,7 @@ import {
   CurrencyDollarIcon,
   ClockIcon,
 } from '@heroicons/react/24/outline';
-import { toast } from 'sonner';
+import { useToast } from '../../components/ToastProvider';
 
 interface SettingsSection {
   id: string;
@@ -21,8 +21,11 @@ interface SettingsSection {
 }
 
 export default function SettingsPage() {
+  const { showToast } = useToast();
   const [activeSection, setActiveSection] = useState('general');
-  const [loading, setLoading] = useState(false);
+  // Center context para cargar/guardar contra un centro real
+  const [centerId, setCenterId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [originalSettings, setOriginalSettings] = useState<any>(null);
@@ -97,11 +100,63 @@ export default function SettingsPage() {
     }
   ];
 
+  // Helpers de mapeo: open/close (UI) <-> operatingHours (API)
+  const makeOperatingHoursFromRange = (open: string, close: string) => ({
+    monday: { open, close, closed: false },
+    tuesday: { open, close, closed: false },
+    wednesday: { open, close, closed: false },
+    thursday: { open, close, closed: false },
+    friday: { open, close, closed: false },
+    saturday: { open, close, closed: false },
+    sunday: { open, close, closed: false },
+  });
+
+  const extractRangeFromOperatingHours = (oh: any): { open: string; close: string } | null => {
+    if (!oh || typeof oh !== 'object') return null;
+    const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+    for (const d of days) {
+      const cfg = (oh as any)[d];
+      if (cfg && !cfg.closed && typeof cfg.open === 'string' && typeof cfg.close === 'string') {
+        return { open: cfg.open, close: cfg.close };
+      }
+    }
+    return null;
+  };
+
+  // Obtener un centerId real (primer centro) para operar
+  useEffect(() => {
+    let cancelled = false;
+    const loadCenter = async () => {
+      try {
+        // 1) Intentar admin endpoint
+        let res = await fetch('/api/admin/centers', { credentials: 'include' });
+        let json: any = null;
+        if (res.ok) json = await res.json();
+        let list: any[] = Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []);
+        // 2) Fallback a endpoint público si admin falla o viene vacío
+        if (!Array.isArray(list) || list.length === 0) {
+          try {
+            res = await fetch('/api/centers', { credentials: 'include' });
+            if (res.ok) {
+              const j2 = await res.json();
+              list = Array.isArray(j2?.data) ? j2.data : (Array.isArray(j2) ? j2 : []);
+            }
+          } catch {}
+        }
+        const firstId = list?.[0]?.id as string | undefined;
+        if (!cancelled && firstId) setCenterId(firstId);
+      } catch {}
+    };
+    loadCenter();
+    return () => { cancelled = true; };
+  }, []);
+
   // Cargar configuración desde la API
   const loadSettings = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/settings', {
+      const qs = centerId ? `?centerId=${encodeURIComponent(centerId)}` : '';
+      const response = await fetch(`/api/admin/settings${qs}`, {
         credentials: 'include',
       });
       
@@ -115,15 +170,21 @@ export default function SettingsPage() {
             security: { ...settings.security, ...data.data.security },
             business: { ...settings.business, ...data.data.business }
           };
+          // Si vienen horarios por-día, reflejarlos en open/close de la UI
+          const range = extractRangeFromOperatingHours(data?.data?.business?.operatingHours);
+          if (range) {
+            mergedSettings.business.openTime = range.open;
+            mergedSettings.business.closeTime = range.close;
+          }
           setSettings(mergedSettings);
           setOriginalSettings(mergedSettings);
         }
       } else {
-        toast.error('Error cargando configuración');
+        showToast({ variant: 'error', message: 'Error cargando configuración' });
       }
     } catch (error) {
       console.error('Error cargando configuración:', error);
-      toast.error('Error cargando configuración');
+      showToast({ variant: 'error', message: 'Error cargando configuración' });
     } finally {
       setLoading(false);
     }
@@ -133,13 +194,99 @@ export default function SettingsPage() {
   const saveSettings = async () => {
     setSaving(true);
     try {
-      const response = await fetch('/api/admin/settings?centerId=default', {
+      // Mapear open/close a estructura operatingHours consumida por backend
+      const payload = { ...settings } as any;
+      const open = payload?.business?.openTime || '06:00';
+      const close = payload?.business?.closeTime || '22:00';
+      payload.business = {
+        ...payload.business,
+        operatingHours: makeOperatingHoursFromRange(open, close),
+      };
+      // Normalizar campos validados por el backend y sanitizar payload a claves soportadas
+      const sanitized: any = {};
+      if (payload?.general) {
+        const g = { ...payload.general };
+        if (typeof g.contactEmail === 'string' && g.contactEmail.trim() === '') delete g.contactEmail;
+        sanitized.general = {
+          siteName: String(g.siteName || 'Polideportivo'),
+          siteDescription: g.siteDescription || undefined,
+          contactEmail: g.contactEmail,
+          contactPhone: g.contactPhone || undefined,
+          address: g.address || undefined,
+          timezone: g.timezone || undefined,
+          language: g.language || undefined,
+          currency: g.currency || undefined,
+        };
+      }
+      if (payload?.notifications) {
+        const n = payload.notifications;
+        sanitized.notifications = {
+          emailEnabled: !!n.emailEnabled,
+          smsEnabled: !!n.smsEnabled,
+          pushEnabled: !!n.pushEnabled,
+          emailProvider: n.emailProvider,
+          smsProvider: n.smsProvider,
+          marketingEnabled: !!n.marketingEnabled,
+        };
+      }
+      if (payload?.security) {
+        const s = payload.security;
+        sanitized.security = {
+          twoFactorEnabled: !!s.twoFactorEnabled,
+          sessionTimeoutMinutes: Number(s.sessionTimeoutMinutes || 30),
+          maxLoginAttempts: Number(s.maxLoginAttempts || 5),
+          lockoutDurationMinutes: Number(s.lockoutDurationMinutes || 15),
+          requireEmailVerification: !!s.requireEmailVerification,
+          requirePhoneVerification: !!s.requirePhoneVerification,
+          passwordMinLength: Number(s.passwordMinLength || 8),
+          passwordRequireSpecial: !!(s.passwordRequireSpecial),
+        };
+      }
+      if (payload?.business) {
+        const b = payload.business;
+        sanitized.business = {
+          operatingHours: payload.business.operatingHours,
+          seasonalPricing: !!b.seasonalPricing,
+          dynamicPricing: !!b.dynamicPricing,
+          membershipDiscounts: !!b.membershipDiscounts,
+        };
+      }
+
+      let cid = centerId;
+      // Fallback: si aún no tenemos centerId, intentar obtenerlo en caliente
+      if (!cid) {
+        try {
+          let res = await fetch('/api/admin/centers', { credentials: 'include' });
+          let json: any = null;
+          if (res.ok) json = await res.json();
+          let list: any[] = Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []);
+          if (!Array.isArray(list) || list.length === 0) {
+            res = await fetch('/api/centers', { credentials: 'include' });
+            if (res.ok) {
+              const j2 = await res.json();
+              list = Array.isArray(j2?.data) ? j2.data : (Array.isArray(j2) ? j2 : []);
+            }
+          }
+          if (Array.isArray(list) && list[0]?.id) {
+            cid = list[0].id;
+            setCenterId(cid);
+          }
+        } catch {}
+      }
+
+      if (!cid) {
+        showToast({ variant: 'error', message: 'No hay centro seleccionado para guardar configuración' });
+        setSaving(false);
+        return;
+      }
+
+      const response = await fetch(`/api/admin/settings?centerId=${encodeURIComponent(cid)}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify(settings),
+        body: JSON.stringify(sanitized),
       });
 
       if (response.ok) {
@@ -147,16 +294,24 @@ export default function SettingsPage() {
         if (data.success) {
           setOriginalSettings(settings);
           setHasChanges(false);
-          toast.success('Configuración guardada exitosamente');
+          showToast({ variant: 'success', message: 'Configuración guardada exitosamente' });
         } else {
-          toast.error('Error guardando configuración');
+          const msg = (data?.message || 'Error guardando configuración') as string;
+          showToast({ variant: 'error', message: msg });
         }
       } else {
-        toast.error('Error guardando configuración');
+        let errMsg = 'Error guardando configuración';
+        try {
+          const err = await response.json();
+          const first = Array.isArray(err?.errors) ? err.errors[0] : null;
+          if (first?.message) errMsg = `${errMsg}: ${first.message} (${first.field || ''})`;
+          else if (err?.message) errMsg = `${errMsg}: ${err.message}`;
+        } catch {}
+        showToast({ variant: 'error', message: errMsg });
       }
     } catch (error) {
       console.error('Error guardando configuración:', error);
-      toast.error('Error guardando configuración');
+      showToast({ variant: 'error', message: 'Error guardando configuración' });
     } finally {
       setSaving(false);
     }
@@ -172,8 +327,10 @@ export default function SettingsPage() {
 
   // Cargar configuración al montar el componente
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (centerId) {
+      loadSettings();
+    }
+  }, [centerId]);
 
   const handleSettingChange = (section: string, key: string, value: any) => {
     setSettings(prev => ({
@@ -790,7 +947,7 @@ export default function SettingsPage() {
                 </button>
                 <button 
                   onClick={saveSettings}
-                  disabled={!hasChanges || saving}
+                  disabled={!hasChanges || saving || !centerId}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                 >
                   {saving ? (

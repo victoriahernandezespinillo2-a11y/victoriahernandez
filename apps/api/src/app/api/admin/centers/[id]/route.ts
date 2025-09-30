@@ -50,8 +50,25 @@ const UpdateCenterSchema = z.object({
     requireMembership: z.boolean().optional(),
     advanceBookingDays: z.number().int().min(1).max(365).optional(),
     maxBookingDuration: z.number().int().min(1).max(24).optional(),
-    autoConfirmBookings: z.boolean().optional()
-  }).optional()
+    autoConfirmBookings: z.boolean().optional(),
+    // Aceptar y preservar excepciones de operación por fecha
+    exceptions: z
+      .array(
+        z.object({
+          date: z.string(), // formato YYYY-MM-DD
+          closed: z.boolean().optional(),
+          ranges: z
+            .array(
+              z.object({ start: z.string(), end: z.string() })
+            )
+            .optional(),
+        })
+      )
+      .optional(),
+  })
+    // Preservar otras claves no listadas en settings sin romper validación
+    .catchall(z.any())
+    .optional()
 });
 
 /**
