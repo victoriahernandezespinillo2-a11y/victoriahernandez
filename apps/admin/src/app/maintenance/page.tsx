@@ -1,6 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+// Helper local para formatear HH:mm en una zona horaria específica sin dependencias adicionales
+const formatHHmmInTz = (date: Date, timeZone: string): string => {
+  try {
+    return new Intl.DateTimeFormat('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone,
+    }).format(date);
+  } catch {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+};
 import { z } from 'zod';
 import { useAdminMaintenance, useAdminCourts, useAdminCenters } from '@/lib/hooks';
 import { useToast } from '@/components/ToastProvider';
@@ -70,13 +84,26 @@ export default function MaintenancePage() {
       activityType: z.enum(['TRAINING','CLASS','WARMUP','EVENT','MEETING','OTHER']),
       activityCategory: z.string().min(1, 'Categoría requerida'),
     }),
-  ]).refine((d) => new Date(d.scheduledAt) > new Date(), { message: 'La fecha debe ser futura' });
+  ]);
+
+  // Validación de recurrencia (solo UI)
+  const RecurrenceSchema = z.object({
+    type: z.literal('WEEKLY').default('WEEKLY'),
+    daysOfWeek: z.array(z.number().int().min(1).max(7)).nonempty('Selecciona al menos un día'),
+    startDate: z.string().min(10, 'Desde requerido'),
+    endDate: z.string().min(10, 'Hasta requerido'),
+    startTime: z.string().regex(/^\d{2}:\d{2}$/,'Hora inicio HH:mm'),
+    endTime: z.string().regex(/^\d{2}:\d{2}$/,'Hora fin HH:mm'),
+    timezone: z.string().optional(),
+    skipHolidays: z.boolean().optional(),
+    skipConflicts: z.boolean().optional(),
+  }).refine((r) => r.startTime < r.endTime, { message: 'La hora fin debe ser mayor que la hora inicio' });
 
   // Estado para el modal de nueva tarea
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedCenterId, setSelectedCenterId] = useState('');
-  const [newTaskForm, setNewTaskForm] = useState({
+  const makeDefaultNewTaskForm = () => ({
     courtId: '',
     type: '',
     activityType: 'MAINTENANCE',
@@ -91,7 +118,75 @@ export default function MaintenancePage() {
     isPublic: true,
     cost: '',
     notes: '',
+    // Recurrencia UI
+    repeat: false,
+    daysOfWeek: [] as number[],
+    startDate: '',
+    endDate: '',
+    startTime: '16:00',
+    endTime: '17:00',
+    skipHolidays: true,
+    skipConflicts: true,
   });
+  const [newTaskForm, setNewTaskForm] = useState(makeDefaultNewTaskForm());
+
+  // Zona horaria del centro seleccionada dinámicamente
+  const centerTz = (() => {
+    try {
+      const c: any = (centers || []).find((ctr: any) => ctr.id === selectedCenterId);
+      return (c?.timezone || (c?.settings as any)?.timezone || 'Europe/Madrid') as string;
+    } catch {
+      return 'Europe/Madrid';
+    }
+  })();
+
+  const handleTimeChange = (field: 'startTime' | 'endTime') =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const dateVal = e.target.valueAsDate; // fecha en TZ del navegador
+      if (dateVal) {
+        const hhmm = formatHHmmInTz(dateVal, centerTz);
+        setNewTaskForm(prev => ({ ...prev, [field]: hhmm }));
+      } else {
+        setNewTaskForm(prev => ({ ...prev, [field]: e.target.value }));
+      }
+    };
+
+  // Preview de recurrencia
+  const [recurrencePreview, setRecurrencePreview] = useState<string[]>([]);
+  const [recurrenceTotal, setRecurrenceTotal] = useState<number>(0);
+
+  useEffect(() => {
+    if (!newTaskForm.repeat) {
+      setRecurrencePreview([]);
+      setRecurrenceTotal(0);
+      return;
+    }
+    // Validar entradas mínimas
+    if (!newTaskForm.startDate || !newTaskForm.endDate || newTaskForm.daysOfWeek.length === 0) {
+      setRecurrencePreview([]);
+      setRecurrenceTotal(0);
+      return;
+    }
+    try {
+      const start = new Date(`${newTaskForm.startDate}T00:00:00`);
+      const end = new Date(`${newTaskForm.endDate}T23:59:59`);
+      const days = new Set(newTaskForm.daysOfWeek);
+      const preview: string[] = [];
+      let total = 0;
+      const fmt = (d: Date) => d.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit' });
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const weekday = ((d.getDay() + 6) % 7) + 1; // 1..7 L-D
+        if (!days.has(weekday)) continue;
+        total += 1;
+        if (preview.length < 10) preview.push(`${fmt(new Date(d))} · ${newTaskForm.startTime}–${newTaskForm.endTime}`);
+      }
+      setRecurrencePreview(preview);
+      setRecurrenceTotal(total);
+    } catch {
+      setRecurrencePreview([]);
+      setRecurrenceTotal(0);
+    }
+  }, [newTaskForm.repeat, newTaskForm.startDate, newTaskForm.endDate, newTaskForm.daysOfWeek, newTaskForm.startTime, newTaskForm.endTime]);
 
   // Estado para edición
   const [showEditModal, setShowEditModal] = useState(false);
@@ -115,6 +210,32 @@ export default function MaintenancePage() {
   // Estado para eliminación
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletingMaintenance, setDeletingMaintenance] = useState<any>(null);
+
+  // Agrupación UI por serie (sin cambiar backend)
+  const [groupBySeries, setGroupBySeries] = useState(true);
+
+  const recordsToRender = useMemo(() => {
+    const list = Array.isArray(maintenanceRecords) ? (maintenanceRecords as any[]) : [];
+    if (!groupBySeries) return list;
+    // Agrupar por seriesId cuando exista; de lo contrario, por id
+    const now = new Date();
+    const map = new Map<string, any[]>();
+    for (const rec of list) {
+      const key = (rec as any).seriesId || (rec as any).id;
+      const arr = map.get(key) || [];
+      arr.push(rec);
+      map.set(key, arr);
+    }
+    // Para cada grupo, elegir la próxima ocurrencia (>= ahora); si no hay, la más cercana pasada
+    const pickBest = (arr: any[]) => {
+      const sorted = [...arr].sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+      const upcoming = sorted.find((r) => new Date(r.scheduledAt) >= now);
+      const chosen = upcoming || sorted[0];
+      // anotar conteo total para mostrar si se desea
+      return { ...chosen, __seriesCount: arr.length };
+    };
+    return Array.from(map.values()).map(pickBest);
+  }, [maintenanceRecords, groupBySeries]);
 
   useEffect(() => {
     getMaintenanceRecords({ limit: 50 }).catch(() => {});
@@ -178,22 +299,9 @@ export default function MaintenancePage() {
 
   // Función para abrir el modal de nueva tarea
   const handleNewTask = () => {
-    setNewTaskForm({
-      courtId: '',
-      type: '',
-      activityType: 'MAINTENANCE',
-      activityCategory: '',
-      description: '',
-      scheduledAt: new Date().toISOString().slice(0, 16),
-      estimatedDuration: 60,
-      assignedTo: '',
-      instructor: '',
-      capacity: '',
-      requirements: '',
-      isPublic: true,
-      cost: '',
-      notes: '',
-    });
+    const base = makeDefaultNewTaskForm();
+    base.scheduledAt = new Date().toISOString().slice(0, 16);
+    setNewTaskForm(base);
     setSelectedCenterId('');
     setShowNewTaskModal(true);
   };
@@ -201,22 +309,7 @@ export default function MaintenancePage() {
   // Función para cerrar el modal
   const handleCloseModal = () => {
     setShowNewTaskModal(false);
-    setNewTaskForm({
-      courtId: '',
-      type: '',
-      activityType: 'MAINTENANCE',
-      activityCategory: '',
-      description: '',
-      scheduledAt: '',
-      estimatedDuration: 60,
-      assignedTo: '',
-      instructor: '',
-      capacity: '',
-      requirements: '',
-      isPublic: true,
-      cost: '',
-      notes: '',
-    });
+    setNewTaskForm(makeDefaultNewTaskForm());
     setSelectedCenterId('');
   };
 
@@ -227,7 +320,7 @@ export default function MaintenancePage() {
     const isMaintenance = newTaskForm.activityType === 'MAINTENANCE';
     const categoryFilled = isMaintenance ? newTaskForm.type : newTaskForm.activityCategory;
 
-    if (!newTaskForm.courtId || !categoryFilled || !newTaskForm.description || !newTaskForm.scheduledAt) {
+    if (!newTaskForm.courtId || !categoryFilled || !newTaskForm.description || (!newTaskForm.repeat && !newTaskForm.scheduledAt)) {
       showToast({
         title: 'Error',
         message: 'Por favor completa todos los campos obligatorios',
@@ -256,10 +349,38 @@ export default function MaintenancePage() {
       return;
     }
 
+    // Validaciones adicionales de UX antes del parseo
+    if (!newTaskForm.repeat) {
+      const scheduledDate = new Date(newTaskForm.scheduledAt);
+      if (isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
+        showToast({ title: 'Error', message: 'La fecha programada debe ser futura', variant: 'error' });
+        return;
+      }
+    } else {
+      // En modo recurrente, ignorar totalmente scheduledAt (no debe validar ni enviarse)
+      // Validar solo campos de recurrencia
+      if (!newTaskForm.startDate || !newTaskForm.endDate) {
+        showToast({ title: 'Error', message: 'Indica fechas Desde y Hasta', variant: 'error' });
+        return;
+      }
+      if (newTaskForm.daysOfWeek.length === 0) {
+        showToast({ title: 'Error', message: 'Selecciona al menos un día para la recurrencia', variant: 'error' });
+        return;
+      }
+      if ((newTaskForm.startTime || '') >= (newTaskForm.endTime || '')) {
+        showToast({ title: 'Error', message: 'La hora fin debe ser mayor que la hora inicio', variant: 'error' });
+        return;
+      }
+      if (new Date(newTaskForm.startDate) > new Date(newTaskForm.endDate)) {
+        showToast({ title: 'Error', message: 'El rango de fechas es inválido (Desde debe ser anterior o igual a Hasta)', variant: 'error' });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     
     // Preparar datos para envío
-    const scheduledDate = new Date(newTaskForm.scheduledAt);
+    const scheduledDate = new Date(newTaskForm.repeat ? new Date() : newTaskForm.scheduledAt);
     // Mapear categoría/ tipo visible al valor esperado por backend
     const uiValue = newTaskForm.activityType === 'MAINTENANCE' ? newTaskForm.type : newTaskForm.activityCategory;
     const apiType = CATEGORY_MAP[uiValue] ?? uiValue;
@@ -285,14 +406,67 @@ export default function MaintenancePage() {
       ...(newTaskForm.requirements?.trim() ? { requirements: newTaskForm.requirements.trim() } : {}),
     } as const;
 
-    const maintenanceDataRaw = {
+    const maintenanceDataRaw: any = {
       ...base,
       type: apiType?.trim(),
       ...(newTaskForm.activityType !== 'MAINTENANCE' ? { activityCategory: apiType?.trim() } : {}),
     };
 
-    // Validar con Zod
-    const maintenanceData = MaintenanceSchema.parse(maintenanceDataRaw);
+    // Adjuntar recurrencia si aplica
+    if (newTaskForm.repeat) {
+      maintenanceDataRaw.recurrence = {
+        type: 'WEEKLY',
+        daysOfWeek: newTaskForm.daysOfWeek,
+        startDate: newTaskForm.startDate,
+        endDate: newTaskForm.endDate,
+        startTime: newTaskForm.startTime,
+        endTime: newTaskForm.endTime,
+        skipHolidays: !!newTaskForm.skipHolidays,
+        skipConflicts: !!newTaskForm.skipConflicts,
+      };
+    }
+
+    // Validar con Zod con manejo de errores amigable (sin regla global de fecha futura)
+    let maintenanceData: any;
+    try {
+      maintenanceData = MaintenanceSchema.parse(maintenanceDataRaw);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        const first = err.issues?.[0];
+        const msg = first?.message || 'Datos inválidos. Revisa los campos.';
+        showToast({ title: 'Error', message: msg, variant: 'error' });
+        setIsSubmitting(false);
+        return;
+      }
+      // Otros errores inesperados
+      showToast({ title: 'Error', message: err?.message || 'Error validando datos', variant: 'error' });
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Si es recurrente, validar y adjuntar recurrencia explícitamente (no dejar que Zod la elimine)
+    let payloadToSend: any = maintenanceData;
+    if (newTaskForm.repeat) {
+      try {
+        const recurrencePayload = RecurrenceSchema.parse({
+          type: 'WEEKLY',
+          daysOfWeek: newTaskForm.daysOfWeek,
+          startDate: newTaskForm.startDate,
+          endDate: newTaskForm.endDate,
+          startTime: newTaskForm.startTime,
+          endTime: newTaskForm.endTime,
+          timezone: centerTz,
+          skipHolidays: !!newTaskForm.skipHolidays,
+          skipConflicts: !!newTaskForm.skipConflicts,
+        });
+        payloadToSend = { ...maintenanceData, recurrence: recurrencePayload };
+      } catch (err: any) {
+        const msg = err instanceof z.ZodError ? (err.issues?.[0]?.message || 'Recurrencia inválida') : (err?.message || 'Recurrencia inválida');
+        showToast({ title: 'Error', message: msg, variant: 'error' });
+        setIsSubmitting(false);
+        return;
+      }
+    }
 
     console.log('🔍 [MAINTENANCE] Datos a enviar:', maintenanceData);
     console.log('🔍 [MAINTENANCE] Formulario completo:', newTaskForm);
@@ -306,7 +480,7 @@ export default function MaintenancePage() {
     // Validaciones específicas ya las hace Zod
     
     try {
-      await createMaintenanceRecord(maintenanceData as any);
+      await createMaintenanceRecord(payloadToSend as any);
       
       showToast({
         title: 'Éxito',
@@ -378,12 +552,31 @@ export default function MaintenancePage() {
   // Función para editar mantenimiento
   const handleEditMaintenance = (maintenance: any) => {
     setEditingMaintenance(maintenance);
+    const maintTypes = new Set(['CLEANING','REPAIR','INSPECTION','RENOVATION']);
+    const inferredActivityType = (() => {
+      if (maintenance.activityType) return maintenance.activityType;
+      const t = String(maintenance.type || '').toUpperCase();
+      if (t && maintTypes.has(t)) return 'MAINTENANCE';
+      if (maintenance.activityCategory) return 'TRAINING';
+      return 'OTHER';
+    })();
     setEditForm({
-      type: maintenance.type || '',
-      activityType: maintenance.activityType || 'MAINTENANCE',
-      activityCategory: maintenance.activityCategory || '',
+      type: inferredActivityType === 'MAINTENANCE' ? (maintenance.type || '') : '',
+      activityType: maintenance.activityType || inferredActivityType,
+      activityCategory: maintenance.activityCategory || (inferredActivityType !== 'MAINTENANCE' ? (maintenance.activityCategory || '') : ''),
       description: maintenance.description || '',
-      scheduledAt: maintenance.scheduledAt ? new Date(maintenance.scheduledAt).toISOString().slice(0, 16) : '',
+      // Mostrar en zona local para datetime-local
+      scheduledAt: (() => {
+        if (!maintenance.scheduledAt) return '';
+        const d = new Date(maintenance.scheduledAt);
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        const mm = pad(d.getMonth() + 1);
+        const dd = pad(d.getDate());
+        const hh = pad(d.getHours());
+        const mi = pad(d.getMinutes());
+        return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+      })(),
       estimatedDuration: maintenance.estimatedDuration || 60,
       assignedTo: maintenance.assignedTo || '',
       instructor: maintenance.instructor || '',
@@ -531,8 +724,17 @@ export default function MaintenancePage() {
 
       {/* Tasks List */}
       <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-gray-900">Tareas de Instalaciones</h2>
+          <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={groupBySeries}
+              onChange={(e) => setGroupBySeries(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            Agrupar por serie
+          </label>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -543,6 +745,9 @@ export default function MaintenancePage() {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Tarea
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Serie
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Instalación
@@ -578,7 +783,7 @@ export default function MaintenancePage() {
                   <td colSpan={9} className="px-6 py-8 text-center text-red-600">{String(error)}</td>
                 </tr>
               )}
-              {!loading && !error && (maintenanceRecords || []).map((record: any) => (
+              {!loading && !error && (recordsToRender || []).map((record: any) => (
                 <tr key={record.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -609,6 +814,15 @@ export default function MaintenancePage() {
                         </div>
                       )}
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {record.seriesId ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800" title="Actividad recurrente">
+                        Recurrente{record.__seriesCount ? ` · ${record.__seriesCount}` : ''}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{record.court?.name || '—'}</div>
@@ -837,39 +1051,143 @@ export default function MaintenancePage() {
                 />
               </div>
 
-              <div className="space-y-4">
+              {/* Recurrencia */}
+              <div className="border-t pt-4 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Fecha y Hora Programada *
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={newTaskForm.scheduledAt}
-                    onChange={(e) => setNewTaskForm(prev => ({ ...prev, scheduledAt: e.target.value }))}
-                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
-                    required
-                  />
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="block text-sm font-medium text-gray-700">Tipo de programación</span>
+                    <span
+                      className="inline-flex items-center justify-center w-4 h-4 text-xs font-bold rounded-full bg-gray-200 text-gray-700 cursor-help"
+                      title={
+                        'Única: usa “Fecha y Hora Programada” y “Duración”.\n' +
+                        'Recurrente: crea ocurrencias entre “Desde/Hasta” solo en los días seleccionados y con la franja “Hora inicio/fin”.\n' +
+                        'Debes seleccionar al menos un día. Las ocurrencias creadas bloquean el calendario.\n' +
+                        '“Omitir cierres” y “Omitir solapes” solo afectan la creación (se recomienda dejarlos activados).'
+                      }
+                      aria-label="Ayuda sobre tipo de programación"
+                    >
+                      ?
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="scheduleType"
+                        value="single"
+                        checked={!newTaskForm.repeat}
+                        onChange={()=> setNewTaskForm(prev=>({ ...prev, repeat: false }))}
+                        className="text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-900">Única (una fecha)</span>
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="scheduleType"
+                        value="recurring"
+                        checked={newTaskForm.repeat}
+                        onChange={()=> setNewTaskForm(prev=>({ ...prev, repeat: true }))}
+                        className="text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-900">Recurrente (semanal)</span>
+                    </label>
+                  </div>
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Duración Estimada (minutos) *
-                  </label>
-                  <input
-                    type="number"
-                    value={newTaskForm.estimatedDuration}
-                    onChange={(e) => setNewTaskForm(prev => ({ ...prev, estimatedDuration: parseInt(e.target.value) || 60 }))}
-                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
-                    min="15"
-                    max="480"
-                    step="15"
-                    required
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Duración en minutos (15-480 min)
-                  </p>
-                </div>
+                {newTaskForm.repeat && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Desde</label>
+                        <input type="date" value={newTaskForm.startDate} onChange={(e)=>setNewTaskForm(prev=>({ ...prev, startDate: e.target.value }))} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Hasta</label>
+                        <input type="date" value={newTaskForm.endDate} onChange={(e)=>setNewTaskForm(prev=>({ ...prev, endDate: e.target.value }))} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Días</label>
+                        <div className="grid grid-cols-7 gap-1">
+                          {['L','M','X','J','V','S','D'].map((d,idx)=>{
+                            const val = idx+1; // 1..7
+                            const on = newTaskForm.daysOfWeek.includes(val);
+                            return (
+                              <button type="button" key={val} onClick={()=>{
+                                  setNewTaskForm(prev=>({ ...prev, daysOfWeek: on ? prev.daysOfWeek.filter(x=>x!==val) : [...prev.daysOfWeek, val] }));
+                                }}
+                                className={`px-2 py-2 rounded border ${on? 'bg-blue-600 text-white border-blue-600':'bg-white text-gray-700 border-gray-300'}`}
+                              >{d}</button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Hora inicio</label>
+                        <input type="time" value={newTaskForm.startTime} onChange={handleTimeChange('startTime')} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Hora fin</label>
+                        <input type="time" value={newTaskForm.endTime} onChange={handleTimeChange('endTime')} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base" />
+                      </div>
+                      <div className="flex items-center gap-6 mt-7">
+                        <label className="inline-flex items-center gap-2"><input type="checkbox" checked={newTaskForm.skipHolidays} onChange={(e)=>setNewTaskForm(prev=>({ ...prev, skipHolidays: e.target.checked }))} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm text-gray-700">Omitir cierres del centro</span></label>
+                        <label className="inline-flex items-center gap-2"><input type="checkbox" checked={newTaskForm.skipConflicts} onChange={(e)=>setNewTaskForm(prev=>({ ...prev, skipConflicts: e.target.checked }))} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className="text-sm text-gray-700">Omitir solapes</span></label>
+                      </div>
+                    </div>
+                    {recurrenceTotal > 0 && (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <div className="text-sm font-medium text-gray-900 mb-2">Previsualización ({recurrenceTotal} ocurrencias)</div>
+                        <ul className="text-sm text-gray-700 list-disc pl-5 space-y-1">
+                          {recurrencePreview.map((it, idx) => (
+                            <li key={idx}>{it}</li>
+                          ))}
+                          {recurrenceTotal > recurrencePreview.length && (
+                            <li>… y {recurrenceTotal - recurrencePreview.length} más</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
+
+              {!newTaskForm.repeat && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Fecha y Hora Programada *
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={newTaskForm.scheduledAt}
+                      onChange={(e) => setNewTaskForm(prev => ({ ...prev, scheduledAt: e.target.value }))}
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                      required={!newTaskForm.repeat}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Duración Estimada (minutos) *
+                    </label>
+                    <input
+                      type="number"
+                      value={newTaskForm.estimatedDuration}
+                      onChange={(e) => setNewTaskForm(prev => ({ ...prev, estimatedDuration: parseInt(e.target.value) || 60 }))}
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                      min="15"
+                      max="480"
+                      step="15"
+                      required={!newTaskForm.repeat}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Duración en minutos (15-480 min)
+                    </p>
+                  </div>
+                </div>
+              )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -968,7 +1286,7 @@ export default function MaintenancePage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || (newTaskForm.repeat && (!newTaskForm.startDate || !newTaskForm.endDate || newTaskForm.daysOfWeek.length === 0 || (newTaskForm.startTime || '') >= (newTaskForm.endTime || '')))}
                     className="w-full sm:w-auto px-4 py-3 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isSubmitting ? (
@@ -994,7 +1312,12 @@ export default function MaintenancePage() {
             {/* Header */}
             <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 md:px-6 md:py-6">
               <div className="flex justify-between items-center">
-                <h2 className="text-lg md:text-xl font-bold text-gray-900">Editar Mantenimiento</h2>
+                <h2 className="text-lg md:text-xl font-bold text-gray-900 flex items-center gap-2">
+                  Editar Mantenimiento
+                  {editingMaintenance?.seriesId && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800" title="Esta tarea pertenece a una serie (recurrente)">Recurrente</span>
+                  )}
+                </h2>
                 <button 
                   onClick={() => setShowEditModal(false)}
                   className="text-gray-400 hover:text-gray-600 transition-colors p-1"

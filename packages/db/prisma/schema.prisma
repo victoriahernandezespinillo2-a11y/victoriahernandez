@@ -292,6 +292,8 @@ model MaintenanceSchedule {
   instructor        String?           @map("instructor")
   isPublic          Boolean           @default(true) @map("is_public")
   requirements      String?           @map("requirements")
+  /// Identificador de serie para actividades recurrentes
+  seriesId          String?           @map("series_id")
   court             Court             @relation(fields: [courtId], references: [id], onDelete: Cascade)
 
   @@map("maintenance_schedules")

@@ -40,15 +40,14 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
-      { url: "/favicon.ico?v=2", sizes: "any" },
-      { url: "/favicon?v=2", sizes: "any" },
+      { url: "/favicon.ico", sizes: "any" },
       { url: "/images/logo.png?v=2", sizes: "32x32", type: "image/png" },
       { url: "/images/logo.png?v=2", sizes: "16x16", type: "image/png" },
     ],
     apple: [
       { url: "/images/logo.png?v=2", sizes: "180x180", type: "image/png" },
     ],
-    shortcut: "/favicon.ico?v=2",
+    shortcut: "/favicon.ico",
   },
 };
 
@@ -67,12 +66,11 @@ export default function RootLayout({
     <html lang="es" className="scroll-smooth" data-scroll-behavior="smooth">
       <head>
         {/* Favicon configuration for maximum compatibility */}
-        <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
-        <link rel="icon" href="/favicon?v=2" sizes="any" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/images/logo.png?v=2" type="image/png" sizes="32x32" />
         <link rel="icon" href="/images/logo.png?v=2" type="image/png" sizes="16x16" />
         <link rel="apple-touch-icon" href="/images/logo.png?v=2" sizes="180x180" />
-        <link rel="shortcut icon" href="/favicon.ico?v=2" />
+        <link rel="shortcut icon" href="/favicon.ico" />
         <meta name="msapplication-TileImage" content="/images/logo.png?v=2" />
         <meta name="msapplication-TileColor" content="#0ea5e9" />
         

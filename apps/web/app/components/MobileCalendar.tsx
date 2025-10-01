@@ -19,6 +19,8 @@ interface TimeSlot {
   status: 'AVAILABLE' | 'BOOKED' | 'MAINTENANCE' | 'USER_BOOKED' | 'PAST' | 'UNAVAILABLE';
   price: number;
   available: boolean;
+  message?: string;
+  activityType?: string;
 }
 
 interface MobileCalendarProps {
@@ -394,12 +396,27 @@ export function MobileCalendar({
                   
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium">
-                      {selectedSlot?.startTime === slot.startTime ? 'SELECCIONADO' :
-                       slot.status === 'AVAILABLE' ? 'Disponible' :
-                       slot.status === 'BOOKED' ? 'Ocupado' :
-                       slot.status === 'MAINTENANCE' ? 'Mantenimiento' :
-                       slot.status === 'USER_BOOKED' ? 'Tu reserva' :
-                       'No disponible'}
+                      {selectedSlot?.startTime === slot.startTime
+                        ? 'SELECCIONADO'
+                        : slot.status === 'AVAILABLE'
+                          ? 'Disponible'
+                          : slot.status === 'BOOKED'
+                            ? 'Ocupado'
+                            : slot.status === 'MAINTENANCE'
+                              ? (slot as any)?.message || ((slot as any)?.activityType === 'TRAINING'
+                                  ? 'Entrenamiento'
+                                  : (slot as any)?.activityType === 'CLASS'
+                                    ? 'Clase'
+                                    : (slot as any)?.activityType === 'WARMUP'
+                                      ? 'Calentamiento'
+                                      : (slot as any)?.activityType === 'EVENT'
+                                        ? 'Evento'
+                                        : (slot as any)?.activityType === 'MEETING'
+                                          ? 'Reunión'
+                                          : 'Mantenimiento')
+                              : slot.status === 'USER_BOOKED'
+                                ? 'Tu reserva'
+                                : 'No disponible'}
                     </span>
                     {slot.available && (
                       <span className={`text-sm font-bold ${selectedSlot?.startTime === slot.startTime ? 'text-white' : ''}`}>

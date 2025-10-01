@@ -64,6 +64,8 @@ interface TimeSlot {
   status: 'AVAILABLE' | 'BOOKED' | 'MAINTENANCE' | 'USER_BOOKED' | 'PAST' | 'UNAVAILABLE';
   available: boolean;
   price: number;
+  message?: string;
+  activityType?: string;
 }
 
 
@@ -130,13 +132,18 @@ export default function NewReservationPage() {
       });
       
       // Convertir CalendarSlots a TimeSlots
-      const convertedTimeSlots: TimeSlot[] = calendarData.slots.map(slot => ({
+      const convertedTimeSlots: TimeSlot[] = calendarData.slots.map((slot: any) => ({
         time: slot.time,
         startTime: slot.startTime,
         endTime: slot.endTime,
         status: slot.status,
         available: slot.available,
-        price: selectedCourt?.pricePerHour ? (selectedCourt.pricePerHour * duration) / 60 : 0
+        price: selectedCourt?.pricePerHour ? (selectedCourt.pricePerHour * duration) / 60 : 0,
+        message: slot.message,
+        activityType: (() => {
+          const m = Array.isArray(slot.conflicts) ? slot.conflicts.find((c: any) => c?.type === 'maintenance') : null;
+          return m?.activityType;
+        })()
       }));
       
       setTimeSlots(convertedTimeSlots);
@@ -987,18 +994,27 @@ export default function NewReservationPage() {
                                 {isSelected ? ' ✓' : ''}
                               </div>
                               <div className="text-xs mb-1">
-                                {isSelected 
-                                  ? 'SELECCIONADO' 
-                                  : slot.status === 'AVAILABLE' 
+                                {isSelected
+                                  ? 'SELECCIONADO'
+                                  : slot.status === 'AVAILABLE'
                                     ? 'Disponible'
                                     : slot.status === 'BOOKED'
                                       ? 'Ocupado'
                                       : slot.status === 'USER_BOOKED'
                                         ? 'Mi reserva'
                                         : slot.status === 'MAINTENANCE'
-                                          ? 'Mantenimiento'
-                                          : 'No disponible'
-                                }
+                                          ? (slot as any)?.message || ((slot as any)?.activityType === 'TRAINING'
+                                            ? 'Entrenamiento'
+                                            : (slot as any)?.activityType === 'CLASS'
+                                              ? 'Clase'
+                                              : (slot as any)?.activityType === 'WARMUP'
+                                                ? 'Calentamiento'
+                                                : (slot as any)?.activityType === 'EVENT'
+                                                  ? 'Evento'
+                                                  : (slot as any)?.activityType === 'MEETING'
+                                                    ? 'Reunión'
+                                                    : 'Mantenimiento')
+                                          : 'No disponible'}
                               </div>
                               {slot.available && (
                                 <div className="text-xs font-semibold">

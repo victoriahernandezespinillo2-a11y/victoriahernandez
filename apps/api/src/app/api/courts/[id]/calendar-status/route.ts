@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { zonedTimeToUtc, utcToZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { db } from '@repo/db';
-import { JwtUser } from '@/lib/middleware/jwt-auth'; // Aún usamos la interfaz
+import { withAuthMiddleware, ApiResponse } from '@/lib/middleware';
 
 // Forzar renderizado dinámico para deshabilitar el cacheo de esta ruta
 export const dynamic = 'force-dynamic';
@@ -39,18 +39,14 @@ function normalizeToHHmm(input: string): string {
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  try {
-    // El middleware ya ha validado el JWT. Obtenemos los datos del usuario del header.
-    const userDataHeader = request.headers.get('x-user-data');
-    if (!userDataHeader) {
-      // Esto no debería ocurrir si el middleware está bien configurado
-      return NextResponse.json({ error: 'Usuario no autenticado' }, { status: 401 });
-    }
-    const user: JwtUser = JSON.parse(userDataHeader);
+  return withAuthMiddleware(async (req) => {
+    try {
+      // Usuario autenticado inyectado por el middleware
+      const user = (req as any).user as { id: string; email?: string; name?: string };
     
-    const pathSegments = request.nextUrl.pathname.split('/');
+    const pathSegments = req.nextUrl.pathname.split('/');
     const courtId = pathSegments[pathSegments.length - 2];
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = new URL(req.url);
     const date = searchParams.get('date');
     const duration = parseInt(searchParams.get('duration') || '60');
 
@@ -58,15 +54,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     console.log(`🔍 [CALENDAR-AUTH] Usuario autenticado:`, {
       userId: user.id,
       email: user.email,
-      name: user.name,
+      name: user.name || '',
       timestamp: new Date().toISOString()
     });
 
     if (!date) {
-      return NextResponse.json(
-        { error: 'Fecha requerida' },
-        { status: 400 }
-      );
+      return ApiResponse.badRequest('Fecha requerida');
     }
 
     // 1. Definir la zona horaria del centro como la fuente de verdad.
@@ -87,9 +80,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
 
     // 🔍 OBTENER DATOS COMPLETOS DEL CALENDARIO
-    const [reservations, maintenanceSchedules, court, userReservations] = await Promise.all([
-      // 1. Reservas existentes en esta cancha
-      db.reservation.findMany({
+    // 1) Reservas del día
+    const reservations = await db.reservation.findMany({
         where: {
           courtId,
           startTime: { gte: startOfDay, lte: endOfDay },
@@ -102,31 +94,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           status: true,
           userId: true
         }
-      }),
+      });
 
-      // 2. Horarios de mantenimiento (solo los que se solapan con el rango de fechas)
-      db.maintenanceSchedule.findMany({
+    // 2) Horarios de mantenimiento (con fallback robusto si Prisma falla)
+    let maintenanceSchedules: any[] = [];
+    try {
+      maintenanceSchedules = await db.maintenanceSchedule.findMany({
         where: {
           courtId,
           status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
           OR: [
-            // Mantenimientos programados que empiezan en este rango
             { scheduledAt: { gte: startOfDay, lte: endOfDay } },
-            // Mantenimientos en progreso que terminan en este rango
-            { 
-              AND: [
-                { startedAt: { not: null } },
-                { startedAt: { lte: endOfDay } },
-                { completedAt: { gte: startOfDay } }
-              ]
-            },
-            // Mantenimientos completados que terminaron en este rango
-            { 
-              AND: [
-                { completedAt: { not: null } },
-                { completedAt: { gte: startOfDay, lte: endOfDay } }
-              ]
-            }
+            { AND: [{ startedAt: { not: null } }, { startedAt: { lte: endOfDay } }, { completedAt: { gte: startOfDay } }] },
+            { AND: [{ completedAt: { not: null } }, { completedAt: { gte: startOfDay, lte: endOfDay } }] }
           ]
         },
         select: {
@@ -135,12 +115,35 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           completedAt: true,
           type: true,
           description: true,
-          estimatedDuration: true
+          estimatedDuration: true,
+          activityType: true,
+          activityCategory: true
         }
-      }),
+      });
+    } catch (primaryErr) {
+      console.warn('⚠️ [CALENDAR-STATUS] Fallback maint query por error:', primaryErr);
+      // Fallback: traer mantenimientos del periodo amplio y filtrar en memoria
+      maintenanceSchedules = await db.maintenanceSchedule.findMany({
+        where: {
+          courtId,
+          status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
+          scheduledAt: { lte: endOfDay }
+        },
+        select: {
+          id: true,
+          scheduledAt: true,
+          completedAt: true,
+          type: true,
+          description: true,
+          estimatedDuration: true,
+          activityType: true,
+          activityCategory: true
+        }
+      });
+    }
 
-      // 3. Información de la cancha
-      db.court.findUnique({
+    // 3) Información de la cancha
+    const court = await db.court.findUnique({
         where: { id: courtId },
         select: {
           id: true,
@@ -153,10 +156,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             }
           }
         }
-      }),
+      });
 
-      // 4. 🚀 NUEVO: Reservas del usuario en TODAS las canchas para el mismo día
-      db.reservation.findMany({
+    // 4) Reservas del usuario ese día (todas canchas) 
+    const userReservations = await db.reservation.findMany({
         where: {
           userId: user.id,
           startTime: { gte: startOfDay, lte: endOfDay },
@@ -174,8 +177,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             }
           }
         }
-      })
-    ]);
+      });
 
     // 🔍 LOGGING PARA DEBUGGING DE RESERVAS
     console.log(`🔍 [CALENDAR-RESERVATIONS] Datos encontrados:`, {
@@ -192,6 +194,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       })),
       timestamp: new Date().toISOString()
     });
+
+    // Log de mantenimiento para diagnóstico
+    try {
+      console.log('🧩 [CALENDAR] Maint count:', maintenanceSchedules.length, 'courtId:', courtId, 'date:', date);
+      if (maintenanceSchedules.length > 0) {
+        console.log('🧩 [CALENDAR] Maint sample:', maintenanceSchedules.slice(0, 5).map((m: any) => ({ id: m.id, at: m.scheduledAt, est: m.estimatedDuration, status: m.status })));
+      }
+    } catch {}
 
     // 🎨 GENERAR ESTADOS DEL CALENDARIO
     const calendarSlots = [] as any[];
@@ -223,7 +233,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           console.log(`📅 [CALENDAR] Centro cerrado el ${dayKey}`);
           return NextResponse.json({
             courtId,
-            date: date,
+            date,
             duration,
             summary: { total: 0, available: 0, booked: 0, maintenance: 0, userBooked: 0, past: 0, unavailable: 0 },
             slots: [],
@@ -335,8 +345,27 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             if (maintenanceConflict) {
               slotStatus = 'MAINTENANCE';
               slotColor = '#f59e0b';
-              slotMessage = `Mantenimiento: ${maintenanceConflict.type}`;
-              conflicts.push({ type: 'maintenance', description: maintenanceConflict.description, start: maintenanceConflict.scheduledAt, end: maintenanceConflict.completedAt });
+              const activityMap: Record<string, string> = {
+                TRAINING: 'Entrenamiento',
+                CLASS: 'Clase',
+                WARMUP: 'Calentamiento',
+                EVENT: 'Evento',
+                MEETING: 'Reunión',
+                OTHER: 'Actividad',
+                MAINTENANCE: 'Mantenimiento'
+              };
+              const maintMap: Record<string, string> = {
+                CLEANING: 'Limpieza',
+                REPAIR: 'Reparación',
+                INSPECTION: 'Inspección',
+                RENOVATION: 'Renovación'
+              } as const;
+              const actType = (maintenanceConflict as any).activityType as string | undefined;
+              const maintType = (maintenanceConflict as any).type as string | undefined;
+              const baseLabel = actType ? (activityMap[actType] || 'Actividad') : 'Mantenimiento';
+              const detail = baseLabel === 'Mantenimiento' && maintType ? (maintMap[maintType] || maintType) : undefined;
+              slotMessage = detail ? `${baseLabel}: ${detail}` : baseLabel;
+              conflicts.push({ type: 'maintenance', activityType: actType || 'MAINTENANCE', description: maintenanceConflict.description, start: maintenanceConflict.scheduledAt, end: maintenanceConflict.completedAt });
             } else {
               const reservationConflict = reservations.find((r: any) => slotStartCompare < r.endTime && slotEndCompare > r.startTime);
               if (reservationConflict) {
@@ -368,16 +397,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       buildSlotsForRange(operatingStart, operatingEnd);
     }
 
-    return NextResponse.json({
-      courtId,
-      date: targetDate.toISOString(),
-      slots: calendarSlots
-    });
-  } catch (error) {
-    console.error('❌ [CALENDAR-STATUS] Error:', error);
-    return NextResponse.json(
-      { error: 'Error obteniendo estado del calendario' },
-      { status: 500 }
-    );
-  }
+    return ApiResponse.success({ courtId, date: targetDate.toISOString(), slots: calendarSlots });
+    } catch (error) {
+      console.error('❌ [CALENDAR-STATUS] Error:', error);
+      return ApiResponse.internalError('Error obteniendo estado del calendario');
+    }
+  })(request);
 }

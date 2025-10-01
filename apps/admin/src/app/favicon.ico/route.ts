@@ -1,10 +1,27 @@
 import { NextResponse } from 'next/server';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
-// Responder al favicon para evitar 404 en desarrollo/prototipos
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
-  // 204 No Content es suficiente para que el navegador deje de pedirlo como error
-  return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'public, max-age=86400' } });
+  try {
+    const filePath = path.join(process.cwd(), 'apps', 'admin', 'public', 'favicon.ico');
+    const file = await fs.readFile(filePath);
+    return new NextResponse(file, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/x-icon',
+        'Cache-Control': 'public, max-age=86400, must-revalidate',
+      },
+    });
+  } catch (error) {
+    console.error('Error sirviendo favicon:', error);
+    return NextResponse.json({ error: 'Favicon no disponible' }, { status: 500 });
+  }
 }
+
 
 
 

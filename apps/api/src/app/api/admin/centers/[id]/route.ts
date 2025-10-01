@@ -181,12 +181,15 @@ export async function PUT(request: NextRequest) {
       }
       
       // Actualizar centro
-      // Mapear datos al esquema real: name/address/phone/email directos, resto se guarda en settings
+      // Mapear datos al esquema real: name/address/phone/email directos; timezone también en columna fuerte
       const updateData: any = {};
       if (centerData.name) updateData.name = centerData.name;
       if (centerData.address) updateData.address = centerData.address;
       if (centerData.phone) updateData.phone = centerData.phone;
       if (centerData.email) updateData.email = centerData.email;
+      if (centerData.timezone) updateData.timezone = centerData.timezone;
+      if (centerData.dayStart) updateData.dayStart = centerData.dayStart;
+      if (centerData.nightStart) updateData.nightStart = centerData.nightStart;
       // Merge settings previos con nuevos metadatos (incluye timezone/dayStart/nightStart)
       const currentCfg = await db.center.findUnique({ where: { id: centerId }, select: { settings: true } });
       const currentSettings = (currentCfg?.settings as any) || {};
