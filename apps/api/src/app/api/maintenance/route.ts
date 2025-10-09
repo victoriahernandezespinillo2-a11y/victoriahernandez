@@ -1,5 +1,5 @@
 ﻿/**
- * API Routes para gestiÃ³n de mantenimiento
+ * API Routes para gestión de mantenimiento
  * GET /api/maintenance - Obtener lista de mantenimientos
  * POST /api/maintenance - Crear nuevo mantenimiento
  */
@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
 
       const QuerySchema = z.object({
         page: z.coerce.number().int().min(1).default(1),
-        limit: z.coerce.number().int().min(1).max(100).default(20),
-        sortBy: z.enum(['type', 'createdAt', 'scheduledAt']).default('createdAt'),
-        sortOrder: z.enum(['asc', 'desc']).default('desc'),
+        limit: z.coerce.number().int().min(1).max(500).default(100),
+        sortBy: z.enum(['type', 'createdAt', 'scheduledAt']).default('scheduledAt'),
+        sortOrder: z.enum(['asc', 'desc']).default('asc'),
         status: z.enum(['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
         type: z.string().optional(),
         centerId: z.string().optional(),
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       return ApiResponse.success(result);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return ApiResponse.badRequest('ParÃ¡metros de consulta invÃ¡lidos');
+        return ApiResponse.badRequest('Parámetros de consulta inválidos');
       }
       
       console.error('Error obteniendo mantenimientos:', error);
@@ -69,11 +69,11 @@ export async function POST(request: NextRequest) {
       return ApiResponse.success(maintenance, 201);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return ApiResponse.badRequest('Datos de mantenimiento invÃ¡lidos');
+        return ApiResponse.badRequest('Datos de mantenimiento inválidos');
       }
       
       if (error instanceof Error) {
-        if (error.message.includes('no encontrada') || error.message.includes('no vÃ¡lido')) {
+        if (error.message.includes('no encontrada') || error.message.includes('no válido')) {
           return ApiResponse.badRequest(error.message);
         }
         if (error.message.includes('conflicto')) {

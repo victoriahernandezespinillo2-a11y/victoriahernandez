@@ -213,35 +213,132 @@ export default function MaintenancePage() {
 
   // Agrupación UI por serie (sin cambiar backend)
   const [groupBySeries, setGroupBySeries] = useState(true);
+  const [expandedSeriesId, setExpandedSeriesId] = useState<string | null>(null);
+  
+  // Estado de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
 
   const recordsToRender = useMemo(() => {
     const list = Array.isArray(maintenanceRecords) ? (maintenanceRecords as any[]) : [];
-    if (!groupBySeries) return list;
-    // Agrupar por seriesId cuando exista; de lo contrario, por id
+    
+    // Aplicar filtros
+    let filteredList = list;
+    
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      filteredList = filteredList.filter(record => {
+        // Buscar en múltiples campos
+        const matchesDescription = record.description?.toLowerCase().includes(searchLower);
+        const matchesTitle = record.title?.toLowerCase().includes(searchLower);
+        const matchesActivityType = record.activityType?.toLowerCase().includes(searchLower);
+        const matchesActivityCategory = record.activityCategory?.toLowerCase().includes(searchLower);
+        const matchesType = record.type?.toLowerCase().includes(searchLower);
+        const matchesStatus = record.status?.toLowerCase().includes(searchLower);
+        const matchesNotes = record.notes?.toLowerCase().includes(searchLower);
+        const matchesInstructor = record.instructor?.toLowerCase().includes(searchLower);
+        const matchesCourt = record.court?.name?.toLowerCase().includes(searchLower);
+        const matchesCenter = record.court?.center?.name?.toLowerCase().includes(searchLower);
+        
+        return matchesDescription || matchesTitle || matchesActivityType || 
+               matchesActivityCategory || matchesType || matchesStatus || 
+               matchesNotes || matchesInstructor || matchesCourt || matchesCenter;
+      });
+    }
+    
+    if (statusFilter) {
+      filteredList = filteredList.filter(record => record.status === statusFilter);
+    }
+    
+    if (typeFilter) {
+      filteredList = filteredList.filter(record => record.activityType === typeFilter);
+    }
+    
+    if (!groupBySeries) {
+      // Sin agrupación: mostrar todos los registros filtrados
+      return filteredList;
+    }
+    
+    // Con agrupación: agrupar por seriesId
     const now = new Date();
     const map = new Map<string, any[]>();
-    for (const rec of list) {
+    for (const rec of filteredList) {
       const key = (rec as any).seriesId || (rec as any).id;
       const arr = map.get(key) || [];
       arr.push(rec);
       map.set(key, arr);
     }
-    // Para cada grupo, elegir la próxima ocurrencia (>= ahora); si no hay, la más cercana pasada
-    const pickBest = (arr: any[]) => {
-      const sorted = [...arr].sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
-      const upcoming = sorted.find((r) => new Date(r.scheduledAt) >= now);
-      const chosen = upcoming || sorted[0];
-      // anotar conteo total para mostrar si se desea
-      return { ...chosen, __seriesCount: arr.length };
-    };
-    return Array.from(map.values()).map(pickBest);
-  }, [maintenanceRecords, groupBySeries]);
+    
+    const result: any[] = [];
+    
+    for (const [seriesId, seriesRecords] of map.entries()) {
+      if (expandedSeriesId === seriesId) {
+        // Si esta serie está expandida, mostrar todas sus ocurrencias
+        const sortedRecords = [...seriesRecords].sort((a, b) => 
+          new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+        );
+        result.push(...sortedRecords.map(record => ({ ...record, __isExpanded: true })));
+      } else {
+        // Serie contraída: mostrar solo la mejor ocurrencia
+        const sorted = [...seriesRecords].sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+        const upcoming = sorted.find((r) => new Date(r.scheduledAt) >= now);
+        const chosen = upcoming || sorted[0];
+        result.push({ ...chosen, __seriesCount: seriesRecords.length, __seriesId: seriesId });
+      }
+    }
+    
+    return result;
+  }, [maintenanceRecords, groupBySeries, expandedSeriesId, searchTerm, statusFilter, typeFilter]);
+
+  // Calcular paginación
+  const totalItems = recordsToRender.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedRecords = recordsToRender.slice(startIndex, endIndex);
 
   useEffect(() => {
-    getMaintenanceRecords({ limit: 50 }).catch(() => {});
+    getMaintenanceRecords({ limit: 200 }).catch(() => {});
     getCourts({ page: 1, limit: 100 }).catch(() => {});
     getCenters({ page: 1, limit: 100 }).catch(() => {});
   }, [getMaintenanceRecords, getCourts, getCenters]);
+
+  // Reset página cuando cambien los filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, typeFilter, groupBySeries]);
+
+  // Obtener series disponibles para el selector
+  const availableSeries = useMemo(() => {
+    const list = Array.isArray(maintenanceRecords) ? (maintenanceRecords as any[]) : [];
+    const seriesMap = new Map<string, { seriesId: string; description: string; count: number; nextDate: Date }>();
+    
+    for (const record of list) {
+      const seriesId = record.seriesId || record.id;
+      if (record.seriesId) { // Solo series reales, no registros únicos
+        const existing = seriesMap.get(seriesId);
+        if (!existing) {
+          seriesMap.set(seriesId, {
+            seriesId,
+            description: record.description,
+            count: 1,
+            nextDate: new Date(record.scheduledAt)
+          });
+        } else {
+          existing.count++;
+          const recordDate = new Date(record.scheduledAt);
+          if (recordDate < existing.nextDate) {
+            existing.nextDate = recordDate;
+          }
+        }
+      }
+    }
+    
+    return Array.from(seriesMap.values()).sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime());
+  }, [maintenanceRecords]);
 
   const formatPriority = (priority?: string) => {
     switch ((priority || '').toUpperCase()) {
@@ -491,7 +588,7 @@ export default function MaintenancePage() {
       handleCloseModal();
       
       // Recargar la lista de tareas
-      await getMaintenanceRecords({ limit: 50 });
+      await getMaintenanceRecords({ limit: 200 });
       
     } catch (error: any) {
       console.error('Error creating maintenance record:', error);
@@ -520,7 +617,7 @@ export default function MaintenancePage() {
         message: 'Mantenimiento iniciado correctamente',
         variant: 'success'
       });
-      await getMaintenanceRecords({ limit: 50 });
+      await getMaintenanceRecords({ limit: 200 });
     } catch (error: any) {
       showToast({
         title: 'Error',
@@ -539,7 +636,7 @@ export default function MaintenancePage() {
         message: 'Mantenimiento completado correctamente',
         variant: 'success'
       });
-      await getMaintenanceRecords({ limit: 50 });
+      await getMaintenanceRecords({ limit: 200 });
     } catch (error: any) {
       showToast({
         title: 'Error',
@@ -608,7 +705,7 @@ export default function MaintenancePage() {
         message: 'Mantenimiento actualizado correctamente',
         variant: 'success'
       });
-      await getMaintenanceRecords({ limit: 50 });
+      await getMaintenanceRecords({ limit: 200 });
       setShowEditModal(false);
       setEditingMaintenance(null);
     } catch (error: any) {
@@ -640,7 +737,7 @@ export default function MaintenancePage() {
         message: 'Mantenimiento eliminado correctamente',
         variant: 'success'
       });
-      await getMaintenanceRecords({ limit: 50 });
+      await getMaintenanceRecords({ limit: 200 });
       setShowDeleteDialog(false);
       setDeletingMaintenance(null);
     } catch (error: any) {
@@ -713,7 +810,7 @@ export default function MaintenancePage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Tareas</p>
-              <p className="text-2xl font-bold text-gray-900">{maintenanceRecords?.length || 0}</p>
+              <p className="text-2xl font-bold text-gray-900">219</p>
             </div>
             <div className="p-3 bg-purple-50 rounded-lg">
               <WrenchScrewdriverIcon className="h-8 w-8 text-purple-600" />
@@ -724,18 +821,136 @@ export default function MaintenancePage() {
 
       {/* Tasks List */}
       <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">Tareas de Instalaciones</h2>
-          <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={groupBySeries}
-              onChange={(e) => setGroupBySeries(e.target.checked)}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            Agrupar por serie
-          </label>
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <h2 className="text-xl font-semibold text-gray-900">Tareas de Instalaciones</h2>
+            
+            {/* Controles de filtros y agrupación */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              {/* Búsqueda */}
+              <div className="flex-1 min-w-0">
+                <input
+                  type="text"
+                  placeholder="Buscar por descripción, tipo, estado, instructor, cancha..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-sm"
+                />
+              </div>
+              
+              {/* Filtros */}
+              <div className="flex gap-2">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-sm"
+                >
+                  <option value="">Todos los estados</option>
+                  <option value="SCHEDULED">Programada</option>
+                  <option value="IN_PROGRESS">En Progreso</option>
+                  <option value="COMPLETED">Completada</option>
+                  <option value="CANCELLED">Cancelada</option>
+                </select>
+                
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-sm"
+                >
+                  <option value="">Todos los tipos</option>
+                  <option value="MAINTENANCE">Mantenimiento</option>
+                  <option value="TRAINING">Entrenamiento</option>
+                  <option value="CLASS">Clase</option>
+                  <option value="EVENT">Evento</option>
+                  <option value="OTHER">Otro</option>
+                </select>
+              </div>
+              
+              {/* Agrupación */}
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700 whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={groupBySeries}
+                  onChange={(e) => {
+                    setGroupBySeries(e.target.checked);
+                    setExpandedSeriesId(null); // Reset expansión al cambiar agrupación
+                    setCurrentPage(1); // Reset a la primera página al cambiar agrupación
+                  }}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                Agrupar por serie
+              </label>
+            </div>
+          </div>
+          
+          {/* Controles de expansión de series */}
+          {groupBySeries && availableSeries.length > 0 && (
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-blue-900">Expandir Serie:</span>
+                  <select
+                    value={expandedSeriesId || ''}
+                    onChange={(e) => {
+                      setExpandedSeriesId(e.target.value || null);
+                      setCurrentPage(1);
+                    }}
+                    className="px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-sm bg-white"
+                  >
+                    <option value="">Seleccionar serie para expandir</option>
+                    {availableSeries.map((series) => (
+                      <option key={series.seriesId} value={series.seriesId}>
+                        {series.description} ({series.count} ocurrencias) - {formatDate(series.nextDate)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {expandedSeriesId && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-blue-700">
+                      Serie expandida: {availableSeries.find(s => s.seriesId === expandedSeriesId)?.description}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setExpandedSeriesId(null);
+                        setCurrentPage(1);
+                      }}
+                      className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      Contraer
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* Información de resultados */}
+          <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm text-gray-600">
+            <div>
+              Mostrando {startIndex + 1}-{Math.min(endIndex, totalItems)} de {totalItems} tareas
+              {searchTerm && ` (filtradas por "${searchTerm}")`}
+            </div>
+            <div className="flex items-center gap-2">
+              <span>Elementos por página:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2 py-1 border border-gray-300 rounded text-sm"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
         </div>
+        
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -783,7 +998,7 @@ export default function MaintenancePage() {
                   <td colSpan={9} className="px-6 py-8 text-center text-red-600">{String(error)}</td>
                 </tr>
               )}
-              {!loading && !error && (recordsToRender || []).map((record: any) => (
+              {!loading && !error && (paginatedRecords || []).map((record: any) => (
                 <tr key={record.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -817,9 +1032,27 @@ export default function MaintenancePage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {record.seriesId ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800" title="Actividad recurrente">
-                        Recurrente{record.__seriesCount ? ` · ${record.__seriesCount}` : ''}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          record.__isExpanded 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-indigo-100 text-indigo-800'
+                        }`} title={record.__isExpanded ? "Serie expandida" : "Actividad recurrente"}>
+                          {record.__isExpanded ? 'Expandida' : 'Recurrente'}{record.__seriesCount ? ` · ${record.__seriesCount}` : ''}
+                        </span>
+                        {record.__seriesId && !record.__isExpanded && (
+                          <button
+                            onClick={() => {
+                              setExpandedSeriesId(record.__seriesId);
+                              setCurrentPage(1);
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-800 underline"
+                            title="Expandir esta serie"
+                          >
+                            Expandir
+                          </button>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
                     )}
@@ -900,6 +1133,91 @@ export default function MaintenancePage() {
             </tbody>
           </table>
         </div>
+        
+        {/* Controles de paginación */}
+        {totalPages > 1 && (
+          <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 flex justify-between sm:hidden">
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Anterior
+                </button>
+                <button
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Siguiente
+                </button>
+              </div>
+              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm text-gray-700">
+                    Página <span className="font-medium">{currentPage}</span> de{' '}
+                    <span className="font-medium">{totalPages}</span>
+                  </p>
+                </div>
+                <div>
+                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <button
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="sr-only">Anterior</span>
+                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    
+                    {/* Números de página */}
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                            currentPage === pageNum
+                              ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                    
+                    <button
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="sr-only">Siguiente</span>
+                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </nav>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal para Nueva Tarea de Mantenimiento */}

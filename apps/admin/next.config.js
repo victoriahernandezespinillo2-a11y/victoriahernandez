@@ -2,6 +2,10 @@
 const nextConfig = {
   // Configurar el directorio src
   pageExtensions: ['ts', 'tsx', 'js', 'jsx'],
+  
+  // Configuración para manejar archivos estáticos
+  trailingSlash: false,
+  generateEtags: false,
   // Configuración para el monorepo
   transpilePackages: ['@repo/ui'],
   // Permitir dominios externos de logos/imagenes usados en el panel

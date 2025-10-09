@@ -82,7 +82,7 @@ export const CompleteMaintenanceSchema = z.object({
 
 export const GetMaintenanceSchema = z.object({
   page: z.coerce.number().min(1).default(1),
-  limit: z.coerce.number().min(1).max(100).default(20),
+  limit: z.coerce.number().min(1).max(500).default(20),
   courtId: z.string().optional(),
   centerId: z.string().optional(),
   type: z.enum(['CLEANING', 'REPAIR', 'INSPECTION', 'RENOVATION']).optional(),
@@ -198,57 +198,85 @@ export class MaintenanceService {
     const toUtc = (localYmd: string, hhmm: string) => zonedTimeToUtc(`${localYmd}T${hhmm}:00`, tz);
 
     const created: any[] = [];
-    for (let cur = new Date(startUtcMidnight); cur <= endUtcMidnight; cur = addDays(cur, 1)) {
-      const localDate = utcToZonedTime(cur, tz);
-      const weekday = localDate.getDay() === 0 ? 7 : localDate.getDay(); // 1..7 con L=1
-      if (!days.has(weekday)) continue;
-      const ymd = formatInTimeZone(localDate, tz, 'yyyy-MM-dd');
-      const ex = exceptions.find((e: any) => e?.date === ymd);
-      if (r.skipHolidays && ex?.closed === true) continue;
+    
+    // Iterar semana por semana en lugar de día por día
+    for (let cur = new Date(startUtcMidnight); cur <= endUtcMidnight; cur = addDays(cur, 7)) {
+      // Para cada semana, verificar todos los días de la semana solicitados
+      for (const dayOfWeek of days) {
+        // Calcular el día específico de la semana
+        const daysToAdd = dayOfWeek === 7 ? 0 : dayOfWeek; // Domingo = 0, Lunes = 1, etc.
+        const targetDate = new Date(cur);
+        targetDate.setUTCDate(targetDate.getUTCDate() + (daysToAdd - (targetDate.getUTCDay() === 0 ? 7 : targetDate.getUTCDay())));
+        
+        // Verificar que la fecha calculada esté dentro del rango
+        if (targetDate < startUtcMidnight || targetDate > endUtcMidnight) continue;
+        
+        const localDate = utcToZonedTime(targetDate, tz);
+        const ymd = formatInTimeZone(localDate, tz, 'yyyy-MM-dd');
+        const ex = exceptions.find((e: any) => e?.date === ymd);
+        if (r.skipHolidays && ex?.closed === true) continue;
 
-      const ranges = ex?.ranges && ex.ranges.length > 0 ? ex.ranges : [{ start: r.startTime, end: r.endTime }];
-      for (const rng of ranges) {
-        const sUtc = toUtc(ymd, rng.start);
-        const eUtc = toUtc(ymd, rng.end);
-        if (eUtc <= sUtc) continue;
+        const ranges = ex?.ranges && ex.ranges.length > 0 ? ex.ranges : [{ start: r.startTime, end: r.endTime }];
+        for (const rng of ranges) {
+          const sUtc = toUtc(ymd, rng.start);
+          const eUtc = toUtc(ymd, rng.end);
+          if (eUtc <= sUtc) continue;
 
-        // Conflictos (1h ventana alrededor del inicio)
-        const conflicts = await this.checkMaintenanceConflicts(validatedData.courtId, sUtc);
-        if (conflicts.length > 0 && r.skipConflicts) continue;
+          // Conflictos (1h ventana alrededor del inicio)
+          const conflicts = await this.checkMaintenanceConflicts(validatedData.courtId, sUtc);
+          if (conflicts.length > 0 && r.skipConflicts) continue;
 
-        const dbType = validatedData.activityType === 'MAINTENANCE' ? (validatedData as any).type : 'INSPECTION';
-        // En recurrencia, la duración debe venir de la franja start/end definida para esa ocurrencia
-        const dur = Math.round((eUtc.getTime() - sUtc.getTime()) / 60000);
-        const rec = await db.maintenanceSchedule.create({
-          data: {
-            courtId: validatedData.courtId,
-            type: dbType as any,
-            activityType: validatedData.activityType,
-            activityCategory: validatedData.activityCategory || undefined,
-            description: validatedData.description,
-            scheduledAt: sUtc,
-            assignedTo: validatedData.assignedTo || undefined,
-            instructor: validatedData.instructor || undefined,
-            capacity: validatedData.capacity || undefined,
-            requirements: validatedData.requirements || undefined,
-            isPublic: validatedData.isPublic,
-            notes: validatedData.notes,
-            cost: validatedData.cost as any,
-            estimatedDuration: dur,
-            status: conflicts.length > 0 ? ('CONFLICT' as any) : 'SCHEDULED',
-            seriesId,
-            // Guardar metadatos básicos de recurrencia para edición/visualización futura
-            // (no estrictamente necesario para funcionamiento, pero útil para UI)
-          },
-        });
-        console.log('🆕 [RECURRENCE] Ocurrencia creada', {
-          localYMD: ymd,
-          startLocal: `${ymd} ${rng.start}`,
-          endLocal: `${ymd} ${rng.end}`,
-          scheduledAtUTC: rec.scheduledAt.toISOString(),
-          durationMin: dur,
-        });
-        created.push(rec);
+          // Verificar si ya existe un registro para esta fecha (prevenir duplicados)
+          const existingRecord = await db.maintenanceSchedule.findFirst({
+            where: {
+              seriesId,
+              scheduledAt: sUtc,
+              courtId: validatedData.courtId,
+            }
+          });
+
+          if (existingRecord) {
+            console.log('⚠️ [RECURRENCE] Registro ya existe, saltando:', {
+              id: existingRecord.id,
+              date: ymd,
+            });
+            continue;
+          }
+
+          const dbType = validatedData.activityType === 'MAINTENANCE' ? (validatedData as any).type : 'INSPECTION';
+          // En recurrencia, la duración debe venir de la franja start/end definida para esa ocurrencia
+          const dur = Math.round((eUtc.getTime() - sUtc.getTime()) / 60000);
+          const rec = await db.maintenanceSchedule.create({
+            data: {
+              courtId: validatedData.courtId,
+              type: dbType as any,
+              activityType: validatedData.activityType,
+              activityCategory: validatedData.activityCategory || undefined,
+              description: validatedData.description,
+              scheduledAt: sUtc,
+              assignedTo: validatedData.assignedTo || undefined,
+              instructor: validatedData.instructor || undefined,
+              capacity: validatedData.capacity || undefined,
+              requirements: validatedData.requirements || undefined,
+              isPublic: validatedData.isPublic,
+              notes: validatedData.notes,
+              cost: validatedData.cost as any,
+              estimatedDuration: dur,
+              status: conflicts.length > 0 ? ('CONFLICT' as any) : 'SCHEDULED',
+              seriesId,
+              // Guardar metadatos básicos de recurrencia para edición/visualización futura
+              // (no estrictamente necesario para funcionamiento, pero útil para UI)
+            },
+          });
+          console.log('🆕 [RECURRENCE] Ocurrencia creada', {
+            localYMD: ymd,
+            startLocal: `${ymd} ${rng.start}`,
+            endLocal: `${ymd} ${rng.end}`,
+            scheduledAtUTC: rec.scheduledAt.toISOString(),
+            durationMin: dur,
+          });
+          created.push(rec);
+        }
       }
     }
 
@@ -810,38 +838,69 @@ export class MaintenanceService {
     const days = new Set(rule.daysOfWeek);
     const toUtc = (localYmd: string, hhmm: string) => zonedTimeToUtc(`${localYmd}T${hhmm}:00`, tz);
     const created: any[] = [];
-    for (let cur = new Date(startUtcMidnight); cur <= endUtcMidnight; cur = addDays(cur, 1)) {
-      const localDate = utcToZonedTime(cur, tz);
-      const weekday = localDate.getDay() === 0 ? 7 : localDate.getDay();
-      if (!days.has(weekday)) continue;
-      const ymd = formatInTimeZone(localDate, tz, 'yyyy-MM-dd');
-      const ex = exceptions.find((e: any) => e?.date === ymd);
-      if (rule.skipHolidays && ex?.closed === true) continue;
-      const ranges = ex?.ranges && ex.ranges.length > 0 ? ex.ranges : [{ start: rule.startTime, end: rule.endTime }];
-      for (const rng of ranges) {
-        const sUtc = toUtc(ymd, rng.start);
-        const eUtc = toUtc(ymd, rng.end);
-        if (eUtc <= sUtc) continue;
-        const conflicts = await this.checkMaintenanceConflicts(template.courtId, sUtc);
-        if (conflicts.length > 0 && rule.skipConflicts) continue;
-        const dur = Math.round((eUtc.getTime() - sUtc.getTime()) / 60000);
-        const rec = await db.maintenanceSchedule.create({
-          data: {
-            courtId: template.courtId,
-            type: template.activityType === 'MAINTENANCE' ? template.type : 'INSPECTION',
-            activityType: template.activityType,
-            activityCategory: template.activityType !== 'MAINTENANCE' ? template.activityCategory : undefined,
-            description: template.description,
-            scheduledAt: sUtc,
-            isPublic: template.isPublic ?? true,
-            notes: undefined,
-            cost: (template.cost as any) ?? undefined,
-            estimatedDuration: dur,
-            status: conflicts.length > 0 ? ('CONFLICT' as any) : 'SCHEDULED',
-            seriesId,
-          },
-        });
-        created.push(rec);
+    
+    // Iterar semana por semana en lugar de día por día (mismo algoritmo que createMaintenance)
+    for (let cur = new Date(startUtcMidnight); cur <= endUtcMidnight; cur = addDays(cur, 7)) {
+      // Para cada semana, verificar todos los días de la semana solicitados
+      for (const dayOfWeek of days) {
+        // Calcular el día específico de la semana
+        const daysToAdd = dayOfWeek === 7 ? 0 : dayOfWeek; // Domingo = 0, Lunes = 1, etc.
+        const targetDate = new Date(cur);
+        targetDate.setUTCDate(targetDate.getUTCDate() + (daysToAdd - (targetDate.getUTCDay() === 0 ? 7 : targetDate.getUTCDay())));
+        
+        // Verificar que la fecha calculada esté dentro del rango
+        if (targetDate < startUtcMidnight || targetDate > endUtcMidnight) continue;
+        
+        const localDate = utcToZonedTime(targetDate, tz);
+        const ymd = formatInTimeZone(localDate, tz, 'yyyy-MM-dd');
+        const ex = exceptions.find((e: any) => e?.date === ymd);
+        if (rule.skipHolidays && ex?.closed === true) continue;
+        
+        const ranges = ex?.ranges && ex.ranges.length > 0 ? ex.ranges : [{ start: rule.startTime, end: rule.endTime }];
+        for (const rng of ranges) {
+          const sUtc = toUtc(ymd, rng.start);
+          const eUtc = toUtc(ymd, rng.end);
+          if (eUtc <= sUtc) continue;
+          
+          const conflicts = await this.checkMaintenanceConflicts(template.courtId, sUtc);
+          if (conflicts.length > 0 && rule.skipConflicts) continue;
+          
+          // Verificar si ya existe un registro para esta fecha (prevenir duplicados)
+          const existingRecord = await db.maintenanceSchedule.findFirst({
+            where: {
+              seriesId,
+              scheduledAt: sUtc,
+              courtId: template.courtId,
+            }
+          });
+
+          if (existingRecord) {
+            console.log('⚠️ [REGENERATE] Registro ya existe, saltando:', {
+              id: existingRecord.id,
+              date: ymd,
+            });
+            continue;
+          }
+          
+          const dur = Math.round((eUtc.getTime() - sUtc.getTime()) / 60000);
+          const rec = await db.maintenanceSchedule.create({
+            data: {
+              courtId: template.courtId,
+              type: template.activityType === 'MAINTENANCE' ? template.type : 'INSPECTION',
+              activityType: template.activityType,
+              activityCategory: template.activityType !== 'MAINTENANCE' ? template.activityCategory : undefined,
+              description: template.description,
+              scheduledAt: sUtc,
+              isPublic: template.isPublic ?? true,
+              notes: undefined,
+              cost: (template.cost as any) ?? undefined,
+              estimatedDuration: dur,
+              status: conflicts.length > 0 ? ('CONFLICT' as any) : 'SCHEDULED',
+              seriesId,
+            },
+          });
+          created.push(rec);
+        }
       }
     }
     return { seriesId, created: created.length };
