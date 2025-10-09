@@ -29,6 +29,7 @@ interface Court {
   sportType?: string;
   description?: string;
   availability?: 'high' | 'medium' | 'low';
+  lightingExtraPerHour?: number;
 }
 
 interface MobileCourtSelectorProps {

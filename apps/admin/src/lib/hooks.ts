@@ -41,8 +41,11 @@ interface Court {
   dimensions: string;
   surface: string;
   lighting: boolean;
+  lightingExtraPerHour?: number;
   covered: boolean;
   createdAt: string;
+  isMultiuse?: boolean;
+  allowedSports?: string[];
 }
 
 interface Reservation {

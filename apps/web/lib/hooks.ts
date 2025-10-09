@@ -46,7 +46,17 @@ export function useCenters() {
   const { data, loading, error, execute, reset } = useApiState<any[]>([]);
 
   const getCenters = useCallback((params?: any) => {
-    return execute(() => api.centers.getAll(params) as Promise<any[]>);
+    console.log('🔍 [useCenters] Llamando api.centers.getAll con params:', params);
+    return execute(async () => {
+      try {
+        const result = await api.centers.getAll(params) as any;
+        console.log('✅ [useCenters] Respuesta recibida:', result);
+        return result;
+      } catch (error) {
+        console.error('❌ [useCenters] Error en llamada:', error);
+        throw error;
+      }
+    });
   }, [execute]);
 
   const getCenter = useCallback((id: string) => {
@@ -116,11 +126,20 @@ export function useCourts() {
   };
 
   const getCourts = useCallback((params?: any) => {
+    console.log('🔍 [useCourts] Llamando api.courts.getAll con params:', params);
     return execute(async () => {
-      const res: any = await api.courts.getAll(params as any);
-      const raw = extractCourtsArray(res);
-      const mapped = raw.map(normalizeCourt).filter(Boolean) as any[];
-      return mapped;
+      try {
+        const res: any = await api.courts.getAll(params as any);
+        console.log('✅ [useCourts] Respuesta de API recibida:', res);
+        const raw = extractCourtsArray(res);
+        console.log('🔍 [useCourts] Canchas extraídas:', raw.length, raw);
+        const mapped = raw.map(normalizeCourt).filter(Boolean) as any[];
+        console.log('✅ [useCourts] Canchas normalizadas:', mapped.length, mapped);
+        return mapped;
+      } catch (error) {
+        console.error('❌ [useCourts] Error cargando canchas:', error);
+        throw error;
+      }
     });
   }, [execute]);
 
@@ -182,7 +201,7 @@ export function useReservations() {
         const uiStatus = statusMap[(r.status || '').toUpperCase()] || 'pending';
         
         // Determinar estado de pago de manera robusta y específica
-        let paymentStatus: 'paid' | 'pending' | 'refunded' = 'pending';
+        let paymentStatus: 'paid' | 'pending' | 'refunded' | 'cancelled' = 'pending';
         const reservationStatus = (r.status || '').toUpperCase();
         
         switch (reservationStatus) {
@@ -199,14 +218,15 @@ export function useReservations() {
             paymentStatus = r.paymentMethod ? 'paid' : 'pending';
             break;
           case 'CANCELLED':
-            // CANCELLED: Reserva cancelada, verificar si se había pagado
+            // CANCELLED: Reserva cancelada - SIEMPRE es no pagada
+            // Una reserva cancelada nunca puede estar "pagada"
             if (r.paymentMethod) {
               // Si tenía método de pago, verificar si ya pasó la fecha (reembolso)
               const reservationDate = new Date(r.startTime);
               const now = new Date();
-              paymentStatus = reservationDate < now ? 'refunded' : 'paid';
+              paymentStatus = reservationDate < now ? 'refunded' : 'cancelled';
             } else {
-              paymentStatus = 'pending';
+              paymentStatus = 'cancelled';
             }
             break;
           default:

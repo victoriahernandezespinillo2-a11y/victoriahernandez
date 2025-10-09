@@ -33,7 +33,7 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
     onClose,
     reservationId,
     amount,
-    currency = 'COP',
+    currency = 'EUR',
     courtName,
     dateLabel,
     timeLabel,
@@ -86,10 +86,10 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
   };
   
   const formatAmount = (amount: number) => {
-    return new Intl.NumberFormat('es-CO', {
+    return new Intl.NumberFormat('es-ES', {
       style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
+      currency: currency,
+      minimumFractionDigits: 2,
     }).format(amount);
   };
   

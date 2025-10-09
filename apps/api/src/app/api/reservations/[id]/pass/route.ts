@@ -1,7 +1,7 @@
 // Pase de acceso del usuario (con QR)
 export const runtime = 'nodejs';
 
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@repo/auth';
 import { db } from '@repo/db';
 import { 
@@ -33,7 +33,12 @@ export async function GET(request: NextRequest) {
       try {
         const token = authHeader.substring(7);
         const jwt = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
-        const payload = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any;
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+          console.error('❌ [PASS] JWT_SECRET no está configurado');
+          return NextResponse.json({ error: 'Error de configuración del servidor' }, { status: 500 });
+        }
+        const payload = jwt.verify(token, jwtSecret) as any;
         userId = payload.uid || payload.userId || payload.id;
         console.log('✅ [PASS] Usuario autenticado por JWT header:', userId);
       } catch (jwtError) {
@@ -48,7 +53,12 @@ export async function GET(request: NextRequest) {
     if (tokenParam) {
       try {
         const jwt = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
-        const payload = jwt.verify(tokenParam, process.env.JWT_SECRET || 'your-secret-key') as any;
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+          console.error('❌ [PASS] JWT_SECRET no está configurado');
+          return NextResponse.json({ error: 'Error de configuración del servidor' }, { status: 500 });
+        }
+        const payload = jwt.verify(tokenParam, jwtSecret) as any;
         
         // Verificar que es un token de acceso al pase
         if (payload.type === 'pass-access') {
@@ -115,6 +125,11 @@ export async function GET(request: NextRequest) {
   const endPlus = new Date(reservation.endTime.getTime() + PASS_EXPIRATION_BUFFER_HOURS * 60 * 60 * 1000); // +1h
   const expSeconds = Math.floor(endPlus.getTime() / 1000);
   const jwt = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    console.error('❌ [PASS] JWT_SECRET no está configurado');
+    return NextResponse.json({ error: 'Error de configuración del servidor' }, { status: 500 });
+  }
   const token = jwt.sign(
     { 
       reservationId: reservation.id, 
@@ -125,7 +140,7 @@ export async function GET(request: NextRequest) {
       validatedAt: new Date().toISOString(),
       exp: expSeconds 
     },
-    process.env.JWT_SECRET || 'your-secret-key'
+    jwtSecret
   );
 
   // 7) Generar QR

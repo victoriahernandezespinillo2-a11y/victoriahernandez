@@ -39,14 +39,12 @@ export async function GET(request: NextRequest) {
       if (operatingHours && key && (operatingHours as any)[key]) {
         const cfg = (operatingHours as any)[key] as { open?: string; close?: string; closed?: boolean };
         if (!cfg.closed && typeof cfg.open === 'string' && typeof cfg.close === 'string') {
-          // Construir timestamps locales comparables usando Intl (sin mutar TZ real)
+          // Lógica simplificada para calcular horarios
           const toUtc = (hhmm: string) => {
             const [hh, mm] = hhmm.split(':').map((n: string) => Number(n));
             const localIso = `${parts.year}-${parts.month}-${parts.day}T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`;
-            // Interpretar como hora en tz y convertir a UTC ISO string para comparación
-            const date = new Date(new Intl.DateTimeFormat('en-CA', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(localIso)));
-            // Fallback simple: crear Date a partir de localIso y ajustar por offset aproximado
-            return new Date(`${localIso}:00Z`);
+            // Crear fecha directamente en UTC
+            return new Date(`${localIso}Z`);
           };
 
           const openUTC = toUtc(cfg.open);

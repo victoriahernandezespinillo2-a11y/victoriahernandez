@@ -90,7 +90,7 @@ export interface AuthResponse {
 }
 
 export class AuthService {
-  private readonly JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+  private readonly JWT_SECRET = process.env.JWT_SECRET;
   private readonly JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret';
   private readonly JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
   private readonly JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
@@ -417,6 +417,9 @@ export class AuthService {
    */
   async getUserFromToken(token: string): Promise<AuthUser | null> {
     try {
+      if (!this.JWT_SECRET) {
+        throw new Error('JWT_SECRET no está configurado');
+      }
       const decoded = jwt.verify(token, this.JWT_SECRET) as any;
       
       const userId = decoded.userId || decoded.id || decoded.sub;

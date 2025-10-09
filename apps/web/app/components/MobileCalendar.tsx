@@ -10,6 +10,7 @@ import {
   X,
   AlertCircle,
   Zap,
+  Lightbulb,
 } from 'lucide-react';
 
 interface TimeSlot {
@@ -35,6 +36,11 @@ interface MobileCalendarProps {
   loadingReservation?: boolean;
   courtName?: string;
   onContinue?: () => void;
+  // New props for lighting
+  isDayTime?: boolean;
+  lightingSelected?: boolean;
+  onLightingChange?: (selected: boolean) => void;
+  lightingExtraPrice?: number;
 }
 
 export function MobileCalendar({
@@ -49,6 +55,10 @@ export function MobileCalendar({
   loadingReservation = false,
   courtName = '',
   onContinue,
+  isDayTime = true,
+  lightingSelected = false,
+  onLightingChange,
+  lightingExtraPrice = 0,
 }: MobileCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -212,10 +222,10 @@ export function MobileCalendar({
 
   // Formatear precio
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CO', {
+    return new Intl.NumberFormat('es-ES', {
       style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
+      currency: 'EUR',
+      minimumFractionDigits: 2,
     }).format(amount);
   };
 
@@ -338,6 +348,68 @@ export function MobileCalendar({
                 {option.label}
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Opción de iluminación para horarios de día */}
+      {(() => {
+        console.log('🔍 [DEBUG] Lighting section conditions:', {
+          selectedDate,
+          selectedSlot: !!selectedSlot,
+          isDayTime,
+          onLightingChange: !!onLightingChange,
+          lightingExtraPrice
+        });
+        return selectedDate && selectedSlot && isDayTime && onLightingChange;
+      })() && (
+        <div className="p-4 border-t border-gray-200 bg-gray-50">
+          <label className="block text-base font-medium text-gray-700 mb-3">
+            <Lightbulb className="h-5 w-5 inline mr-2" />
+            Iluminación adicional
+          </label>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <Lightbulb className="h-6 w-6 text-yellow-600" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-yellow-800 leading-relaxed">
+                  <strong>Horario de día:</strong> La iluminación es opcional durante el día. 
+                  Si necesitas iluminación, se aplicará un cargo adicional de <strong>€{lightingExtraPrice}/hora</strong>.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-start space-x-3">
+            <input
+              type="checkbox"
+              id="lighting-option"
+              checked={lightingSelected}
+               onChange={(e) => onLightingChange?.(e.target.checked)}
+              className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-0.5"
+            />
+            <label htmlFor="lighting-option" className="text-sm text-gray-700 leading-relaxed cursor-pointer">
+              Quiero iluminación adicional (+€{(lightingExtraPrice * duration / 60).toFixed(2)})
+            </label>
+          </div>
+        </div>
+      )}
+
+      {/* Mensaje para horarios de noche */}
+      {selectedDate && selectedSlot && !isDayTime && (
+        <div className="p-4 border-t border-gray-200 bg-gray-50">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <Lightbulb className="h-6 w-6 text-green-600" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-green-800 leading-relaxed">
+                  <strong>Horario nocturno:</strong> La iluminación está incluida sin costo adicional.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}

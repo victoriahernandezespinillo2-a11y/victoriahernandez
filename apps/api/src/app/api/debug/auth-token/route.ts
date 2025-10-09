@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import * as jwt from 'jsonwebtoken';
 import { ApiResponse, withPublicMiddleware } from '@/lib/middleware';
@@ -37,7 +37,11 @@ export async function POST(request: NextRequest) {
         role: user.role,
       } as const;
 
-      const secret = process.env.JWT_SECRET || 'your-secret-key';
+      const secret = process.env.JWT_SECRET;
+      if (!secret) {
+        console.error('❌ [DEBUG-AUTH] JWT_SECRET no está configurado');
+        return NextResponse.json({ error: 'Error de configuración del servidor' }, { status: 500 });
+      }
       const token = jwt.sign(payload, secret as jwt.Secret, {
         expiresIn: (data.expiresIn || '15m') as jwt.SignOptions['expiresIn'],
       });

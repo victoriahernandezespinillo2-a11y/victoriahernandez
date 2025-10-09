@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { zonedTimeToUtc, utcToZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { db } from '@repo/db';
 import { withAuthMiddleware, ApiResponse } from '@/lib/middleware';
+import { ScheduleCompatibilityService } from '@/lib/services/schedule-compatibility.service';
 
 // Forzar renderizado dinámico para deshabilitar el cacheo de esta ruta
 export const dynamic = 'force-dynamic';
@@ -41,44 +42,54 @@ function normalizeToHHmm(input: string): string {
 export async function GET(request: NextRequest): Promise<NextResponse> {
   return withAuthMiddleware(async (req) => {
     try {
+      console.log('🔍 [CALENDAR-STATUS] Iniciando endpoint...');
       // Usuario autenticado inyectado por el middleware
       const user = (req as any).user as { id: string; email?: string; name?: string };
-    
-    const pathSegments = req.nextUrl.pathname.split('/');
-    const courtId = pathSegments[pathSegments.length - 2];
-    const { searchParams } = new URL(req.url);
-    const date = searchParams.get('date');
-    const duration = parseInt(searchParams.get('duration') || '60');
+      
+      const pathSegments = req.nextUrl.pathname.split('/');
+      const courtId = pathSegments[pathSegments.length - 2];
+      const { searchParams } = new URL(req.url);
+      const date = searchParams.get('date');
+      const duration = parseInt(searchParams.get('duration') || '60');
+      
+      console.log('🔍 [CALENDAR-STATUS] Parámetros:', { courtId, date, duration });
+      
+      // Verificar que courtId existe
+      if (!courtId) {
+        console.error('❌ [CALENDAR-STATUS] courtId no encontrado');
+        return ApiResponse.badRequest('ID de cancha requerido');
+      }
 
-    // 🔍 LOGGING PARA DEBUGGING DE AUTENTICACIÓN
-    console.log(`🔍 [CALENDAR-AUTH] Usuario autenticado:`, {
-      userId: user.id,
-      email: user.email,
-      name: user.name || '',
-      timestamp: new Date().toISOString()
-    });
+      // 🔍 LOGGING PARA DEBUGGING DE AUTENTICACIÓN
+      console.log(`🔍 [CALENDAR-AUTH] Usuario autenticado:`, {
+        userId: user.id,
+        email: user.email,
+        name: user.name || '',
+        timestamp: new Date().toISOString()
+      });
 
-    if (!date) {
-      return ApiResponse.badRequest('Fecha requerida');
-    }
+      if (!date) {
+        return ApiResponse.badRequest('Fecha requerida');
+      }
 
-    // 1. Definir la zona horaria del centro como la fuente de verdad.
-    const centerTz = 'Europe/Madrid';
+      // 1. Definir la zona horaria del centro como la fuente de verdad.
+      const centerTz = 'Europe/Madrid';
 
-    // 2. Construir las fechas de inicio y fin del día EN LA ZONA HORARIA del centro.
-    // Esto asegura que "2025-09-01" se interprete como ese día completo en Madrid.
-    const startOfDay = zonedTimeToUtc(`${date}T00:00:00`, centerTz);
-    const endOfDay = zonedTimeToUtc(`${date}T23:59:59`, centerTz);
-    const targetDate = startOfDay; // Usar la fecha zificada como referencia
+      // 2. Simplificar construcción de fechas
+      const startOfDay = new Date(`${date}T00:00:00`);
+      const endOfDay = new Date(`${date}T23:59:59`);
+      const targetDate = startOfDay;
 
-    // 🔍 LOGGING PARA DEBUGGING DE FECHAS (AHORA ZONIFICADO)
-    console.log(`🔍 [CALENDAR-DATES] Fechas calculadas para zona horaria ${centerTz}:`, {
-      inputDate: date,
+      // 🔍 LOGGING PARA DEBUGGING DE FECHAS (AHORA ZONIFICADO)
+      console.log(`🔍 [CALENDAR-DATES] Fechas calculadas para zona horaria ${centerTz}:`, {
+        inputDate: date,
       startOfDay: startOfDay.toISOString(),
       endOfDay: endOfDay.toISOString(),
       timestamp: new Date().toISOString()
     });
 
+    console.log(`🔍 [CALENDAR-STATUS] Antes de consultar reservas...`);
+    
     // 🔍 OBTENER DATOS COMPLETOS DEL CALENDARIO
     // 1) Reservas del día
     const reservations = await db.reservation.findMany({
@@ -207,104 +218,88 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const calendarSlots = [] as any[];
     const slotMinutes = 30; // Intervalo de 30 minutos
     
-    // 🕒 OBTENER HORARIOS DE OPERACIÓN DEL CENTRO
-    let operatingStart = new Date(startOfDay);
-    let operatingEnd = new Date(endOfDay);
-    
+    // 🕒 OBTENER HORARIOS DE OPERACIÓN DEL CENTRO (ENTERPRISE COMPATIBILITY)
     const centerSettings = court?.center?.settings as any || {};
+    const weekday = targetDate.getDay(); // Usar directamente el día de la fecha objetivo
+    
+    // 🚀 NUEVA LÓGICA: Usar servicio de compatibilidad enterprise
+    console.log(`🔍 [CALENDAR-STATUS] Llamando ScheduleCompatibilityService.getDaySchedule con:`, {
+      centerSettings: JSON.stringify(centerSettings, null, 2),
+      weekday,
+      dayName: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][weekday]
+    });
+    
+    const daySlots = ScheduleCompatibilityService.getDaySchedule(centerSettings, weekday);
+    console.log(`🔍 [CALENDAR-STATUS] daySlots obtenidos:`, daySlots);
+    
+    if (daySlots.length === 0) {
+      // Centro cerrado este día - no generar slots
+      console.log(`📅 [CALENDAR-ENTERPRISE] Centro cerrado el día ${weekday}`);
+      return NextResponse.json({
+        courtId,
+        date,
+        duration,
+        summary: { total: 0, available: 0, booked: 0, maintenance: 0, userBooked: 0, past: 0, unavailable: 0 },
+        slots: [],
+        legend: {}
+      });
+    }
 
-    if (centerSettings) {
-      const settings = centerSettings;
-      // 🔧 BUSCAR EN AMBAS ESTRUCTURAS: operatingHours Y business_hours
-      const operatingHours = settings.operatingHours || settings.business_hours;
+    // 🎯 PROCESAR MÚLTIPLES FRANJAS HORARIAS
+    const operatingRanges: Array<{ start: Date; end: Date }> = [];
+    
+    for (const slot of daySlots) {
+      const startDateString = `${date}T${slot.start}:00`;
+      const endDateString = `${date}T${slot.end}:00`;
       
-      if (operatingHours && typeof operatingHours === 'object') {
-        const localDate = utcToZonedTime(targetDate, centerTz); // Fecha en la zona horaria del centro
-        const weekday = localDate.getDay();
-        const dayMap: Record<number, string> = { 
-          0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 
-          4: 'thursday', 5: 'friday', 6: 'saturday' 
-        };
-        const dayKey = dayMap[weekday];
-        const dayConfig = dayKey ? operatingHours[dayKey] : null;
-        
-        if (dayConfig?.closed) {
-          // Centro cerrado este día - no generar slots
-          console.log(`📅 [CALENDAR] Centro cerrado el ${dayKey}`);
-          return NextResponse.json({
-            courtId,
-            date,
-            duration,
-            summary: { total: 0, available: 0, booked: 0, maintenance: 0, userBooked: 0, past: 0, unavailable: 0 },
-            slots: [],
-            legend: {}
-          });
-        }
-        
-        if (dayConfig?.open && dayConfig?.close) {
-          const open24  = normalizeToHHmm(dayConfig.open);
-          const close24 = normalizeToHHmm(dayConfig.close);
+      // CORREGIDO: Usar zonedTimeToUtc para interpretar correctamente en la zona del centro
+      const slotStart = zonedTimeToUtc(startDateString, centerTz);
+      const slotEnd = zonedTimeToUtc(endDateString, centerTz);
+      
+      operatingRanges.push({ start: slotStart, end: slotEnd });
+      
+      console.log(`🕒 [CALENDAR-ENTERPRISE] Franja horaria: ${slot.start}-${slot.end} (${slotStart.toISOString()} - ${slotEnd.toISOString()})`);
+    }
 
-          // --- CORRECCIÓN FINAL DE ZONA HORARIA ---
-          // Construir el string completo en la zona horaria local y LUEGO convertir a UTC.
-          // Esto evita el doble desfase y es la forma canónica de usar la librería.
-          const startDateString = `${date}T${open24}:00`;
-          const endDateString = `${date}T${close24}:00`;
+    // ✅ Aplicar EXCEPCIONES por fecha (cerrado o rangos específicos)
+    try {
+      const exceptions = Array.isArray(centerSettings?.exceptions) ? centerSettings.exceptions : [];
+      if (exceptions.length > 0) {
+        const localDate = utcToZonedTime(targetDate, centerTz);
+        const ymd = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}`;
+        const ex = exceptions.find((e: any) => e?.date === ymd);
+        if (ex) {
+          if (ex.closed === true) {
+            // Centro cerrado: devolver sin slots
+            return NextResponse.json({
+              courtId,
+              date,
+              duration,
+              summary: { total: 0, available: 0, booked: 0, maintenance: 0, userBooked: 0, past: 0, unavailable: 0 },
+              slots: [],
+              legend: {}
+            });
+          }
+          if (Array.isArray(ex.ranges) && ex.ranges.length > 0) {
+            // Construir slots solo dentro de los rangos excepcionales
+            const ranges: Array<{ start: Date; end: Date }> = (ex.ranges as Array<{ start: string; end: string }>)
+              .filter((r) => typeof r?.start === 'string' && typeof r?.end === 'string')
+              .map((r) => ({
+                start: zonedTimeToUtc(`${date}T${normalizeToHHmm(r.start)}:00`, centerTz),
+                end: zonedTimeToUtc(`${date}T${normalizeToHHmm(r.end)}:00`, centerTz),
+              }))
+              .filter((r) => r.end > r.start);
 
-          operatingStart = zonedTimeToUtc(startDateString, centerTz);
-          operatingEnd   = zonedTimeToUtc(endDateString, centerTz);
-          
-          console.log(`🕒 [CALENDAR-FINAL-FIX] Horarios de operación para ${dayKey}:`, {
-            date,
-            centerTz,
-            startDateString,
-            operatingStartUTC: operatingStart.toISOString(),
-            endDateString,
-            operatingEndUTC: operatingEnd.toISOString(),
-          });
-        }
-      }
-
-      // ✅ Aplicar EXCEPCIONES por fecha (cerrado o rangos específicos)
-      try {
-        const exceptions = Array.isArray(settings?.exceptions) ? settings.exceptions : [];
-        if (exceptions.length > 0) {
-          const localDate = utcToZonedTime(targetDate, centerTz);
-          const ymd = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}`;
-          const ex = exceptions.find((e: any) => e?.date === ymd);
-          if (ex) {
-            if (ex.closed === true) {
-              // Centro cerrado: devolver sin slots
-              return NextResponse.json({
-                courtId,
-                date,
-                duration,
-                summary: { total: 0, available: 0, booked: 0, maintenance: 0, userBooked: 0, past: 0, unavailable: 0 },
-                slots: [],
-                legend: {}
-              });
-            }
-            if (Array.isArray(ex.ranges) && ex.ranges.length > 0) {
-              // Construir slots solo dentro de los rangos excepcionales
-              const ranges: Array<{ start: Date; end: Date }> = (ex.ranges as Array<{ start: string; end: string }>)
-                .filter((r) => typeof r?.start === 'string' && typeof r?.end === 'string')
-                .map((r) => ({
-                  start: zonedTimeToUtc(`${date}T${normalizeToHHmm(r.start)}:00`, centerTz),
-                  end: zonedTimeToUtc(`${date}T${normalizeToHHmm(r.end)}:00`, centerTz),
-                }))
-                .filter((r) => r.end > r.start);
-
-              // Reemplazar ventana operativa por la unión mínima que cubra rangos de excepción
-              if (ranges.length > 0) {
-                // Para simplificar: generaremos slots luego iterando rangos en lugar de un único while
-                // Devolvemos señal al bucle principal usando una variable local
-                (globalThis as any).__calendar_exception_ranges = ranges;
-              }
+            // Reemplazar ventana operativa por la unión mínima que cubra rangos de excepción
+            if (ranges.length > 0) {
+              // Para simplificar: generaremos slots luego iterando rangos en lugar de un único while
+              // Devolvemos señal al bucle principal usando una variable local
+              (globalThis as any).__calendar_exception_ranges = ranges;
             }
           }
         }
-      } catch {}
-    }
+      }
+    } catch {}
 
     // Si hay rangos excepcionales, generamos para cada rango; de lo contrario usamos [operatingStart, operatingEnd)
     const exceptionRanges: Array<{ start: Date; end: Date }> = (globalThis as any).__calendar_exception_ranges || [];
@@ -389,18 +384,26 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
     };
 
+    // 🚀 ENTERPRISE: Manejar múltiples franjas horarias
     if (exceptionRanges.length > 0) {
+      // Excepciones tienen prioridad sobre horarios regulares
       exceptionRanges.forEach(r => buildSlotsForRange(r.start, r.end));
       // Limpiar señal global
       (globalThis as any).__calendar_exception_ranges = undefined;
+      console.log(`🎯 [CALENDAR-ENTERPRISE] Generados slots para ${exceptionRanges.length} franjas excepcionales`);
+    } else if (operatingRanges.length > 0) {
+      // Usar múltiples franjas horarias regulares
+      operatingRanges.forEach(range => buildSlotsForRange(range.start, range.end));
+      console.log(`🎯 [CALENDAR-ENTERPRISE] Generados slots para ${operatingRanges.length} franjas horarias`);
     } else {
-      buildSlotsForRange(operatingStart, operatingEnd);
+      // Sin horarios configurados
+      console.log(`⚠️ [CALENDAR-ENTERPRISE] Sin horarios configurados para este día`);
     }
 
     return ApiResponse.success({ courtId, date: targetDate.toISOString(), slots: calendarSlots });
-    } catch (error) {
-      console.error('❌ [CALENDAR-STATUS] Error:', error);
-      return ApiResponse.internalError('Error obteniendo estado del calendario');
-    }
+  } catch (error) {
+    console.error('❌ [CALENDAR-STATUS] Error:', error);
+    return ApiResponse.internalError('Error obteniendo estado del calendario');
+  }
   })(request);
 }

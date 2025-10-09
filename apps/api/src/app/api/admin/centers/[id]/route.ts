@@ -9,6 +9,7 @@ import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { z } from 'zod';
+import { ScheduleSlotsSchema } from '@/lib/services/schedule-compatibility.service';
 
 const UpdateCenterSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').optional(),
@@ -30,6 +31,7 @@ const UpdateCenterSchema = z.object({
     saturday: z.object({ open: z.string(), close: z.string(), closed: z.boolean() }).optional(),
     sunday: z.object({ open: z.string(), close: z.string(), closed: z.boolean() }).optional()
   }).optional(),
+  scheduleSlots: ScheduleSlotsSchema.optional(),
   amenities: z.array(z.string()).optional(),
   policies: z.object({
     cancellation: z.string().optional(),
@@ -55,13 +57,29 @@ const UpdateCenterSchema = z.object({
     exceptions: z
       .array(
         z.object({
-          date: z.string(), // formato YYYY-MM-DD
+          date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha debe ser YYYY-MM-DD'), // formato YYYY-MM-DD
           closed: z.boolean().optional(),
           ranges: z
             .array(
-              z.object({ start: z.string(), end: z.string() })
+              z.object({ 
+                start: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Formato de hora debe ser HH:MM'), 
+                end: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Formato de hora debe ser HH:MM') 
+              })
             )
             .optional(),
+        })
+        .refine((data) => {
+          // Si no está cerrado, debe tener ranges válidos
+          if (!data.closed && (!data.ranges || data.ranges.length === 0)) {
+            return false;
+          }
+          // Si tiene ranges, deben ser válidos
+          if (data.ranges && data.ranges.length > 0) {
+            return data.ranges.every(range => range.start < range.end);
+          }
+          return true;
+        }, {
+          message: 'Si no está cerrado, debe especificar al menos una franja horaria válida'
         })
       )
       .optional(),
@@ -198,6 +216,7 @@ export async function PUT(request: NextRequest) {
         ...(centerData.description ? { description: centerData.description } : {}),
         ...(centerData.website ? { website: centerData.website } : {}),
         ...(centerData.operatingHours ? { operatingHours: centerData.operatingHours } : {}),
+        ...(centerData.scheduleSlots ? { schedule_slots: centerData.scheduleSlots } : {}), // 🆕 Enterprise
         ...(centerData.amenities ? { amenities: centerData.amenities } : {}),
         ...(centerData.policies ? { policies: centerData.policies } : {}),
         ...(centerData.location ? { location: centerData.location } : {}),
@@ -207,6 +226,11 @@ export async function PUT(request: NextRequest) {
         ...(centerData.nightStart ? { nightStart: centerData.nightStart } : {}),
       };
       updateData.settings = mergedSettings;
+      
+      // 🆕 Enterprise: Log de migración automática
+      if (centerData.scheduleSlots) {
+        console.log(`🚀 [ENTERPRISE] Centro ${centerId}: schedule_slots actualizado con ${Object.values(centerData.scheduleSlots).reduce((acc: number, day: any) => acc + (day.slots?.length || 0), 0)} franjas totales`);
+      }
 
       const updatedCenter = await db.center.update({
         where: { id: centerId },

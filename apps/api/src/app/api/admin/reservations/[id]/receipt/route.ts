@@ -1,7 +1,7 @@
 // Forzar runtime Node.js para evitar errores de bundling con pdfkit/fontkit
 export const runtime = 'nodejs';
 
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import ReceiptPDF from '@/components/ReceiptPDF';

@@ -1,7 +1,7 @@
 // Verificación de acceso por QR
 export const runtime = 'nodejs';
 
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@repo/db';
 
 export async function GET(request: NextRequest) {
@@ -12,7 +12,12 @@ export async function GET(request: NextRequest) {
     const jwt = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
     let payload: any;
     try {
-      payload = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        console.error('❌ [ACCESS-VERIFY] JWT_SECRET no está configurado');
+        return NextResponse.json({ error: 'Error de configuración del servidor' }, { status: 500 });
+      }
+      payload = jwt.verify(token, jwtSecret);
     } catch {
       return new Response(JSON.stringify({ ok: false, error: 'Token inválido o expirado' }), { status: 401 });
     }

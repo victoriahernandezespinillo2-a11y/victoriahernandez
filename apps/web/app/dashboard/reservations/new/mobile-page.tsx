@@ -35,6 +35,7 @@ interface Court {
   image?: string;
   rating?: number;
   sportType?: string;
+  lightingExtraPerHour?: number;
 }
 
 interface CalendarSlot {

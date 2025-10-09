@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import jwt from 'jsonwebtoken';
@@ -12,7 +12,11 @@ export async function POST(request: NextRequest) {
       const { token } = await req.json();
       if (!token) return ApiResponse.badRequest('Token requerido');
 
-      const secret = process.env.JWT_SECRET || 'your-secret-key';
+      const secret = process.env.JWT_SECRET;
+      if (!secret) {
+        console.error('❌ [CHECK-IN] JWT_SECRET no está configurado');
+        return NextResponse.json({ error: 'Error de configuración del servidor' }, { status: 500 });
+      }
       let payload: any;
       try {
         payload = jwt.verify(token, secret);

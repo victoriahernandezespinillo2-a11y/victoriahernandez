@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useAdminCenters } from '@/lib/hooks';
 import { adminApi } from '@/lib/api';
+import ScheduleEditor from '@/components/schedule/ScheduleEditor';
 
 // Usar la interfaz del hook en lugar de duplicar
 
@@ -91,6 +92,41 @@ export default function CentersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [editingCenterId, setEditingCenterId] = useState<string | null>(null);
+
+  // Función para validar excepciones antes de enviar
+  const validateExceptions = (exceptions: any[]) => {
+    const errors: string[] = [];
+    
+    exceptions.forEach((ex, index) => {
+      if (!ex.date || ex.date.trim() === '') {
+        errors.push(`Excepción ${index + 1}: La fecha es requerida`);
+        return;
+      }
+      
+      // Validar formato de fecha
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(ex.date)) {
+        errors.push(`Excepción ${index + 1}: Formato de fecha inválido (debe ser YYYY-MM-DD)`);
+      }
+      
+      if (!ex.closed) {
+        // Si no está cerrado, debe tener horarios válidos
+        if (!ex.start || !ex.end || ex.start.trim() === '' || ex.end.trim() === '') {
+          errors.push(`Excepción ${index + 1}: Si no está cerrado, debe especificar horarios de inicio y fin`);
+        } else {
+          // Validar formato de hora
+          const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+          if (!timeRegex.test(ex.start) || !timeRegex.test(ex.end)) {
+            errors.push(`Excepción ${index + 1}: Formato de hora inválido (debe ser HH:MM)`);
+          } else if (ex.start >= ex.end) {
+            errors.push(`Excepción ${index + 1}: La hora de inicio debe ser anterior a la hora de fin`);
+          }
+        }
+      }
+    });
+    
+    return errors;
+  };
   const [ohForm, setOhForm] = useState<any>({
     slotMinutes: 30,
     operatingHours: {
@@ -102,7 +138,16 @@ export default function CentersPage() {
       saturday: { open: '08:00', close: '23:00', closed: false },
       sunday: { open: '08:00', close: '20:00', closed: false },
     },
-    exceptions: [] as Array<{ date: string; closed?: boolean; start?: string; end?: string }>,
+    scheduleSlots: {
+      monday: { closed: false, slots: [{ start: '08:00', end: '22:00' }] },
+      tuesday: { closed: false, slots: [{ start: '08:00', end: '22:00' }] },
+      wednesday: { closed: false, slots: [{ start: '08:00', end: '22:00' }] },
+      thursday: { closed: false, slots: [{ start: '08:00', end: '22:00' }] },
+      friday: { closed: false, slots: [{ start: '08:00', end: '23:00' }] },
+      saturday: { closed: false, slots: [{ start: '08:00', end: '23:00' }] },
+      sunday: { closed: false, slots: [{ start: '08:00', end: '20:00' }] },
+    },
+    exceptions: [] as Array<{ date: string; closed?: boolean; ranges?: Array<{ start: string; end: string }> }>,
     timezone: 'Europe/Madrid',
     dayStart: '06:00',
     nightStart: '18:00',
@@ -394,6 +439,7 @@ export default function CentersPage() {
                           dayStart: data?.dayStart || s.dayStart || prev.dayStart,
                           nightStart: data?.nightStart || s.nightStart || prev.nightStart,
                           operatingHours: s.operatingHours || prev.operatingHours,
+                          scheduleSlots: s.schedule_slots || prev.scheduleSlots, // ✅ AGREGAR schedule_slots
                           exceptions: Array.isArray(s.exceptions) ? s.exceptions : prev.exceptions,
                         }));
                         setShowEdit(true);
@@ -432,11 +478,33 @@ export default function CentersPage() {
                         // Mapear valores existentes
                         const slotMinutes = settings?.slot?.minutes || settings?.booking?.slotMinutes || 30;
                         const operatingHours = normalizeOperatingHours(settings?.operatingHours, ohForm.operatingHours);
-                        const exceptions = Array.isArray(settings?.exceptions) ? settings.exceptions : [];
+                        // Transformar excepciones de la estructura de BD a la estructura del frontend
+                        const exceptions = Array.isArray(settings?.exceptions) ? settings.exceptions.map((ex: any) => {
+                          if (ex.closed) {
+                            return { date: ex.date, closed: true, start: '', end: '' };
+                          } else if (ex.ranges && ex.ranges.length > 0) {
+                            // Si tiene ranges, usar el primero para start/end (compatibilidad con UI actual)
+                            const firstRange = ex.ranges[0];
+                            return { 
+                              date: ex.date, 
+                              closed: false, 
+                              start: firstRange.start, 
+                              end: firstRange.end 
+                            };
+                          } else {
+                            // Fallback si no tiene estructura válida
+                            return { date: ex.date, closed: true, start: '', end: '' };
+                          }
+                        }) : [];
+                        
                         setOhForm({
                           slotMinutes,
                           operatingHours,
+                          scheduleSlots: settings?.schedule_slots || {}, // ✅ AGREGAR schedule_slots
                           exceptions,
+                          timezone: centerData?.timezone || center?.timezone || 'Europe/Madrid',
+                          dayStart: centerData?.dayStart || center?.dayStart || '06:00',
+                          nightStart: centerData?.nightStart || center?.nightStart || '18:00',
                         });
                         const rc = settings?.receipt || {};
                         setReceiptForm({
@@ -815,74 +883,17 @@ export default function CentersPage() {
                   </div>
                   <p className="text-xs text-gray-700">Si marcas "incluidos", el precio calculado ya incorpora impuestos; el recibo mostrará el componente impositivo.</p>
                 </div>
-              {/* Operating hours per day */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  ['monday','Lunes'],
-                  ['tuesday','Martes'],
-                  ['wednesday','Miércoles'],
-                  ['thursday','Jueves'],
-                  ['friday','Viernes'],
-                  ['saturday','Sábado'],
-                  ['sunday','Domingo'],
-                ].map(([key,label]) => (
-                  <div key={key} className="border rounded p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-900">{label}</span>
-                      <label className="text-sm inline-flex items-center gap-2 text-gray-900">
-                        <input
-                          type="checkbox"
-                          checked={ohForm.operatingHours[key as keyof typeof ohForm.operatingHours]?.closed || false}
-                          onChange={(e) => setOhForm({
-                            ...ohForm,
-                            operatingHours: {
-                              ...ohForm.operatingHours,
-                              [key as any]: {
-                                ...(((ohForm.operatingHours as any)?.[key as any]) || {}),
-                                closed: e.target.checked,
-                              },
-                            },
-                          })}
-                        />
-                        <span className="text-gray-900">Cerrado</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1">
-                        <label className="block text-xs font-medium text-gray-900 mb-1">Apertura</label>
-                        <input
-                          type="time"
-                          value={ohForm.operatingHours[key as any]?.open || ''}
-                          onChange={(e) => setOhForm({
-                            ...ohForm,
-                            operatingHours: {
-                              ...ohForm.operatingHours,
-                              [key as any]: { ...(((ohForm.operatingHours as any)?.[key as any]) || {}), open: e.target.value },
-                            },
-                          })}
-                          disabled={ohForm.operatingHours[key as any]?.closed}
-                          className="w-full border rounded px-3 py-2"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-xs font-medium text-gray-900 mb-1">Cierre</label>
-                        <input
-                          type="time"
-                          value={ohForm.operatingHours[key as any]?.close || ''}
-                          onChange={(e) => setOhForm({
-                            ...ohForm,
-                            operatingHours: {
-                              ...ohForm.operatingHours,
-                              [key as any]: { ...(((ohForm.operatingHours as any)?.[key as any]) || {}), close: e.target.value },
-                            },
-                          })}
-                          disabled={ohForm.operatingHours[key as any]?.closed}
-                          className="w-full border rounded px-3 py-2"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              {/* Horarios de operación - Enterprise */}
+              <div className="space-y-4">
+                <h4 className="text-md font-semibold text-gray-900">Horarios de operación</h4>
+                <ScheduleEditor
+                  scheduleSlots={ohForm.scheduleSlots}
+                  operatingHours={ohForm.operatingHours}
+                  onChange={(scheduleSlots) => setOhForm({ ...ohForm, scheduleSlots })}
+                  onLegacyChange={(operatingHours) => setOhForm({ ...ohForm, operatingHours })}
+                  showLegacyMode={true}
+                  className="space-y-4"
+                />
               </div>
               {/* Exceptions */}
               <div>
@@ -890,7 +901,7 @@ export default function CentersPage() {
                   <span className="text-sm font-medium text-gray-900">Excepciones</span>
                   <button
                     className="text-sm px-2 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
-                    onClick={() => setOhForm({ ...ohForm, exceptions: [...ohForm.exceptions, { date: '', closed: true }] })}
+                    onClick={() => setOhForm({ ...ohForm, exceptions: [...ohForm.exceptions, { date: '', closed: true, start: '', end: '' }] })}
                   >
                     <span className="text-gray-900">Añadir excepción</span>
                   </button>
@@ -951,6 +962,19 @@ export default function CentersPage() {
                           className="w-full border rounded px-3 py-2"
                         />
                       </div>
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = ohForm.exceptions.filter((_: any, i: number) => i !== idx);
+                            setOhForm({ ...ohForm, exceptions: next });
+                          }}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded"
+                          title="Eliminar excepción"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -963,6 +987,14 @@ export default function CentersPage() {
                 disabled={!editingCenterId}
                 onClick={async () => {
                   if (!editingCenterId) return;
+                  
+                  // Validar excepciones antes de enviar
+                  const exceptionErrors = validateExceptions(ohForm.exceptions);
+                  if (exceptionErrors.length > 0) {
+                    alert(`Errores en las excepciones:\n${exceptionErrors.join('\n')}`);
+                    return;
+                  }
+                  
                   setIsLoading(true);
                   try {
                     const normalizedHours = normalizeOperatingHours(ohForm.operatingHours, ohForm.operatingHours);
@@ -982,11 +1014,23 @@ export default function CentersPage() {
                         // Normalizar antes de guardar para asegurar HH:mm
                         operatingHours: normalizedHours,
                         slot: { minutes: Number(ohForm.slotMinutes) || 30 },
-                        exceptions: ohForm.exceptions.map((ex: any) =>
-                          ex.closed
-                            ? { date: ex.date, closed: true }
-                            : { date: ex.date, ranges: [{ start: ex.start, end: ex.end }] }
-                        ),
+                        exceptions: ohForm.exceptions
+                          .filter((ex: any) => ex.date && ex.date.trim() !== '') // Solo excepciones con fecha válida
+                          .map((ex: any) => {
+                            if (ex.closed) {
+                              return { date: ex.date, closed: true };
+                            } else if (ex.ranges && ex.ranges.length > 0) {
+                              // Si ya tiene ranges, usarlos
+                              return { date: ex.date, ranges: ex.ranges };
+                            } else if (ex.start && ex.end && ex.start.trim() !== '' && ex.end.trim() !== '') {
+                              // Si tiene start/end, convertirlos a ranges
+                              return { date: ex.date, ranges: [{ start: ex.start, end: ex.end }] };
+                            } else {
+                              // Si no tiene datos válidos, omitir esta excepción
+                              return null;
+                            }
+                          })
+                          .filter((ex: any) => ex !== null), // Filtrar excepciones nulas
                         receipt: {
                           legalName: (receiptForm.legalName || '').trim() || undefined,
                           taxId: (receiptForm.taxId || '').trim() || undefined,
@@ -1007,6 +1051,7 @@ export default function CentersPage() {
                         },
                         timezone: ohForm.timezone,
                       },
+                      scheduleSlots: ohForm.scheduleSlots, // 🆕 AGREGAR SCHEDULE SLOTS
                     };
                     await updateCenter(editingCenterId, payload as any);
                     setShowEdit(false);

@@ -18,7 +18,7 @@ interface PaymentModalProps {
 type PaymentMethod = 'CARD' | 'BIZUM' | 'ONSITE';
 
 export default function PaymentModal(props: PaymentModalProps) {
-  const { isOpen, onClose, reservationId, amount, currency = 'COP', courtName, dateLabel, timeLabel, onSuccess } = props;
+  const { isOpen, onClose, reservationId, amount, currency = 'EUR', courtName, dateLabel, timeLabel, onSuccess } = props;
   const router = useRouter();
 
   const [method, setMethod] = useState<PaymentMethod>('CARD');
@@ -115,7 +115,7 @@ export default function PaymentModal(props: PaymentModalProps) {
 
   const formattedAmount = useMemo(() => {
     try {
-      return new Intl.NumberFormat('es-CO', { style: 'currency', currency }).format(amount);
+      return new Intl.NumberFormat('es-ES', { style: 'currency', currency }).format(amount);
     } catch {
       return `${amount}`;
     }

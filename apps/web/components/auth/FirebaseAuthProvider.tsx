@@ -84,10 +84,17 @@ export const FirebaseAuthProvider = ({ children }: FirebaseAuthProviderProps) =>
   // Suscribirse a cambios de autenticación cuando auth esté listo
   useEffect(() => {
     if (configError || !authInstance) {
+      console.log('⚠️ [FirebaseAuth] No se puede suscribir:', { configError, hasAuthInstance: !!authInstance });
       return;
     }
 
+    console.log('✅ [FirebaseAuth] Suscribiéndose a cambios de autenticación...');
     const unsubscribe = onAuthStateChanged(authInstance, (user: User | null) => {
+      console.log('🔍 [FirebaseAuth] Estado de autenticación cambió:', {
+        hasUser: !!user,
+        userId: user?.uid,
+        email: user?.email
+      });
       setFirebaseUser(user);
     });
 

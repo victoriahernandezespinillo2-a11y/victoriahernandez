@@ -4,6 +4,7 @@ import { PricingService } from './pricing.service';
 import { NotificationService } from '@repo/notifications';
 import { PaymentService } from '@repo/payments';
 import { reservationLockService } from './reservation-lock.service';
+import { ScheduleCompatibilityService } from './schedule-compatibility.service';
 // Importar qrcode dinámicamente donde se usa para evitar error de tipos en compilación
 
 // Esquemas de validación
@@ -673,26 +674,16 @@ export class ReservationService {
         slotMinutes = Math.max(5, Math.min(240, Math.floor(settings.slot.minutes)));
       }
 
-      // Horarios por día (operatingHours: monday..sunday { open, close, closed })
-      const oh = settings?.operatingHours;
-      if (oh && typeof oh === 'object') {
-        const weekday = date.getDay(); // 0: domingo ... 6: sábado
-        const map: Record<number, string> = {
-          0: 'sunday',
-          1: 'monday',
-          2: 'tuesday',
-          3: 'wednesday',
-          4: 'thursday',
-          5: 'friday',
-          6: 'saturday',
-        };
-        const key = map[weekday];
-        const config = key ? (oh as any)[key] : undefined;
-        if (config?.closed === true) {
-          dayRanges = [];
-        } else if (config?.open && config?.close) {
-          dayRanges = [{ start: config.open, end: config.close }];
-        }
+      // 🚀 ENTERPRISE: Horarios por día usando servicio de compatibilidad
+      const weekday = date.getDay(); // 0: domingo ... 6: sábado
+      const daySlots = ScheduleCompatibilityService.getDaySchedule(settings, weekday);
+      
+      if (daySlots.length === 0) {
+        // Centro cerrado
+        dayRanges = [];
+      } else {
+        // Convertir slots a formato esperado
+        dayRanges = daySlots.map(slot => ({ start: slot.start, end: slot.end }));
       }
 
       // Excepciones opcionales: settings.exceptions: [{ date: 'YYYY-MM-DD', closed?: true, ranges?: [{start,end}]}]

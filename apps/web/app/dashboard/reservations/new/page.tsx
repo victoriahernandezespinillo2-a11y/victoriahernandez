@@ -14,6 +14,7 @@ import {
   Smartphone,
   Monitor,
   X,
+  Lightbulb,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -55,6 +56,7 @@ interface Court {
   pricePerHour: number;
   amenities: string[];
   image?: string;
+  lightingExtraPerHour?: number;
 }
 
 interface TimeSlot {
@@ -100,20 +102,60 @@ export default function NewReservationPage() {
   const [loadingReservation, setLoadingReservation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showConflictModal, setShowConflictModal] = useState(false);
   const [createdReservationId, setCreatedReservationId] = useState<string | null>(null);
   const [selectedCalendarSlot, setSelectedCalendarSlot] = useState<CalendarSlot | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number>(60);
+  const [lightingSelected, setLightingSelected] = useState<boolean>(false);
 
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [showTimeSlotsDesktop, setShowTimeSlotsDesktop] = useState(false);
 
+  // Helper function to determine if a time slot is during day or night
+  const isDayTime = (timeString: string): boolean => {
+    console.log('🔍 [DEBUG] isDayTime called with:', { timeString, selectedCenter });
+    
+    if (!selectedCenter?.dayStart || !selectedCenter?.nightStart) {
+      console.log('⚠️ [DEBUG] No dayStart/nightStart, defaulting to day time');
+      return true;
+    }
+    
+    const [hours, minutes] = timeString.split(':').map(Number);
+    const slotMinutes = (hours || 0) * 60 + (minutes || 0);
+    
+    const dayStartMinutes = selectedCenter.dayStart.split(':').reduce((acc: number, part: string, i: number) => 
+      acc + (i === 0 ? parseInt(part) * 60 : parseInt(part)), 0);
+    const nightStartMinutes = selectedCenter.nightStart.split(':').reduce((acc: number, part: string, i: number) => 
+      acc + (i === 0 ? parseInt(part) * 60 : parseInt(part)), 0);
+    
+    const isDay = slotMinutes >= dayStartMinutes && slotMinutes < nightStartMinutes;
+    console.log('🔍 [DEBUG] Day calculation:', { 
+      slotMinutes, 
+      dayStartMinutes, 
+      nightStartMinutes, 
+      isDay 
+    });
+    
+    return isDay;
+  };
+
   // Calculate total price
   const totalPrice = useMemo(() => {
     if (!selectedCourt || !selectedDuration) return 0;
-    return (selectedCourt.pricePerHour * selectedDuration) / 60;
-  }, [selectedCourt, selectedDuration]);
+    
+    const basePrice = (selectedCourt.pricePerHour * selectedDuration) / 60;
+    
+    // Add lighting cost if selected and it's day time
+    let lightingCost = 0;
+    if (lightingSelected && selectedSlot && isDayTime(selectedSlot.startTime)) {
+      const lightingExtraPerHour = selectedCourt.lightingExtraPerHour || 0;
+      lightingCost = (lightingExtraPerHour * selectedDuration) / 60;
+    }
+    
+    return basePrice + lightingCost;
+  }, [selectedCourt, selectedDuration, lightingSelected, selectedSlot]);
 
   // Función para cargar timeSlots desde la API
   const loadTimeSlots = async (courtId: string, date: string, duration: number) => {
@@ -165,17 +207,24 @@ export default function NewReservationPage() {
 
   // Cargar centros activos y preparar flujo dinámico
   useEffect(() => {
-    if (authLoading || !firebaseUser) return;
+    if (authLoading || !firebaseUser) {
+      console.log('🔍 [RESERVAS] Esperando autenticación...', { authLoading, hasUser: !!firebaseUser });
+      return;
+    }
     let mounted = true;
     (async () => {
       try {
+        console.log('🔍 [RESERVAS] Cargando centros...');
         const list: any = await api.centers.getAll?.({ includeStats: false } as any);
+        console.log('🔍 [RESERVAS] Respuesta de centros:', list);
         const arr = Array.isArray(list?.data) ? list.data : (Array.isArray(list) ? list : []);
+        console.log('🔍 [RESERVAS] Centros procesados:', arr.length, arr);
         if (!mounted) return;
         setCenters(arr);
         if (arr.length === 1) {
           setSelectedCenter(arr[0]);
           // Cargar canchas del centro único
+          console.log('🔍 [RESERVAS] Cargando canchas del centro único:', arr[0].id);
           await getCourts({ isActive: true, centerId: arr[0].id } as any);
           // El flujo comienza en Deporte
           setStep(1);
@@ -184,8 +233,10 @@ export default function NewReservationPage() {
           setStep(1);
         }
       } catch (e) {
-        console.error('Error cargando centros:', e);
+        console.error('❌ [RESERVAS] Error cargando centros:', e);
         setCenters([]);
+        // Mostrar error al usuario
+        setError('Error al cargar centros deportivos. Por favor, recarga la página.');
       }
     })();
     return () => { mounted = false; };
@@ -278,7 +329,16 @@ export default function NewReservationPage() {
     }
   };
   
-  const totalCost = pricing?.total ?? (selectedCourt ? (selectedCourt.pricePerHour * duration / 60) : 0);
+  const baseCost = pricing?.total ?? (selectedCourt ? (selectedCourt.pricePerHour * duration / 60) : 0);
+  
+  // Add lighting cost if selected and it's day time
+  // Support both desktop (selectedCalendarSlot) and mobile (selectedSlot)
+  const currentSlot = selectedCalendarSlot || selectedSlot;
+  const lightingCost = lightingSelected && currentSlot && isDayTime(currentSlot.startTime) 
+    ? (selectedCourt?.lightingExtraPerHour || 0) * duration / 60 
+    : 0;
+  
+  const totalCost = baseCost + lightingCost;
 
   // Obtener fecha mínima (hoy)
   const today = new Date();
@@ -322,10 +382,20 @@ export default function NewReservationPage() {
         isMultiuse: (selectedCourt as any)?.isMultiuse
       });
       
+      console.log('🔍 [DEBUG] Enviando datos al backend:', {
+        courtId: selectedCourt.id,
+        startTime: startTime,
+        duration,
+        lightingSelected,
+        notes,
+        sport: selectedSport || (selectedCourt as any)?.sportType || undefined,
+      });
+
       const res: any = await api.reservations.create({
         courtId: selectedCourt.id,
         startTime: startTime,
         duration,
+        lightingSelected: lightingSelected,
         // paymentMethod omitido para usar flujo predeterminado en backend
         notes,
         sport: selectedSport || (selectedCourt as any)?.sportType || undefined,
@@ -338,25 +408,34 @@ export default function NewReservationPage() {
         router.push('/dashboard/reservations');
       }
     } catch (error: any) {
-      // 🔒 MANEJO ROBUSTO DE ERRORES CON ERROR HANDLER
-      const userMessage = ErrorHandler.handleError(error, {
-        action: 'Crear reserva',
-        endpoint: '/api/reservations',
-        timestamp: new Date().toISOString()
-      });
+      console.error('Error creating reservation:', error);
       
-      // Mostrar mensaje específico al usuario
-      alert(userMessage);
+      // Manejo específico de errores de conflicto de horario
+      if (error.status === 409 && error.message?.includes('Horario no disponible')) {
+        // Mostrar modal de conflicto con opciones
+        setError('conflict');
+        setShowConflictModal(true);
+      } else {
+        // Error genérico con ErrorHandler
+        const userMessage = ErrorHandler.handleError(error, {
+          action: 'Crear reserva',
+          endpoint: '/api/reservations',
+          timestamp: new Date().toISOString()
+        });
+        
+        // Mostrar mensaje específico al usuario
+        alert(userMessage);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CO', {
+    return new Intl.NumberFormat('es-ES', {
       style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0
+      currency: 'EUR',
+      minimumFractionDigits: 2
     }).format(amount);
   };
 
@@ -776,6 +855,7 @@ export default function NewReservationPage() {
                 timeSlots={timeSlots}
                 selectedSlot={selectedSlot}
                 onSlotSelect={(slot) => {
+                  console.log('🔍 [DEBUG] Slot selected:', slot);
                   // Convertir TimeSlot a CalendarSlot
                   const calendarSlot: CalendarSlot = {
                     ...slot,
@@ -784,10 +864,19 @@ export default function NewReservationPage() {
                     conflicts: []
                   };
                   setSelectedSlot(calendarSlot);
+                  // Reset lighting selection when changing slot
+                  setLightingSelected(false);
                 }}
                 loading={loadingTimeSlots}
                 loadingReservation={loadingReservation}
                 courtName={selectedCourt?.name || ''}
+                isDayTime={selectedSlot ? isDayTime(selectedSlot.startTime) : true}
+                lightingSelected={lightingSelected}
+                onLightingChange={(selected) => {
+                  console.log('🔍 [DEBUG] Lighting changed:', selected);
+                  setLightingSelected(selected);
+                }}
+                lightingExtraPrice={selectedCourt?.lightingExtraPerHour || 0}
                 onContinue={async () => {
                    // En móvil, crear la reserva directamente con el slot seleccionado
                    if (selectedSlot && selectedCourt && selectedDate && !loadingReservation) {
@@ -797,10 +886,20 @@ export default function NewReservationPage() {
                        // Crear fecha ISO para startTime
                        const startDateTime = new Date(`${selectedDate}T${selectedSlot.startTime}`);
                        
+                       console.log('🔍 [DEBUG-MOBILE] Enviando datos al backend:', {
+                         courtId: selectedCourt.id,
+                         startTime: startDateTime.toISOString(),
+                         duration: selectedDuration,
+                         lightingSelected,
+                         notes,
+                         sport: selectedSport || (selectedCourt as any)?.sportType || undefined,
+                       });
+
                        const reservationResponse: any = await api.reservations.create({
                          courtId: selectedCourt.id,
                          startTime: startDateTime.toISOString(),
                          duration: selectedDuration,
+                         lightingSelected: lightingSelected,
                          paymentMethod: 'redsys' as 'redsys',
                          notes: notes,
                          sport: selectedSport || (selectedCourt as any)?.sportType || undefined,
@@ -814,9 +913,18 @@ export default function NewReservationPage() {
                          console.error('No se obtuvo reservationId válido de la API:', reservationResponse);
                          alert('No se pudo crear la reserva. Intenta nuevamente.');
                        }
-                     } catch (error) {
+                     } catch (error: any) {
                        console.error('Error creating reservation:', error);
-                       alert('Error al crear la reserva. Intenta nuevamente.');
+                       
+                       // Manejo específico de errores de conflicto de horario
+                       if (error.status === 409 && error.message?.includes('Horario no disponible')) {
+                         // Mostrar modal de conflicto con opciones
+                         setError('conflict');
+                         setShowConflictModal(true);
+                       } else {
+                         // Error genérico
+                         setError(error.message || 'Error al crear la reserva. Intenta nuevamente.');
+                       }
                      } finally {
                        setLoadingReservation(false);
                      }
@@ -851,6 +959,7 @@ export default function NewReservationPage() {
                       setSelectedCalendarSlot(null);
                       setSelectedSlot(null); // Resetear slot seleccionado
                       setSelectedSlotIndex(null); // Resetear index seleccionado
+                      setLightingSelected(false); // Resetear selección de iluminación
                       setShowTimeSlotsDesktop(true);
                       
                       // Cargar horarios automáticamente
@@ -865,6 +974,7 @@ export default function NewReservationPage() {
                       setSelectedCalendarSlot(null);
                       setSelectedSlot(null); // Resetear slot seleccionado
                       setSelectedSlotIndex(null); // Resetear index seleccionado
+                      setLightingSelected(false); // Resetear selección de iluminación
                     }}
                     courtName={selectedCourt?.name}
                   />
@@ -919,6 +1029,44 @@ export default function NewReservationPage() {
                               <p className="font-bold text-green-900 text-lg">€{selectedCalendarSlot.price}</p>
                             </div>
                           </div>
+
+                          {/* Opción de iluminación para horarios de día (Desktop) */}
+                          {selectedCalendarSlot && isDayTime(selectedCalendarSlot.startTime) && selectedCourt?.lightingExtraPerHour !== undefined && selectedCourt.lightingExtraPerHour > 0 && (
+                            <div className="mt-4 p-3 border border-yellow-200 rounded-lg bg-yellow-50">
+                              <div className="flex items-center space-x-3">
+                                <Lightbulb className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <label htmlFor="lighting-checkbox-desktop" className="flex items-center space-x-2 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      id="lighting-checkbox-desktop"
+                                      checked={lightingSelected}
+                                      onChange={(e) => setLightingSelected(e.target.checked)}
+                                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                    />
+                                    <span className="text-sm font-medium text-yellow-800">
+                                      Iluminación adicional (+€{(selectedCourt.lightingExtraPerHour * duration / 60).toFixed(2)})
+                                    </span>
+                                  </label>
+                                  <p className="text-xs text-yellow-700 mt-1 ml-6">
+                                    <strong>Horario de día:</strong> La iluminación es opcional. Si la seleccionas, se aplicará un cargo adicional de €{selectedCourt.lightingExtraPerHour}/hora.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Mensaje para horarios de noche (Desktop) */}
+                          {selectedCalendarSlot && !isDayTime(selectedCalendarSlot.startTime) && (
+                            <div className="mt-4 p-3 border border-green-200 rounded-lg bg-green-100">
+                              <div className="flex items-center space-x-3">
+                                <Lightbulb className="h-5 w-5 text-green-600 flex-shrink-0" />
+                                <p className="text-sm font-medium text-green-800">
+                                  <strong>Horario nocturno:</strong> Iluminación incluida sin costo adicional.
+                                </p>
+                              </div>
+                            </div>
+                          )}
                           <button
                             onClick={handleSubmit}
                             disabled={isLoading}
@@ -1098,10 +1246,10 @@ export default function NewReservationPage() {
           onClose={() => setShowPaymentModal(false)}
           reservationId={createdReservationId || ''}
           amount={Number(totalCost || 0)}
-          currency="COP"
+          currency="EUR"
           courtName={selectedCourt?.name || ''}
           dateLabel={selectedDate ? formatDate(selectedDate) : ''}
-          timeLabel={selectedTime}
+          timeLabel={selectedSlot ? `${selectedSlot.startTime} - ${selectedSlot.endTime}` : selectedTime}
           onSuccess={() => router.push('/dashboard/reservations')}
         />
       ) : (
@@ -1110,12 +1258,88 @@ export default function NewReservationPage() {
           onClose={() => setShowPaymentModal(false)}
           reservationId={createdReservationId || ''}
           amount={Number(totalCost || 0)}
-          currency="COP"
+          currency="EUR"
           courtName={selectedCourt?.name || ''}
           dateLabel={selectedDate ? formatDate(selectedDate) : ''}
-          timeLabel={selectedTime}
+          timeLabel={selectedCalendarSlot ? `${selectedCalendarSlot.startTime} - ${selectedCalendarSlot.endTime}` : selectedTime}
           onSuccess={() => router.push('/dashboard/reservations')}
         />
+      )}
+
+      {/* Modal de Conflicto de Horario */}
+      {showConflictModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <AlertCircle className="h-6 w-6 text-orange-500 mr-3" />
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Horario No Disponible
+                </h3>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-gray-600 mb-4">
+                  El horario seleccionado ya está reservado o en proceso de pago. Tienes las siguientes opciones:
+                </p>
+                
+                <div className="space-y-3">
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h4 className="font-medium text-blue-900 mb-1">Opción 1: Seleccionar otro horario</h4>
+                    <p className="text-sm text-blue-700">
+                      Elige un horario diferente disponible.
+                    </p>
+                  </div>
+                  
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <h4 className="font-medium text-green-900 mb-1">Opción 2: Liberar reserva anterior</h4>
+                    <p className="text-sm text-green-700">
+                      Si tienes una reserva pendiente en este horario, puedes liberarla.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowConflictModal(false);
+                    setError(null);
+                    // Recargar horarios para mostrar disponibilidad actualizada
+                    if (selectedCourt?.id && selectedDate) {
+                      loadTimeSlots(selectedCourt.id, selectedDate, selectedDuration);
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                >
+                  Ver Horarios Actualizados
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowConflictModal(false);
+                    setError(null);
+                    // Aquí podrías implementar la lógica para liberar reservas anteriores
+                    // Por ahora, solo cerramos el modal
+                  }}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+                >
+                  Liberar Reserva Anterior
+                </button>
+              </div>
+              
+              <button
+                onClick={() => {
+                  setShowConflictModal(false);
+                  setError(null);
+                }}
+                className="w-full mt-3 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

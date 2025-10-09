@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 // Forzar Node.js runtime: pdfkit no funciona en Edge
 export const runtime = 'nodejs';
 import { auth } from '@repo/auth';
@@ -25,7 +25,12 @@ export async function GET(request: NextRequest) {
       try {
         const token = authHeader.substring(7);
         const jwt = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
-        const payload = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any;
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+          console.error('❌ [RECEIPT] JWT_SECRET no está configurado');
+          return NextResponse.json({ error: 'Error de configuración del servidor' }, { status: 500 });
+        }
+        const payload = jwt.verify(token, jwtSecret) as any;
         userId = payload.uid || payload.userId || payload.id;
         console.log('✅ [RECEIPT] Usuario autenticado por JWT header:', userId);
       } catch (jwtError) {
@@ -40,7 +45,12 @@ export async function GET(request: NextRequest) {
     if (tokenParam) {
       try {
         const jwt = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
-        const payload = jwt.verify(tokenParam, process.env.JWT_SECRET || 'your-secret-key') as any;
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+          console.error('❌ [RECEIPT] JWT_SECRET no está configurado');
+          return NextResponse.json({ error: 'Error de configuración del servidor' }, { status: 500 });
+        }
+        const payload = jwt.verify(tokenParam, jwtSecret) as any;
         
         // Verificar que es un token de acceso al recibo
         if (payload.type === 'receipt-access') {

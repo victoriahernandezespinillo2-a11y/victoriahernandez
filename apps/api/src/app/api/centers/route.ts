@@ -30,10 +30,17 @@ export async function GET(request: NextRequest) {
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const jwtLib = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
         const token = authHeader.substring(7);
-        const payload = jwtLib.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any;
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+          console.error('❌ [CENTERS] JWT_SECRET no está configurado');
+          return NextResponse.json({ error: 'Error de configuración del servidor' }, { status: 500 });
+        }
+        const payload = jwtLib.verify(token, jwtSecret) as any;
         userId = payload?.id || payload?.userId || payload?.uid || null;
       }
-    } catch {}
+    } catch (error) {
+      console.error('❌ [CENTERS] Error verificando JWT:', error);
+    }
     if (!userId) {
       const session = await auth().catch(() => null);
       userId = session?.user?.id || null;

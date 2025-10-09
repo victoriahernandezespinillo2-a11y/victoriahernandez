@@ -885,17 +885,17 @@ export default function MaintenancePage() {
           
           {/* Controles de expansión de series */}
           {groupBySeries && availableSeries.length > 0 && (
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-blue-900">Expandir Serie:</span>
+            <div className="mt-4 p-3 sm:p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="space-y-3">
+                <div className="flex flex-col space-y-2">
+                  <label className="text-sm font-medium text-blue-900">Expandir Serie:</label>
                   <select
                     value={expandedSeriesId || ''}
                     onChange={(e) => {
                       setExpandedSeriesId(e.target.value || null);
                       setCurrentPage(1);
                     }}
-                    className="px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-sm bg-white"
+                    className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-sm bg-white min-h-[48px] touch-manipulation"
                   >
                     <option value="">Seleccionar serie para expandir</option>
                     {availableSeries.map((series) => (
@@ -907,18 +907,23 @@ export default function MaintenancePage() {
                 </div>
                 
                 {expandedSeriesId && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-blue-700">
-                      Serie expandida: {availableSeries.find(s => s.seriesId === expandedSeriesId)?.description}
-                    </span>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 bg-blue-100 rounded-md">
+                    <div className="flex-1">
+                      <span className="text-sm text-blue-700 font-medium">
+                        Serie expandida:
+                      </span>
+                      <p className="text-sm text-blue-600 truncate">
+                        {availableSeries.find(s => s.seriesId === expandedSeriesId)?.description}
+                      </p>
+                    </div>
                     <button
                       onClick={() => {
                         setExpandedSeriesId(null);
                         setCurrentPage(1);
                       }}
-                      className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-blue-700 bg-white border border-blue-300 rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 touch-manipulation min-h-[44px]"
                     >
-                      Contraer
+                      Contraer Serie
                     </button>
                   </div>
                 )}

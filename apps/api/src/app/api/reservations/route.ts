@@ -36,6 +36,8 @@ const CreateReservationSchema = z.object({
   notes: z.string().optional(),
   // Si la cancha es multiuso, sport es obligatorio
   sport: z.string().optional(),
+  // Parámetro para iluminación adicional
+  lightingSelected: z.boolean().optional().default(false),
 });
 
 // Esquema para filtros de bÃºsqueda (acepta IDs genÃ©ricos)

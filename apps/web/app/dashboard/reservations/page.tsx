@@ -50,7 +50,7 @@ interface Reservation {
   duration: number;
   status: 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no-show' | 'in_progress';
   cost: number;
-  paymentStatus: 'paid' | 'pending' | 'refunded';
+  paymentStatus: 'paid' | 'pending' | 'refunded' | 'cancelled';
   paymentMethod?: 'CARD' | 'BIZUM' | 'ONSITE' | 'CASH' | 'TRANSFER' | 'CREDITS';
   createdAt: string;
   notes?: string;
@@ -103,13 +103,15 @@ const paymentMethodConfig = {
 const paymentStatusConfig = {
   paid: { label: 'Pagado', color: 'bg-green-100 text-green-800', icon: '✅' },
   pending: { label: 'Pendiente', color: 'bg-orange-100 text-orange-800', icon: '⏳' },
-  refunded: { label: 'Reembolsado', color: 'bg-gray-100 text-gray-800', icon: '↩️' }
+  refunded: { label: 'Reembolsado', color: 'bg-gray-100 text-gray-800', icon: '↩️' },
+  cancelled: { label: 'No Pagado', color: 'bg-red-100 text-red-800', icon: '❌' }
 };
 
 const paymentConfig: Record<Reservation['paymentStatus'], { label: string; color: string }> = {
   paid: { label: 'Pagado', color: 'bg-green-100 text-green-800' },
   pending: { label: 'Pendiente de pago', color: 'bg-yellow-100 text-yellow-800' },
   refunded: { label: 'Reembolsado', color: 'bg-blue-100 text-blue-800' },
+  cancelled: { label: 'No Pagado', color: 'bg-red-100 text-red-800' },
 };
 
 export default function ReservationsPage() {

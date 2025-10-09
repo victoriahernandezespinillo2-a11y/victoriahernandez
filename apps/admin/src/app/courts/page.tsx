@@ -209,8 +209,17 @@ export default function CourtsPage() {
 
   const handleEditCourt = (court: Court) => {
     setEditingCourt(court);
+    
+    // 🔍 DEBUG: Log de datos recibidos
+    console.log('🔍 [DEBUG] Datos de la cancha recibidos:', {
+      name: court.name,
+      lighting: court.lighting,
+      lightingExtraPerHour: court.lightingExtraPerHour,
+      court: court
+    });
+    
     // Poblar el estado del formulario de edición con los datos de la cancha seleccionada
-    setEditForm({
+    const formData = {
       name: court.name,
       type: court.type, // ✅ Agregar el deporte
       hourlyRate: court.hourlyRate,
@@ -218,9 +227,18 @@ export default function CourtsPage() {
       isMultiuse: court.isMultiuse ?? false,
       allowedSports: (court.allowedSports ?? []) as any,
       lighting: court.lighting as any,
-      lightingExtraPerHour: (court as any).lightingExtraPerHour ?? 0 as any,
+      lightingExtraPerHour: court.lightingExtraPerHour ?? undefined,
       // Se pueden añadir aquí todos los demás campos editables
+    };
+    
+    // 🔍 DEBUG: Log de datos del formulario
+    console.log('🔍 [DEBUG] Datos del formulario:', {
+      lighting: formData.lighting,
+      lightingExtraPerHour: formData.lightingExtraPerHour,
+      formData: formData
     });
+    
+    setEditForm(formData);
     setShowEdit(true);
   };
 
@@ -553,12 +571,22 @@ export default function CourtsPage() {
                       type="number"
                       min={0}
                       step={0.01}
-                      value={(editForm as any).lightingExtraPerHour ?? ''}
+                      value={editForm.lightingExtraPerHour ?? ''}
                       onChange={(e) => {
                         const value = e.target.value;
+                        console.log('🔍 [DEBUG] Input onChange:', { 
+                          oldValue: editForm.lightingExtraPerHour, 
+                          newValue: value 
+                        });
                         setEditForm({ 
                           ...editForm, 
                           lightingExtraPerHour: value === '' ? undefined : Number(value) 
+                        });
+                      }}
+                      onFocus={() => {
+                        console.log('🔍 [DEBUG] Input onFocus:', { 
+                          currentValue: editForm.lightingExtraPerHour,
+                          editForm: editForm
                         });
                       }}
                       placeholder="0.00"

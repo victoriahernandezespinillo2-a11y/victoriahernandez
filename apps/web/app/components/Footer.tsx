@@ -50,17 +50,22 @@ export function Footer() {
     let cancelled = false;
     const loadStatus = async () => {
       try {
-        // Obtener primer centro para derivar el id
-        const centersRes = await fetch('/api/centers', { cache: 'no-store' });
-        const centersJson = await centersRes.json();
-        const list = Array.isArray(centersJson?.data) ? centersJson.data : (Array.isArray(centersJson) ? centersJson : []);
+        // Importar el cliente de API dinámicamente para usar autenticación correcta
+        const { api } = await import('@/lib/api');
+        
+        // Obtener primer centro usando el cliente de API autenticado
+        const centersData = await api.centers.getAll({ limit: 1 });
+        const list = Array.isArray(centersData?.data) ? centersData.data : (Array.isArray(centersData) ? centersData : []);
         const id = list?.[0]?.id as string | undefined;
-        if (!id) return;
-        const res = await fetch(`/api/centers/${id}/status`, { cache: 'no-store' });
-        if (!res.ok) return;
-        const json = await res.json();
-        if (!cancelled) setCenterStatus(json?.data || json);
-      } catch {}
+        if (!id || cancelled) return;
+        
+        // Obtener estado del centro usando el cliente de API autenticado
+        const { apiRequest } = await import('@/lib/api');
+        const statusData = await apiRequest(`/api/centers/${id}/status`);
+        if (!cancelled) setCenterStatus(statusData?.data || statusData);
+      } catch (error) {
+        console.warn('⚠️ [Footer] Error cargando estado del centro:', error);
+      }
     };
     loadStatus();
     const t = setInterval(loadStatus, 5 * 60 * 1000);
