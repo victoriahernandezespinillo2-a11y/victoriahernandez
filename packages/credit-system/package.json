@@ -23,7 +23,8 @@
   "author": "Polideportivo Oroquieta",
   "license": "MIT",
   "dependencies": {
-    "@prisma/client": "^6.15.0"
+    "@prisma/client": "^6.15.0",
+    "@repo/db": "workspace:*"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",

@@ -9,7 +9,7 @@ import { CreditTransaction } from '../../domain/entities/CreditTransaction';
 import { UserId } from '../../domain/value-objects/UserId';
 import { TransactionId } from '../../domain/value-objects/TransactionId';
 import { CreditAmount } from '../../domain/value-objects/CreditAmount';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@repo/db';
 import { PrismaCreditRepositoryMethods } from './PrismaCreditRepositoryMethods';
 
 export class PrismaCreditRepository extends PrismaCreditRepositoryMethods implements CreditRepository {
