@@ -34,6 +34,8 @@ export interface Reservation {
   currentPaymentMethod?: string;
   notes?: string;
   createdAt: string;
+  promoCode?: string;
+  promoDiscount?: number;
 }
 
 export interface PaymentConfirmationReservation {
@@ -83,6 +85,9 @@ export function isValidReservationStatus(status: string): status is ReservationS
 export function isValidPaymentStatus(status: string): status is PaymentStatus {
   return ['PENDING', 'PAID', 'REFUNDED'].includes(status);
 }
+
+
+
 
 
 

@@ -1,0 +1,41 @@
+{
+  "name": "@repo/credit-system",
+  "version": "1.0.0",
+  "description": "Sistema de créditos enterprise para Polideportivo Oroquieta",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix"
+  },
+  "keywords": [
+    "credits",
+    "wallet",
+    "payments",
+    "domain-driven-design",
+    "clean-architecture"
+  ],
+  "author": "Polideportivo Oroquieta",
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^6.15.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@prisma/client": "^6.15.0"
+  }
+}
+
+

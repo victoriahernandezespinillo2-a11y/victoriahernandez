@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { MagnifyingGlassIcon, EyeIcon, ArrowPathIcon, CurrencyEuroIcon, CreditCardIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, EyeIcon, ArrowPathIcon, CurrencyEuroIcon, CreditCardIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { Button } from '@repo/ui/button';
 import { Card } from '@repo/ui/card';
 import { Input } from '@repo/ui/input';
@@ -17,17 +17,22 @@ interface OrderItem {
   qty: number;
   priceEuro: number;
   product: {
+    id: string;
     name: string;
+    priceEuro: number;
+    sku: string;
+    category: string;
+    requiresCheckIn?: boolean;
   };
 }
 
 interface Order {
   id: string;
   userId: string;
-  status: 'PENDING' | 'PAID' | 'CANCELLED' | 'REFUNDED';
+  status: 'PENDING' | 'PAID' | 'FULFILLED' | 'REDEEMED' | 'REFUNDED' | 'CANCELLED';
   totalEuro: number;
   creditsUsed: number;
-  paymentMethod: 'CASH' | 'CARD' | 'CREDITS';
+  paymentMethod: 'CASH' | 'CARD' | 'CREDITS' | 'TRANSFER';
   createdAt: string;
   user: {
     id: string;
@@ -60,6 +65,12 @@ export default function OrdersPage() {
       const response = await fetch(`/api/admin/orders?${params}`);
       const data = await response.json();
       if (data.success) {
+        console.log('🔄 [FETCH-ORDERS] Pedidos recibidos:', data.data.items.map((order: any) => ({
+          id: order.id.slice(0, 8),
+          status: order.status,
+          paymentMethod: order.paymentMethod,
+          creditsUsed: order.creditsUsed
+        })));
         setOrders(data.data.items);
         setTotalPages(data.data.pagination.pages);
       }
@@ -81,6 +92,7 @@ export default function OrdersPage() {
       });
       const data = await response.json();
       if (data.success) {
+        console.log('✅ [REFUND-FRONTEND] Reembolso exitoso, actualizando lista...');
         toast.success('Reembolso procesado exitosamente');
         setIsRefundDialogOpen(false);
         setRefundReason('');
@@ -92,6 +104,25 @@ export default function OrdersPage() {
     } catch (error) {
       console.error('Error processing refund:', error);
       toast.error('Error procesando reembolso');
+    }
+  };
+
+  const handleCheckIn = async (orderId: string) => {
+    try {
+      const response = await fetch(`/api/admin/orders/${orderId}/check-in`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success('Check-in registrado exitosamente');
+        fetchOrders();
+      } else {
+        toast.error(data.message || 'Error registrando check-in');
+      }
+    } catch (error) {
+      console.error('Error processing check-in:', error);
+      toast.error('Error registrando check-in');
     }
   };
 
@@ -111,6 +142,10 @@ export default function OrdersPage() {
         return <Badge variant="secondary" className="!text-black !bg-gray-200">Pendiente</Badge>;
       case 'PAID':
         return <Badge variant="default" className="!text-white !bg-blue-600">Pagado</Badge>;
+      case 'FULFILLED':
+        return <Badge variant="default" className="!text-white !bg-green-600">Completado</Badge>;
+      case 'REDEEMED':
+        return <Badge variant="default" className="!text-white !bg-purple-600">Canjeado</Badge>;
       case 'CANCELLED':
         return <Badge variant="destructive" className="!text-white !bg-red-600">Cancelado</Badge>;
       case 'REFUNDED':
@@ -141,6 +176,8 @@ export default function OrdersPage() {
         return 'Tarjeta';
       case 'CREDITS':
         return 'Créditos';
+      case 'TRANSFER':
+        return 'Transferencia';
       default:
         return method;
     }
@@ -242,11 +279,12 @@ export default function OrdersPage() {
                         >
                           <EyeIcon className="h-4 w-4" />
                         </Button>
-                        {order.status === 'PAID' && (
+                        {(order.status === 'PAID' || order.status === 'FULFILLED') && (
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => openRefundDialog(order)}
+                            title="Reembolsar pedido"
                           >
                             <ArrowPathIcon className="h-4 w-4" />
                           </Button>
@@ -284,12 +322,12 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* Order Detail Dialog */}
+      {/* Order Detail Dialog - Compact */}
       {isDetailDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setIsDetailDialogOpen(false)} />
-          <div className="relative z-10 bg-white rounded-lg shadow-xl border border-gray-200 w-full max-w-4xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b">
+          <div className="relative z-10 bg-white rounded-lg shadow-xl border border-gray-200 w-full max-w-2xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-semibold text-gray-900">Detalles del Pedido</h3>
               <button 
                 onClick={() => setIsDetailDialogOpen(false)}
@@ -298,25 +336,32 @@ export default function OrdersPage() {
                 ✕
               </button>
             </div>
-            <div className="p-6 overflow-y-auto">
+            <div className="p-4 overflow-y-auto">
           {selectedOrder && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              {/* Información básica en grid compacto */}
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-sm font-medium text-gray-500">ID del Pedido</Label>
-                  <p className="text-sm text-gray-900">{selectedOrder.id}</p>
+                  <Label className="text-xs font-medium text-gray-500">ID del Pedido</Label>
+                  <p className="text-sm text-gray-900 font-mono">{selectedOrder.id.slice(0, 12)}...</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-gray-500">Cliente</Label>
+                  <Label className="text-xs font-medium text-gray-500">Cliente</Label>
                   <p className="text-sm text-gray-900">{selectedOrder.user.email}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-gray-500">Estado</Label>
+                  <Label className="text-xs font-medium text-gray-500">Estado</Label>
                   <div className="mt-1">{getStatusBadge(selectedOrder.status)}</div>
+                  {selectedOrder.status === 'REDEEMED' && (
+                    <p className="text-xs text-green-600 mt-1 font-medium">✓ Entregado</p>
+                  )}
+                  {selectedOrder.status === 'FULFILLED' && selectedOrder.items.some(item => item.product?.requiresCheckIn) && (
+                    <p className="text-xs text-orange-600 mt-1 font-medium">⏳ Pendiente de entrega</p>
+                  )}
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-gray-500">Método de Pago</Label>
-                  <div className="flex items-center space-x-2 mt-1">
+                  <Label className="text-xs font-medium text-gray-500">Método de Pago</Label>
+                  <div className="flex items-center space-x-1 mt-1">
                     {getPaymentMethodIcon(selectedOrder.paymentMethod)}
                     <span className="text-sm text-gray-900">
                       {getPaymentMethodText(selectedOrder.paymentMethod)}
@@ -324,19 +369,19 @@ export default function OrdersPage() {
                   </div>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-gray-500">Total</Label>
-                  <p className="text-sm text-gray-900">€{selectedOrder.totalEuro.toFixed(2)}</p>
+                  <Label className="text-xs font-medium text-gray-500">Total</Label>
+                  <p className="text-sm font-semibold text-gray-900">€{selectedOrder.totalEuro.toFixed(2)}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-gray-500">Créditos Usados</Label>
-                  <p className="text-sm text-gray-900">{selectedOrder.creditsUsed}</p>
+                  <Label className="text-xs font-medium text-gray-500">Créditos Usados</Label>
+                  <p className="text-sm text-gray-900">{selectedOrder.creditsUsed || 0}</p>
                 </div>
-                <div>
-                  <Label className="text-sm font-medium text-gray-500">Fecha</Label>
+                <div className="col-span-2">
+                  <Label className="text-xs font-medium text-gray-500">Fecha</Label>
                   <p className="text-sm text-gray-900">
                     {new Date(selectedOrder.createdAt).toLocaleDateString('es-ES', {
                       year: 'numeric',
-                      month: 'long',
+                      month: 'short',
                       day: 'numeric',
                       hour: '2-digit',
                       minute: '2-digit',
@@ -345,20 +390,99 @@ export default function OrdersPage() {
                 </div>
               </div>
 
+              {/* Productos con información completa */}
               <div>
-                <Label className="text-sm font-medium text-gray-500">Productos</Label>
+                <Label className="text-xs font-medium text-gray-500">
+                  Productos ({selectedOrder.items.length})
+                  {selectedOrder.items.some(item => item.product?.requiresCheckIn) && (
+                    <span className="ml-2 text-xs text-orange-600 font-medium">
+                      • Requiere entrega física
+                    </span>
+                  )}
+                  {selectedOrder.status === 'REDEEMED' && (
+                    <span className="ml-2 text-xs text-green-600 font-medium">
+                      ✓ Entregado
+                    </span>
+                  )}
+                </Label>
                 <div className="mt-2 space-y-2">
                   {selectedOrder.items.map((item) => (
                     <div key={item.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{item.product.name}</p>
-                        <p className="text-xs text-gray-500">Cantidad: {item.qty}</p>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <p className="text-sm font-medium text-gray-900">{item.product.name}</p>
+                          {item.product?.requiresCheckIn && (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              selectedOrder.status === 'REDEEMED' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-orange-100 text-orange-800'
+                            }`}>
+                              {selectedOrder.status === 'REDEEMED' ? '✓ Entregado' : '⏳ Pendiente'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <p className="text-xs text-gray-500">Cantidad: {item.qty}</p>
+                          {item.product.sku && (
+                            <p className="text-xs text-gray-400">SKU: {item.product.sku}</p>
+                          )}
+                          {item.product.category && (
+                            <p className="text-xs text-gray-400">• {item.product.category}</p>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-sm font-medium text-gray-900">
-                        €{(item.priceEuro * item.qty).toFixed(2)}
-                      </p>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-gray-900">
+                          €{((item.product?.priceEuro || 0) * item.qty).toFixed(2)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          €{(item.product?.priceEuro || 0).toFixed(2)} c/u
+                        </p>
+                      </div>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Acciones del pedido */}
+              <div className="flex justify-between items-center pt-4 border-t">
+                <div className="flex space-x-2">
+                  {/* Botón de check-in para productos que lo requieren */}
+                  {(selectedOrder.status === 'PAID' || selectedOrder.status === 'FULFILLED') && 
+                   selectedOrder.items.some(item => item.product?.requiresCheckIn) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCheckIn(selectedOrder.id)}
+                      title="Registrar entrega de productos"
+                    >
+                      <CheckCircleIcon className="h-4 w-4 mr-1" />
+                      Marcar Entregado
+                    </Button>
+                  )}
+                </div>
+                
+                <div className="flex space-x-2">
+                  {(selectedOrder.status === 'PAID' || selectedOrder.status === 'FULFILLED') && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        setIsDetailDialogOpen(false);
+                        openRefundDialog(selectedOrder);
+                      }}
+                    >
+                      <ArrowPathIcon className="h-4 w-4 mr-1" />
+                      Reembolsar
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsDetailDialogOpen(false)}
+                  >
+                    Cerrar
+                  </Button>
                 </div>
               </div>
             </div>

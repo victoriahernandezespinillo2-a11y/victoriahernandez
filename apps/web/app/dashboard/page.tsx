@@ -11,11 +11,13 @@ import {
   Trophy,
   Star,
   XCircle,
+  Gift,
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { redirect } from 'next/navigation';
 import { useUserProfile, useReservations, useCenters } from '@/lib/hooks';
-import { apiRequest } from '@/lib/api';
+import { apiRequest, api } from '@/lib/api';
+import { toast } from 'sonner';
 
 
 
@@ -37,6 +39,47 @@ export default function DashboardPage() {
   const [upcomingReservations, setUpcomingReservations] = useState<UpcomingItem[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [signupBonusChecked, setSignupBonusChecked] = useState(false);
+
+  // Verificar y notificar SIGNUP_BONUS
+  useEffect(() => {
+    const checkSignupBonus = async () => {
+      if (signupBonusChecked || !profile) return;
+      
+      try {
+        const history = await api.promotions.getMyHistory({ limit: 5 });
+        
+        if (history.success && history.data?.applications) {
+          const signupBonus = history.data.applications.find(
+            (app: any) => app.promotion.type === 'SIGNUP_BONUS' && app.metadata?.autoApplied
+          );
+          
+          // Verificar si es reciente (últimas 24 horas)
+          if (signupBonus) {
+            const appliedDate = new Date(signupBonus.appliedAt);
+            const now = new Date();
+            const hoursSince = (now.getTime() - appliedDate.getTime()) / (1000 * 60 * 60);
+            
+            if (hoursSince < 24) {
+              toast.success('¡Bienvenido!', {
+                description: `Has recibido ${Number(signupBonus.creditsAwarded).toFixed(0)} créditos de regalo 🎁`,
+                duration: 5000,
+              });
+            }
+          }
+        }
+        
+        setSignupBonusChecked(true);
+      } catch (error) {
+        console.error('Error verificando SIGNUP_BONUS:', error);
+        setSignupBonusChecked(true);
+      }
+    };
+
+    if (profile && !signupBonusChecked) {
+      checkSignupBonus();
+    }
+  }, [profile, signupBonusChecked]);
 
   // Calcular estadísticas del usuario
   useEffect(() => {

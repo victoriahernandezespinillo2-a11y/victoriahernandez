@@ -18,6 +18,9 @@ interface ReservationDetails {
   paymentMethod: string;
   status: string;
   centerName?: string;
+  promoCode?: string;
+  promoDiscount?: number;
+  creditsUsed?: number;
 }
 
 export default function PaymentSuccessPage() {
@@ -72,7 +75,10 @@ export default function PaymentSuccessPage() {
             totalPrice: Number(reservationData.totalPrice || 0),
             paymentMethod: reservationData.paymentMethod || 'Tarjeta',
             status: reservationData.status || 'PAID',
-            centerName: reservationData.court?.center?.name
+            centerName: reservationData.court?.center?.name,
+            promoCode: reservationData.promoCode,
+            promoDiscount: Number(reservationData.promoDiscount || 0),
+            creditsUsed: Number(reservationData.creditsUsed || 0)
           });
         } else {
           throw new Error('No se encontraron datos de la reserva');
@@ -89,16 +95,38 @@ export default function PaymentSuccessPage() {
   }, [reservationId]);
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CO', {
+    return new Intl.NumberFormat('es-ES', {
       style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0
+      currency: 'EUR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(amount);
   };
 
   // Determinar el tipo de mensaje según el método de pago
   const isOnSitePayment = reservation?.paymentMethod === 'ONSITE';
   const isPaid = reservation?.status === 'PAID';
+  
+  // Calcular el monto final pagado (considerando descuentos)
+  const getFinalAmountPaid = () => {
+    if (!reservation) return 0;
+    
+    // Si hay descuento promocional, restarlo del precio original
+    if (reservation.promoDiscount && reservation.promoDiscount > 0) {
+      return reservation.totalPrice - reservation.promoDiscount;
+    }
+    
+    // Si se pagó con créditos, usar el monto de créditos usados
+    if (reservation.paymentMethod === 'CREDITS' && reservation.creditsUsed) {
+      return reservation.creditsUsed;
+    }
+    
+    // En otros casos, usar el precio total
+    return reservation.totalPrice;
+  };
+  
+  const finalAmountPaid = getFinalAmountPaid();
+  const hasPromoDiscount = reservation?.promoDiscount && reservation.promoDiscount > 0;
 
   if (loading) {
     return (
@@ -232,25 +260,64 @@ export default function PaymentSuccessPage() {
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex justify-between items-center">
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  {/* Precio original (si hay descuento) */}
+                  {hasPromoDiscount && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Precio Original</span>
+                      <span className="text-gray-500 line-through">
+                        {formatCurrency(reservation.totalPrice)}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Descuento aplicado */}
+                  {hasPromoDiscount && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">
+                        Descuento {reservation.promoCode && `(${reservation.promoCode})`}
+                      </span>
+                      <span className="text-red-600 font-medium">
+                        -{formatCurrency(reservation.promoDiscount || 0)}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Total final */}
+                  <div className="flex justify-between items-center border-t border-gray-200 pt-2">
                     <span className="text-sm font-medium text-gray-900">
                       {isOnSitePayment ? 'Total a Pagar' : 'Total Pagado'}
                     </span>
                     <span className={`text-lg font-bold ${
                       isOnSitePayment ? 'text-orange-600' : 'text-green-600'
                     }`}>
-                      {formatCurrency(reservation.totalPrice)}
+                      {formatCurrency(finalAmountPaid)}
                     </span>
                   </div>
+                  
+                  {/* Información adicional para pagos con créditos */}
+                  {reservation.paymentMethod === 'CREDITS' && reservation.creditsUsed && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      Pagado con {reservation.creditsUsed} crédito{reservation.creditsUsed !== 1 ? 's' : ''}
+                    </div>
+                  )}
                 </div>
 
-                <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                  isOnSitePayment 
-                    ? 'bg-orange-100 text-orange-800' 
-                    : 'bg-green-100 text-green-800'
-                }`}>
-                  {isOnSitePayment ? '⏳ Pendiente de Pago' : '✓ Pagado'}
+                <div className="space-y-2">
+                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                    isOnSitePayment 
+                      ? 'bg-orange-100 text-orange-800' 
+                      : 'bg-green-100 text-green-800'
+                  }`}>
+                    {isOnSitePayment ? '⏳ Pendiente de Pago' : '✓ Pagado'}
+                  </div>
+                  
+                  {/* Badge de promoción aplicada */}
+                  {hasPromoDiscount && (
+                    <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      🎁 Descuento Aplicado ({reservation.promoCode})
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

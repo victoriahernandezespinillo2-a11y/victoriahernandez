@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         return ApiResponse.forbidden('No se genera pase para esta transacción');
       }
 
-      if (order.status !== 'PAID') {
+      if (order.status !== 'PAID' && order.status !== 'FULFILLED') {
         return ApiResponse.conflict('El pedido no está pagado o ya fue canjeado');
       }
 

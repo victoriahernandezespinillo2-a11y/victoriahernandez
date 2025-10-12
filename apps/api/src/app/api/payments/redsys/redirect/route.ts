@@ -196,17 +196,40 @@ export async function GET(request: NextRequest) {
       return htmlResponse(errorHtml('Reserva no encontrada'));
     }
 
-        // CRÍTICO: Calcular amount correctamente en céntimos según guía oficial
-    // Convertir Decimal de Prisma a número correctamente
-    const totalPriceValue = reservation.totalPrice ? Number(reservation.totalPrice.toString()) : 0;
-    const amount = Math.round(totalPriceValue * 100).toString();
+    // 🎁 NUEVO: Verificar si hay promoción aplicada en la URL
+    const promoCode = searchParams.get('promo');
+    const finalAmountParam = searchParams.get('finalAmount');
+    
+    let amountToUse: number;
+    let amountSource: string;
+    
+    if (finalAmountParam && !isNaN(Number(finalAmountParam))) {
+      // Usar el monto final después del descuento
+      amountToUse = Number(finalAmountParam);
+      amountSource = 'finalAmount (con descuento)';
+      console.log('🎁 [REDSYS-PROMO] Usando monto final con descuento:', {
+        originalPrice: Number(reservation.totalPrice),
+        finalAmount: amountToUse,
+        promoCode,
+        discount: Number(reservation.totalPrice) - amountToUse
+      });
+    } else {
+      // Usar el precio original (sin descuento)
+      amountToUse = reservation.totalPrice ? Number(reservation.totalPrice.toString()) : 0;
+      amountSource = 'totalPrice (sin descuento)';
+    }
+
+    // CRÍTICO: Calcular amount correctamente en céntimos según guía oficial
+    const amount = Math.round(amountToUse * 100).toString();
     
     console.log('💰 [REDSYS-AMOUNT] Conversión de importe (reserva):', {
       originalTotalPrice: reservation.totalPrice,
-      totalPriceType: typeof reservation.totalPrice,
-      totalPriceValue,
+      amountSource,
+      amountToUse,
       amountInCents: amount,
-      amountAsNumber: Number(amount)
+      amountAsNumber: Number(amount),
+      promoCode,
+      finalAmountParam
     });
     
     // 🔧 DEBUG: Verificar datos de la reserva
@@ -214,12 +237,14 @@ export async function GET(request: NextRequest) {
     console.log('🔍 DEBUG REDSYS RESERVATION:', {
       reservationId: reservation.id,
       totalPrice: reservation.totalPrice,
-      totalPriceType: typeof reservation.totalPrice,
-      totalPriceString: reservation.totalPrice?.toString(),
+      amountSource,
+      amountToUse,
       amount: amount,
       amountNumber: amountNumberReservation,
       isFinite: Number.isFinite(amountNumberReservation),
       isPositive: amountNumberReservation > 0,
+      promoCode,
+      finalAmountParam,
       court: reservation.court?.name,
       user: reservation.user?.name
     });
@@ -228,10 +253,12 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(amountNumberReservation) || amountNumberReservation <= 0) {
       console.error('❌ REDSYS RESERVATION ERROR: Invalid amount', { 
         originalTotal: reservation.totalPrice, 
+        amountSource,
+        amountToUse,
         processedAmount: amount,
         amountNumber: amountNumberReservation 
       });
-      return htmlResponse(errorHtml(`Importe de la reserva no válido: €${reservation.totalPrice} → ${amount} céntimos`));
+      return htmlResponse(errorHtml(`Importe de la reserva no válido: €${amountToUse} → ${amount} céntimos`));
     }
 
     const order = paymentService.generateRedsysOrderNumber();

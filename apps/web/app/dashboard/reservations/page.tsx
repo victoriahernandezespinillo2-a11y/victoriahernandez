@@ -22,6 +22,7 @@ import Link from 'next/link';
 import { getFirebaseIdTokenSafe } from '@/lib/api';
 import { useReservations } from '@/lib/hooks';
 import { useErrorModal } from '@/app/components/ErrorModal';
+import { ReservationPaymentModal } from '@/components/ReservationPaymentModal';
 
 // Hook para detectar dispositivo móvil
 function useIsMobile() {
@@ -51,9 +52,11 @@ interface Reservation {
   status: 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no-show' | 'in_progress';
   cost: number;
   paymentStatus: 'paid' | 'pending' | 'refunded' | 'cancelled';
-  paymentMethod?: 'CARD' | 'BIZUM' | 'ONSITE' | 'CASH' | 'TRANSFER' | 'CREDITS';
+  paymentMethod?: 'CARD' | 'BIZUM' | 'ONSITE' | 'CASH' | 'TRANSFER' | 'CREDITS' | 'FREE';
   createdAt: string;
   notes?: string;
+  promoCode?: string;
+  promoDiscount?: number;
 }
 
 
@@ -97,7 +100,8 @@ const paymentMethodConfig = {
   ONSITE: { label: 'En Sede', icon: '🏢', color: 'bg-orange-100 text-orange-800' },
   CASH: { label: 'Efectivo', icon: '💵', color: 'bg-green-100 text-green-800' },
   TRANSFER: { label: 'Transferencia', icon: '🏦', color: 'bg-gray-100 text-gray-800' },
-  CREDITS: { label: 'Créditos', icon: '⭐', color: 'bg-yellow-100 text-yellow-800' }
+  CREDITS: { label: 'Créditos', icon: '⭐', color: 'bg-yellow-100 text-yellow-800' },
+  FREE: { label: 'Gratis', icon: '🎉', color: 'bg-green-100 text-green-800' }
 };
 
 const paymentStatusConfig = {
@@ -124,7 +128,20 @@ export default function ReservationsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedReservationForPayment, setSelectedReservationForPayment] = useState<Reservation | null>(null);
   const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://polideportivo-api.vercel.app').replace(/\/$/, '');
+
+  const openPaymentModal = (reservation: Reservation) => {
+    setSelectedReservationForPayment(reservation);
+    setPaymentModalOpen(true);
+  };
+
+  const handlePaymentSuccess = () => {
+    getReservations(); // Recargar reservas
+    setPaymentModalOpen(false);
+    setSelectedReservationForPayment(null);
+  };
 
   const openReservationPdf = async (id: string, kind: 'receipt' | 'pass') => {
     try {
@@ -499,6 +516,23 @@ export default function ReservationsPage() {
                       </div>
                     )}
 
+                    {/* Información de promoción */}
+                    {reservation.promoCode && (
+                      <div className="px-4 pb-3">
+                        <div className="flex items-center text-sm text-gray-600">
+                          <span className="mr-2">🎁 Promoción:</span>
+                          <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-purple-100 text-purple-800">
+                            {reservation.promoCode}
+                          </span>
+                          {reservation.promoDiscount && reservation.promoDiscount > 0 && (
+                            <span className="ml-2 text-xs text-green-600 font-medium">
+                              -€{reservation.promoDiscount.toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Alerta de pago pendiente */}
                     {reservation.paymentStatus === 'pending' && reservation.paymentMethod === 'ONSITE' && (
                       <div className="mx-4 mb-3">
@@ -520,30 +554,10 @@ export default function ReservationsPage() {
                     {reservation.paymentStatus === 'pending' && reservation.paymentMethod !== 'ONSITE' && (
                       <div className="px-4 pb-3">
                         <button
-                          disabled={linkLoadingId === reservation.id}
-                          onClick={async () => {
-                            try {
-                              setLinkLoadingId(reservation.id);
-                              const res = await fetch(`/api/reservations/${reservation.id}/payment-link`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                credentials: 'include',
-                              });
-                              const data = await res.json();
-                              if (res.ok && data?.url) {
-                                window.open(data.url, '_blank');
-                              } else {
-                                showError('No se pudo generar el enlace de pago', 'Error de Pago', 'error');
-                              }
-                            } catch (e) {
-                              showError('Error generando enlace de pago', 'Error de Sistema', 'error');
-                            } finally {
-                              setLinkLoadingId(null);
-                            }
-                          }}
+                          onClick={() => openPaymentModal(reservation)}
                           className="w-full bg-blue-600 text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
                         >
-                          {linkLoadingId === reservation.id ? 'Abriendo…' : 'Pagar ahora'}
+                          Pagar ahora
                         </button>
                       </div>
                     )}
@@ -630,6 +644,20 @@ export default function ReservationsPage() {
                                   <span className="mr-1">{paymentMethodConfig[reservation.paymentMethod]?.icon || '💳'}</span>
                                   {paymentMethodConfig[reservation.paymentMethod]?.label || reservation.paymentMethod}
                                 </span>
+                              </div>
+                            )}
+                            
+                            {reservation.promoCode && (
+                              <div className="flex items-center text-sm text-gray-600">
+                                <span className="mr-2">🎁 Promoción:</span>
+                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                  {reservation.promoCode}
+                                </span>
+                                {reservation.promoDiscount && reservation.promoDiscount > 0 && (
+                                  <span className="ml-2 text-xs text-green-600 font-medium">
+                                    -€{reservation.promoDiscount.toFixed(2)}
+                                  </span>
+                                )}
                               </div>
                             )}
                             
@@ -876,6 +904,26 @@ export default function ReservationsPage() {
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Modal de Pago de Reserva */}
+      {selectedReservationForPayment && (
+        <ReservationPaymentModal
+          isOpen={paymentModalOpen}
+          onClose={() => {
+            setPaymentModalOpen(false);
+            setSelectedReservationForPayment(null);
+          }}
+          reservationId={selectedReservationForPayment.id}
+          reservation={{
+            id: selectedReservationForPayment.id,
+            courtName: selectedReservationForPayment.courtName,
+            startTime: selectedReservationForPayment.startTime,
+            endTime: selectedReservationForPayment.endTime,
+            totalPrice: Number(selectedReservationForPayment.cost || 0)
+          }}
+          onPaymentSuccess={handlePaymentSuccess}
+        />
       )}
       
       {/* Modal de Error Profesional */}

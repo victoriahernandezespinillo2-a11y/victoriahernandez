@@ -54,7 +54,14 @@ export async function GET(request: NextRequest) {
           orderBy,
           skip,
           take: query.limit,
-          include: { 
+          select: {
+            id: true,
+            userId: true,
+            status: true,
+            totalEuro: true,
+            creditsUsed: true,
+            paymentMethod: true,
+            createdAt: true,
             user: { select: { id: true, email: true, name: true } }, 
             items: { 
               include: { 
@@ -64,7 +71,8 @@ export async function GET(request: NextRequest) {
                     name: true, 
                     priceEuro: true,
                     sku: true,
-                    category: true
+                    category: true,
+                    requiresCheckIn: true
                   } 
                 } 
               } 

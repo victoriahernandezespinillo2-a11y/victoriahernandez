@@ -104,6 +104,7 @@ export async function GET(request: NextRequest) {
             user: { select: { id: true, name: true, email: true } },
             court: { select: { id: true, name: true, center: { select: { id: true, name: true } } } },
           },
+          // Asegurar que se incluyan todos los campos, incluyendo promoCode y promoDiscount
         }),
         db.reservation.count({ where }),
       ]);
@@ -179,6 +180,8 @@ export async function GET(request: NextRequest) {
           ? 'REFUNDED'
           : (r.status === 'PAID' || hasPaymentMap.has(r.id) ? 'PAID' : 'PENDING'),
         paymentMethod: (r as any).paymentMethod || null,
+        promoCode: (r as any).promoCode || null,
+        promoDiscount: (r as any).promoDiscount || null,
         override: overrideMap.get(r.id) || null,
         notes: r.notes || undefined,
         createdAt: r.createdAt,

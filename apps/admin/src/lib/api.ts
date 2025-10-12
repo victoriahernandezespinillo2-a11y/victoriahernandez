@@ -90,6 +90,8 @@ class ApiClient {
     const absoluteUrl = `${this.baseURL}${endpoint}`;
     const relativeUrl = `${endpoint}`;
 
+    console.log(`🌐 API Request [${method}] ${endpoint}`);
+    console.log('📍 URLs:', { relativeUrl, absoluteUrl, baseURL: this.baseURL });
 
     const config: RequestInit = {
       ...options,
@@ -106,15 +108,23 @@ class ApiClient {
         
         // Preferir relativo para evitar CORS; si falla, probar absoluto si hay baseURL
         try {
+          console.log(`🔄 Intentando llamada relativa: ${relativeUrl}`);
           response = await fetch(relativeUrl, { ...config, credentials: 'include' });
+          console.log(`📡 Respuesta relativa:`, { status: response.status, statusText: response.statusText });
+          
           // Si recibimos 404 y existe baseURL, intentar absoluto (algunos endpoints solo viven en API)
           if (response.status === 404 && this.baseURL) {
+            console.log(`🔄 404 recibido, intentando absoluta: ${absoluteUrl}`);
             response = await fetch(absoluteUrl, { ...config, credentials: 'include' });
+            console.log(`📡 Respuesta absoluta:`, { status: response.status, statusText: response.statusText });
           }
         } catch (networkErr) {
+          console.error(`❌ Error de red en llamada relativa:`, networkErr);
           const looksLikeNetworkError = networkErr instanceof TypeError;
           if (this.baseURL && looksLikeNetworkError) {
+            console.log(`🔄 Error de red, intentando absoluta: ${absoluteUrl}`);
             response = await fetch(absoluteUrl, { ...config, credentials: 'include' });
+            console.log(`📡 Respuesta absoluta tras error:`, { status: response.status, statusText: response.statusText });
           } else {
             throw networkErr;
           }
@@ -155,8 +165,19 @@ class ApiClient {
 
         try {
           const data = await response.json() as ApiResponse<T>;
-          return data.data || data as T;
-        } catch {
+          console.log('📦 Raw response data:', data);
+          
+          // Si tiene la estructura de ApiResponse con success y data, devolver solo data
+          if (data && typeof data === 'object' && 'success' in data && 'data' in data) {
+            console.log('✅ ApiResponse structure detected, returning data:', data.data);
+            return data.data as T;
+          }
+          
+          // Si no tiene la estructura esperada, devolver el objeto completo
+          console.log('⚠️ Non-standard response structure, returning whole object');
+          return data as T;
+        } catch (parseError) {
+          console.error('❌ Error parsing JSON response:', parseError);
           const text = await response.text();
           return text as unknown as T;
         }
@@ -198,6 +219,22 @@ const apiClient = new ApiClient();
  * Servicios de API para administración
  */
 export const adminApi = {
+  // Métodos genéricos
+  get: (endpoint: string) => apiClient.request(endpoint),
+  post: (endpoint: string, data?: any) => 
+    apiClient.request(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
+  put: (endpoint: string, data?: any) => 
+    apiClient.request(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
+  delete: (endpoint: string) => 
+    apiClient.request(endpoint, {
+      method: 'DELETE',
+    }),
   // Dashboard
   dashboard: {
     getStats: () => 
@@ -1183,6 +1220,110 @@ export const adminApi = {
       apiClient.request(`/api/admin/orders/${id}`, {
         method: 'DELETE',
       }),
+  },
+
+  // Gestión de créditos
+  credits: {
+    getDashboard: (period?: string) => {
+      const params = period ? `?period=${period}` : '';
+      return apiClient.request(`/api/admin/credits/dashboard${params}`);
+    },
+
+    adjustBalance: (data: {
+      userId: string;
+      amount: number;
+      reason: string;
+      type: 'ADD' | 'SUBTRACT';
+    }) =>
+      apiClient.request('/api/admin/credits/adjust', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getUserDetails: (userId: string) =>
+      apiClient.request(`/api/admin/credits/users/${userId}`),
+
+    getTransactions: (params?: {
+      userId?: string;
+      type?: string;
+      limit?: number;
+      offset?: number;
+      fromDate?: string;
+      toDate?: string;
+    }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            searchParams.append(key, String(value));
+          }
+        });
+      }
+      const query = searchParams.toString();
+      return apiClient.request(`/api/admin/credits/transactions${query ? `?${query}` : ''}`);
+    },
+  },
+
+  // Gestión de promociones
+  promotions: {
+    getAll: (params?: {
+      status?: string;
+      type?: string;
+      search?: string;
+      page?: number;
+      limit?: number;
+    }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            searchParams.append(key, String(value));
+          }
+        });
+      }
+      const query = searchParams.toString();
+      return apiClient
+        .request(`/api/admin/promotions${query ? `?${query}` : ''}`)
+        .then((res: any) => {
+          // El endpoint devuelve { promotions: [], pagination: {} }
+          if (Array.isArray(res)) return res;
+          if (res?.promotions) return res.promotions;
+          if (res?.data?.promotions) return res.data.promotions;
+          return [];
+        });
+    },
+
+    create: (data: {
+      name: string;
+      code?: string;
+      type: string;
+      conditions: any;
+      rewards: any;
+      validFrom: string;
+      validTo?: string;
+      usageLimit?: number;
+    }) =>
+      apiClient.request('/api/admin/promotions', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getById: (id: string) =>
+      apiClient.request(`/api/admin/promotions/${id}`),
+
+    update: (id: string, data: any) =>
+      apiClient.request(`/api/admin/promotions/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
+    delete: (id: string) =>
+      apiClient.request(`/api/admin/promotions/${id}`, {
+        method: 'DELETE',
+      }),
+
+    validate: (code: string) =>
+      apiClient.request(`/api/promotions/validate?code=${encodeURIComponent(code)}`),
   },
 
   // Auditoría

@@ -331,10 +331,11 @@ export default function NewReservationPage() {
   
   const baseCost = pricing?.total ?? (selectedCourt ? (selectedCourt.pricePerHour * duration / 60) : 0);
   
-  // Add lighting cost if selected and it's day time
+  // Add lighting cost if selected (day time) or if it's night time (automatic)
   // Support both desktop (selectedCalendarSlot) and mobile (selectedSlot)
   const currentSlot = selectedCalendarSlot || selectedSlot;
-  const lightingCost = lightingSelected && currentSlot && isDayTime(currentSlot.startTime) 
+  const isCurrentlyDayTime = currentSlot ? isDayTime(currentSlot.startTime) : true;
+  const lightingCost = (lightingSelected && isCurrentlyDayTime) || (!isCurrentlyDayTime)
     ? (selectedCourt?.lightingExtraPerHour || 0) * duration / 60 
     : 0;
   
@@ -1058,11 +1059,11 @@ export default function NewReservationPage() {
 
                           {/* Mensaje para horarios de noche (Desktop) */}
                           {selectedCalendarSlot && !isDayTime(selectedCalendarSlot.startTime) && (
-                            <div className="mt-4 p-3 border border-green-200 rounded-lg bg-green-100">
+                            <div className="mt-4 p-3 border border-blue-200 rounded-lg bg-blue-50">
                               <div className="flex items-center space-x-3">
-                                <Lightbulb className="h-5 w-5 text-green-600 flex-shrink-0" />
-                                <p className="text-sm font-medium text-green-800">
-                                  <strong>Horario nocturno:</strong> Iluminación incluida sin costo adicional.
+                                <Lightbulb className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                                <p className="text-sm font-medium text-blue-800">
+                                  <strong>Horario nocturno:</strong> Iluminación obligatoria (+€{((selectedCourt?.lightingExtraPerHour || 0) * duration / 60).toFixed(2)}).
                                 </p>
                               </div>
                             </div>

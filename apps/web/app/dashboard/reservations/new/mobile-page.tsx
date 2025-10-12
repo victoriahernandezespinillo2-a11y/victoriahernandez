@@ -52,7 +52,7 @@ interface CalendarSlot {
 export default function MobileNewReservationPage() {
   const router = useRouter();
   const { courts, loading: courtsLoading, error: courtsError } = useCourts();
-  const { calculatePrice } = usePricing();
+  const { pricing, calculatePrice } = usePricing();
 
   // Estados principales
   const [currentStep, setCurrentStep] = useState(1);
@@ -115,34 +115,54 @@ export default function MobileNewReservationPage() {
   const minDate = toLocalYMD(new Date());
   const maxDate = toLocalYMD(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
 
-  // Calcular precio total
+  // Calcular precio cuando cambien las selecciones
+  useEffect(() => {
+    const run = async () => {
+      try {
+        if (!selectedCourt || !selectedCalendarSlot || !selectedDate) return;
+        
+        // Construir startTime como ISO válido
+        const raw = selectedCalendarSlot.startTime;
+        let startISO: string | null = null;
+        
+        if (/^\d{2}:\d{2}$/.test(raw)) {
+          const local = new Date(`${selectedDate}T${raw}:00`);
+          if (!isNaN(local.getTime())) {
+            startISO = new Date(local.getTime() - local.getTimezoneOffset()*60000).toISOString();
+          }
+        } else {
+          const d = new Date(raw);
+          if (!isNaN(d.getTime())) {
+            startISO = d.toISOString();
+          }
+        }
+        
+        if (startISO) {
+          await calculatePrice({ 
+            courtId: selectedCourt.id, 
+            startTime: startISO, 
+            duration 
+          });
+        }
+      } catch {
+        // noop
+      }
+    };
+    run();
+  }, [selectedCourt, selectedCalendarSlot, selectedDate, duration, calculatePrice]);
+
+  // Calcular precio total usando el resultado del backend
   const totalCost = useMemo(() => {
     if (!selectedCourt || !selectedCalendarSlot) return 0;
-    // Enviar startTime como ISO válido para el endpoint de pricing
-    const raw = selectedCalendarSlot.startTime;
-    let startISO: string | null = null;
-    if (/^\d{2}:\d{2}$/.test(raw)) {
-      if (!selectedDate) return 0; // necesitamos fecha para componer ISO
-      const local = new Date(`${selectedDate}T${raw}:00`);
-      if (!isNaN(local.getTime())) {
-        // Convertir a ISO corrigiendo desfase de zona para no mover de día
-        startISO = new Date(local.getTime() - local.getTimezoneOffset()*60000).toISOString();
-      }
-    } else {
-      const d = new Date(raw);
-      if (!isNaN(d.getTime())) {
-        startISO = d.toISOString();
-      }
+    
+    // Si tenemos pricing del backend, usarlo (incluye iluminación nocturna automática)
+    if (pricing?.total !== undefined) {
+      return pricing.total;
     }
-    if (startISO) {
-      calculatePrice({ 
-        courtId: selectedCourt.id, 
-        startTime: startISO, 
-        duration 
-      });
-    }
+    
+    // Fallback: precio base solo (no debería llegar aquí normalmente)
     return selectedCourt.pricePerHour * (duration / 60);
-  }, [selectedCourt, selectedCalendarSlot, duration, calculatePrice, selectedDate]);
+  }, [selectedCourt, selectedCalendarSlot, duration, pricing]);
 
   // Formatear moneda
   const formatCurrency = (amount: number) => {
@@ -500,13 +520,30 @@ export default function MobileNewReservationPage() {
                 
                 <button
                   onClick={async () => {
+                    console.log('🚀 [MOBILE-RESERVATION] Iniciando proceso de creación de reserva...');
+                    console.log('🚀 [MOBILE-RESERVATION] Datos seleccionados:', {
+                      selectedCourt: selectedCourt?.id,
+                      selectedDate,
+                      selectedCalendarSlot: selectedCalendarSlot?.startTime,
+                      duration,
+                      notes
+                    });
+                    
                     // Crear la reserva antes de abrir el modal de pago
                     if (!selectedCourt || !selectedDate || !selectedCalendarSlot) {
+                      console.error('❌ [MOBILE-RESERVATION] Validación fallida:', {
+                        hasCourt: !!selectedCourt,
+                        hasDate: !!selectedDate,
+                        hasSlot: !!selectedCalendarSlot
+                      });
                       alert('Por favor completa la selección de cancha, fecha y horario.');
                       return;
                     }
+                    
                     try {
                       const raw = selectedCalendarSlot.startTime;
+                      console.log('🕐 [MOBILE-RESERVATION] Procesando horario:', raw);
+                      
                       let startISO: string | null = null;
                       if (/^\d{2}:\d{2}$/.test(raw)) {
                         const local = new Date(`${selectedDate}T${raw}:00`);
@@ -517,25 +554,45 @@ export default function MobileNewReservationPage() {
                         const d = new Date(raw);
                         if (!isNaN(d.getTime())) startISO = d.toISOString();
                       }
+                      
+                      console.log('✅ [MOBILE-RESERVATION] StartISO generado:', startISO);
+                      
                       if (!startISO) {
+                        console.error('❌ [MOBILE-RESERVATION] Horario inválido');
                         alert('Horario seleccionado inválido. Intenta nuevamente.');
                         return;
                       }
+                      
+                      console.log('📤 [MOBILE-RESERVATION] Enviando datos a API:', {
+                        courtId: selectedCourt.id,
+                        startTime: startISO,
+                        duration,
+                        notes,
+                      });
+                      
                       const res: any = await api.reservations.create({
                         courtId: selectedCourt.id,
                         startTime: startISO,
                         duration,
                         notes,
                       });
+                      
+                      console.log('📥 [MOBILE-RESERVATION] Respuesta de API:', res);
+                      
                        const reservationId = res?.reservation?.id || res?.id;
+                       console.log('🆔 [MOBILE-RESERVATION] Reservation ID extraído:', reservationId);
+                       
                        if (reservationId) {
+                         console.log('✅ [MOBILE-RESERVATION] Abriendo modal de pago...');
                          setCreatedReservationId(reservationId);
                          setShowPaymentModal(true);
+                         console.log('🎉 [MOBILE-RESERVATION] Modal de pago abierto exitosamente');
                        } else {
+                         console.error('❌ [MOBILE-RESERVATION] No se obtuvo reservationId válido');
                          alert('No se pudo crear la reserva.');
                        }
                      } catch (error) {
-                       console.error('Error creating reservation:', error);
+                       console.error('💥 [MOBILE-RESERVATION] Error creating reservation:', error);
                        alert('Error al crear la reserva. Intenta nuevamente.');
                      }
                    }}

@@ -45,6 +45,14 @@ export default function OrdersPage() {
           label: 'Pagado',
           description: 'Pedido confirmado y listo'
         };
+      case 'FULFILLED':
+        return {
+          icon: CheckCircleIcon,
+          color: 'text-green-600',
+          bgColor: 'bg-green-100',
+          label: 'Completado',
+          description: 'Pedido procesado exitosamente'
+        };
       case 'PENDING':
         return {
           icon: ClockIcon,
@@ -60,6 +68,22 @@ export default function OrdersPage() {
           bgColor: 'bg-red-100',
           label: 'Cancelado',
           description: 'Pedido cancelado'
+        };
+      case 'REFUNDED':
+        return {
+          icon: ExclamationTriangleIcon,
+          color: 'text-blue-600',
+          bgColor: 'bg-blue-100',
+          label: 'Reembolsado',
+          description: 'Pedido reembolsado'
+        };
+      case 'REDEEMED':
+        return {
+          icon: CheckCircleIcon,
+          color: 'text-purple-600',
+          bgColor: 'bg-purple-100',
+          label: 'Canjeado',
+          description: 'Pedido canjeado en tienda'
         };
       default:
         return {
@@ -248,7 +272,7 @@ export default function OrdersPage() {
                   </div>
 
                   {/* Order actions */}
-                  {order.status === 'PAID' && (
+                  {(order.status === 'PAID' || order.status === 'FULFILLED') && (
                     <div className="px-4 pb-4">
                       <Link
                         href={`/dashboard/orders/${order.id}/pass`}

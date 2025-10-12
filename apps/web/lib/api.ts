@@ -217,7 +217,17 @@ export async function apiRequest<T = any>(
 
     try {
       const data = await response.json();
-      return (data as any).data || (data as any);
+      console.log('🔍 [API-REQUEST] Response data:', data);
+      
+      // Si la respuesta tiene la estructura ApiResponse, devolver solo el campo data
+      if (data && typeof data === 'object' && 'success' in data) {
+        console.log('📦 [API-REQUEST] ApiResponse structure detected, returning data:', data.data);
+        return data.data;
+      }
+      
+      // Si no tiene la estructura ApiResponse, devolver la respuesta completa
+      console.log('📦 [API-REQUEST] Non-ApiResponse structure, returning full data');
+      return data as T;
     } catch {
       const text = await response.text();
       return text as unknown as T;
@@ -604,6 +614,51 @@ export const api = {
       }
       const query = searchParams.toString();
       return apiRequest(`/api/wallet/ledger${query ? `?${query}` : ''}`);
+    },
+  },
+
+  // Promociones
+  promotions: {
+    /**
+     * Listar promociones activas
+     */
+    getActive: (params?: { type?: string }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.type) {
+        searchParams.append('type', params.type);
+      }
+      const query = searchParams.toString();
+      return apiRequest(`/api/promotions/active${query ? `?${query}` : ''}`);
+    },
+
+    /**
+     * Validar código promocional
+     */
+    validate: (code: string, amount: number, type: 'TOPUP' | 'RESERVATION') =>
+      apiRequest('/api/promotions/validate', {
+        method: 'POST',
+        body: JSON.stringify({ code, amount, type }),
+      }),
+
+    /**
+     * Aplicar promoción manualmente
+     */
+    apply: (promotionId: string, amount?: number, metadata?: any) =>
+      apiRequest('/api/promotions/apply', {
+        method: 'POST',
+        body: JSON.stringify({ promotionId, amount, metadata }),
+      }),
+
+    /**
+     * Obtener historial de promociones del usuario
+     */
+    getMyHistory: (params?: { limit?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.limit) {
+        searchParams.append('limit', params.limit.toString());
+      }
+      const query = searchParams.toString();
+      return apiRequest(`/api/promotions/my-history${query ? `?${query}` : ''}`);
     },
   },
 

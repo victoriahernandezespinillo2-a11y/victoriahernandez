@@ -210,9 +210,11 @@ export class PricingService {
           total += extra;
           lightingInfo = { selected: userSelected, extra, policy: 'OPTIONAL_DAY' };
         } else {
-          // Noche: incluida/obligatoria sin coste
-          breakdown.push({ description: 'Iluminación incluida (horario nocturno)', amount: 0 });
-          lightingInfo = { selected: true, extra: 0, policy: 'INCLUDED_NIGHT' };
+          // Noche: obligatoria CON coste
+          const extra = perHourExtra * ((validatedInput.duration - minutesInDay) / 60);
+          if (extra > 0) breakdown.push({ description: `Iluminación nocturna (${((validatedInput.duration - minutesInDay)/60).toFixed(2)}h × €${perHourExtra})`, amount: extra });
+          total += extra;
+          lightingInfo = { selected: true, extra, policy: 'INCLUDED_NIGHT' };
         }
       } else {
         lightingInfo = { selected: false, extra: 0, policy: 'UNAVAILABLE' };

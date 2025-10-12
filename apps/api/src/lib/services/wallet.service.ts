@@ -38,7 +38,7 @@ export class WalletService {
 
       const updated = await tx.user.update({
         where: { id: userId },
-        data: { creditsBalance: { increment: Math.floor(credits) } },
+        data: { creditsBalance: { increment: credits } },
         select: { creditsBalance: true },
       });
 
@@ -47,7 +47,7 @@ export class WalletService {
           userId,
           type: 'CREDIT',
           reason,
-          credits: Math.floor(credits),
+          credits: credits,
           balanceAfter: updated.creditsBalance,
           metadata: metadata || {},
           idempotencyKey: idempotencyKey || null,
@@ -83,14 +83,13 @@ export class WalletService {
       if (!user) throw new Error('Usuario no encontrado');
 
       const current = Number(user.creditsBalance || 0);
-      const needed = Math.floor(credits);
-      if (current < needed) {
+      if (current < credits) {
         throw new Error('Saldo de créditos insuficiente');
       }
 
       const updated = await tx.user.update({
         where: { id: userId },
-        data: { creditsBalance: { decrement: needed } },
+        data: { creditsBalance: { decrement: credits } },
         select: { creditsBalance: true },
       });
 
@@ -99,7 +98,72 @@ export class WalletService {
           userId,
           type: 'DEBIT',
           reason,
-          credits: needed,
+          credits: credits,
+          balanceAfter: updated.creditsBalance,
+          metadata: metadata || {},
+          idempotencyKey: idempotencyKey || null,
+        }
+      });
+
+      return { balanceAfter: updated.creditsBalance as number };
+    });
+
+    return result;
+  }
+
+  /**
+   * Reembolsar créditos al usuario (transaccional e idempotente)
+   */
+  async refundCredits(input: WalletMovementInput): Promise<{ balanceAfter: number }> {
+    const { userId, credits, reason, metadata, idempotencyKey } = input;
+    
+    console.log('🔄 [WALLET-SERVICE] refundCredits recibido:', {
+      userId,
+      credits,
+      creditsType: typeof credits,
+      creditsIsFinite: Number.isFinite(credits),
+      creditsIsNull: credits === null,
+      creditsIsUndefined: credits === undefined,
+      reason,
+      idempotencyKey
+    });
+    
+    if (!userId) throw new Error('userId requerido');
+    if (!Number.isFinite(credits) || credits <= 0) {
+      console.error('❌ [WALLET-SERVICE] Error de validación de créditos:', {
+        credits,
+        creditsType: typeof credits,
+        isFinite: Number.isFinite(credits),
+        isGreaterThanZero: credits > 0
+      });
+      throw new Error('credits debe ser > 0');
+    }
+    if (!reason) throw new Error('reason requerido');
+
+    const result = await (db as any).$transaction(async (tx: any) => {
+      // Idempotencia: si existe un registro con la misma llave, devolver balanceAfter
+      if (idempotencyKey) {
+        const existing = await tx.walletLedger.findUnique({ where: { idempotency_key: idempotencyKey } }).catch(() => null);
+        if (existing) {
+          return { balanceAfter: existing.balanceAfter as number };
+        }
+      }
+
+      const user = await tx.user.findUnique({ where: { id: userId }, select: { creditsBalance: true } });
+      if (!user) throw new Error('Usuario no encontrado');
+
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: { creditsBalance: { increment: credits } },
+        select: { creditsBalance: true },
+      });
+
+      await tx.walletLedger.create({
+        data: {
+          userId,
+          type: 'CREDIT',
+          reason: 'REFUND',
+          credits: credits,
           balanceAfter: updated.creditsBalance,
           metadata: metadata || {},
           idempotencyKey: idempotencyKey || null,

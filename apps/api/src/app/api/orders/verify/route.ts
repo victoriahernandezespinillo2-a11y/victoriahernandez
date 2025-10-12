@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       item.product?.requiresCheckIn === true
     );
 
-    const canCheckIn = order.status === 'PAID' && itemsRequiringCheckIn.length > 0;
+    const canCheckIn = (order.status === 'PAID' || order.status === 'FULFILLED') && itemsRequiringCheckIn.length > 0;
     const alreadyRedeemed = order.status === 'REDEEMED';
 
     return ApiResponse.success({

@@ -6,8 +6,31 @@ const nextConfig = {
   // Configuración para manejar archivos estáticos
   trailingSlash: false,
   generateEtags: false,
+  
   // Configuración para el monorepo
   transpilePackages: ['@repo/ui'],
+  
+  // Optimizaciones para prevenir ChunkLoadErrors
+  ...(process.env.NODE_ENV === 'development' && {
+    // Incrementar timeout para carga de chunks en desarrollo
+    webpack: (config, { isServer }) => {
+      if (!isServer) {
+        // Incrementar timeout de webpack para chunks
+        config.output = {
+          ...config.output,
+          chunkLoadTimeout: 60000, // 60 segundos
+        };
+      }
+      return config;
+    },
+  }),
+  
+  // Configuración experimental para mejor estabilidad
+  experimental: {
+    // Tamaño máximo de datos de página más generoso
+    largePageDataBytes: 128 * 100000,
+  },
+  
   // Permitir dominios externos de logos/imagenes usados en el panel
   images: {
     domains: [
@@ -38,15 +61,15 @@ const nextConfig = {
   // EXCLUIR rutas de autenticación para evitar conflictos
   async rewrites() {
     return [
+      // Excluir explícitamente las rutas de NextAuth
       {
-        source: '/api/:path((?!auth/).*)',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/:path`,
+        source: '/api/auth/:path*',
+        destination: '/api/auth/:path*',
       },
-      // Prefijo interno para llamadas del paquete auth cuando no hay NEXT_PUBLIC_API_URL
-      // Mantener NextAuth fuera de este proxy
+      // Redirigir todas las demás rutas /api/* al servidor API
       {
-        source: '/api/backend/:path((?!auth/).*)',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/:path`,
+        source: '/api/:path*',
+        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/api/:path*`,
       },
     ];
   },

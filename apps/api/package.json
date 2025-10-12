@@ -17,6 +17,7 @@
     "@prisma/client": "6.15.0",
     "@react-pdf/renderer": "^4.3.0",
     "@repo/auth": "workspace:*",
+    "@repo/credit-system": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/notifications": "workspace:*",
     "@repo/payments": "workspace:*",

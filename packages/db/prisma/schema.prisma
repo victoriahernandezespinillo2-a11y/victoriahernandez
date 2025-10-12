@@ -19,42 +19,50 @@ model Sport {
 }
 
 model User {
-  id                  String               @id @default(cuid())
-  email               String               @unique
-  name                String?
-  firstName           String?              @map("first_name")
-  lastName            String?              @map("last_name")
-  phone               String?
-  password            String?
-  firebaseUid         String?              @unique @map("firebase_uid")
-  role                UserRole             @default(USER)
-  dateOfBirth         DateTime?            @map("date_of_birth")
-  membershipType      String?              @map("membership_type")
-  membershipExpiresAt DateTime?            @map("membership_expires_at")
-  creditsBalance      Int                  @default(0) @map("credits_balance")
-  isActive            Boolean              @default(true) @map("is_active")
-  avatar              String?
-  lastLoginAt         DateTime?            @map("last_login_at")
-  emailVerified       Boolean              @default(false) @map("email_verified")
-  emailVerifiedAt     DateTime?            @map("email_verified_at")
-  gdprConsent         Boolean              @default(false) @map("gdpr_consent")
-  gdprConsentDate     DateTime?            @map("gdpr_consent_date")
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
-  memberships         Membership[]
-  notifications       Notification[]
-  orders              Order[]
-  passwordResetTokens PasswordResetToken[]
-  posts               Post[]
-  refreshTokens       RefreshToken[]
-  reservations        Reservation[]
-  tournamentUsers     TournamentUser[]
-  waitingLists        WaitingList[]
-  walletLedger        WalletLedger[]
+  id                    String                 @id @default(cuid())
+  email                 String                 @unique
+  name                  String?
+  firstName             String?                @map("first_name")
+  lastName              String?                @map("last_name")
+  phone                 String?
+  password              String?
+  firebaseUid           String?                @unique @map("firebase_uid")
+  role                  UserRole               @default(USER)
+  dateOfBirth           DateTime?              @map("date_of_birth")
+  membershipType        String?                @map("membership_type")
+  membershipExpiresAt   DateTime?              @map("membership_expires_at")
+  creditsBalance        Decimal                @default(0) @map("credits_balance")
+  isActive              Boolean                @default(true) @map("is_active")
+  avatar                String?
+  lastLoginAt           DateTime?              @map("last_login_at")
+  emailVerified         Boolean                @default(false) @map("email_verified")
+  emailVerifiedAt       DateTime?              @map("email_verified_at")
+  gdprConsent           Boolean                @default(false) @map("gdpr_consent")
+  gdprConsentDate       DateTime?              @map("gdpr_consent_date")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+  referredBy            String?                @map("referred_by")
+  referralCode          String?                @unique @map("referral_code")
+  memberships           Membership[]
+  notifications         Notification[]
+  orders                Order[]
+  passwordResetTokens   PasswordResetToken[]
+  payments              Payment[]
+  posts                 Post[]
+  promotionApplications PromotionApplication[]
+  refreshTokens         RefreshToken[]
+  reservations          Reservation[]
+  tournamentUsers       TournamentUser[]
+  referrer              User?                  @relation("UserReferrals", fields: [referredBy], references: [id])
+  referrals             User[]                 @relation("UserReferrals")
+  waitingLists          WaitingList[]
+  walletLedger          WalletLedger[]
 
   @@index([createdAt, role])
   @@index([isActive, createdAt])
   @@index([role, isActive])
+  @@index([referredBy])
+  @@index([referralCode])
   @@map("users")
 }
 
@@ -119,10 +127,6 @@ model Reservation {
   totalPrice         Decimal           @map("total_price")
   paymentMethod      String?           @map("payment_method")
   paymentIntentId    String?           @map("payment_intent_id")
-  /// Estado de pago separado del estado operativo
-  paymentStatus      PaymentStatus     @default(PENDING) @map("payment_status")
-  /// Fecha contable real del cobro
-  paidAt             DateTime?         @map("paid_at")
   isRecurring        Boolean           @default(false) @map("is_recurring")
   recurringParentId  String?           @map("recurring_parent_id")
   checkInTime        DateTime?         @map("check_in_time")
@@ -136,6 +140,18 @@ model Reservation {
   /// Monto total adicional cobrado por iluminación para esta reserva
   lightingExtraTotal Decimal           @default(0) @map("lighting_extra_total")
   sport              String?           @map("sport")
+  /// Fecha contable real del cobro
+  paidAt             DateTime?         @map("paid_at")
+  /// Estado de pago separado del estado operativo
+  paymentStatus      PaymentStatus     @default(PENDING) @map("payment_status")
+  /// Créditos utilizados para esta reserva
+  creditsUsed        Decimal           @default(0) @map("credits_used")
+  /// Descuento aplicado por promociones de créditos
+  creditDiscount     Decimal           @default(0) @map("credit_discount")
+  /// Código promocional aplicado a esta reserva
+  promoCode          String?           @map("promo_code")
+  /// Descuento aplicado por código promocional
+  promoDiscount      Decimal?          @default(0) @map("promo_discount") @db.Decimal(15, 4)
   court              Court             @relation(fields: [courtId], references: [id], onDelete: Cascade)
   recurringParent    Reservation?      @relation("RecurringReservations", fields: [recurringParentId], references: [id])
   recurringChildren  Reservation[]     @relation("RecurringReservations")
@@ -147,6 +163,7 @@ model Reservation {
   @@index([status, startTime])
   @@index([paymentMethod, startTime])
   @@index([paymentStatus, paidAt])
+  @@index([promoCode])
   @@map("reservations")
 }
 
@@ -407,8 +424,8 @@ model WalletLedger {
   userId         String             @map("user_id")
   type           WalletLedgerType
   reason         WalletLedgerReason
-  credits        Int
-  balanceAfter   Int                @map("balance_after")
+  credits        Decimal
+  balanceAfter   Decimal            @map("balance_after")
   metadata       Json?              @default("{}")
   idempotencyKey String?            @unique @map("idempotency_key")
   createdAt      DateTime           @default(now()) @map("created_at")
@@ -450,16 +467,16 @@ model Order {
   status          OrderStatus        @default(PENDING)
   totalEuro       Decimal            @map("total_euro")
   paymentMethod   OrderPaymentMethod @map("payment_method")
-  creditsUsed     Int                @default(0) @map("credits_used")
+  creditsUsed     Decimal            @default(0) @map("credits_used")
   paymentIntentId String?            @map("payment_intent_id")
   idempotencyKey  String?            @unique @map("idempotency_key")
   createdAt       DateTime           @default(now()) @map("created_at")
   updatedAt       DateTime           @updatedAt @map("updated_at")
   type            OrderType          @default(ORDER)
   redeemedAt      DateTime?          @map("redeemed_at")
+  paidAt          DateTime?          @map("paid_at")
   /// Estado de pago separado de status del pedido
   paymentStatus   PaymentStatus      @default(PENDING) @map("payment_status")
-  paidAt          DateTime?          @map("paid_at")
   items           OrderItem[]
   user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -470,20 +487,20 @@ model Order {
 
 /// Libro mayor de transacciones de pago (fuente única para contabilidad)
 model LedgerTransaction {
-  id             String         @id @default(cuid())
-  sourceType     String         @map("source_type")
-  sourceId       String         @map("source_id")
+  id             String          @id @default(cuid())
+  sourceType     String          @map("source_type")
+  sourceId       String          @map("source_id")
   direction      LedgerDirection
-  amountEuro     Decimal        @map("amount_euro")
-  currency       String         @default("EUR")
-  paymentStatus  PaymentStatus  @default(PAID) @map("payment_status")
-  paidAt         DateTime       @map("paid_at")
-  method         String         @map("method")
-  gatewayRef     String?        @map("gateway_ref")
-  idempotencyKey String         @unique @map("idempotency_key")
-  metadata       Json?          @default("{}")
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
+  amountEuro     Decimal         @map("amount_euro")
+  currency       String          @default("EUR")
+  paymentStatus  PaymentStatus   @default(PAID) @map("payment_status")
+  paidAt         DateTime        @map("paid_at")
+  method         String          @map("method")
+  gatewayRef     String?         @map("gateway_ref")
+  idempotencyKey String          @unique @map("idempotency_key")
+  metadata       Json?           @default("{}")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
 
   @@index([paidAt])
   @@index([paymentStatus, paidAt])
@@ -492,15 +509,15 @@ model LedgerTransaction {
 }
 
 model OrderItem {
-  id             String  @id @default(cuid())
-  orderId        String  @map("order_id")
-  productId      String  @map("product_id")
+  id             String   @id @default(cuid())
+  orderId        String   @map("order_id")
+  productId      String   @map("product_id")
   qty            Int
-  unitPriceEuro  Decimal @map("unit_price_euro")
-  taxRate        Decimal @map("tax_rate")
-  creditsPerUnit Int?    @map("credits_per_unit")
-  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  unitPriceEuro  Decimal  @map("unit_price_euro")
+  taxRate        Decimal  @map("tax_rate")
+  creditsPerUnit Decimal? @map("credits_per_unit")
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@map("order_items")
@@ -838,6 +855,66 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model Promotion {
+  id           String                 @id @default(cuid())
+  name         String
+  code         String?                @unique
+  conditions   Json                   @default("{}")
+  rewards      Json                   @default("{}")
+  validFrom    DateTime               @map("valid_from")
+  validTo      DateTime?              @map("valid_to")
+  usageLimit   Int?                   @map("usage_limit")
+  usageCount   Int                    @default(0) @map("usage_count")
+  createdAt    DateTime               @default(now()) @map("created_at")
+  updatedAt    DateTime               @updatedAt @map("updated_at")
+  type         PromotionType
+  status       PromotionStatus        @default(ACTIVE)
+  applications PromotionApplication[]
+
+  @@index([status, validFrom, validTo])
+  @@index([code])
+  @@map("promotions")
+}
+
+model PromotionApplication {
+  id             String    @id @default(cuid())
+  promotionId    String    @map("promotion_id")
+  userId         String    @map("user_id")
+  creditsAwarded Decimal   @map("credits_awarded")
+  appliedAt      DateTime  @default(now()) @map("applied_at")
+  metadata       Json      @default("{}")
+  promotion      Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([promotionId, appliedAt], map: "idx_promotion_applications_promotion")
+  @@index([userId, appliedAt], map: "idx_promotion_applications_user")
+  @@map("promotion_applications")
+}
+
+model Payment {
+  id               String             @id @default(cuid())
+  userId           String             @map("user_id")
+  amount           Decimal
+  currency         String             @default("EUR")
+  creditAmount     Decimal            @default(0) @map("credit_amount")
+  cardAmount       Decimal            @default(0) @map("card_amount")
+  referenceType    String?            @map("reference_type")
+  referenceId      String?            @map("reference_id")
+  gatewayReference String?            @map("gateway_reference")
+  metadata         Json               @default("{}")
+  processedAt      DateTime?          @map("processed_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  method           OrderPaymentMethod
+  status           PaymentStatus
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([referenceType, referenceId])
+  @@index([method, status])
+  @@index([createdAt])
+  @@map("payments")
+}
+
 enum UserRole {
   USER
   STAFF
@@ -1021,4 +1098,19 @@ enum AuditCategory {
   MAINTENANCE
   API
   EXTERNAL
+}
+
+enum PromotionType {
+  SIGNUP_BONUS
+  RECHARGE_BONUS
+  USAGE_BONUS
+  SEASONAL
+  REFERRAL_BONUS
+  DISCOUNT_CODE
+}
+
+enum PromotionStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
 }

@@ -631,6 +631,10 @@ export default function CalendarVisualModal({
                          <span className="font-semibold">= {((Number(selectedCourt?.pricePerHour || 0) + (lightingSelected ? Number((selectedCourt as any)?.lightingExtraPerHour || 0) : 0)) * (duration/60)).toLocaleString('es-CO')}</span>
                        </div>
                      </div>
+                     {/* Mensaje para horario nocturno */}
+                     <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                       <strong>Nota:</strong> En horario nocturno, la iluminación se aplicará automáticamente.
+                     </div>
                    </div>
                  )}
 

@@ -89,10 +89,17 @@ const globalForPrisma = globalThis as unknown as {
 export const db = globalForPrisma.prisma ??
   (() => {
     try {
+      // Usar DIRECT_DATABASE_URL o DATABASE_URL según disponibilidad
+      const databaseUrl = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL;
+      
+      if (!databaseUrl) {
+        throw new Error('DATABASE_URL o DIRECT_DATABASE_URL debe estar definido en las variables de entorno');
+      }
+      
       const client = new PrismaClient({
         datasources: {
           db: {
-            url: process.env.DATABASE_URL,
+            url: databaseUrl,
           },
         },
         log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],

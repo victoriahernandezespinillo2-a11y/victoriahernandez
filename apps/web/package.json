@@ -30,6 +30,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.48.2",
+    "sonner": "^2.0.7",
     "zod": "^3.22.4"
   },
   "devDependencies": {

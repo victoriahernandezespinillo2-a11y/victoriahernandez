@@ -22,7 +22,8 @@ export const SignUpSchema = z.object({
   dateOfBirth: z.string().datetime().optional(),
   acceptTerms: z.boolean().refine(val => val === true, {
     message: 'Debe aceptar los términos y condiciones'
-  })
+  }),
+  referredBy: z.string().optional() // Código de referido del usuario que invita
 });
 
 export const SignInSchema = z.object({
@@ -111,6 +112,25 @@ export class AuthService {
       throw new Error('El usuario ya existe con este email');
     }
 
+    // Verificar referido si se proporciona código
+    let referrerId = null;
+    if (validatedData.referredBy) {
+      const referrer = await prisma.user.findUnique({
+        where: { referralCode: validatedData.referredBy }
+      });
+      
+      if (referrer) {
+        referrerId = referrer.id;
+        console.log('🎯 [SIGNUP] Usuario referido por:', referrer.email);
+      } else {
+        console.log('⚠️ [SIGNUP] Código de referido inválido:', validatedData.referredBy);
+        // No fallar el registro si el código es inválido
+      }
+    }
+
+    // Generar código de referido único
+    const referralCode = this.generateReferralCode();
+
     // Hash de la contraseña
     const hashedPassword = await bcrypt.hash(validatedData.password, this.BCRYPT_ROUNDS);
 
@@ -125,7 +145,9 @@ export class AuthService {
         dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : null,
         role: 'USER',
         isActive: true,
-        emailVerified: false
+        emailVerified: false,
+        referredBy: referrerId,
+        referralCode: referralCode
       }
     });
 
@@ -137,6 +159,24 @@ export class AuthService {
 
     // Actualizar último login
     await this.updateLastLogin(user.id);
+
+    // ✨ Aplicar SIGNUP_BONUS automáticamente si existe
+    try {
+      await this.applySignupBonus(user.id);
+    } catch (promoError) {
+      console.error('⚠️ [SIGNUP] Error aplicando SIGNUP_BONUS (no crítico):', promoError);
+      // No fallar el registro si falla la promoción
+    }
+
+    // ✨ Aplicar REFERRAL_BONUS si fue referido por alguien
+    if (validatedData.referredBy) {
+      try {
+        await this.applyReferralBonus(validatedData.referredBy, user.id);
+      } catch (referralError) {
+        console.error('⚠️ [SIGNUP] Error aplicando REFERRAL_BONUS (no crítico):', referralError);
+        // No fallar el registro si falla la promoción de referido
+      }
+    }
 
     return {
       user: this.formatUser(user),
@@ -633,6 +673,273 @@ export class AuthService {
         changeTime: new Date().toLocaleString('es-ES')
       }
     });
+  }
+
+  /**
+   * Aplicar SIGNUP_BONUS automáticamente al registrarse
+   * 
+   * @description Busca promociones SIGNUP_BONUS activas y las aplica automáticamente
+   * al nuevo usuario, otorgando créditos de bienvenida.
+   * 
+   * @param {string} userId - ID del usuario recién registrado
+   * 
+   * @returns {Promise<void>}
+   * 
+   * @throws No lanza errores (se registran pero no interrumpen el flujo)
+   */
+  private async applySignupBonus(userId: string): Promise<void> {
+    console.log('🎁 [SIGNUP-BONUS] Verificando bonus de registro para usuario:', userId);
+
+    try {
+      const now = new Date();
+
+      // Buscar SIGNUP_BONUS activo
+      const signupPromotion = await prisma.promotion.findFirst({
+        where: {
+          type: 'SIGNUP_BONUS',
+          status: 'ACTIVE',
+          validFrom: { lte: now },
+          OR: [
+            { validTo: null },
+            { validTo: { gte: now } }
+          ]
+        }
+      });
+
+      if (!signupPromotion) {
+        console.log('ℹ️ [SIGNUP-BONUS] No hay promoción SIGNUP_BONUS activa');
+        return;
+      }
+
+      console.log('✅ [SIGNUP-BONUS] Promoción encontrada:', {
+        id: signupPromotion.id,
+        name: signupPromotion.name
+      });
+
+      // Verificar límite de uso global
+      if (signupPromotion.usageLimit && signupPromotion.usageCount >= signupPromotion.usageLimit) {
+        console.log('⚠️ [SIGNUP-BONUS] Límite de uso alcanzado');
+        return;
+      }
+
+      const rewards = signupPromotion.rewards as any;
+
+      // Solo procesar si es FIXED_CREDITS (único tipo válido para SIGNUP_BONUS)
+      if (rewards.type !== 'FIXED_CREDITS') {
+        console.log('⚠️ [SIGNUP-BONUS] Tipo de recompensa inválido:', rewards.type);
+        return;
+      }
+
+      const creditsAwarded = rewards.value;
+
+      console.log('💰 [SIGNUP-BONUS] Otorgando créditos:', creditsAwarded);
+
+      // Transacción atómica para aplicar la promoción
+      await prisma.$transaction(async (tx) => {
+        // Registrar aplicación
+        await tx.promotionApplication.create({
+          data: {
+            promotionId: signupPromotion.id,
+            userId,
+            creditsAwarded,
+            metadata: {
+              autoApplied: true,
+              reason: 'SIGNUP',
+              appliedAt: now.toISOString()
+            }
+          }
+        });
+
+        // Incrementar contador de uso
+        await tx.promotion.update({
+          where: { id: signupPromotion.id },
+          data: { usageCount: { increment: 1 } }
+        });
+
+        // Actualizar balance del usuario
+        const updatedUser = await tx.user.update({
+          where: { id: userId },
+          data: { creditsBalance: { increment: creditsAwarded } }
+        });
+
+        // Registrar en wallet ledger
+        await tx.walletLedger.create({
+          data: {
+            userId,
+            type: 'CREDIT',
+            reason: 'TOPUP',
+            credits: creditsAwarded,
+            balanceAfter: updatedUser.creditsBalance,
+            metadata: {
+              promotionId: signupPromotion.id,
+              promotionName: signupPromotion.name,
+              promotionType: 'SIGNUP_BONUS',
+              autoApplied: true
+            },
+            idempotencyKey: `SIGNUP_BONUS:${userId}:${signupPromotion.id}`
+          }
+        });
+
+        console.log('✅ [SIGNUP-BONUS] Promoción aplicada exitosamente:', {
+          userId,
+          creditsAwarded,
+          newBalance: Number(updatedUser.creditsBalance)
+        });
+      });
+
+    } catch (error) {
+      console.error('❌ [SIGNUP-BONUS] Error aplicando promoción:', error);
+      // No relanzar el error para no interrumpir el registro
+    }
+  }
+
+  /**
+   * Generar código de referido único
+   * 
+   * @returns {string} Código único de 8 caracteres
+   */
+  private generateReferralCode(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
+
+  /**
+   * Aplicar REFERRAL_BONUS automáticamente al referidor
+   * 
+   * @description Busca promociones REFERRAL_BONUS activas y las aplica automáticamente
+   * al usuario que hizo la referencia cuando alguien se registra usando su código.
+   * 
+   * @param {string} referrerId - ID del usuario que hizo la referencia
+   * @param {string} referredUserId - ID del usuario recién registrado que fue referido
+   * 
+   * @returns {Promise<void>}
+   * 
+   * @throws No lanza errores (se registran pero no interrumpen el flujo)
+   */
+  private async applyReferralBonus(referrerId: string, referredUserId: string): Promise<void> {
+    console.log('🎁 [REFERRAL-BONUS] Verificando bonus de referido para:', referrerId);
+
+    try {
+      const now = new Date();
+
+      // Buscar REFERRAL_BONUS activo
+      const referralPromotion = await prisma.promotion.findFirst({
+        where: {
+          type: 'REFERRAL_BONUS',
+          status: 'ACTIVE',
+          validFrom: { lte: now },
+          OR: [
+            { validTo: null },
+            { validTo: { gte: now } }
+          ]
+        }
+      });
+
+      if (!referralPromotion) {
+        console.log('ℹ️ [REFERRAL-BONUS] No hay promoción REFERRAL_BONUS activa');
+        return;
+      }
+
+      console.log('✅ [REFERRAL-BONUS] Promoción encontrada:', {
+        id: referralPromotion.id,
+        name: referralPromotion.name
+      });
+
+      // Verificar límite de uso global
+      if (referralPromotion.usageLimit && referralPromotion.usageCount >= referralPromotion.usageLimit) {
+        console.log('⚠️ [REFERRAL-BONUS] Límite de uso alcanzado');
+        return;
+      }
+
+      // Verificar si el referidor ya usó esta promoción
+      const existingApplication = await prisma.promotionApplication.findFirst({
+        where: {
+          promotionId: referralPromotion.id,
+          userId: referrerId
+        }
+      });
+
+      if (existingApplication) {
+        console.log('⚠️ [REFERRAL-BONUS] Referidor ya usó esta promoción');
+        return;
+      }
+
+      const rewards = referralPromotion.rewards as any;
+
+      // Solo procesar si es FIXED_CREDITS (único tipo válido para REFERRAL_BONUS)
+      if (rewards.type !== 'FIXED_CREDITS') {
+        console.log('⚠️ [REFERRAL-BONUS] Tipo de recompensa inválido:', rewards.type);
+        return;
+      }
+
+      const creditsAwarded = rewards.value;
+
+      console.log('💰 [REFERRAL-BONUS] Otorgando créditos al referidor:', creditsAwarded);
+
+      // Transacción atómica para aplicar la promoción
+      await prisma.$transaction(async (tx) => {
+        // Registrar aplicación
+        await tx.promotionApplication.create({
+          data: {
+            promotionId: referralPromotion.id,
+            userId: referrerId,
+            creditsAwarded,
+            metadata: {
+              autoApplied: true,
+              reason: 'REFERRAL',
+              referredUserId,
+              appliedAt: now.toISOString()
+            }
+          }
+        });
+
+        // Incrementar contador de uso
+        await tx.promotion.update({
+          where: { id: referralPromotion.id },
+          data: { usageCount: { increment: 1 } }
+        });
+
+        // Actualizar balance del referidor
+        const updatedUser = await tx.user.update({
+          where: { id: referrerId },
+          data: { creditsBalance: { increment: creditsAwarded } }
+        });
+
+        // Registrar en wallet ledger
+        await tx.walletLedger.create({
+          data: {
+            userId: referrerId,
+            type: 'CREDIT',
+            reason: 'TOPUP',
+            credits: creditsAwarded,
+            balanceAfter: updatedUser.creditsBalance,
+            metadata: {
+              promotionId: referralPromotion.id,
+              promotionName: referralPromotion.name,
+              promotionType: 'REFERRAL_BONUS',
+              autoApplied: true,
+              referredUserId
+            },
+            idempotencyKey: `REFERRAL_BONUS:${referrerId}:${referralPromotion.id}:${referredUserId}`
+          }
+        });
+
+        console.log('✅ [REFERRAL-BONUS] Promoción aplicada exitosamente:', {
+          referrerId,
+          referredUserId,
+          creditsAwarded,
+          newBalance: Number(updatedUser.creditsBalance)
+        });
+      });
+
+    } catch (error) {
+      console.error('❌ [REFERRAL-BONUS] Error aplicando promoción:', error);
+      // No relanzar el error para no interrumpir el registro
+    }
   }
 }
 

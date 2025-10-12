@@ -399,14 +399,14 @@ export function MobileCalendar({
       {/* Mensaje para horarios de noche */}
       {selectedDate && selectedSlot && !isDayTime && (
         <div className="p-4 border-t border-gray-200 bg-gray-50">
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-start">
               <div className="flex-shrink-0">
-                <Lightbulb className="h-6 w-6 text-green-600" />
+                <Lightbulb className="h-6 w-6 text-blue-600" />
               </div>
               <div className="ml-3">
-                <p className="text-sm text-green-800 leading-relaxed">
-                  <strong>Horario nocturno:</strong> La iluminación está incluida sin costo adicional.
+                <p className="text-sm text-blue-800 leading-relaxed">
+                  <strong>Horario nocturno:</strong> La iluminación es obligatoria (+€{(lightingExtraPrice * duration / 60).toFixed(2)}).
                 </p>
               </div>
             </div>

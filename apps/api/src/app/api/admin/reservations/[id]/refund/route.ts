@@ -4,6 +4,7 @@ import { db } from '@repo/db';
 import { z } from 'zod';
 import { stripeService } from '@repo/payments';
 import { ledgerService } from '@/lib/services/ledger.service';
+import { walletService } from '@/lib/services/wallet.service';
 
 const RefundSchema = z.object({
   amount: z.number().positive().optional(),
@@ -20,19 +21,48 @@ export async function POST(request: NextRequest) {
       const body = await req.json().catch(() => ({}));
       const input = RefundSchema.parse(body);
 
-      const reservation = await db.reservation.findUnique({ where: { id } });
+      const reservation = await db.reservation.findUnique({ 
+        where: { id },
+        include: { court: { include: { center: true } } }
+      });
       if (!reservation) return ApiResponse.notFound('Reserva no encontrada');
 
-      // Solo se puede reembolsar si tenemos un PaymentIntent (Stripe)
       const paymentIntentId = (reservation as any).paymentIntentId as string | null;
-      if (!paymentIntentId) return ApiResponse.badRequest('La reserva no tiene un pago procesado por Stripe');
+      const paymentMethod = (reservation as any).paymentMethod as string;
+      
+      let refund: any = null;
+      let creditsToRefund = 0;
 
-      // Crear reembolso en Stripe
-      const refund = await stripeService.createRefund({
-        paymentIntentId,
-        amount: input.amount,
-        reason: 'requested_by_customer',
-      });
+      // ✅ CORREGIDO: Manejar reembolsos de créditos
+      if (paymentMethod === 'CREDITS') {
+        // Calcular créditos a reembolsar
+        const settings: any = (reservation.court?.center as any)?.settings || {};
+        const creditsCfg: any = settings.credits || {};
+        const euroPerCredit = typeof creditsCfg.euroPerCredit === 'number' && creditsCfg.euroPerCredit > 0 
+          ? creditsCfg.euroPerCredit 
+          : 1;
+        
+        const amount = Number(input.amount || reservation.totalPrice || 0);
+        creditsToRefund = amount / euroPerCredit; // NO redondear, usar valor exacto
+
+        // Reembolsar créditos al usuario
+        await walletService.refundCredits({
+          userId: reservation.userId,
+          credits: creditsToRefund,
+          reason: 'REFUND' as any,
+          metadata: { reservationId: reservation.id, refundReason: input.reason },
+          idempotencyKey: `REFUND_CREDITS:RES:${reservation.id}`
+        });
+      } else if (paymentIntentId) {
+        // Reembolso tradicional con Stripe
+        refund = await stripeService.createRefund({
+          paymentIntentId,
+          amount: input.amount,
+          reason: 'requested_by_customer',
+        });
+      } else {
+        return ApiResponse.badRequest('La reserva no tiene un método de pago válido para reembolsar');
+      }
 
       // Registrar evento en outbox para que el front muestre estado "REFUNDED"
       await db.outboxEvent.create({
@@ -41,9 +71,10 @@ export async function POST(request: NextRequest) {
           eventData: {
             reservationId: reservation.id,
             paymentIntentId,
-            refundId: refund.id,
+            refundId: refund?.id || null,
             amount: input.amount || Number(reservation.totalPrice || 0),
             reason: input.reason,
+            creditsRefunded: creditsToRefund,
           } as any,
         },
       });
@@ -55,17 +86,24 @@ export async function POST(request: NextRequest) {
           sourceId: reservation.id,
           amountEuro: input.amount || Number(reservation.totalPrice || 0),
           currency: 'EUR',
-          method: 'CARD',
+          method: paymentMethod === 'CREDITS' ? 'CREDITS' : 'CARD',
           paidAt: new Date(),
-          gatewayRef: refund.id,
-          idempotencyKey: `REFUND:RES:${reservation.id}:${refund.id}`,
-          metadata: { provider: 'STRIPE' }
+          gatewayRef: refund?.id || null,
+          idempotencyKey: `REFUND:RES:${reservation.id}:${refund?.id || 'credits'}`,
+          metadata: { 
+            provider: paymentMethod === 'CREDITS' ? 'CREDITS' : 'STRIPE',
+            creditsRefunded: creditsToRefund
+          }
         });
       } catch (e) {
         console.warn('Ledger recordRefund failed (ADMIN RESERVATION):', e);
       }
 
-      return ApiResponse.success({ refundId: refund.id, status: refund.status });
+      return ApiResponse.success({ 
+        refundId: refund?.id || null, 
+        status: refund?.status || 'completed',
+        creditsRefunded: creditsToRefund
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(error.errors.map(er => ({ field: er.path.join('.'), message: er.message })));

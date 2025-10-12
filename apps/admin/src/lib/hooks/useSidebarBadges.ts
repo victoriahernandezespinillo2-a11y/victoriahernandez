@@ -175,8 +175,9 @@ export function useSidebarBadges() {
           : [];
         totalCount += highData.length;
       } catch (highError) {
-        // Silenciar errores 401 en producción para evitar spam de logs
-        if (process.env.NODE_ENV === 'production' && (highError as any)?.status === 401) {
+        // Silenciar errores 401 y 429 para evitar spam de logs
+        const errorStatus = (highError as any)?.status || (highError as any)?.response?.status;
+        if (process.env.NODE_ENV === 'production' && (errorStatus === 401 || errorStatus === 429)) {
           // Continuar sin log
         } else if (process.env.NODE_ENV !== 'production') {
           console.warn('Error obteniendo logs de alta severidad:', highError);
@@ -191,8 +192,9 @@ export function useSidebarBadges() {
           : [];
         totalCount += criticalData.length;
       } catch (criticalError) {
-        // Silenciar errores 401 en producción para evitar spam de logs
-        if (process.env.NODE_ENV === 'production' && (criticalError as any)?.status === 401) {
+        // Silenciar errores 401 y 429 para evitar spam de logs
+        const errorStatus = (criticalError as any)?.status || (criticalError as any)?.response?.status;
+        if (process.env.NODE_ENV === 'production' && (errorStatus === 401 || errorStatus === 429)) {
           // Continuar sin log
         } else if (process.env.NODE_ENV !== 'production') {
           console.warn('Error obteniendo logs críticos:', criticalError);
@@ -260,10 +262,21 @@ export function useSidebarBadges() {
     updateBadgeCounts();
   }, [updateBadgeCounts]);
 
-  // Actualizar contadores según configuración
+  // Actualizar contadores según configuración con throttling
   useEffect(() => {
-    const interval = setInterval(updateBadgeCounts, BADGE_CONFIG.general.updateInterval);
-    return () => clearInterval(interval);
+    let timeoutId: NodeJS.Timeout;
+    
+    const throttledUpdate = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(updateBadgeCounts, 1000); // Throttle de 1 segundo
+    };
+    
+    const interval = setInterval(throttledUpdate, BADGE_CONFIG.general.updateInterval);
+    
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeoutId);
+    };
   }, [updateBadgeCounts]);
 
   return {

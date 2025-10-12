@@ -15,6 +15,140 @@ import { NotificationService } from '@/lib/services/notification.service';
 export const runtime = 'nodejs';
 
 /**
+ * Aplicar RECHARGE_BONUS automáticamente después de una recarga exitosa
+ * 
+ * @param userId - ID del usuario que realizó la recarga
+ * @param topupAmount - Monto recargado en EUR
+ */
+async function applyRechargeBonus(userId: string, topupAmount: number): Promise<void> {
+  console.log('🎁 [RECHARGE-BONUS] Verificando bonus de recarga:', { userId, topupAmount });
+
+  try {
+    const now = new Date();
+
+    // Buscar RECHARGE_BONUS activo que aplique al monto
+    const rechargePromotions = await db.promotion.findMany({
+      where: {
+        type: 'RECHARGE_BONUS',
+        status: 'ACTIVE',
+        validFrom: { lte: now },
+        OR: [
+          { validTo: null },
+          { validTo: { gte: now } }
+        ]
+      }
+    });
+
+    if (rechargePromotions.length === 0) {
+      console.log('ℹ️ [RECHARGE-BONUS] No hay promociones RECHARGE_BONUS activas');
+      return;
+    }
+
+    // Encontrar la primera promoción que aplique
+    for (const promo of rechargePromotions) {
+      const conditions = promo.conditions as any;
+      const rewards = promo.rewards as any;
+
+      // Verificar conditions de monto
+      if (conditions.minTopupAmount && topupAmount < conditions.minTopupAmount) {
+        console.log(`⚠️ [RECHARGE-BONUS] ${promo.name}: Monto insuficiente (min: ${conditions.minTopupAmount})`);
+        continue;
+      }
+
+      if (conditions.minAmount && topupAmount < conditions.minAmount) continue;
+      if (conditions.maxAmount && topupAmount > conditions.maxAmount) continue;
+
+      // Verificar límite de uso global
+      if (promo.usageLimit && promo.usageCount >= promo.usageLimit) {
+        console.log(`⚠️ [RECHARGE-BONUS] ${promo.name}: Límite alcanzado`);
+        continue;
+      }
+
+      console.log('✅ [RECHARGE-BONUS] Promoción aplicable:', promo.name);
+
+      // Calcular créditos a otorgar
+      let creditsAwarded = 0;
+
+      if (rewards.type === 'FIXED_CREDITS') {
+        creditsAwarded = rewards.value;
+      } else if (rewards.type === 'PERCENTAGE_BONUS') {
+        creditsAwarded = topupAmount * (rewards.value / 100);
+      } else {
+        console.log(`⚠️ [RECHARGE-BONUS] Tipo de recompensa no válido: ${rewards.type}`);
+        continue;
+      }
+
+      // Aplicar límite máximo
+      if (rewards.maxRewardAmount && creditsAwarded > rewards.maxRewardAmount) {
+        creditsAwarded = rewards.maxRewardAmount;
+      }
+
+      creditsAwarded = Math.round(creditsAwarded * 100) / 100;
+
+      console.log('💰 [RECHARGE-BONUS] Otorgando créditos:', creditsAwarded);
+
+      // Aplicar en transacción
+      await db.$transaction(async (tx) => {
+        await tx.promotionApplication.create({
+          data: {
+            promotionId: promo.id,
+            userId,
+            creditsAwarded,
+            metadata: {
+              autoApplied: true,
+              reason: 'RECHARGE',
+              topupAmount,
+              appliedAt: now.toISOString()
+            }
+          }
+        });
+
+        await tx.promotion.update({
+          where: { id: promo.id },
+          data: { usageCount: { increment: 1 } }
+        });
+
+        const updatedUser = await tx.user.update({
+          where: { id: userId },
+          data: { creditsBalance: { increment: creditsAwarded } }
+        });
+
+        await tx.walletLedger.create({
+          data: {
+            userId,
+            type: 'CREDIT',
+            reason: 'TOPUP',
+            credits: creditsAwarded,
+            balanceAfter: updatedUser.creditsBalance,
+            metadata: {
+              promotionId: promo.id,
+              promotionName: promo.name,
+              promotionType: 'RECHARGE_BONUS',
+              autoApplied: true,
+              topupAmount
+            },
+            idempotencyKey: `RECHARGE_BONUS:${userId}:${promo.id}:${Date.now()}`
+          }
+        });
+
+        console.log('✅ [RECHARGE-BONUS] Aplicado exitosamente:', {
+          promotion: promo.name,
+          creditsAwarded,
+          newBalance: Number(updatedUser.creditsBalance)
+        });
+      });
+
+      // Solo aplicar la primera promoción que coincida
+      break;
+    }
+
+  } catch (error) {
+    console.error('❌ [RECHARGE-BONUS] Error:', error);
+    // No relanzar para no interrumpir el webhook
+  }
+}
+
+/**
  * POST /api/payments/webhook/redsys
  * Manejar notificaciones (URLOK/URLKO/MerchantURL) desde Redsys
  * Acceso: Público (validado mediante firma Redsys)
@@ -164,6 +298,13 @@ export async function POST(request: NextRequest) {
                           } as any 
                         } 
                       });
+
+                      // ✨ Aplicar RECHARGE_BONUS automáticamente si existe
+                      try {
+                        await applyRechargeBonus(order.userId, Number(order.totalEuro));
+                      } catch (promoError) {
+                        console.error('⚠️ [TOPUP] Error aplicando RECHARGE_BONUS (no crítico):', promoError);
+                      }
                     } catch (e) {
                       // idempotencia o error: no bloquear webhook, ya se registró evento o no corresponde
                     }

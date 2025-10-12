@@ -20,7 +20,7 @@ export const CreateReservationSchema = z.object({
     endDate: z.string().datetime(),
     exceptions: z.array(z.string().datetime()).optional(),
   }).optional(),
-  paymentMethod: z.enum(['stripe', 'redsys', 'credits']).optional(),
+  paymentMethod: z.enum(['stripe', 'redsys', 'credits', 'CREDITS', 'CARD']).optional(),
   notes: z.string().optional(),
   // Nueva bandera: selección de iluminación por el usuario
   lightingSelected: z.boolean().optional(),
@@ -152,7 +152,7 @@ export class ReservationService {
             status: 'PENDING',
             expiresAt: expiresAt,
             isRecurring: validatedInput.isRecurring,
-            paymentMethod: validatedInput.paymentMethod,
+            paymentMethod: validatedInput.paymentMethod || 'CARD', // Default a CARD si no se especifica
             notes: validatedInput.notes,
           },
         });

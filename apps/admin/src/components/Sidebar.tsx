@@ -74,6 +74,8 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
       submenu: [
         { name: 'Pagos', href: '/payments', icon: CreditCardIcon, badge: badgeCounts.pendingPayments },
         { name: 'Pedidos', href: '/orders', icon: DocumentTextIcon, badge: badgeCounts.pendingOrders },
+        { name: 'Créditos', href: '/credits', icon: CreditCardIcon },
+        { name: 'Promociones', href: '/promotions', icon: StarIcon },
         { name: 'Precios', href: '/pricing', icon: ChartBarIcon },
         { name: 'Membresías', href: '/memberships', icon: UsersIcon },
       ],

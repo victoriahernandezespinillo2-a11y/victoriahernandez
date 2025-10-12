@@ -142,6 +142,10 @@ export default function ReceiptPDF({
         {/* Desglose de precio */}
         <View style={styles.section}>
           <Text style={styles.rightAlign}>Base: €{base.toFixed(2)}</Text>
+          {/* Mostrar desglose de iluminación si aplica */}
+          {total > base && (
+            <Text style={styles.rightAlign}>Iluminación: €{(total - base - sumOverrides).toFixed(2)}</Text>
+          )}
           {sumOverrides !== 0 && (
             <>
               <Text style={styles.rightAlign}>Ajustes: €{sumOverrides.toFixed(2)}</Text>

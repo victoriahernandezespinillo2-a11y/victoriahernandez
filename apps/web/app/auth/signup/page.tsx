@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -21,6 +21,7 @@ const signUpSchema = z.object({
   acceptTerms: z.boolean().refine(val => val === true, {
     message: 'Debe aceptar los términos y condiciones'
   }),
+  referredBy: z.string().optional(), // Código de referido opcional
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Las contraseñas no coinciden",
   path: ["confirmPassword"],
@@ -35,14 +36,28 @@ function SignUpContent() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema as any),
   });
+
+  // Extraer código de referido de la URL
+  useEffect(() => {
+    const referralCode = searchParams.get('ref');
+    if (referralCode) {
+      console.log('🔗 [SIGNUP] Código de referido encontrado en URL:', referralCode);
+      setValue('referredBy', referralCode);
+    }
+  }, [searchParams, setValue]);
+
+  const referredByValue = watch('referredBy');
 
   const onSubmit = async (data: SignUpFormData) => {
     setIsLoading(true);
@@ -100,6 +115,7 @@ function SignUpContent() {
             phone: data.phone,
             password: data.password,
             acceptTerms: data.acceptTerms,
+            referredBy: data.referredBy, // Agregar código de referido
           }),
         });
 
@@ -402,6 +418,41 @@ function SignUpContent() {
           {errors.confirmPassword && (
             <p className="mt-1 text-sm text-red-600">{errors.confirmPassword.message}</p>
           )}
+        </div>
+
+        {/* Referral Code Field */}
+        <div>
+          <label htmlFor="referredBy" className="block text-sm font-medium text-gray-700 mb-2">
+            Código de Referido (Opcional)
+          </label>
+          
+          {/* Mostrar banner si hay código de referido */}
+          {referredByValue && (
+            <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <p className="text-sm text-green-800">
+                  <span className="font-medium">¡Código de referido detectado!</span>
+                  <br />
+                  Usando código: <span className="font-mono font-bold">{referredByValue}</span>
+                </p>
+              </div>
+            </div>
+          )}
+          
+          <div className="relative">
+            <input
+              {...register('referredBy')}
+              type="text"
+              id="referredBy"
+              className="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-gray-900 placeholder-gray-500 uppercase"
+              placeholder="ABC12345"
+              style={{ textTransform: 'uppercase' }}
+            />
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            ¿Un amigo te invitó? Ingresa su código para ganar créditos extra
+          </p>
         </div>
 
         {/* Terms and Conditions */}

@@ -9,10 +9,10 @@ type CheckoutItem = { productId: string; qty: number };
 export class OrderService {
   private async calculateCreditsPerUnit(product: any, euroPerCredit: number): Promise<number> {
     const price = Number(product.priceEuro || 0);
-    // Simplificar: 1 crédito = 1 euro (por defecto)
-    // Si hay configuración específica del centro, usarla
-    const credits = Math.ceil(price / euroPerCredit);
-    return Math.max(1, credits);
+    // NO redondear: 1,50€ = 1,5 créditos exactamente
+    // 1,25€ = 1,25 créditos exactamente
+    const credits = price / euroPerCredit;
+    return credits; // Devolver valor exacto, sin redondeo
   }
 
   async checkout(params: {
@@ -128,7 +128,7 @@ export class OrderService {
         const user = await tx.user.findUnique({ where: { id: userId }, select: { creditsBalance: true } });
         console.log('🔍 DEBUG USER CREDITS:', { userId, userBalance: user?.creditsBalance, requiredCredits: totalCredits });
         
-        if (!user || (user.creditsBalance || 0) < totalCredits) {
+        if (!user || Number(user.creditsBalance || 0) < totalCredits) {
           throw new Error(`Saldo de créditos insuficiente. Disponible: ${user?.creditsBalance || 0}, Requerido: ${totalCredits}`);
         }
         
@@ -139,12 +139,20 @@ export class OrderService {
             type: 'DEBIT',
             reason: 'ORDER',
             credits: totalCredits,
-            balanceAfter: (user.creditsBalance || 0) - totalCredits,
+            balanceAfter: Number(user.creditsBalance || 0) - totalCredits,
             metadata: { orderId: order.id },
             idempotencyKey: idempotencyKey || null,
           },
         });
-        await tx.order.update({ where: { id: order.id }, data: { paymentStatus: 'PAID' as any, paidAt: new Date() } });
+        // ✅ CORREGIDO: Actualizar tanto paymentStatus como status para confirmar automáticamente
+        await tx.order.update({ 
+          where: { id: order.id }, 
+          data: { 
+            paymentStatus: 'PAID' as any, 
+            status: 'FULFILLED' as any,  // ← AGREGAR ESTO para confirmar automáticamente
+            paidAt: new Date() 
+          } 
+        });
         await tx.outboxEvent.create({ data: { eventType: 'ORDER_PAID', eventData: { orderId: order.id, method: 'CREDITS' } as any } });
       });
       // Registrar transacción en Ledger (idempotente)

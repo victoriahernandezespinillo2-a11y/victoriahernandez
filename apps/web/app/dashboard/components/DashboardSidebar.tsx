@@ -15,6 +15,7 @@ import {
   ShoppingCart,
   Wallet,
   ListOrdered,
+  UserPlus,
 } from 'lucide-react';
 import { MobileDrawer } from '../../components/MobileDrawer';
 import { useMobileDrawer } from '../../hooks/useMobileDrawer';
@@ -25,6 +26,7 @@ const navigation = [
   { name: 'Perfil', href: '/dashboard/profile', icon: User },
   { name: 'Membresías', href: '/dashboard/memberships', icon: CreditCard },
   { name: 'Monedero', href: '/dashboard/wallet', icon: Wallet },
+  { name: 'Invitar Amigos', href: '/dashboard/referrals', icon: UserPlus },
   { name: 'Tienda', href: '/dashboard/shop', icon: ShoppingCart },
   { name: 'Pedidos', href: '/dashboard/orders', icon: ListOrdered },
   { name: 'Historial', href: '/dashboard/history', icon: Clock },

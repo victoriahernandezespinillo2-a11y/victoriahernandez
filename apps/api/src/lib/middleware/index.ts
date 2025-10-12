@@ -695,6 +695,11 @@ const serializeData = (data: any): any => {
     return data.toISOString();
   }
   
+  // Manejar BigInt
+  if (typeof data === 'bigint') {
+    return Number(data);
+  }
+  
   // Manejar Prisma Decimal
   if (data && typeof data === 'object' && 'toNumber' in data) {
     return data.toNumber();

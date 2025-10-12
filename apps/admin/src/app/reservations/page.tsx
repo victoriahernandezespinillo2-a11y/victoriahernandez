@@ -37,6 +37,8 @@ interface Reservation {
   paymentStatus: 'PENDING' | 'PAID' | 'REFUNDED';
   notes?: string;
   createdAt: string;
+  promoCode?: string;
+  promoDiscount?: number;
 }
 
 
@@ -85,13 +87,17 @@ export default function ReservationsPage() {
   const [overrideFilter, setOverrideFilter] = useState<string>('ALL');
   const [dateFilter, setDateFilter] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5); // Reducido para mostrar paginación con menos datos
   const [isLoading, setIsLoading] = useState(false);
   const [refundState, setRefundState] = useState<{ open: boolean; id?: string; amount?: string; reason: string }>(() => ({ open: false, reason: '' }));
   const [resendState, setResendState] = useState<{ open: boolean; id?: string; type: 'CONFIRMATION'|'PAYMENT_LINK' }>({ open: false, type: 'CONFIRMATION' });
   const [payOnSiteState, setPayOnSiteState] = useState<{ open: boolean; id?: string; userName?: string; courtName?: string; totalAmount?: number; currentMethod?: string }>({ open: false });
   const [auditState, setAuditState] = useState<{ open: boolean; id?: string; loading: boolean; events: Array<{ id: string; type: string; summary: string; createdAt: string }> }>({ open: false, loading: false, events: [] });
 
-  const itemsPerPage = 10;
+  // Resetear página cuando cambien los filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, paymentFilter, paymentMethodFilter, overrideFilter, dateFilter, itemsPerPage]);
 
   // Helpers de tiempo para gating de acciones (check-in)
   const toLocalDate = (ymd: string, hhmm: string) => {
@@ -520,6 +526,9 @@ export default function ReservationsPage() {
                   Método
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Promoción
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -602,6 +611,22 @@ export default function ReservationsPage() {
                         </span>
                       )}
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    {reservation.promoCode ? (
+                      <div className="flex flex-col gap-1">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full bg-purple-100 text-purple-800 text-xs font-medium">
+                          {String(reservation.promoCode)}
+                        </span>
+                        {reservation.promoDiscount && typeof reservation.promoDiscount === 'number' && reservation.promoDiscount > 0 ? (
+                          <span className="text-xs text-green-600 font-medium">
+                            -€{reservation.promoDiscount.toFixed(2)}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
@@ -787,55 +812,148 @@ export default function ReservationsPage() {
           </table>
         </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-            <div className="flex-1 flex justify-between sm:hidden">
-              <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Anterior
-              </button>
-              <button
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Siguiente
-              </button>
+        {/* Pagination - Siempre visible */}
+        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+          <div className="flex-1 flex justify-between sm:hidden">
+            {/* Mobile pagination */}
+            <button
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ← Anterior
+            </button>
+            
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-700">
+                Página {currentPage} de {totalPages}
+              </span>
             </div>
-            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm text-gray-700">
-                  Mostrando <span className="font-medium">{startIndex + 1}</span> a{' '}
-                  <span className="font-medium">
-                    {Math.min(startIndex + itemsPerPage, filteredReservations.length)}
-                  </span>{' '}
-                  de <span className="font-medium">{filteredReservations.length}</span> resultados
-                </p>
+            
+            <button
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Siguiente →
+            </button>
+          </div>
+          
+          {/* Desktop pagination */}
+          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            <div className="flex items-center space-x-4">
+              <p className="text-sm text-gray-700">
+                Mostrando <span className="font-medium">{startIndex + 1}</span> a{' '}
+                <span className="font-medium">
+                  {Math.min(startIndex + itemsPerPage, filteredReservations.length)}
+                </span>{' '}
+                de <span className="font-medium">{filteredReservations.length}</span> reservas
+              </p>
+              
+              {/* Selector de elementos por página */}
+              <div className="flex items-center space-x-2">
+                <label htmlFor="items-per-page" className="text-sm text-gray-700">
+                  Mostrar:
+                </label>
+                <select
+                  id="items-per-page"
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    const newItemsPerPage = parseInt(e.target.value);
+                    setItemsPerPage(newItemsPerPage);
+                    setCurrentPage(1); // Reset a primera página
+                  }}
+                  className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+                <span className="text-sm text-gray-500">por página</span>
               </div>
-              <div>
+            </div>
+            
+            {/* Controles de paginación */}
+            <div className="flex items-center space-x-2">
+              {totalPages > 1 ? (
                 <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                        page === currentPage
-                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
+                  {/* Botón Primera página */}
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Primera</span>
+                    ««
+                  </button>
+                  
+                  {/* Botón Anterior */}
+                  <button
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center px-3 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Anterior</span>
+                    «
+                  </button>
+                  
+                  {/* Números de página */}
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                          pageNum === currentPage
+                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                  
+                  {/* Botón Siguiente */}
+                  <button
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                    className="relative inline-flex items-center px-3 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Siguiente</span>
+                    »
+                  </button>
+                  
+                  {/* Botón Última página */}
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Última</span>
+                    »»
+                  </button>
                 </nav>
-              </div>
+              ) : (
+                <div className="text-sm text-gray-500">
+                  Página 1 de 1
+                </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Empty State */}

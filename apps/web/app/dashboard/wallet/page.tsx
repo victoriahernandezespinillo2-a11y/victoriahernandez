@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useUserProfile } from '@/lib/hooks';
+import { PromoCodeInput } from '@/components/PromoCodeInput';
 import { 
   CreditCard, 
   Wallet, 
@@ -30,9 +31,11 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(false);
   const [ledger, setLedger] = useState<{ items: any[]; pagination: any } | null>(null);
   const [creditsToTopup, setCreditsToTopup] = useState<number>(50);
+  const [inputValue, setInputValue] = useState<string>('50');
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [showErrorMessage, setShowErrorMessage] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<any>(null);
   const userCredits = useMemo(() => Number(profile?.creditsBalance ?? 0), [profile]);
 
   const loadLedger = async () => {
@@ -135,153 +138,238 @@ export default function WalletPage() {
         </div>
       )}
 
-      <div className="px-4 sm:px-6 space-y-6 mt-6">
-        {/* Balance Card - Mobile Optimized */}
-        <div className="bg-gradient-to-r from-blue-600 to-green-600 rounded-2xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between mb-4">
+      <div className="px-4 sm:px-6 space-y-4 sm:space-y-6 mt-4 sm:mt-6">
+        {/* Balance Card - Compact for Desktop */}
+        <div className="bg-gradient-to-r from-blue-600 to-green-600 rounded-xl sm:rounded-2xl p-4 sm:p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
             <div className="flex items-center gap-2">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <Wallet className="h-5 w-5" />
+              <div className="p-1.5 sm:p-2 bg-white/20 rounded-lg">
+                <Wallet className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <span className="text-sm font-medium opacity-90">Saldo Disponible</span>
+              <span className="text-xs sm:text-sm font-medium opacity-90">Saldo Disponible</span>
             </div>
             <div className="p-1 bg-white/20 rounded-full">
-               <CheckCircle className="h-4 w-4" />
+               <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
              </div>
           </div>
-          <div className="text-3xl sm:text-4xl font-bold mb-2">{profileLoading ? '…' : userCredits}</div>
-          <div className="text-sm opacity-90">créditos disponibles</div>
+          <div className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-1 sm:mb-2">{profileLoading ? '…' : userCredits}</div>
+          <div className="text-xs sm:text-sm opacity-90">créditos disponibles</div>
         </div>
 
-        {/* Quick Topup Options - Mobile First */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-4 sm:p-6 border-b border-gray-100">
-            <div className="flex items-center gap-2 mb-2">
-              <CreditCard className="h-5 w-5 text-blue-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Recargar Créditos</h2>
+        {/* Quick Topup Options - Compact for Desktop */}
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-3 sm:p-4 lg:p-6 border-b border-gray-100">
+            <div className="flex items-center gap-2 mb-1 sm:mb-2">
+              <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Recargar Créditos</h2>
             </div>
-            <p className="text-sm text-gray-500">Selecciona la cantidad que deseas recargar</p>
+            <p className="text-xs sm:text-sm text-gray-500">Selecciona la cantidad que deseas recargar</p>
           </div>
           
-          {/* Quick Amount Buttons - Expandido */}
-          <div className="p-4 sm:p-6">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+          {/* Quick Amount Buttons - Compact */}
+          <div className="p-3 sm:p-4 lg:p-6">
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-3 mb-4 sm:mb-6">
               {[10, 25, 50, 100, 200, 500].map((amount) => (
                 <button
                   key={amount}
-                  onClick={() => setCreditsToTopup(amount)}
-                  className={`p-4 rounded-xl border-2 transition-all duration-200 hover:scale-105 ${
+                  onClick={() => {
+                    setCreditsToTopup(amount);
+                    setInputValue(amount.toString());
+                  }}
+                  className={`p-2 sm:p-3 lg:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-200 hover:scale-105 ${
                     creditsToTopup === amount
                       ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-md'
                       : 'border-gray-200 hover:border-blue-300 text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  <div className="text-lg font-bold">{amount}</div>
-                  <div className="text-xs opacity-70">créditos</div>
+                  <div className="text-sm sm:text-base lg:text-lg font-bold">{amount}</div>
+                  <div className="text-xs opacity-70 hidden sm:block">créditos</div>
                   <div className="text-xs text-green-600 font-medium">€{amount}</div>
                 </button>
               ))}
             </div>
             
-            {/* Custom Amount Input - Mejorado */}
-            <div className="space-y-6">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+            {/* Custom Amount Input - Compact */}
+            <div className="space-y-4 sm:space-y-6">
+              <div className="bg-gray-50 rounded-lg sm:rounded-xl p-3 sm:p-4">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">
                   💰 Cantidad personalizada
                 </label>
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2 sm:space-x-3">
                   <div className="flex-1 relative">
                     <input
                       type="number"
                       min={1}
                       max={10000}
-                      value={creditsToTopup}
-                      onChange={(e) => setCreditsToTopup(Math.max(1, Math.min(10000, Number(e.target.value) || 1)))}
-                      className="w-full border-2 border-gray-200 rounded-xl px-4 py-4 text-xl font-bold text-center focus:border-blue-500 focus:ring-0 transition-all duration-200 bg-white"
+                      value={inputValue}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        
+                        // Solo permitir números y punto decimal
+                        const numericValue = value.replace(/[^0-9.]/g, '');
+                        
+                        // Evitar múltiples puntos decimales
+                        const parts = numericValue.split('.');
+                        const cleanValue = parts.length > 2 
+                          ? parts[0] + '.' + parts.slice(1).join('')
+                          : numericValue;
+                        
+                        setInputValue(cleanValue);
+                        
+                        // Solo actualizar creditsToTopup si es un número válido
+                        const numValue = Number(cleanValue);
+                        if (!isNaN(numValue) && numValue >= 1 && numValue <= 10000) {
+                          setCreditsToTopup(Math.floor(numValue)); // Solo números enteros para créditos
+                        }
+                      }}
+                      onBlur={() => {
+                        // Al perder el foco, asegurar que tenemos un valor válido
+                        const numValue = Number(inputValue);
+                        if (isNaN(numValue) || numValue < 1) {
+                          setInputValue('1');
+                          setCreditsToTopup(1);
+                        } else if (numValue > 10000) {
+                          setInputValue('10000');
+                          setCreditsToTopup(10000);
+                        } else {
+                          // Convertir a entero para créditos
+                          const intValue = Math.floor(numValue);
+                          setInputValue(intValue.toString());
+                          setCreditsToTopup(intValue);
+                        }
+                      }}
+                      className="w-full border-2 border-gray-200 rounded-lg sm:rounded-xl px-3 sm:px-4 py-2 sm:py-3 lg:py-4 text-base sm:text-lg lg:text-xl font-bold text-center focus:border-blue-500 focus:ring-0 transition-all duration-200 bg-white"
                       placeholder="Cantidad"
                     />
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 font-medium">
+                    <div className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-xs sm:text-sm text-gray-500 font-medium">
                       créditos
                     </div>
                   </div>
-                  <div className="text-2xl font-bold text-gray-400">=</div>
-                  <div className="bg-green-100 border-2 border-green-200 rounded-xl px-4 py-4 min-w-[100px] text-center">
-                    <div className="text-lg font-bold text-green-700">€{creditsToTopup}</div>
+                  <div className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-400">=</div>
+                  <div className="bg-green-100 border-2 border-green-200 rounded-lg sm:rounded-xl px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 min-w-[80px] sm:min-w-[100px] text-center">
+                    <div className="text-sm sm:text-base lg:text-lg font-bold text-green-700">€{creditsToTopup}</div>
                     <div className="text-xs text-green-600">euros</div>
                   </div>
                 </div>
                 
                 {/* Validaciones visuales */}
-                <div className="mt-3 text-xs text-gray-500 flex items-center justify-between">
+                <div className="mt-2 sm:mt-3 text-xs text-gray-500 flex items-center justify-between">
                   <span>Mínimo: 1 crédito</span>
                   <span>Máximo: 10.000 créditos</span>
                 </div>
                 
                 {creditsToTopup > 1000 && (
                   <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-center space-x-2 text-blue-700 text-sm">
-                      <Star className="h-4 w-4" />
+                    <div className="flex items-center space-x-2 text-blue-700 text-xs sm:text-sm">
+                      <Star className="h-3 w-3 sm:h-4 sm:w-4" />
                       <span>¡Recarga grande! Ideal para usuarios frecuentes</span>
                     </div>
                   </div>
                 )}
               </div>
               
-              {/* Quick Add/Subtract Buttons */}
-              <div className="flex items-center justify-center space-x-4">
+              {/* Quick Add/Subtract Buttons - Compact */}
+              <div className="flex items-center justify-center space-x-2 sm:space-x-4">
                 <button
-                  onClick={() => setCreditsToTopup(Math.max(1, creditsToTopup - 10))}
-                  className="w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
+                  onClick={() => {
+                    const newValue = Math.max(1, creditsToTopup - 10);
+                    setCreditsToTopup(newValue);
+                    setInputValue(newValue.toString());
+                  }}
+                  className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
                   title="Restar 10 créditos"
                 >
-                  <Minus className="h-5 w-5" />
+                  <Minus className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
                 </button>
                 
-                <div className="flex space-x-2">
+                <div className="flex space-x-1 sm:space-x-2">
                   <button
-                    onClick={() => setCreditsToTopup(creditsToTopup + 10)}
-                    className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors"
+                    onClick={() => {
+                      const newValue = Math.min(10000, creditsToTopup + 10);
+                      setCreditsToTopup(newValue);
+                      setInputValue(newValue.toString());
+                    }}
+                    className="px-2 sm:px-3 py-1 bg-blue-100 text-blue-700 rounded-md sm:rounded-lg text-xs sm:text-sm font-medium hover:bg-blue-200 transition-colors"
                   >
                     +10
                   </button>
                   <button
-                    onClick={() => setCreditsToTopup(creditsToTopup + 50)}
-                    className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors"
+                    onClick={() => {
+                      const newValue = Math.min(10000, creditsToTopup + 50);
+                      setCreditsToTopup(newValue);
+                      setInputValue(newValue.toString());
+                    }}
+                    className="px-2 sm:px-3 py-1 bg-green-100 text-green-700 rounded-md sm:rounded-lg text-xs sm:text-sm font-medium hover:bg-green-200 transition-colors"
                   >
                     +50
                   </button>
                 </div>
                 
                 <button
-                  onClick={() => setCreditsToTopup(Math.min(10000, creditsToTopup + 10))}
-                  className="w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
+                  onClick={() => {
+                    const newValue = Math.min(10000, creditsToTopup + 10);
+                    setCreditsToTopup(newValue);
+                    setInputValue(newValue.toString());
+                  }}
+                  className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
                   title="Añadir 10 créditos"
                 >
-                  <Plus className="h-5 w-5" />
+                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
                 </button>
               </div>
+
+              {/* Código Promocional */}
+              <div className="mt-4 sm:mt-6">
+                <PromoCodeInput
+                  amount={creditsToTopup}
+                  type="TOPUP"
+                  onPromoApplied={(promo) => {
+                    console.log('🎁 [WALLET] Promoción aplicada:', promo);
+                    setAppliedPromo(promo);
+                  }}
+                  onPromoRemoved={() => {
+                    console.log('🗑️ [WALLET] Promoción removida');
+                    setAppliedPromo(null);
+                  }}
+                />
+              </div>
+
+              {/* Resumen con Bonus */}
+              {appliedPromo && (
+                <div className="mt-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-4">
+                  <div className="text-center">
+                    <p className="text-xs text-green-700 mb-1">Recibirás</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {appliedPromo.finalAmount} créditos
+                    </p>
+                    <p className="text-xs text-green-600 mt-1">
+                      ({creditsToTopup} + {appliedPromo.bonus} de bonus)
+                    </p>
+                  </div>
+                </div>
+              )}
               
-              {/* Topup Button */}
+              {/* Topup Button - Compact */}
               <button
                 onClick={handleTopup}
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-blue-600 to-green-600 text-white font-semibold py-4 px-6 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg flex items-center justify-center gap-2"
+                className="w-full bg-gradient-to-r from-blue-600 to-green-600 text-white font-semibold py-3 sm:py-4 px-4 sm:px-6 rounded-lg sm:rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                    <span>Redirigiendo...</span>
+                    <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-2 border-white border-t-transparent"></div>
+                    <span className="text-sm sm:text-base">Redirigiendo...</span>
                   </>
                 ) : (
                   <>
-                    <CreditCard className="h-5 w-5" />
-                    <span>Recargar con Redsys</span>
+                    <CreditCard className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <span className="text-sm sm:text-base">Recargar con Redsys</span>
                   </>
                 )}
               </button>
               
-              <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
-                <Shield className="h-4 w-4 flex-shrink-0 text-green-600" />
+              <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 p-2 sm:p-3 rounded-lg">
+                <Shield className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0 text-green-600" />
                 <span>Pago seguro protegido por Redsys. Tus créditos se acreditarán automáticamente tras la confirmación.</span>
               </div>
               

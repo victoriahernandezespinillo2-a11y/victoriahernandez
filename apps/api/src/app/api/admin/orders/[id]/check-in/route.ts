@@ -41,9 +41,9 @@ export async function POST(request: NextRequest) {
         return ApiResponse.notFound('Pedido no encontrado');
       }
 
-      // Validar que el pedido esté pagado
-      if (order.status !== 'PAID') {
-        return ApiResponse.badRequest('El pedido no está pagado');
+      // Validar que el pedido esté pagado o completado
+      if (order.status !== 'PAID' && order.status !== 'FULFILLED') {
+        return ApiResponse.badRequest('El pedido no está pagado o completado');
       }
 
       // Validar que no esté ya canjeado

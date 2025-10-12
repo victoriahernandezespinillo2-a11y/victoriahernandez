@@ -236,10 +236,19 @@ export default function PassPDF({ reservation, qrDataUrl, expiresAt, statusLabel
   const dateStr = reservation.startTime.toLocaleDateString('es-ES', { 
     day: '2-digit', 
     month: '2-digit', 
-    year: 'numeric' 
+    year: 'numeric',
+    timeZone: 'Europe/Madrid'
   });
-  const timeStr = reservation.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-  const endTimeStr = reservation.endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  const timeStr = reservation.startTime.toLocaleTimeString('es-ES', { 
+    hour: '2-digit', 
+    minute: '2-digit',
+    timeZone: 'Europe/Madrid'
+  });
+  const endTimeStr = reservation.endTime.toLocaleTimeString('es-ES', { 
+    hour: '2-digit', 
+    minute: '2-digit',
+    timeZone: 'Europe/Madrid'
+  });
 
   // Generar URLs para acciones
   const calendarUrl = generateGoogleCalendarUrl(reservation);

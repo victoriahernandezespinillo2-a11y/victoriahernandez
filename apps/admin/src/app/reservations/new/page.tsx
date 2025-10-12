@@ -459,6 +459,12 @@ export default function AdminNewReservationPage() {
                   <li key={i}>{b.description}: €{(b.amount || 0).toFixed(2)}</li>
                 ))}
               </ul>
+              {/* Mostrar nota sobre iluminación nocturna si aplica */}
+              {price.breakdown?.some((b: any) => b.description?.includes('Iluminación nocturna')) && (
+                <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded mb-2">
+                  💡 La iluminación nocturna se cobra automáticamente
+                </div>
+              )}
               {typeof (price as any).taxRate === 'number' && (
                 <div className="text-sm text-gray-600">Impuestos ({(price as any).taxRate}%): €{Number((price as any).taxAmount || 0).toFixed(2)}</div>
               )}

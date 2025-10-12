@@ -6,7 +6,9 @@
   "scripts": {
     "build": "next build",
     "clean": "rm -rf .next",
+    "clean:cache": "pwsh -Command \"Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue; Write-Host 'Cache limpiado correctamente'\"",
     "dev": "next dev --port 3001",
+    "dev:clean": "pnpm clean:cache && pnpm dev",
     "start": "next start",
     "lint": "eslint . --max-warnings 15000",
     "check-types": "tsc --noEmit"

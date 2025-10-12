@@ -54,7 +54,14 @@ export async function GET(request: NextRequest) {
 
       const reservation = await db.reservation.findUnique({
         where: { id: reservationId },
-        include: { user: true, court: { include: { center: true } } },
+        include: { 
+          user: true, 
+          court: { 
+            include: { 
+              center: true 
+            } 
+          } 
+        }
       });
 
       if (!reservation) {
