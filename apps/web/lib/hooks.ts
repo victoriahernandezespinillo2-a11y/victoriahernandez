@@ -45,13 +45,24 @@ function useApiState<T>(initialData: T | null = null) {
 export function useCenters() {
   const { data, loading, error, execute, reset } = useApiState<any[]>([]);
 
+  // Helper para extraer array de centros desde varios formatos
+  const extractCentersArray = (res: any): any[] => {
+    if (Array.isArray(res)) return res;
+    if (res && Array.isArray(res.data)) return res.data as any[];
+    if (res && Array.isArray(res.centers)) return res.centers as any[];
+    if (res && Array.isArray(res.items)) return res.items as any[];
+    return [];
+  };
+
   const getCenters = useCallback((params?: any) => {
     console.log('🔍 [useCenters] Llamando api.centers.getAll con params:', params);
     return execute(async () => {
       try {
-        const result = await api.centers.getAll(params) as any;
-        console.log('✅ [useCenters] Respuesta recibida:', result);
-        return result;
+        const res = await api.centers.getAll(params) as any;
+        console.log('✅ [useCenters] Respuesta recibida:', res);
+        const array = extractCentersArray(res);
+        console.log('🔍 [useCenters] Centros extraídos:', array.length);
+        return array;
       } catch (error) {
         console.error('❌ [useCenters] Error en llamada:', error);
         throw error;
