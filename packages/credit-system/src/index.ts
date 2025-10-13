@@ -16,10 +16,10 @@ export { TransactionId } from './domain/value-objects/TransactionId';
 export { CreditCalculationService } from './domain/services/CreditCalculationService';
 
 // Domain Repositories
-export { CreditRepository } from './domain/repositories/CreditRepository';
+export type { CreditRepository } from './domain/repositories/CreditRepository';
 
 // Domain Events
-export { EventBus, DomainEvent, EventHandler } from './domain/events/EventBus';
+export type { EventBus, DomainEvent, EventHandler } from './domain/events/EventBus';
 
 // Application Commands
 export { AddCreditsCommand } from './application/commands/AddCreditsCommand';
@@ -35,10 +35,10 @@ export { CreditManagementService } from './application/services/CreditManagement
 // Infrastructure
 export { PrismaCreditRepository } from './infrastructure/repositories/PrismaCreditRepository';
 export { PrismaCreditRepositoryMethods } from './infrastructure/repositories/PrismaCreditRepositoryMethods';
-export { AuditService, AuditLogEntry } from './infrastructure/services/AuditService';
+export type { AuditService, AuditLogEntry } from './infrastructure/services/AuditService';
 
 // Common
-export { ValidationResult } from './domain/common/ValidationResult';
+export type { ValidationResult } from './domain/common/ValidationResult';
 
 // Singletons
 export { eventBus } from './domain/events/EventBus';
