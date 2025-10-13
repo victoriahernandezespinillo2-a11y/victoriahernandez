@@ -40,6 +40,16 @@
       "cache": false,
       "persistent": true
     },
+    "@repo/db#build": {
+      "dependsOn": [],
+      "inputs": ["prisma/**", "$TURBO_DEFAULT$"],
+      "outputs": [],
+      "cache": false
+    },
+    "@repo/credit-system#build": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
     "docs#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
