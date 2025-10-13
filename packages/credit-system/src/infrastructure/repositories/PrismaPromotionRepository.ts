@@ -5,7 +5,7 @@
 
 import { PromotionRepository, PromotionTransactionContext } from '../../domain/repositories/PromotionRepository';
 import { Promotion } from '../../domain/entities/Promotion';
-import { PrismaClient } from '@repo/db';
+import { PrismaClient } from '@prisma/client';
 
 export class PrismaPromotionRepository implements PromotionRepository {
   constructor(private prisma: PrismaClient) {}
