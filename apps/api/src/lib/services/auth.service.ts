@@ -169,9 +169,9 @@ export class AuthService {
     }
 
     // ✨ Aplicar REFERRAL_BONUS si fue referido por alguien
-    if (validatedData.referredBy) {
+    if (referrerId) {
       try {
-        await this.applyReferralBonus(validatedData.referredBy, user.id);
+        await this.applyReferralBonus(referrerId, user.id);
       } catch (referralError) {
         console.error('⚠️ [SIGNUP] Error aplicando REFERRAL_BONUS (no crítico):', referralError);
         // No fallar el registro si falla la promoción de referido
