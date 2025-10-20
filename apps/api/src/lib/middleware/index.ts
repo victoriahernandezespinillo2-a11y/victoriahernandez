@@ -602,16 +602,25 @@ export const withReservationCleanup = (handler: ApiHandler): ApiHandler => {
     
     if (isReservationRoute) {
       try {
-        // Limpiar reservas PENDING expiradas de forma asÃ­ncrona
+        // Limpiar reservas PENDING expiradas de forma asÃ­ncrona con lógica diferenciada
         const now = new Date();
         const expiredReservations = await db.reservation.findMany({
           where: {
             status: 'PENDING',
-            expiresAt: {
-              lt: now
-            }
+            OR: [
+              // Pago online: expira en 15 minutos (usa expiresAt)
+              {
+                paymentMethod: { in: ['CARD', 'BIZUM', 'CREDITS'] },
+                expiresAt: { lt: now }
+              },
+              // Pago en sede: expira 1 hora antes de la reserva (usa startTime)
+              {
+                paymentMethod: 'ONSITE',
+                startTime: { lt: new Date(now.getTime() + 60 * 60 * 1000) }
+              }
+            ]
           },
-          select: { id: true, createdAt: true }
+          select: { id: true, createdAt: true, paymentMethod: true, startTime: true }
         });
         
         if (expiredReservations.length > 0) {

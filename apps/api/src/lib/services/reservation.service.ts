@@ -132,7 +132,18 @@ export class ReservationService {
 
         // 2) Crear reserva principal con timeout automático
         const now = new Date();
-        const expiresAt = new Date(now.getTime() + 15 * 60 * 1000); // 15 minutos desde ahora
+        
+        // Lógica de expiración diferenciada por método de pago
+        const getExpirationTime = (paymentMethod: string, startTime: Date) => {
+          if (paymentMethod === 'ONSITE') {
+            // Pago en sede: 1 hora antes de la reserva
+            return new Date(startTime.getTime() - 60 * 60 * 1000);
+          }
+          // Otros métodos: 15 minutos desde ahora
+          return new Date(now.getTime() + 15 * 60 * 1000);
+        };
+        
+        const expiresAt = getExpirationTime(validatedInput.paymentMethod || 'CARD', startTime);
         
         console.log('💾 [RESERVATION-CREATE] Guardando reserva con precio:', {
           totalPrice: computedPrice.total,

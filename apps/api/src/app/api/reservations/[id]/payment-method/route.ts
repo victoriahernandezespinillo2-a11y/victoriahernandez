@@ -36,7 +36,8 @@ export async function PUT(request: NextRequest) {
         select: { 
           id: true, 
           status: true, 
-          paymentMethod: true
+          paymentMethod: true,
+          startTime: true
         }
       });
 
@@ -47,6 +48,18 @@ export async function PUT(request: NextRequest) {
       // Solo permitir actualizar si está pendiente
       if (existingReservation.status !== 'PENDING') {
         return ApiResponse.badRequest('Solo se puede actualizar el método de pago de reservas pendientes');
+      }
+
+      // Validar que pago en sede solo se permita para reservas de hoy
+      if (data.paymentMethod === 'ONSITE') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const reservationDate = new Date(existingReservation.startTime);
+        reservationDate.setHours(0, 0, 0, 0);
+        
+        if (reservationDate.getTime() !== today.getTime()) {
+          return ApiResponse.badRequest('El pago en sede solo está disponible para reservas de hoy');
+        }
       }
 
       // Actualizar el método de pago

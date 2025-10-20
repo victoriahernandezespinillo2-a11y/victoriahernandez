@@ -24,8 +24,8 @@
     "next": "15.4.7",
     "next-auth": "5.0.0-beta.29",
     "qr-scanner": "^1.4.2",
-    "react": "19.1.1",
-    "react-dom": "19.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "sonner": "^2.0.7",
     "zod": "^4.1.11"
   },
