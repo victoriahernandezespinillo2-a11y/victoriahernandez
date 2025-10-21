@@ -328,6 +328,23 @@ export default function PaymentModal(props: PaymentModalProps) {
     }
   };
 
+  // Función para detectar si la reserva es para hoy
+  const isReservationToday = () => {
+    const today = new Date();
+    const todayStr = today.toLocaleDateString('es-ES', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    
+    // Comparar fechas normalizadas
+    const todayNormalized = todayStr.toLowerCase().trim();
+    const dateLabelNormalized = dateLabel.toLowerCase().trim();
+    
+    return dateLabelNormalized === todayNormalized;
+  };
+
   const handleClose = () => {
     if (isSubmitting) return;
     onClose();
@@ -511,27 +528,30 @@ export default function PaymentModal(props: PaymentModalProps) {
                   <div className="absolute top-2 right-2 w-3 h-3 bg-green-500 rounded-full"></div>
                 )}
               </button>
-              <button
-                type="button"
-                onClick={() => setMethod('ONSITE')}
-                className={`group relative p-2 rounded-lg border-2 transition-all duration-300 hover:shadow-lg ${method === 'ONSITE' 
-                  ? 'border-orange-500 bg-gradient-to-br from-orange-50 to-orange-100 text-orange-900 shadow-lg scale-105' 
-                  : 'border-gray-200 bg-white text-gray-700 hover:border-orange-300 hover:bg-orange-50 active:scale-95'
-                }`}
-              >
-                <div className="flex flex-col items-center space-y-1">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-lg transition-colors ${
-                    method === 'ONSITE' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 group-hover:bg-orange-100 group-hover:text-orange-600'
-                  }`}>
-                    🏢
+              {/* Botón de pago en sede - solo visible para reservas de hoy */}
+              {isReservationToday() && (
+                <button
+                  type="button"
+                  onClick={() => setMethod('ONSITE')}
+                  className={`group relative p-2 rounded-lg border-2 transition-all duration-300 hover:shadow-lg ${method === 'ONSITE' 
+                    ? 'border-orange-500 bg-gradient-to-br from-orange-50 to-orange-100 text-orange-900 shadow-lg scale-105' 
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-orange-300 hover:bg-orange-50 active:scale-95'
+                  }`}
+                >
+                  <div className="flex flex-col items-center space-y-1">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-lg transition-colors ${
+                      method === 'ONSITE' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 group-hover:bg-orange-100 group-hover:text-orange-600'
+                    }`}>
+                      🏢
+                    </div>
+                    <span className="font-medium text-xs">En sede</span>
+                    <span className="text-xs text-gray-500">Recepción</span>
                   </div>
-                  <span className="font-medium text-xs">En sede</span>
-                  <span className="text-xs text-gray-500">Recepción</span>
-                </div>
-                {method === 'ONSITE' && (
-                  <div className="absolute top-2 right-2 w-3 h-3 bg-orange-500 rounded-full"></div>
-                )}
-              </button>
+                  {method === 'ONSITE' && (
+                    <div className="absolute top-2 right-2 w-3 h-3 bg-orange-500 rounded-full"></div>
+                  )}
+                </button>
+              )}
               
               {/* Botón de pago con créditos */}
               <button

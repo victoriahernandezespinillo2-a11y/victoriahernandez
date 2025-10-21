@@ -213,6 +213,23 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
     }
   };
   
+  // Función para detectar si la reserva es para hoy
+  const isReservationToday = () => {
+    const today = new Date();
+    const todayStr = today.toLocaleDateString('es-ES', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    
+    // Comparar fechas normalizadas
+    const todayNormalized = todayStr.toLowerCase().trim();
+    const dateLabelNormalized = dateLabel.toLowerCase().trim();
+    
+    return dateLabelNormalized === todayNormalized;
+  };
+
   const resetForm = () => {
     setStep('summary');
     setMethod('CARD');
@@ -381,13 +398,16 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
                   >
                     🤳 Bizum
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setMethod('ONSITE')}
-                    className={`p-4 rounded-xl border text-sm font-medium transition-all duration-200 ${method === 'ONSITE' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-md scale-105' : 'border-gray-300 text-gray-700'}`}
-                  >
-                    🏢 Pago en sede
-                  </button>
+                  {/* Botón de pago en sede - solo visible para reservas de hoy */}
+                  {isReservationToday() && (
+                    <button
+                      type="button"
+                      onClick={() => setMethod('ONSITE')}
+                      className={`p-4 rounded-xl border text-sm font-medium transition-all duration-200 ${method === 'ONSITE' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-md scale-105' : 'border-gray-300 text-gray-700'}`}
+                    >
+                      🏢 Pago en sede
+                    </button>
+                  )}
                   
                   {/* Botón de pago con créditos */}
                   <button
