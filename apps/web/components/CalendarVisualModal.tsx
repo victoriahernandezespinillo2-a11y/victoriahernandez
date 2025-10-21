@@ -41,12 +41,15 @@ export default function CalendarVisualModal({
   const [isCreatingReservation, setIsCreatingReservation] = useState(false);
   // 💡 Selección de iluminación por el usuario (opcional en horario diurno)
   const [lightingSelected, setLightingSelected] = useState(false);
+  // 🔄 Estado para forzar recarga cuando cambie la duración
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   // 🚀 GESTOS TÁCTILES PARA MÓVIL
   const [touchStart, setTouchStart] = useState<{ y: number; time: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   
+
   // 🚀 MANEJO DE GESTOS TÁCTILES
   const handleTouchStart = (e: React.TouchEvent) => {
     const touch = e.touches[0];
@@ -96,6 +99,14 @@ export default function CalendarVisualModal({
     setDragOffset(0);
   };
 
+  // 🔄 FORZAR RECARGA CUANDO CAMBIE LA DURACIÓN
+  useEffect(() => {
+    if (duration) {
+      console.log('🔄 [DURATION-CHANGE] Duración cambiada a:', duration, 'minutos');
+      setRefreshTrigger(prev => prev + 1);
+    }
+  }, [duration]);
+
   // 🔄 CARGAR DATOS DEL CALENDARIO
   useEffect(() => {
     const loadCalendarData = async () => {
@@ -106,6 +117,7 @@ export default function CalendarVisualModal({
       setError(null);
       
       try {
+        console.log('🔴 [FRONTEND-DEBUG] Llamando a getCalendarStatus con los siguientes datos:', { courtId, date, duration });
         const data = await api.courts.getCalendarStatus(courtId, { date, duration });
         
         // --- LOG DE DIAGNÓSTICO FORENSE ---
@@ -123,7 +135,7 @@ export default function CalendarVisualModal({
     };
 
     loadCalendarData();
-  }, [courtId, date, duration, isOpen, authLoading, firebaseUser]);
+  }, [courtId, date, duration, isOpen, authLoading, firebaseUser, refreshTrigger]);
 
   // 🎨 FUNCIÓN PARA OBTENER ESTILOS DEL SLOT MÓVIL-OPTIMIZADO
   const getSlotStyles = (slot: CalendarSlot) => {

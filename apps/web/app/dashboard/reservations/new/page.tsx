@@ -174,19 +174,34 @@ export default function NewReservationPage() {
       });
       
       // Convertir CalendarSlots a TimeSlots
-      const convertedTimeSlots: TimeSlot[] = calendarData.slots.map((slot: any) => ({
-        time: slot.time,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        status: slot.status,
-        available: slot.available,
-        price: selectedCourt?.pricePerHour ? (selectedCourt.pricePerHour * duration) / 60 : 0,
-        message: slot.message,
-        activityType: (() => {
-          const m = Array.isArray(slot.conflicts) ? slot.conflicts.find((c: any) => c?.type === 'maintenance') : null;
-          return m?.activityType;
-        })()
-      }));
+      const convertedTimeSlots: TimeSlot[] = calendarData.slots.map((slot: any) => {
+        const calculatedPrice = selectedCourt?.pricePerHour ? (selectedCourt.pricePerHour * duration) / 60 : 0;
+        
+        // 🔍 LOG PARA DEBUGGING DEL PRECIO
+        console.log('💰 [PRICE-DEBUG] Slot:', {
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          originalPrice: slot.price,
+          calculatedPrice: calculatedPrice,
+          selectedDuration: selectedDuration,
+          duration: duration, // ← NUEVO: mostrar el parámetro duration
+          pricePerHour: selectedCourt?.pricePerHour
+        });
+        
+        return {
+          time: slot.time,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          status: slot.status,
+          available: slot.available,
+          price: calculatedPrice, // Usar el precio calculado correctamente
+          message: slot.message,
+          activityType: (() => {
+            const m = Array.isArray(slot.conflicts) ? slot.conflicts.find((c: any) => c?.type === 'maintenance') : null;
+            return m?.activityType;
+          })()
+        };
+      });
       
       setTimeSlots(convertedTimeSlots);
     } catch (error) {
@@ -329,14 +344,14 @@ export default function NewReservationPage() {
     }
   };
   
-  const baseCost = pricing?.total ?? (selectedCourt ? (selectedCourt.pricePerHour * duration / 60) : 0);
+  const baseCost = pricing?.total ?? (selectedCourt ? (selectedCourt.pricePerHour * (shouldUseMobileView ? selectedDuration : duration) / 60) : 0);
   
   // Add lighting cost if selected (day time) or if it's night time (automatic)
   // Support both desktop (selectedCalendarSlot) and mobile (selectedSlot)
   const currentSlot = selectedCalendarSlot || selectedSlot;
   const isCurrentlyDayTime = currentSlot ? isDayTime(currentSlot.startTime) : true;
   const lightingCost = (lightingSelected && isCurrentlyDayTime) || (!isCurrentlyDayTime)
-    ? (selectedCourt?.lightingExtraPerHour || 0) * duration / 60 
+    ? (selectedCourt?.lightingExtraPerHour || 0) * (shouldUseMobileView ? selectedDuration : duration) / 60 
     : 0;
   
   const totalCost = baseCost + lightingCost;
@@ -852,7 +867,18 @@ export default function NewReservationPage() {
                 selectedDate={selectedDate}
                 onDateChange={setSelectedDate}
                 duration={selectedDuration}
-                onDurationChange={setSelectedDuration}
+                onDurationChange={async (newDuration) => {
+                  console.log('🔄 [DURATION-CHANGE-DESKTOP] Cambiando duración de', selectedDuration, 'a', newDuration);
+                  setSelectedDuration(newDuration);
+                  setSelectedSlot(null); // Resetear slot seleccionado
+                  setLightingSelected(false); // Resetear selección de iluminación
+                  
+                  // 🔄 Recargar slots con la nueva duración
+                  if (selectedCourt && selectedDate) {
+                    console.log('🔄 [DURATION-CHANGE-DESKTOP] Llamando loadTimeSlots con duración:', newDuration);
+                    await loadTimeSlots(selectedCourt.id, selectedDate, newDuration);
+                  }
+                }}
                 timeSlots={timeSlots}
                 selectedSlot={selectedSlot}
                 onSlotSelect={(slot) => {
@@ -969,13 +995,20 @@ export default function NewReservationPage() {
                       }
                     }}
                     duration={duration}
-                    onDurationChange={(newDuration) => {
+                    onDurationChange={async (newDuration) => {
+                      console.log('🔄 [DURATION-CHANGE] Cambiando duración de', duration, 'a', newDuration);
                       setDuration(newDuration);
                       setSelectedTime('');
                       setSelectedCalendarSlot(null);
                       setSelectedSlot(null); // Resetear slot seleccionado
                       setSelectedSlotIndex(null); // Resetear index seleccionado
                       setLightingSelected(false); // Resetear selección de iluminación
+                      
+                      // 🔄 Recargar slots con la nueva duración
+                      if (selectedCourt && selectedDate) {
+                        console.log('🔄 [DURATION-CHANGE] Llamando loadTimeSlots con duración:', newDuration);
+                        await loadTimeSlots(selectedCourt.id, selectedDate, newDuration);
+                      }
                     }}
                     courtName={selectedCourt?.name}
                   />
