@@ -8,15 +8,23 @@ import { db } from '@repo/db';
  * en el tiempo establecido (15 minutos por defecto)
  */
 export async function GET(request: NextRequest) {
-  // Protección simple por secreto opcional (útil para Vercel cron externamente)
+  // Protección por secreto para cron jobs externos (GitHub Actions, Vercel Cron)
   const secret = request.nextUrl.searchParams.get('secret');
-  if ((process.env.CRON_SECRET || '') && secret !== process.env.CRON_SECRET) {
-    return ApiResponse.unauthorized('No autorizado');
+  const hasValidSecret = secret && process.env.CRON_SECRET && secret === process.env.CRON_SECRET;
+  
+  // Si no tiene secret válido, requiere autenticación de admin
+  if (!hasValidSecret) {
+    return await withAdminMiddleware(async () => {
+      return executeCleanup();
+    })(request);
   }
+  
+  // Si tiene secret válido, ejecutar directamente sin middleware
+  return executeCleanup();
+}
 
-  // Permitir invocación sin sesión usando secreto, o autenticado admin vía withAdminMiddleware
-  return await withAdminMiddleware(async () => {
-    try {
+async function executeCleanup() {
+  try {
       console.log('🧹 [CRON] Iniciando limpieza automática de reservas PENDING expiradas...');
       
       // Configuración del timeout (15 minutos por defecto, configurable via env)
@@ -125,5 +133,4 @@ export async function GET(request: NextRequest) {
       console.error('❌ [CRON] Error en limpieza automática de reservas PENDING:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request);
 }

@@ -7,6 +7,7 @@ import { useAdminCourts, useAdminCenters } from '@/lib/hooks';
 import { adminApi } from '@/lib/api';
 import { useToast } from '@/components/ToastProvider';
 import WeekCalendar from '@/components/WeekCalendar';
+import { MAX_OVERRIDE_PERCENT, validatePriceOverride } from '@/lib/constants';
 
 export default function AdminNewReservationPage() {
   const { data: session } = useSession();
@@ -29,7 +30,9 @@ export default function AdminNewReservationPage() {
   const [paymentMethod, setPaymentMethod] = useState<'CASH'|'TPV'|'TRANSFER'|'CREDITS'|'COURTESY'|'LINK'>('CASH');
   const [paymentDetails, setPaymentDetails] = useState<{ amount?: string; reason?: string; authCode?: string; reference?: string }>(() => ({}));
   const [price, setPrice] = useState<{ base?: number; final?: number; breakdown?: { description: string; amount: number }[] }>({});
-  const { showToast } = useToast();
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [priceError, setPriceError] = useState<string | null>(null);
+  const { showToast} = useToast();
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<1|2|3>(1);
   const [suggestions, setSuggestions] = useState<Array<{ dateISO: string; startISO: string; label: string; price?: number }>>([]);
@@ -71,18 +74,202 @@ export default function AdminNewReservationPage() {
     loadAvailability();
   }, [courtId, date]);
 
+  // Sincronizar weekStart con la fecha seleccionada
+  // Cuando el usuario cambia la fecha, el calendario semanal debe mostrar la semana que contiene esa fecha
+  useEffect(() => {
+    if (!date) return;
+    
+    try {
+      // Parsear la fecha seleccionada
+      const selectedDate = new Date(date + 'T00:00:00');
+      
+      // Validar que la fecha sea válida
+      if (isNaN(selectedDate.getTime())) {
+        console.warn('[WEEK_SYNC] Fecha inválida:', date);
+        return;
+      }
+      
+      // Calcular el lunes de la semana que contiene la fecha seleccionada
+      // getDay() retorna 0 (domingo) a 6 (sábado)
+      // Convertimos domingo (0) a 7 para facilitar el cálculo
+      const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
+      
+      // Calcular cuántos días retroceder para llegar al lunes (día 1)
+      const daysToMonday = dayOfWeek - 1;
+      
+      // Crear nueva fecha para el lunes de esa semana
+      const mondayDate = new Date(selectedDate);
+      mondayDate.setDate(selectedDate.getDate() - daysToMonday);
+      
+      // Convertir a formato ISO (YYYY-MM-DD)
+      const newWeekStart = mondayDate.toISOString().split('T')[0] || '';
+      
+      // Solo actualizar si el weekStart cambió (evitar re-renders innecesarios)
+      if (newWeekStart !== weekStart) {
+        console.log('[WEEK_SYNC] Sincronizando calendario semanal:', {
+          fechaSeleccionada: date,
+          diaSeleccionado: selectedDate.toLocaleDateString('es-ES', { weekday: 'long' }),
+          nuevoLunes: newWeekStart,
+          anteriorLunes: weekStart
+        });
+        setWeekStart(newWeekStart);
+      }
+    } catch (error) {
+      console.error('[WEEK_SYNC] Error sincronizando weekStart:', error);
+      // En caso de error, no actualizar weekStart para mantener estabilidad
+    }
+  }, [date, weekStart]);
+
+  // Sincronizar selección con calendario semanal
+  useEffect(() => {
+    if (date && time) {
+      // Normalizar hora para comparación
+      let normalizedTime = time.trim();
+      const time12hMatch = normalizedTime.match(/^(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)/i);
+      if (time12hMatch) {
+        let hour = parseInt(time12hMatch[1], 10);
+        const minute = parseInt(time12hMatch[2], 10);
+        const period = time12hMatch[3].toLowerCase().replace(/\./g, '');
+        if (period === 'pm' && hour !== 12) hour += 12;
+        else if (period === 'am' && hour === 12) hour = 0;
+        normalizedTime = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      }
+      
+      // Disparar evento para sincronizar con WeekCalendar
+      window.dispatchEvent(new CustomEvent('admin-reservation-slot', {
+        detail: { type: 'SELECT_SLOT', dateISO: date, timeLabel: normalizedTime }
+      }));
+    }
+  }, [date, time]);
+
   // Calcular precio cuando cambian cancha/fecha/hora/duración/usuario
   useEffect(() => {
     const calc = async () => {
       try {
-        if (!courtId || !date || !time) { setPrice({}); return; }
-        const [hour, minute] = time.split(':').map(Number);
+        // Validación de campos requeridos
+        if (!courtId || !date || !time) { 
+          console.log('[PRICE_CALC] Campos faltantes:', { courtId: !!courtId, date: !!date, time: !!time });
+          setPrice({});
+          setPriceError(null);
+          return; 
+        }
+
+        // Iniciar carga
+        setPriceLoading(true);
+        setPriceError(null);
+
+        // Normalizar formato de hora (soportar tanto 12h como 24h)
+        let normalizedTime = time.trim();
+        
+        // Detectar y convertir formato 12 horas (10:30 a.m. / 10:30 p.m.)
+        const time12hMatch = normalizedTime.match(/^(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)/i);
+        if (time12hMatch) {
+          let hour = parseInt(time12hMatch[1], 10);
+          const minute = parseInt(time12hMatch[2], 10);
+          const period = time12hMatch[3].toLowerCase().replace(/\./g, '');
+          
+          // Convertir a formato 24 horas
+          if (period === 'pm' && hour !== 12) {
+            hour += 12;
+          } else if (period === 'am' && hour === 12) {
+            hour = 0;
+          }
+          
+          normalizedTime = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+          console.log('[PRICE_CALC] Hora convertida de 12h a 24h:', { original: time, normalized: normalizedTime });
+        }
+
+        // Parsear hora en formato 24h
+        const timeParts = normalizedTime.split(':');
+        if (timeParts.length !== 2) {
+          const errorMsg = 'Formato de hora inválido. Use HH:MM';
+          console.error('[PRICE_CALC]', errorMsg, time);
+          setPriceError(errorMsg);
+          setPrice({});
+          setPriceLoading(false);
+          return;
+        }
+
+        const hour = parseInt(timeParts[0], 10);
+        const minute = parseInt(timeParts[1], 10);
+
+        // Validar que sean números válidos
+        if (isNaN(hour) || isNaN(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+          const errorMsg = 'Hora fuera de rango válido (00:00 - 23:59)';
+          console.error('[PRICE_CALC]', errorMsg, { hour, minute, original: time });
+          setPriceError(errorMsg);
+          setPrice({});
+          setPriceLoading(false);
+          return;
+        }
+
+        // Construir fecha y hora en formato ISO
         const start = new Date(date + 'T00:00:00');
-        start.setHours(hour || 0, minute || 0, 0, 0);
-        const result: any = await adminApi.pricing.calculate({ courtId, startTime: start.toISOString(), duration, userId: userId || undefined });
+        start.setHours(hour, minute, 0, 0);
+
+        // Validar que la fecha sea válida
+        if (isNaN(start.getTime())) {
+          const errorMsg = 'Fecha u hora inválida';
+          console.error('[PRICE_CALC]', errorMsg, { date, time: normalizedTime });
+          setPriceError(errorMsg);
+          setPrice({});
+          setPriceLoading(false);
+          return;
+        }
+
+        console.log('[PRICE_CALC] Calculando precio:', {
+          courtId,
+          date,
+          time: normalizedTime,
+          startTime: start.toISOString(),
+          duration,
+          userId: userId || 'sin usuario'
+        });
+
+        // Llamar a la API de pricing
+        const result: any = await adminApi.pricing.calculate({ 
+          courtId, 
+          startTime: start.toISOString(), 
+          duration, 
+          userId: userId || undefined 
+        });
+
+        console.log('[PRICE_CALC] Respuesta de API:', result);
+
+        // Extraer datos de pricing (puede venir en diferentes formatos)
         const p = result?.pricing || result;
-        setPrice({ base: p?.basePrice, final: p?.finalPrice, breakdown: p?.breakdown || [] });
-      } catch { setPrice({}); }
+        
+        if (!p || (p.finalPrice === undefined && p.total === undefined && p.totalPrice === undefined)) {
+          const errorMsg = 'No se pudo calcular el precio. Verifique la configuración de precios.';
+          console.warn('[PRICE_CALC] Respuesta sin precio válido:', result);
+          setPriceError(errorMsg);
+          setPrice({});
+          setPriceLoading(false);
+          return;
+        }
+
+        // Normalizar estructura de precio
+        const finalPrice = p.finalPrice ?? p.total ?? p.totalPrice ?? 0;
+        const basePrice = p.basePrice ?? p.base ?? finalPrice;
+        const breakdown = p.breakdown || [];
+
+        setPrice({ 
+          base: basePrice, 
+          final: finalPrice, 
+          breakdown 
+        });
+
+        setPriceError(null);
+        setPriceLoading(false);
+        console.log('[PRICE_CALC] Precio calculado exitosamente:', { base: basePrice, final: finalPrice });
+
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Error al calcular el precio';
+        console.error('[PRICE_CALC] Error calculando precio:', error);
+        setPriceError(errorMsg);
+        setPrice({});
+        setPriceLoading(false);
+      }
     };
     calc();
   }, [courtId, date, time, duration, userId]);
@@ -115,9 +302,9 @@ export default function AdminNewReservationPage() {
       if (!Number.isFinite(amt)) return false;
       if ((overrideReason || '').trim().length < 5) return false;
       const baseTotal = Number(price?.final || 0);
-      const maxPct = Number(process.env.NEXT_PUBLIC_MAX_PRICE_OVERRIDE_PERCENT || '20');
-      const allowed = Math.abs(amt) <= (baseTotal * maxPct) / 100;
-      if (!allowed) return false;
+      // Usar validación centralizada y robusta
+      const validation = validatePriceOverride(amt, baseTotal);
+      if (!validation.isValid) return false;
     }
     return true;
   };
@@ -285,7 +472,7 @@ export default function AdminNewReservationPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Nueva Reserva (Manual)</h1>
+      <h1 className="text-2xl font-bold text-black">Nueva Reserva (Manual)</h1>
       <div className="flex items-center gap-3 text-xs">
         <span className={`px-2 py-1 rounded ${step>=1?'bg-blue-600 text-white':'bg-gray-200 text-gray-700'}`}>1 Usuario</span>
         <span className={`px-2 py-1 rounded ${step>=2?'bg-blue-600 text-white':'bg-gray-200 text-gray-700'}`}>2 Cancha</span>
@@ -297,7 +484,7 @@ export default function AdminNewReservationPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
          {/* Paso 1: Usuario */}
         <div className="md:col-span-2">
-          <h2 className="text-lg font-semibold mb-2">1) Usuario</h2>
+          <h2 className="text-lg font-semibold mb-2 text-black">1) Usuario</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="relative">
               <label className="block text-sm text-gray-700 mb-1">Buscar usuario (email/teléfono)</label>
@@ -347,7 +534,7 @@ export default function AdminNewReservationPage() {
 
         {/* Paso 2: Cancha y horario */}
         <div className="md:col-span-2 mt-2">
-          <h2 className="text-lg font-semibold mb-2">2) Cancha y horario</h2>
+          <h2 className="text-lg font-semibold mb-2 text-black">2) Cancha y horario</h2>
         </div>
         <div>
           <label className="block text-sm text-gray-700 mb-1">Centro</label>
@@ -377,7 +564,7 @@ export default function AdminNewReservationPage() {
           <div className="mt-2 max-h-40 overflow-y-auto text-xs border rounded p-2 bg-gray-50">
             <div className="font-medium mb-1">Disponibilidad del día</div>
             {slots.length === 0 ? (
-              <div className="text-gray-500">Selecciona cancha y fecha para ver disponibilidad</div>
+              <div className="text-black">Selecciona cancha y fecha para ver disponibilidad</div>
             ) : (
               <div className="grid grid-cols-2 gap-1">
                 {slots.map((s, idx) => {
@@ -409,15 +596,15 @@ export default function AdminNewReservationPage() {
         {/* Calendario semanal */}
         <div className="md:col-span-2">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-700">Disponibilidad semanal</h3>
+            <h3 className="text-sm font-medium text-black">Disponibilidad semanal</h3>
             <div className="flex gap-2">
-              <button className="px-2 py-1 border rounded" onClick={() => {
+              <button className="px-2 py-1 border rounded text-black" onClick={() => {
                 const d = new Date(weekStart + 'T00:00:00');
                 d.setDate(d.getDate() - 7);
                 const s = d.toISOString().split('T')[0] || '';
                 setWeekStart(s);
               }}>◀</button>
-              <button className="px-2 py-1 border rounded" onClick={() => {
+              <button className="px-2 py-1 border rounded text-black" onClick={() => {
                 const d = new Date(weekStart + 'T00:00:00');
                 d.setDate(d.getDate() + 7);
                 const s = d.toISOString().split('T')[0] || '';
@@ -444,14 +631,34 @@ export default function AdminNewReservationPage() {
           </select>
         </div>
         <div className="md:col-span-2">
-          <label className="block text-sm text-gray-700 mb-1">Notas</label>
+          <label className="block text-sm text-black mb-1">Notas</label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full border rounded px-3 py-2" rows={3} />
         </div>
 
         {/* Resumen de precio */}
         <div className="md:col-span-2 bg-white border rounded p-4">
-          <h3 className="font-semibold mb-2">Resumen de precio</h3>
-          {price?.final !== undefined ? (
+          <h3 className="font-semibold mb-2 text-black">Resumen de precio</h3>
+          
+          {/* Estado de carga */}
+          {priceLoading && (
+            <div className="flex items-center gap-2 text-sm text-blue-600">
+              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Calculando precio...
+            </div>
+          )}
+          
+          {/* Error en el cálculo */}
+          {!priceLoading && priceError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
+              <strong>Error:</strong> {priceError}
+            </div>
+          )}
+          
+          {/* Precio calculado exitosamente */}
+          {!priceLoading && !priceError && price?.final !== undefined ? (
             <div>
               <div className="text-sm text-gray-600 mb-1">Base: €{(price.base ?? 0).toFixed(2)}</div>
               <ul className="text-xs text-gray-500 mb-2 list-disc pl-5">
@@ -468,19 +675,32 @@ export default function AdminNewReservationPage() {
               {typeof (price as any).taxRate === 'number' && (
                 <div className="text-sm text-gray-600">Impuestos ({(price as any).taxRate}%): €{Number((price as any).taxAmount || 0).toFixed(2)}</div>
               )}
-              <div className="text-lg font-bold">Total: €{(price.final || 0).toFixed(2)}</div>
+              <div className="text-lg font-bold text-green-700">Total: €{(price.final || 0).toFixed(2)}</div>
             </div>
-          ) : (
-            <div className="text-sm text-gray-500">Selecciona cancha, fecha y hora para calcular el precio</div>
+          ) : !priceLoading && !priceError && (
+            <div className="text-sm text-gray-500">
+              <p>Selecciona cancha, fecha y hora para calcular el precio</p>
+              <ul className="text-xs mt-2 space-y-1">
+                <li className={courtId ? 'text-green-600' : 'text-gray-400'}>
+                  {courtId ? '✓' : '○'} Cancha seleccionada
+                </li>
+                <li className={date ? 'text-green-600' : 'text-gray-400'}>
+                  {date ? '✓' : '○'} Fecha seleccionada
+                </li>
+                <li className={time ? 'text-green-600' : 'text-gray-400'}>
+                  {time ? '✓' : '○'} Hora seleccionada
+                </li>
+              </ul>
+            </div>
           )}
         </div>
 
         {/* Paso 3: Pago */}
         <div className="md:col-span-2 mt-2">
-          <h2 className="text-lg font-semibold mb-2">3) Pago</h2>
+          <h2 className="text-lg font-semibold mb-2 text-black">3) Pago</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm text-gray-700 mb-1">Método</label>
+              <label className="block text-sm text-black mb-1">Método</label>
               <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as any)} className="w-full border rounded px-3 py-2">
                 <option value="CASH">Efectivo</option>
                 <option value="TPV">Tarjeta (TPV)</option>
@@ -522,7 +742,7 @@ export default function AdminNewReservationPage() {
             {/* Override de precio (solo ADMIN) */}
             {((session?.user as any)?.role === 'ADMIN' || (session?.user as any)?.role === 'SUPER_ADMIN') && (
               <div className="md:col-span-3 mt-4 border rounded p-3">
-                <label className="inline-flex items-center gap-2 text-sm font-medium">
+                <label className="inline-flex items-center gap-2 text-sm font-medium text-black">
                   <input type="checkbox" checked={overrideEnabled} onChange={(e) => setOverrideEnabled(e.target.checked)} />
                   Aplicar ajuste de precio (override)
                 </label>
@@ -531,7 +751,7 @@ export default function AdminNewReservationPage() {
                     <div>
                       <label className="block text-sm text-gray-700 mb-1">Ajuste (€ +/‑)</label>
                       <input type="number" step="0.01" value={overrideAmount} onChange={(e) => setOverrideAmount(e.target.value)} className="w-full border rounded px-3 py-2" placeholder="Ej: -5.00" />
-                      <p className="text-xs text-gray-500 mt-1">Límite: ±{Number(process.env.NEXT_PUBLIC_MAX_PRICE_OVERRIDE_PERCENT || '20')}% del total</p>
+                      <p className="text-xs text-gray-500 mt-1">Límite: ±{MAX_OVERRIDE_PERCENT}% del total</p>
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm text-gray-700 mb-1">Motivo (requerido)</label>
@@ -540,13 +760,12 @@ export default function AdminNewReservationPage() {
                     {(() => {
                       const baseTotal = Number(price?.final || 0);
                       const amt = Number(overrideAmount || '0');
-                      const maxPct = Number(process.env.NEXT_PUBLIC_MAX_PRICE_OVERRIDE_PERCENT || '20');
-                      const allowed = Number.isFinite(amt) && Math.abs(amt) <= (baseTotal * maxPct) / 100;
+                      const validation = validatePriceOverride(amt, baseTotal);
                       const newTotal = baseTotal + (Number.isFinite(amt) ? amt : 0);
                       return (
                         <div className="md:col-span-3 text-xs mt-1">
-                          <span className={`font-medium ${allowed ? 'text-emerald-700' : 'text-red-700'}`}>
-                            Nuevo total estimado: €{newTotal.toFixed(2)} {allowed ? '' : '(excede el límite permitido)'}
+                          <span className={`font-medium ${validation.isValid ? 'text-emerald-700' : 'text-red-700'}`}>
+                            Nuevo total estimado: €{newTotal.toFixed(2)} {validation.isValid ? '' : `(${validation.error})`}
                           </span>
                         </div>
                       );
@@ -592,7 +811,7 @@ export default function AdminNewReservationPage() {
         </div>
       )}
       <div className="flex gap-2 items-center">
-        <button onClick={() => (window.location.href = '/reservations')} className="px-4 py-2 border rounded">Cancelar</button>
+        <button onClick={() => (window.location.href = '/reservations')} className="px-4 py-2 border rounded text-black">Cancelar</button>
         {step < 3 && (
           <button
             onClick={() => setStep((s) => (s===1 ? (canProceedUser()?2:1) : (canProceedSchedule()?3:2)))}

@@ -11,6 +11,11 @@ import { z } from 'zod';
 import { reservationService } from '@/lib/services/reservation.service';
 import { emailService } from '@repo/notifications';
 import { AutoCompleteService } from '@/lib/services/auto-complete.service';
+import { 
+  AdminPaymentMethodSchema, 
+  PricingOverrideSchema,
+  validatePriceOverride 
+} from '@/lib/validators/reservation.validator';
 
 const GetAdminReservationsSchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
@@ -233,9 +238,9 @@ const ManualReservationSchema = z.object({
   startTime: z.string().datetime(),
   duration: z.number().min(30).max(480),
   notes: z.string().optional(),
-  pricingOverride: z.object({ amount: z.number().min(-100000).max(100000), reason: z.string().min(5) }).optional(),
+  pricingOverride: PricingOverrideSchema.optional(),
   payment: z.object({
-    method: z.enum(['CASH','TPV','TRANSFER','CREDITS','COURTESY','LINK']).default('CASH'),
+    method: AdminPaymentMethodSchema.default('CASH'),
     amount: z.number().min(0).optional(),
     reason: z.string().optional(),
     details: z.record(z.any()).optional(),
@@ -296,29 +301,67 @@ export async function POST(request: NextRequest) {
       }
 
       // 2) Crear reserva usando el servicio (valida disponibilidad y calcula precio)
+      // NOTA: Para reservas manuales de admin, el paymentMethod se procesa DESPUÉS de crear la reserva
+      // Por lo tanto, omitimos el campo paymentMethod en la creación inicial
       let reservation = await reservationService.createReservation({
         courtId: input.courtId,
         userId,
         startTime: input.startTime,
         duration: input.duration,
+        isRecurring: false, // Las reservas manuales de admin no son recurrentes
         notes: input.notes,
-        paymentMethod: undefined as any,
-      } as any);
+        // paymentMethod se omite intencionalmente - se procesa en el paso 3
+      });
 
       // Aplicar override de precio si corresponde (solo Admin: protegido por withAdminMiddleware)
       if (input.pricingOverride) {
-        const maxPercent = Number(process.env.MAX_PRICE_OVERRIDE_PERCENT || '20');
         const oldTotal = Number(reservation.totalPrice || 0);
         const delta = input.pricingOverride.amount;
-        if (Math.abs(delta) > (oldTotal * maxPercent) / 100) {
-          return ApiResponse.forbidden('Override supera el límite permitido');
+        
+        // Validación robusta usando función centralizada
+        const validation = validatePriceOverride(delta, oldTotal);
+        
+        if (!validation.isValid) {
+          console.error('[PRICE_OVERRIDE] Validación fallida:', {
+            reservationId: reservation.id,
+            oldTotal,
+            delta,
+            error: validation.error,
+            details: validation.details
+          });
+          return ApiResponse.forbidden(validation.error || 'Override supera el límite permitido');
         }
+        
+        // Logging detallado para auditoría
+        console.log('[PRICE_OVERRIDE] Aplicando override:', {
+          reservationId: reservation.id,
+          oldTotal,
+          delta,
+          newTotal: oldTotal + delta,
+          reason: input.pricingOverride.reason,
+          percentageApplied: validation.details?.percentageApplied,
+          timestamp: new Date().toISOString()
+        });
+        
         reservation = await db.reservation.update({
           where: { id: reservation.id },
           data: { totalPrice: oldTotal + delta },
         });
+        
+        // Registrar evento de auditoría con detalles completos
         await db.outboxEvent.create({
-          data: { eventType: 'PRICE_OVERRIDE', eventData: { reservationId: reservation.id, delta, reason: input.pricingOverride.reason } as any },
+          data: { 
+            eventType: 'PRICE_OVERRIDE', 
+            eventData: { 
+              reservationId: reservation.id, 
+              delta, 
+              reason: input.pricingOverride.reason,
+              oldTotal,
+              newTotal: oldTotal + delta,
+              percentageApplied: validation.details?.percentageApplied,
+              timestamp: new Date().toISOString()
+            } as any 
+          },
         });
       }
 
@@ -471,7 +514,27 @@ export async function POST(request: NextRequest) {
           error.errors.map((err) => ({ field: err.path.join('.'), message: err.message }))
         );
       }
-      console.error('Error creando reserva manual:', error);
+
+      // Mapear errores de negocio comunes a respuestas claras
+      const businessErrors = [
+        'Horario no disponible',
+        'Saldo de créditos insuficiente',
+        'Cancha en mantenimiento durante el horario solicitado',
+        'El deporte seleccionado no está permitido',
+      ];
+
+      if (error instanceof Error && businessErrors.includes(error.message)) {
+        return ApiResponse.badRequest(error.message);
+      }
+
+      // Registrar stack para debugging
+      console.error('Error creando reserva manual:', error instanceof Error ? error.stack : error);
+
+      // En entorno de desarrollo, devolver el mensaje para depuración
+      if (process.env.NODE_ENV !== 'production') {
+        return ApiResponse.internalError(error instanceof Error ? error.message : 'Error interno del servidor');
+      }
+
       return ApiResponse.internalError('Error interno del servidor');
     }
   })(request);

@@ -610,7 +610,7 @@ export const withReservationCleanup = (handler: ApiHandler): ApiHandler => {
             OR: [
               // Pago online: expira en 15 minutos (usa expiresAt)
               {
-                paymentMethod: { in: ['CARD', 'BIZUM', 'CREDITS'] },
+                paymentMethod: { in: ['CARD', 'BIZUM', 'CREDITS', 'redsys'] },
                 expiresAt: { lt: now }
               },
               // Pago en sede: expira 1 hora antes de la reserva (usa startTime)

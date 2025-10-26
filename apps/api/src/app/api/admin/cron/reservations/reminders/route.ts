@@ -11,15 +11,23 @@ function windowRange(targetMinutesAhead: number, windowMinutes = 10) {
 }
 
 export async function GET(request: NextRequest) {
-  // Protección simple por secreto opcional (útil para Vercel cron externamente)
+  // Protección por secreto para cron jobs externos (GitHub Actions, Vercel Cron)
   const secret = request.nextUrl.searchParams.get('secret');
-  if ((process.env.CRON_SECRET || '') && secret !== process.env.CRON_SECRET) {
-    return ApiResponse.unauthorized('No autorizado');
+  const hasValidSecret = secret && process.env.CRON_SECRET && secret === process.env.CRON_SECRET;
+  
+  // Si no tiene secret válido, requiere autenticación de admin
+  if (!hasValidSecret) {
+    return await withAdminMiddleware(async () => {
+      return executeReminders();
+    })(request);
   }
+  
+  // Si tiene secret válido, ejecutar directamente sin middleware
+  return executeReminders();
+}
 
-  // Permitir invocación sin sesión usando secreto, o autenticado admin vía withAdminMiddleware
-  return await withAdminMiddleware(async () => {
-    try {
+async function executeReminders() {
+  try {
       const tasks: Array<{ label: '24h' | '2h'; start: Date; end: Date }> = [
         (() => { const { start, end } = windowRange(24 * 60, 15); return { label: '24h' as const, start, end }; })(),
         (() => { const { start, end } = windowRange(2 * 60, 15); return { label: '2h' as const, start, end }; })(),
@@ -79,7 +87,6 @@ export async function GET(request: NextRequest) {
       console.error('Cron reminders error:', e);
       return ApiResponse.internalError('Error interno del servidor');
     }
-  })(request);
 }
 
 

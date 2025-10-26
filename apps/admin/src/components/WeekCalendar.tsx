@@ -14,6 +14,21 @@ interface WeekCalendarProps {
 type DaySlots = { dateISO: string; slots: Array<{ label: string; available: boolean }> };
 
 export default function WeekCalendar({ courtId, weekStartISO, slotMinutes = 60, durationMinutes, onSelect }: WeekCalendarProps) {
+  // Añadimos soporte de selección externa (opcional)
+  const [selectedDateISO, setSelectedDateISO] = useState<string | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  useEffect(() => {
+    // escuchar evento custom para sincronizar selección externa
+    const handler = (e: any) => {
+      if (e?.detail?.type === 'SELECT_SLOT') {
+        setSelectedDateISO(e.detail.dateISO);
+        setSelectedTime(e.detail.timeLabel);
+      }
+    };
+    window.addEventListener('admin-reservation-slot', handler as any);
+    return () => window.removeEventListener('admin-reservation-slot', handler as any);
+  }, []);
+
   const [data, setData] = useState<DaySlots[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +83,7 @@ export default function WeekCalendar({ courtId, weekStartISO, slotMinutes = 60, 
   }, [data]);
 
   if (!courtId) return null;
-  if (loading) return <div className="text-sm text-gray-500">Cargando semana…</div>;
+  if (loading) return <div className="text-sm text-black">Cargando semana…</div>;
   if (error) return <div className="text-sm text-red-600">{error}</div>;
 
   return (
@@ -76,9 +91,9 @@ export default function WeekCalendar({ courtId, weekStartISO, slotMinutes = 60, 
       <table className="min-w-full text-xs">
         <thead className="bg-gray-50">
           <tr>
-            <th className="p-2 text-left">Hora</th>
+            <th className="p-2 text-left text-black">Hora</th>
             {data.map((d) => (
-              <th key={d.dateISO} className="p-2 text-left">
+              <th key={d.dateISO} className="p-2 text-left text-black">
                 {new Date(d.dateISO + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: '2-digit' })}
               </th>
             ))}
@@ -87,7 +102,7 @@ export default function WeekCalendar({ courtId, weekStartISO, slotMinutes = 60, 
         <tbody>
           {timeAxis.map((label) => (
             <tr key={label} className="border-t">
-              <td className="p-2 font-medium text-gray-600">{label}</td>
+              <td className="p-2 font-medium text-black">{label}</td>
               {data.map((d) => {
                 const slot = d.slots.find((s) => s.label === label);
                 const available = !!slot?.available;
@@ -98,7 +113,12 @@ export default function WeekCalendar({ courtId, weekStartISO, slotMinutes = 60, 
                       disabled={!available}
                       onClick={() => onSelect(d.dateISO, label)}
                       className={`w-full rounded px-2 py-1 border ${
-                        available ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200' : 'bg-red-100 text-red-600 border-red-200 cursor-not-allowed'
+                        // Si está seleccionado externamente, destacar con azul
+                        selectedDateISO === d.dateISO && selectedTime === label
+                          ? 'bg-blue-200 text-blue-900 border-blue-400 ring-2 ring-blue-300'
+                          : available 
+                            ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200' 
+                            : 'bg-red-100 text-red-600 border-red-200 cursor-not-allowed'
                       }`}
                     >
                       {available ? 'Libre' : 'Ocupado'}

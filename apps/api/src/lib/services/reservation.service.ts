@@ -5,6 +5,8 @@ import { NotificationService } from '@repo/notifications';
 import { PaymentService } from '@repo/payments';
 import { reservationLockService } from './reservation-lock.service';
 import { ScheduleCompatibilityService } from './schedule-compatibility.service';
+import { PaymentMethodSchema } from '../validators/reservation.validator';
+import { createHash } from 'crypto';
 // Importar qrcode dinámicamente donde se usa para evitar error de tipos en compilación
 
 // Esquemas de validación
@@ -20,7 +22,9 @@ export const CreateReservationSchema = z.object({
     endDate: z.string().datetime(),
     exceptions: z.array(z.string().datetime()).optional(),
   }).optional(),
-  paymentMethod: z.enum(['stripe', 'redsys', 'credits', 'CREDITS', 'CARD']).optional(),
+  // paymentMethod acepta todos los métodos válidos (usuario y admin)
+  // La validación específica se hace en cada endpoint según el contexto
+  paymentMethod: PaymentMethodSchema.optional(),
   notes: z.string().optional(),
   // Nueva bandera: selección de iluminación por el usuario
   lightingSelected: z.boolean().optional(),
@@ -101,18 +105,51 @@ export class ReservationService {
         });
 
         // 0) Advisory lock a nivel de BD para blindaje multi-instancia (clave derivada de cancha+franja)
+        // Usar SHA-256 en lugar de MD5 para mayor seguridad criptográfica
         const advisoryKey = `reservation:${validatedInput.courtId}:${startTime.toISOString()}:${endTime.toISOString()}`;
+        
+        // Generar hash SHA-256 y extraer dos enteros de 32 bits
+        const hash = createHash('sha256').update(advisoryKey).digest('hex');
+        const MAX_INT32 = 2147483647; // rango int4 PG (-2^31..2^31-1)
+        const toInt32 = (hexPart: string) => {
+          const n = parseInt(hexPart, 16) % MAX_INT32;
+          // Convertir a firmado si excede 2^31-1
+          return n > MAX_INT32 ? n - MAX_INT32 * 2 : n;
+        };
+        const lockKey1 = toInt32(hash.substring(0, 8));
+        const lockKey2 = toInt32(hash.substring(8, 16));
+        
+        console.log('[ADVISORY_LOCK] Intentando adquirir lock:', {
+          advisoryKey,
+          lockKey1,
+          lockKey2,
+          hash: hash.substring(0, 16),
+          timestamp: new Date().toISOString()
+        });
+        
         const lockRows = await (tx as any).$queryRaw<{ locked: boolean }[]>`
-          SELECT pg_try_advisory_xact_lock(
-            ('x'||substr(md5(${advisoryKey}),1,8))::bit(32)::int,
-            ('x'||substr(md5(${advisoryKey}),9,8))::bit(32)::int
-          ) as locked
+          SELECT pg_try_advisory_xact_lock(${lockKey1}::int4, ${lockKey2}::int4) as locked
         `;
+        
         const locked = Array.isArray(lockRows) && lockRows[0] && (lockRows[0] as any).locked === true;
+        
         if (!locked) {
           // Falla rápido si otra transacción ya está procesando la misma cancha y franja
+          console.warn('[ADVISORY_LOCK] Lock no adquirido - conflicto de concurrencia:', {
+            advisoryKey,
+            lockKey1,
+            lockKey2,
+            timestamp: new Date().toISOString()
+          });
           throw new Error('El horario está siendo procesado por otro usuario. Intenta nuevamente en unos segundos.');
         }
+        
+        console.log('[ADVISORY_LOCK] Lock adquirido exitosamente:', {
+          advisoryKey,
+          lockKey1,
+          lockKey2,
+          timestamp: new Date().toISOString()
+        });
 
         // 1) Verificar disponibilidad al momento de crear
         await this.checkAvailability(tx, {
@@ -134,7 +171,13 @@ export class ReservationService {
         const now = new Date();
         
         // Lógica de expiración diferenciada por método de pago
-        const getExpirationTime = (paymentMethod: string, startTime: Date) => {
+        const getExpirationTime = (paymentMethod: string | undefined, startTime: Date) => {
+          // Si no hay método de pago definido (reservas manuales de admin), 
+          // usar tiempo de inicio como expiración (se marcará como PAID antes de expirar)
+          if (!paymentMethod) {
+            return new Date(startTime.getTime());
+          }
+          
           if (paymentMethod === 'ONSITE') {
             // Pago en sede: 1 hora antes de la reserva
             return new Date(startTime.getTime() - 60 * 60 * 1000);
@@ -143,7 +186,7 @@ export class ReservationService {
           return new Date(now.getTime() + 15 * 60 * 1000);
         };
         
-        const expiresAt = getExpirationTime(validatedInput.paymentMethod || 'CARD', startTime);
+        const expiresAt = getExpirationTime(validatedInput.paymentMethod, startTime);
         
         console.log('💾 [RESERVATION-CREATE] Guardando reserva con precio:', {
           totalPrice: computedPrice.total,
@@ -163,7 +206,9 @@ export class ReservationService {
             status: 'PENDING',
             expiresAt: expiresAt,
             isRecurring: validatedInput.isRecurring,
-            paymentMethod: validatedInput.paymentMethod || 'CARD', // Default a CARD si no se especifica
+            // Para reservas manuales de admin, paymentMethod se define después del procesamiento de pago
+            // Para reservas de usuarios, se especifica al momento de crear la reserva
+            paymentMethod: validatedInput.paymentMethod || null,
             notes: validatedInput.notes,
           },
         });
