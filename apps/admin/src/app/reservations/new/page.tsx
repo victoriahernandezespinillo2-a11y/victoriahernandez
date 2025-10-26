@@ -126,7 +126,7 @@ export default function AdminNewReservationPage() {
       // Normalizar hora para comparación
       let normalizedTime = time.trim();
       const time12hMatch = normalizedTime.match(/^(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)/i);
-      if (time12hMatch) {
+      if (time12hMatch && time12hMatch[1] && time12hMatch[2] && time12hMatch[3]) {
         let hour = parseInt(time12hMatch[1], 10);
         const minute = parseInt(time12hMatch[2], 10);
         const period = time12hMatch[3].toLowerCase().replace(/\./g, '');
@@ -163,7 +163,7 @@ export default function AdminNewReservationPage() {
         
         // Detectar y convertir formato 12 horas (10:30 a.m. / 10:30 p.m.)
         const time12hMatch = normalizedTime.match(/^(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)/i);
-        if (time12hMatch) {
+        if (time12hMatch && time12hMatch[1] && time12hMatch[2] && time12hMatch[3]) {
           let hour = parseInt(time12hMatch[1], 10);
           const minute = parseInt(time12hMatch[2], 10);
           const period = time12hMatch[3].toLowerCase().replace(/\./g, '');
@@ -181,7 +181,7 @@ export default function AdminNewReservationPage() {
 
         // Parsear hora en formato 24h
         const timeParts = normalizedTime.split(':');
-        if (timeParts.length !== 2) {
+        if (timeParts.length !== 2 || !timeParts[0] || !timeParts[1]) {
           const errorMsg = 'Formato de hora inválido. Use HH:MM';
           console.error('[PRICE_CALC]', errorMsg, time);
           setPriceError(errorMsg);
