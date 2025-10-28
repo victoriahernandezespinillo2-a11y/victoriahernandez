@@ -88,6 +88,32 @@ export async function POST(request: NextRequest) {
 }
 
 /**
+ * POST /api/maintenance/occurrences:delete
+ * Ruta especial para eliminar ocurrencias por IDs en lote.
+ */
+export async function DELETE(request: NextRequest) {
+  const url = new URL(request.url);
+  if (url.pathname.endsWith('/api/maintenance/occurrences:delete')) {
+    return withAdminMiddleware(async (req) => {
+      try {
+        const body = await req.json();
+        const ids: string[] = Array.isArray(body?.ids) ? body.ids : [];
+        const includeStates = Array.isArray(body?.includeStates) ? body.includeStates : undefined;
+        const dryRun = Boolean(body?.dryRun);
+        const reason = typeof body?.reason === 'string' ? body.reason : undefined;
+        const result = await maintenanceService.deleteOccurrencesByIds(ids, { includeStates: includeStates as any, dryRun, reason });
+        return ApiResponse.success(result);
+      } catch (error) {
+        console.error('Error en eliminación masiva de ocurrencias:', error);
+        return ApiResponse.badRequest('Solicitud inválida para eliminación masiva');
+      }
+    })(request);
+  }
+  // 405 Method Not Allowed para rutas DELETE no soportadas en este handler
+  return ApiResponse.error('DELETE no soportado', 405);
+}
+
+/**
  * OPTIONS /api/maintenance
  * Manejar preflight requests
  */

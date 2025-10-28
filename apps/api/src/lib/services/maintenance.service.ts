@@ -102,6 +102,173 @@ export class MaintenanceService {
   }
 
   /**
+   * Dedupe: elimina ocurrencias duplicadas en una serie para misma fecha/hora (y cancha)
+   * Regla: conservar 1 — prioridad COMPLETED; si no hay COMPLETED, conservar la más antigua
+   */
+  async dedupeSeries(seriesId: string) {
+    const occs = await db.maintenanceSchedule.findMany({
+      where: { seriesId },
+      orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, scheduledAt: true, status: true, courtId: true, createdAt: true },
+    });
+    if (!occs.length) return { deleted: 0, groups: 0 };
+
+    // Agrupar por courtId+scheduledAt
+    const groups = new Map<string, typeof occs>();
+    for (const o of occs) {
+      const key = `${o.courtId}|${o.scheduledAt.toISOString()}`;
+      const arr = groups.get(key) || [] as any[];
+      arr.push(o);
+      groups.set(key, arr);
+    }
+
+    let deleted = 0;
+    for (const [, list] of groups.entries()) {
+      if (list.length <= 1) continue;
+      // Elegir a conservar
+      const completed = list.find((x) => x.status === 'COMPLETED');
+      const keep = completed || list[0]!;
+      const toDelete = list.filter((x) => x.id !== keep.id);
+      if (toDelete.length) {
+        await db.maintenanceSchedule.deleteMany({ where: { id: { in: toDelete.map((x) => x.id) } } });
+        deleted += toDelete.length;
+      }
+    }
+    return { deleted, groups: groups.size };
+  }
+  /**
+   * Eliminar ocurrencias por serie con diferentes alcances.
+   * - scope: 'all' | 'future' | 'range'
+   * - includeStates: por defecto solo 'SCHEDULED'
+   * - dryRun: no elimina, solo devuelve conteos
+   */
+  async deleteSeriesOccurrences(
+    seriesId: string,
+    options: {
+      scope?: 'all' | 'future' | 'range';
+      from?: string; // ISO date-time para future|range
+      to?: string;   // ISO date-time solo para range
+      includeStates?: Array<'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'>;
+      dryRun?: boolean;
+      reason?: string;
+    } = {}
+  ) {
+    const scope = options.scope || 'future';
+    const includeStates = (options.includeStates && options.includeStates.length > 0)
+      ? options.includeStates
+      : ['SCHEDULED'];
+
+    const where: any = { seriesId, status: { in: includeStates } };
+    const now = new Date();
+    if (scope === 'future') {
+      const from = options.from ? new Date(options.from) : now;
+      where.scheduledAt = { gte: from };
+    } else if (scope === 'range') {
+      if (!options.from || !options.to) {
+        throw new Error('Parámetros from y to son requeridos para scope=range');
+      }
+      where.scheduledAt = { gte: new Date(options.from), lte: new Date(options.to) };
+    }
+
+    if (options.dryRun) {
+      // Devolver conteos y listado de ocurrencias (limitado)
+      const [byStatus, items] = await Promise.all([
+        db.maintenanceSchedule.groupBy({
+          by: ['status'],
+          where,
+          _count: { status: true },
+        }),
+        db.maintenanceSchedule.findMany({
+          where,
+          orderBy: { scheduledAt: 'asc' },
+          select: { id: true, scheduledAt: true, status: true, estimatedDuration: true },
+          take: 500,
+        }),
+      ]);
+      const total = byStatus.reduce((acc: number, r: any) => acc + (r._count as any).status, 0);
+      return {
+        dryRun: true as const,
+        total,
+        byStatus: byStatus.map((r: any) => ({ status: r.status, count: (r._count as any).status })),
+        items,
+      };
+    }
+
+    const deleted = await db.maintenanceSchedule.deleteMany({ where });
+
+    // Registrar evento agregado para auditoría (outbox)
+    await db.outboxEvent.create({
+      data: {
+        eventType: 'MAINTENANCE_SERIES_DELETED',
+        eventData: {
+          seriesId,
+          scope,
+          from: options.from || (scope === 'future' ? now.toISOString() : undefined),
+          to: options.to,
+          includeStates,
+          deletedCount: deleted.count,
+          reason: options.reason,
+          deletedAt: new Date().toISOString(),
+        } as any,
+      },
+    });
+
+    return { deletedCount: deleted.count };
+  }
+
+  /**
+   * Eliminar ocurrencias por lista de IDs (bulk).
+   * - includeStates: por defecto solo 'SCHEDULED'
+   * - dryRun: no elimina, solo devuelve conteos
+   */
+  async deleteOccurrencesByIds(
+    ids: string[],
+    options: {
+      includeStates?: Array<'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'>;
+      dryRun?: boolean;
+      reason?: string;
+    } = {}
+  ) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new Error('Debe proporcionar al menos un ID de mantenimiento');
+    }
+    const includeStates = (options.includeStates && options.includeStates.length > 0)
+      ? options.includeStates
+      : ['SCHEDULED'];
+
+    const where: any = { id: { in: ids }, status: { in: includeStates } };
+
+    if (options.dryRun) {
+      const byStatus = await db.maintenanceSchedule.groupBy({
+        by: ['status'],
+        where,
+        _count: { status: true },
+      });
+      const total = byStatus.reduce((acc: number, r: any) => acc + (r._count as any).status, 0);
+      return {
+        dryRun: true as const,
+        total,
+        byStatus: byStatus.map((r: any) => ({ status: r.status, count: (r._count as any).status })),
+      };
+    }
+
+    const deleted = await db.maintenanceSchedule.deleteMany({ where });
+    await db.outboxEvent.create({
+      data: {
+        eventType: 'MAINTENANCE_BULK_DELETED',
+        eventData: {
+          ids,
+          includeStates,
+          deletedCount: deleted.count,
+          reason: options.reason,
+          deletedAt: new Date().toISOString(),
+        } as any,
+      },
+    });
+    return { deletedCount: deleted.count };
+  }
+
+  /**
    * Crear una nueva tarea de mantenimiento
    */
   async createMaintenance(data: any) {
@@ -198,86 +365,54 @@ export class MaintenanceService {
     const toUtc = (localYmd: string, hhmm: string) => zonedTimeToUtc(`${localYmd}T${hhmm}:00`, tz);
 
     const created: any[] = [];
-    
-    // Iterar semana por semana en lugar de día por día
-    for (let cur = new Date(startUtcMidnight); cur <= endUtcMidnight; cur = addDays(cur, 7)) {
-      // Para cada semana, verificar todos los días de la semana solicitados
-      for (const dayOfWeek of days) {
-        // Calcular el día específico de la semana
-        const daysToAdd = dayOfWeek === 7 ? 0 : dayOfWeek; // Domingo = 0, Lunes = 1, etc.
-        const targetDate = new Date(cur);
-        targetDate.setUTCDate(targetDate.getUTCDate() + (daysToAdd - (targetDate.getUTCDay() === 0 ? 7 : targetDate.getUTCDay())));
-        
-        // Verificar que la fecha calculada esté dentro del rango
-        if (targetDate < startUtcMidnight || targetDate > endUtcMidnight) continue;
-        
-        const localDate = utcToZonedTime(targetDate, tz);
-        const ymd = formatInTimeZone(localDate, tz, 'yyyy-MM-dd');
-        const ex = exceptions.find((e: any) => e?.date === ymd);
-        if (r.skipHolidays && ex?.closed === true) continue;
 
-        const ranges = ex?.ranges && ex.ranges.length > 0 ? ex.ranges : [{ start: r.startTime, end: r.endTime }];
-        for (const rng of ranges) {
-          const sUtc = toUtc(ymd, rng.start);
-          const eUtc = toUtc(ymd, rng.end);
-          if (eUtc <= sUtc) continue;
+    // Iterar día a día en TZ para evitar desfases por UTC/DST
+    for (let cur = new Date(startUtcMidnight); cur <= endUtcMidnight; cur = addDays(cur, 1)) {
+      const local = utcToZonedTime(cur, tz);
+      // weekday en TZ (0=Domingo..6=Sábado) → 1..7
+      const localWeekday = local.getDay() === 0 ? 7 : local.getDay();
+      if (!days.has(localWeekday)) continue;
 
-          // Conflictos (1h ventana alrededor del inicio)
-          const conflicts = await this.checkMaintenanceConflicts(validatedData.courtId, sUtc);
-          if (conflicts.length > 0 && r.skipConflicts) continue;
+      const ymd = formatInTimeZone(local, tz, 'yyyy-MM-dd');
+      const ex = exceptions.find((e: any) => e?.date === ymd);
+      if (r.skipHolidays && ex?.closed === true) continue;
 
-          // Verificar si ya existe un registro para esta fecha (prevenir duplicados)
-          const existingRecord = await db.maintenanceSchedule.findFirst({
-            where: {
-              seriesId,
-              scheduledAt: sUtc,
-              courtId: validatedData.courtId,
-            }
-          });
+      // Usar siempre el horario configurado de la serie (ignorar ranges de excepciones)
+      const sUtc = toUtc(ymd, r.startTime);
+      const eUtc = toUtc(ymd, r.endTime);
+      if (eUtc <= sUtc) continue;
 
-          if (existingRecord) {
-            console.log('⚠️ [RECURRENCE] Registro ya existe, saltando:', {
-              id: existingRecord.id,
-              date: ymd,
-            });
-            continue;
-          }
+      const conflicts = await this.checkMaintenanceConflicts(validatedData.courtId, sUtc);
+      if (conflicts.length > 0 && r.skipConflicts) continue;
 
-          const dbType = validatedData.activityType === 'MAINTENANCE' ? (validatedData as any).type : 'INSPECTION';
-          // En recurrencia, la duración debe venir de la franja start/end definida para esa ocurrencia
-          const dur = Math.round((eUtc.getTime() - sUtc.getTime()) / 60000);
-          const rec = await db.maintenanceSchedule.create({
-            data: {
-              courtId: validatedData.courtId,
-              type: dbType as any,
-              activityType: validatedData.activityType,
-              activityCategory: validatedData.activityCategory || undefined,
-              description: validatedData.description,
-              scheduledAt: sUtc,
-              assignedTo: validatedData.assignedTo || undefined,
-              instructor: validatedData.instructor || undefined,
-              capacity: validatedData.capacity || undefined,
-              requirements: validatedData.requirements || undefined,
-              isPublic: validatedData.isPublic,
-              notes: validatedData.notes,
-              cost: validatedData.cost as any,
-              estimatedDuration: dur,
-              status: conflicts.length > 0 ? ('CONFLICT' as any) : 'SCHEDULED',
-              seriesId,
-              // Guardar metadatos básicos de recurrencia para edición/visualización futura
-              // (no estrictamente necesario para funcionamiento, pero útil para UI)
-            },
-          });
-          console.log('🆕 [RECURRENCE] Ocurrencia creada', {
-            localYMD: ymd,
-            startLocal: `${ymd} ${rng.start}`,
-            endLocal: `${ymd} ${rng.end}`,
-            scheduledAtUTC: rec.scheduledAt.toISOString(),
-            durationMin: dur,
-          });
-          created.push(rec);
-        }
-      }
+      const existingRecord = await db.maintenanceSchedule.findFirst({
+        where: { seriesId, scheduledAt: sUtc, courtId: validatedData.courtId },
+      });
+      if (existingRecord) continue;
+
+      const dbType = validatedData.activityType === 'MAINTENANCE' ? (validatedData as any).type : 'INSPECTION';
+      const dur = Math.round((eUtc.getTime() - sUtc.getTime()) / 60000);
+      const rec = await db.maintenanceSchedule.create({
+        data: {
+          courtId: validatedData.courtId,
+          type: dbType as any,
+          activityType: validatedData.activityType,
+          activityCategory: validatedData.activityCategory || undefined,
+          description: validatedData.description,
+          scheduledAt: sUtc,
+          assignedTo: validatedData.assignedTo || undefined,
+          instructor: validatedData.instructor || undefined,
+          capacity: validatedData.capacity || undefined,
+          requirements: validatedData.requirements || undefined,
+          isPublic: validatedData.isPublic,
+          notes: validatedData.notes,
+          cost: validatedData.cost as any,
+          estimatedDuration: dur,
+          status: conflicts.length > 0 ? ('CONFLICT' as any) : 'SCHEDULED',
+          seriesId,
+        },
+      });
+      created.push(rec);
     }
 
     return { seriesId, created: created.length };

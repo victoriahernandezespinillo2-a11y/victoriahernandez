@@ -1007,6 +1007,30 @@ export const adminApi = {
       apiClient.request(`/api/maintenance/${id}`, {
         method: 'DELETE',
       }),
+
+    // Eliminación masiva por IDs (con dryRun opcional)
+    bulkDelete: (data: { ids: string[]; includeStates?: Array<'SCHEDULED'|'IN_PROGRESS'|'COMPLETED'|'CANCELLED'>; dryRun?: boolean; reason?: string }) =>
+      apiClient.request('/api/maintenance/occurrences:delete', {
+        method: 'DELETE',
+        body: JSON.stringify(data),
+      }),
+
+    // Eliminación por serie con diferentes alcances
+    deleteSeries: (seriesId: string, params: { scope?: 'all'|'future'|'range'; from?: string; to?: string; includeStates?: string[]; dryRun?: boolean; reason?: string } = {}) => {
+      const sp = new URLSearchParams();
+      if (params.scope) sp.append('scope', params.scope);
+      if (params.from) sp.append('from', params.from);
+      if (params.to) sp.append('to', params.to);
+      if (params.includeStates && params.includeStates.length > 0) sp.append('includeStates', params.includeStates.join(','));
+      if (params.dryRun) sp.append('dryRun', 'true');
+      if (params.reason) sp.append('reason', params.reason);
+      const q = sp.toString();
+      return apiClient.request(`/api/maintenance/series/${seriesId}${q ? `?${q}` : ''}`, { method: 'DELETE' });
+    },
+
+    // Deduplicar ocurrencias de una serie (conservar 1 por fecha/hora)
+    dedupeSeries: (seriesId: string) =>
+      apiClient.request(`/api/maintenance/series/${seriesId}/dedupe`, { method: 'POST' }),
   },
 
   // Notificaciones

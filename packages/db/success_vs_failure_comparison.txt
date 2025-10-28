@@ -1,0 +1,52 @@
+# COMPARACIÓN: ENTRENAMIENTOS EXITOSOS VS FALLIDOS
+Generado: 27/10/2025, 11:27:17 p. m.
+
+## RESUMEN GENERAL
+- Entrenamientos exitosos: 155
+- Entrenamientos fallidos: 75
+- Tasa de éxito general: 67.4%
+
+## TASA DE ÉXITO POR DEPORTE
+- TENIS: 0.0% (63 entrenamientos) 🚨 CRÍTICO
+- PADEL: 84.4% (77 entrenamientos) ✅ BUENO
+- OTRO: 100.0% (90 entrenamientos) ✅ BUENO
+
+## TASA DE ÉXITO POR DÍA DE LA SEMANA
+- MIERCOLES: 0.0% (10 entrenamientos) 🚨 CRÍTICO
+- SABADO: 29.5% (44 entrenamientos) 🚨 CRÍTICO
+- MARTES: 52.0% (25 entrenamientos) ⚠️ ATENCIÓN
+- JUEVES: 54.2% (24 entrenamientos) ⚠️ ATENCIÓN
+- LUNES: 54.2% (24 entrenamientos) ⚠️ ATENCIÓN
+- DESCONOCIDO: 100.0% (90 entrenamientos) ✅ BUENO
+- VIERNES: 100.0% (13 entrenamientos) ✅ BUENO
+
+## PATRONES DE ERROR MÁS COMUNES
+1. SABADO -> DOMINGO: 22 casos
+2. MARTES -> MIERCOLES: 12 casos
+3. LUNES -> MARTES: 11 casos
+4. JUEVES -> VIERNES: 11 casos
+5. MIERCOLES -> JUEVES: 10 casos
+
+## ANÁLISIS DE CAUSA RAÍZ
+**Causa principal:** Error sistemático en cálculo de días de la semana en series recurrentes
+
+**Causas secundarias:**
+1. Lógica incorrecta de offset de días en targetDate.setUTCDate()
+2. Problemas menores de conversión de zona horaria
+3. Falta de validación en creación de recurrencias
+
+**Deportes más afectados:** TENIS
+**Días más afectados:** MIERCOLES, SABADO
+
+**Problemas sistémicos identificados:**
+1. El algoritmo de cálculo de días suma incorrectamente el offset
+2. No hay validación post-creación de entrenamientos
+3. Falta de tests unitarios para lógica de fechas
+4. Configuración de zona horaria inconsistente
+
+## CONCLUSIONES CLAVE
+1. El problema es 100% sistemático, no error humano
+2. TENIS es el deporte más afectado con tasa de éxito muy baja
+3. Todos los días de la semana están afectados por el bug de offset
+4. La lógica de recurrencia necesita corrección urgente
+5. Se requiere implementar validaciones y tests

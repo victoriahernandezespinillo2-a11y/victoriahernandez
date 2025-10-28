@@ -103,13 +103,22 @@ export async function DELETE(
       const user = (req as any).user;
       const pathname = req.nextUrl.pathname;
       const id = pathname.split('/').pop() as string;
+      const url = req.nextUrl;
+      const dryRun = url.searchParams.get('dryRun') === 'true';
+      const reason = url.searchParams.get('reason') || undefined;
       
       if (!id) {
         return ApiResponse.badRequest('ID de mantenimiento requerido');
       }
       
-      console.log(`🗑️ [MAINTENANCE] Eliminando mantenimiento ${id} por admin ${user.email}`);
-      
+      console.log(`🗑️ [MAINTENANCE] Eliminación individual ${id} dryRun=${dryRun} por admin ${user.email}`);
+
+      if (dryRun) {
+        // Para la individual usamos mismo servicio de bulk por ids con dryRun
+        const preview = await maintenanceService.deleteOccurrencesByIds([id], { dryRun: true });
+        return ApiResponse.success(preview);
+      }
+
       const maintenance = await maintenanceService.deleteMaintenance(id);
       
       console.log(`✅ [MAINTENANCE] Mantenimiento ${id} eliminado exitosamente`);

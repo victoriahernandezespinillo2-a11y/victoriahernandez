@@ -17,6 +17,7 @@ const formatHHmmInTz = (date: Date, timeZone: string): string => {
 };
 import { z } from 'zod';
 import { useAdminMaintenance, useAdminCourts, useAdminCenters } from '@/lib/hooks';
+import { adminApi } from '@/lib/api';
 import { useToast } from '@/components/ToastProvider';
 import { getCategoryFieldLabel, getCategoryOptions } from '@/lib/activityCategories';
 import {
@@ -142,13 +143,10 @@ export default function MaintenancePage() {
 
   const handleTimeChange = (field: 'startTime' | 'endTime') =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const dateVal = e.target.valueAsDate; // fecha en TZ del navegador
-      if (dateVal) {
-        const hhmm = formatHHmmInTz(dateVal, centerTz);
-        setNewTaskForm(prev => ({ ...prev, [field]: hhmm }));
-      } else {
-        setNewTaskForm(prev => ({ ...prev, [field]: e.target.value }));
-      }
+      // Tomar la cadena HH:mm directamente para evitar desfases por TZ/DST
+      const raw = (e.target as HTMLInputElement).value || '';
+      const match = /^\d{2}:\d{2}$/.test(raw) ? raw : '';
+      setNewTaskForm(prev => ({ ...prev, [field]: match || prev[field] }));
     };
 
   // Preview de recurrencia
@@ -210,6 +208,24 @@ export default function MaintenancePage() {
   // Estado para eliminación
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletingMaintenance, setDeletingMaintenance] = useState<any>(null);
+
+  // Estado para gestionar serie
+  const [showManageSeriesModal, setShowManageSeriesModal] = useState(false);
+  const [managingSeriesId, setManagingSeriesId] = useState<string | null>(null);
+  const [manageSeriesForm, setManageSeriesForm] = useState({
+    scope: 'future' as 'future' | 'range' | 'all',
+    from: '',
+    to: '',
+    includeStates: ['SCHEDULED'] as string[],
+    reason: '',
+  });
+  const [manageSeriesPreview, setManageSeriesPreview] = useState<{
+    total: number;
+    byStatus: Array<{ status: string; count: number }>;
+    items?: Array<{ id: string; scheduledAt: string; status: string; estimatedDuration?: number }>;
+  } | null>(null);
+  const [dedupeInProgress, setDedupeInProgress] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
   // Agrupación UI por serie (sin cambiar backend)
   const [groupBySeries, setGroupBySeries] = useState(true);
@@ -392,6 +408,123 @@ export default function MaintenancePage() {
     if (h > 0 && m > 0) return `${h} h ${m} min`;
     if (h > 0) return `${h} h`;
     return `${m} min`;
+  };
+
+  // Abrir modal de gestión de serie
+  const handleOpenManageSeries = (record: any) => {
+    if (!record?.seriesId) return;
+    setManagingSeriesId(record.seriesId);
+    const fromIso = new Date(record.scheduledAt || record.scheduledDate || new Date()).toISOString();
+    setManageSeriesForm({ scope: 'future', from: fromIso, to: '', includeStates: ['SCHEDULED'], reason: '' });
+    setManageSeriesPreview(null);
+    setShowManageSeriesModal(true);
+  };
+
+  // Previsualización (dryRun)
+  const handlePreviewSeriesDeletion = async () => {
+    if (!managingSeriesId) return;
+    try {
+      setIsSubmitting(true);
+      const params: any = { scope: manageSeriesForm.scope, dryRun: true };
+      if (manageSeriesForm.scope !== 'all') params.from = manageSeriesForm.from;
+      if (manageSeriesForm.scope === 'range') params.to = manageSeriesForm.to;
+      if (manageSeriesForm.includeStates?.length) params.includeStates = manageSeriesForm.includeStates;
+      const preview: any = await (adminApi as any).maintenance.deleteSeries(managingSeriesId, params);
+      setManageSeriesPreview({
+        total: Number(preview?.total || 0),
+        byStatus: Array.isArray(preview?.byStatus) ? preview.byStatus : [],
+        items: Array.isArray(preview?.items) ? preview.items : [],
+      });
+      // Autoseleccionar duplicados sugeridos (mantener 1 por fecha/hora, preferir COMPLETED)
+      try {
+        const items = Array.isArray(preview?.items) ? preview.items as any[] : [];
+        const map = new Map<string, any[]>();
+        items.forEach((it) => {
+          const key = new Date(it.scheduledAt).toISOString();
+          const arr = map.get(key) || [];
+          arr.push(it);
+          map.set(key, arr);
+        });
+        const toDelete = new Set<string>();
+        for (const arr of map.values()) {
+          if (arr.length <= 1) continue;
+          const completed = arr.find((x) => (x.status || '').toUpperCase() === 'COMPLETED');
+          const keepId = (completed || arr[0]).id;
+          arr.forEach((x) => { if (x.id !== keepId) toDelete.add(x.id); });
+        }
+        setSelectedRows(toDelete);
+      } catch { setSelectedRows(new Set()); }
+      showToast({ title: 'Previsualización lista', message: `Se afectarían ${preview?.total || 0} ocurrencias`, variant: 'success' });
+    } catch (err: any) {
+      showToast({ title: 'Error', message: err?.message || 'No se pudo previsualizar', variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Confirmar eliminación por serie
+  const handleConfirmSeriesDeletion = async () => {
+    if (!managingSeriesId) return;
+    try {
+      setIsSubmitting(true);
+      const params: any = { scope: manageSeriesForm.scope, dryRun: false, reason: manageSeriesForm.reason };
+      if (manageSeriesForm.scope !== 'all') params.from = manageSeriesForm.from;
+      if (manageSeriesForm.scope === 'range') params.to = manageSeriesForm.to;
+      if (manageSeriesForm.includeStates?.length) params.includeStates = manageSeriesForm.includeStates;
+      const res: any = await (adminApi as any).maintenance.deleteSeries(managingSeriesId, params);
+      const count = Number(res?.deletedCount || 0);
+      showToast({ title: 'Eliminación completada', message: `Se eliminaron ${count} ocurrencias`, variant: 'success' });
+      await getMaintenanceRecords({ limit: 200 });
+      setShowManageSeriesModal(false);
+      setManagingSeriesId(null);
+      setManageSeriesPreview(null);
+    } catch (err: any) {
+      showToast({ title: 'Error', message: err?.message || 'No se pudo eliminar la serie', variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Ejecutar deduplicación
+  const handleDedupeSeries = async () => {
+    if (!managingSeriesId) return;
+    try {
+      setDedupeInProgress(true);
+      const res: any = await (adminApi as any).maintenance.dedupeSeries(managingSeriesId);
+      showToast({ title: 'Deduplicación', message: `Eliminadas ${Number(res?.deleted || 0)} duplicadas`, variant: 'success' });
+      await getMaintenanceRecords({ limit: 200 });
+      // Refrescar previsualización
+      await handlePreviewSeriesDeletion();
+    } catch (err: any) {
+      showToast({ title: 'Error', message: err?.message || 'No se pudo deduplicar', variant: 'error' });
+    } finally {
+      setDedupeInProgress(false);
+    }
+  };
+
+  const handleToggleRow = (id: string) => {
+    setSelectedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!selectedRows.size) return;
+    try {
+      setIsSubmitting(true);
+      const ids = Array.from(selectedRows);
+      await (adminApi as any).maintenance.bulkDelete({ ids, includeStates: ['SCHEDULED','COMPLETED'] });
+      showToast({ title: 'Eliminación', message: `Eliminadas ${ids.length} ocurrencias`, variant: 'success' });
+      setSelectedRows(new Set());
+      await getMaintenanceRecords({ limit: 200 });
+      await handlePreviewSeriesDeletion();
+    } catch (err: any) {
+      showToast({ title: 'Error', message: err?.message || 'No se pudo eliminar seleccionadas', variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Función para abrir el modal de nueva tarea
@@ -1057,6 +1190,13 @@ export default function MaintenancePage() {
                             Expandir
                           </button>
                         )}
+                        <button
+                          onClick={() => handleOpenManageSeries(record)}
+                          className="text-xs text-red-600 hover:text-red-800 underline"
+                          title="Gestionar serie (eliminar futuras, rango o completa)"
+                        >
+                          Gestionar
+                        </button>
                       </div>
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
@@ -1228,7 +1368,7 @@ export default function MaintenancePage() {
       {/* Modal para Nueva Tarea de Mantenimiento */}
       {showNewTaskModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[95vh] overflow-y-auto">
+          <div className="bg-white text-black rounded-lg w-full max-w-2xl max-h-[95vh] overflow-y-auto">
             {/* Header móvil */}
             <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 md:px-6 md:py-6">
               <div className="flex justify-between items-center">
@@ -1624,6 +1764,173 @@ export default function MaintenancePage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Gestionar Serie */}
+      {showManageSeriesModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[95vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 md:px-6 md:py-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg md:text-xl font-bold text-black">Gestionar serie</h2>
+                <button onClick={() => setShowManageSeriesModal(false)} className="text-gray-400 hover:text-gray-600 p-1">
+                  <XMarkIcon className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 md:p-6 space-y-4 text-black">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-black mb-2">Alcance</label>
+                  <select
+                    value={manageSeriesForm.scope}
+                    onChange={(e) => setManageSeriesForm(prev => ({ ...prev, scope: e.target.value as any }))}
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-black bg-white"
+                  >
+                    <option value="future">Eliminar futuras</option>
+                    <option value="range">Eliminar por rango</option>
+                    <option value="all">Eliminar serie completa</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-black mb-2">Estados a incluir</label>
+                  <div className="flex flex-wrap gap-2 text-black">
+                    {['SCHEDULED','IN_PROGRESS','COMPLETED','CANCELLED'].map((st) => (
+                      <label key={st} className="inline-flex items-center gap-2 text-sm text-black">
+                        <input
+                          type="checkbox"
+                          checked={manageSeriesForm.includeStates.includes(st)}
+                          onChange={(e) => {
+                            setManageSeriesForm(prev => {
+                              const set = new Set(prev.includeStates);
+                              if (e.target.checked) set.add(st); else set.delete(st);
+                              const arr = Array.from(set);
+                              return { ...prev, includeStates: arr.length ? arr : ['SCHEDULED'] };
+                            });
+                          }}
+                        />
+                        <span className="text-black">{st}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {manageSeriesForm.scope !== 'all' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-2">Desde</label>
+                    <input
+                      type="datetime-local"
+                      value={manageSeriesForm.from ? new Date(manageSeriesForm.from).toISOString().slice(0,16) : ''}
+                      onChange={(e) => setManageSeriesForm(prev => ({ ...prev, from: new Date(e.target.value).toISOString() }))}
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-black bg-white"
+                    />
+                  </div>
+                  {manageSeriesForm.scope === 'range' && (
+                    <div>
+                      <label className="block text-sm font-medium text-black mb-2">Hasta</label>
+                      <input
+                        type="datetime-local"
+                        value={manageSeriesForm.to ? new Date(manageSeriesForm.to).toISOString().slice(0,16) : ''}
+                        onChange={(e) => setManageSeriesForm(prev => ({ ...prev, to: new Date(e.target.value).toISOString() }))}
+                        className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-black bg-white"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">Motivo</label>
+                <input
+                  type="text"
+                  value={manageSeriesForm.reason}
+                  onChange={(e) => setManageSeriesForm(prev => ({ ...prev, reason: e.target.value }))}
+                  placeholder="Motivo de la eliminación (obligatorio en políticas de auditoría)"
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base text-black bg-white placeholder-gray-600"
+                />
+              </div>
+
+              {manageSeriesPreview && (
+                <div className="bg-gray-50 border border-gray-200 rounded p-3">
+                  <div className="text-sm text-gray-700 mb-2">Previsualización:</div>
+                  <div className="text-sm">Total: <strong>{manageSeriesPreview.total}</strong></div>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {manageSeriesPreview.byStatus.map((s) => (
+                      <span key={s.status} className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                        {s.status}: {s.count}
+                      </span>
+                    ))}
+                  </div>
+                  {Array.isArray(manageSeriesPreview.items) && manageSeriesPreview.items.length > 0 && (
+                    <div className="mt-3 max-h-64 overflow-auto">
+                      <table className="min-w-full text-xs">
+                        <thead>
+                          <tr className="text-left">
+                            <th className="pr-3 py-1"></th>
+                            <th className="pr-3 py-1">Día</th>
+                            <th className="pr-3 py-1">Fecha y hora</th>
+                            <th className="pr-3 py-1">Estado</th>
+                            <th className="pr-3 py-1">Duración</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {manageSeriesPreview.items.map((it) => (
+                            <tr key={it.id} className="border-t border-gray-100">
+                              <td className="pr-3 py-1">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedRows.has(it.id)}
+                                  onChange={() => handleToggleRow(it.id)}
+                                />
+                              </td>
+                              <td className="pr-3 py-1 text-black capitalize">{new Date(it.scheduledAt).toLocaleDateString('es-ES', { weekday: 'long' })}</td>
+                              <td className="pr-3 py-1 text-black">{new Date(it.scheduledAt).toLocaleString('es-ES')}</td>
+                              <td className="pr-3 py-1 text-black">{it.status}</td>
+                              <td className="pr-3 py-1 text-black">{typeof it.estimatedDuration === 'number' ? `${it.estimatedDuration} min` : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={handleDedupeSeries}
+                  disabled={dedupeInProgress || !managingSeriesId}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700"
+                >
+                  Eliminar duplicadas
+                </button>
+                <button
+                  onClick={handleDeleteSelected}
+                  disabled={isSubmitting || selectedRows.size === 0}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+                >
+                  Eliminar seleccionadas ({selectedRows.size})
+                </button>
+                <button
+                  onClick={handlePreviewSeriesDeletion}
+                  disabled={isSubmitting || !managingSeriesId}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  Previsualizar
+                </button>
+                <button
+                  onClick={handleConfirmSeriesDeletion}
+                  disabled={isSubmitting || !managingSeriesId}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

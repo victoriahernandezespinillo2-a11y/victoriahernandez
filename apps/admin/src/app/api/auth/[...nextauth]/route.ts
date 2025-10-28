@@ -13,8 +13,8 @@ const authConfig: NextAuthConfig = {
       async authorize(credentials) {
         try {
           // Delegar autenticación a la API principal
-          const baseUrl = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
-          const signinUrl = `${baseUrl?.replace(/\/$/, '') || 'http://localhost:3002'}/api/auth/signin`;
+          const baseUrl = (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+          const signinUrl = baseUrl ? `${baseUrl}/api/auth/signin` : '/api/auth/signin';
           const response = await fetch(signinUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
