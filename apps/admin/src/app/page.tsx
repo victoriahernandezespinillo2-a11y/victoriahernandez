@@ -487,43 +487,44 @@ export default function AdminHomePage() {
             <div className="h-48 md:h-64">
               {(() => {
                 const dailyData = dashboardData.trends.daily as Array<{ date: string; revenue: number }>;
-                console.log('🔍 Dashboard data completo:', dashboardData);
-                console.log('📊 Trends:', dashboardData?.trends);
-                console.log('📈 Daily data:', dailyData);
-                console.log('📅 Primeros 3 días:', dailyData.slice(0, 3));
-                const maxRevenue = Math.max(...dailyData.map(d => Number(d.revenue || 0)), 1);
-                const minRevenue = Math.min(...dailyData.map(d => Number(d.revenue || 0)));
-                console.log('💰 Máximo ingreso:', maxRevenue, 'Mínimo:', minRevenue);
+                // 🎯 CRÍTICO: Calcular max/min solo de los días VISIBLES (últimos 7)
+                const visibleData = dailyData.slice(-7);
+                const revenues = visibleData.map(d => Number(d.revenue || 0));
+                const positiveRevenues = revenues.filter(value => value > 0);
+                const maxRevenue = Math.max(...revenues, 1);
+                const minRevenue = positiveRevenues.length > 0 ? Math.min(...positiveRevenues) : 0;
                 
+                const hasPositiveValues = positiveRevenues.length > 0;
+                const scaleRatio = hasPositiveValues ? maxRevenue / Math.max(minRevenue, 1) : 1;
+                const chartHeight = 160; // px, valor consistente para escritorio/móvil
+
                 return (
-                  <div className="h-40 md:h-56 bg-gray-50 p-3 md:p-4 rounded">
+                  <div className="bg-gray-50 p-3 md:p-4 rounded" style={{ height: chartHeight + 48 }}>
                     {/* Gráfico de barras móvil */}
-                    <div className="relative h-32 md:h-40 flex items-end justify-between gap-1">
-                      {dailyData.slice(-7).map((day, index) => {
+                    <div
+                      className="relative flex items-end justify-between gap-1"
+                      style={{ height: chartHeight }}
+                    >
+                      {visibleData.map((day, index) => {
                         const revenue = Number(day.revenue || 0);
-                        // Calcular altura proporcional basada en el valor real
-                        const heightPercent = maxRevenue > 0 ? (revenue / maxRevenue) * 100 : 0;
-                        
-                        // Para valores pequeños, usar escala más agresiva para diferencias visibles
-                        let barHeight = heightPercent;
-                        if (revenue > 0 && maxRevenue <= 10) {
-                          // Escala más agresiva: 30-100% para valores pequeños
-                          const amplifiedPercent = (revenue / maxRevenue) * 70 + 30; // 30-100% en lugar de 0-100%
-                          barHeight = Math.max(amplifiedPercent, 25); // Mínimo 25% para visibilidad
-                        } else if (revenue > 0) {
-                          barHeight = Math.max(heightPercent, 10); // Para valores grandes, mantener lógica original
-                        } else {
-                          barHeight = 0;
+                        let barHeightPx = 0;
+                        if (revenue > 0 && maxRevenue > 0) {
+                          const linearHeight = (revenue / maxRevenue) * chartHeight;
+                          if (scaleRatio > 6) {
+                            // Mucha disparidad, usamos escala suavizada logarítmica
+                            const logMax = Math.log10(maxRevenue + 1);
+                            const logValue = Math.log10(revenue + 1);
+                            const easedHeight = (logValue / logMax) * chartHeight;
+                            barHeightPx = Math.max(easedHeight, 16); // mínimo visible 16px
+                          } else {
+                            barHeightPx = Math.max(linearHeight, 16);
+                          }
+                        } else if (revenue === 0) {
+                          barHeightPx = hasPositiveValues ? 6 : 2;
                         }
+
                         const date = new Date(day.date);
                         const shortDate = `${date.getDate()}/${date.getMonth() + 1}`;
-                        
-                        // Debug: Log para verificar cálculos
-                        if (revenue > 0) {
-                          const scaleType = maxRevenue <= 10 ? 'AMPLIFICADA-AGRESIVA' : 'NORMAL';
-                          console.log(`📊 Barra ${shortDate}: revenue=${revenue}, maxRevenue=${maxRevenue}, heightPercent=${heightPercent.toFixed(1)}%, barHeight=${barHeight.toFixed(1)}% (${scaleType})`);
-                          console.log(`🎨 Estilo aplicado: height: ${barHeight}%, minHeight: ${revenue > 0 ? '3px' : '2px'}`);
-                        }
                         
                         return (
                           <div key={day.date} className="flex flex-col items-center group flex-1">
@@ -535,8 +536,7 @@ export default function AdminHomePage() {
                                   : 'bg-gray-200'
                               }`}
                               style={{ 
-                                height: `${barHeight}%`,
-                                minHeight: revenue > 0 ? '3px' : '2px'
+                                height: `${barHeightPx}px`
                               }}
                               title={`${shortDate}: €${revenue.toLocaleString()}`}
                             />
@@ -560,7 +560,7 @@ export default function AdminHomePage() {
                         <span>Max: €{maxRevenue.toLocaleString()}</span>
                       </div>
                       <div className="text-center text-xs text-gray-700 font-medium">
-                        Promedio: €{Math.round(dailyData.reduce((sum, d) => sum + Number(d.revenue || 0), 0) / dailyData.length).toLocaleString()}
+                        Promedio: €{Math.round(visibleData.reduce((sum, d) => sum + Number(d.revenue || 0), 0) / visibleData.length).toLocaleString()}
                       </div>
                     </div>
                   </div>

@@ -7,18 +7,19 @@ import { NextRequest } from 'next/server';
 import { db } from '@repo/db';
 import { getCreditSystemService } from '@/lib/services/credit-system.service';
 import { ApiResponse } from '@/lib/utils/api-response';
-import { getAuthUser } from '@/lib/auth';
+import { withReservationMiddleware } from '@/lib/middleware';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    // 1. Autenticación
-    const user = await getAuthUser(request);
-    if (!user) {
-      return ApiResponse.unauthorized('Usuario no autenticado');
-    }
+  return withReservationMiddleware(async (req) => {
+    try {
+      // 1. Autenticación
+      const user = (req as any).user;
+      if (!user?.id) {
+        return ApiResponse.unauthorized('Usuario no autenticado');
+      }
 
     // 2. Validar parámetros
     const { id: reservationId } = await params;
@@ -118,10 +119,11 @@ export async function GET(
       }
     };
 
-    return ApiResponse.success(response);
+      return ApiResponse.success(response);
 
-  } catch (error) {
-    console.error('Error en GET /api/reservations/[id]/payment-methods:', error);
-    return ApiResponse.internalError('Error interno del servidor');
-  }
+    } catch (error) {
+      console.error('Error en GET /api/reservations/[id]/payment-methods:', error);
+      return ApiResponse.internalError('Error interno del servidor');
+    }
+  })(request);
 }

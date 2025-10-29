@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@repo/auth';
 import { reservationService } from '../../../../lib/services/reservation.service';
 import { withReservationMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
@@ -87,85 +86,60 @@ export async function GET(request: NextRequest) {
 export async function PUT(
   request: NextRequest
 ) {
-  try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 401 }
-      );
-    }
-
-    const pathname = request.nextUrl.pathname;
-    const reservationId = pathname.split('/').pop() as string;
-    
-    if (!reservationId) {
-      return NextResponse.json(
-        { error: 'ID de reserva requerido' },
-        { status: 400 }
-      );
-    }
-
-    const body = await request.json();
-    const validatedData = UpdateReservationSchema.parse(body);
-    
-    // Verificar que la reserva pertenece al usuario
-    const userReservations = await reservationService.getReservationsByUser(
-      session.user.id
-    );
-    
-    const existingReservation = userReservations.find(r => r.id === reservationId);
-    
-    if (!existingReservation) {
-      return NextResponse.json(
-        { error: 'Reserva no encontrada' },
-        { status: 404 }
-      );
-    }
-    
-    // Verificar que la reserva se puede modificar
-    if (existingReservation.status === 'CANCELLED' || 
-        existingReservation.status === 'COMPLETED') {
-      return NextResponse.json(
-        { error: 'No se puede modificar una reserva cancelada o completada' },
-        { status: 400 }
-      );
-    }
-    
-    const updatedReservation = await reservationService.updateReservation(
-      reservationId,
-      validatedData
-    );
-    
-    return NextResponse.json({
-      message: 'Reserva actualizada exitosamente',
-      reservation: updatedReservation,
-    });
-  } catch (error) {
-    console.error('Error actualizando reserva:', error);
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      );
-    }
-    
-    if (error instanceof Error) {
-      if (error.message.includes('no disponible') || 
-          error.message.includes('conflicto')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 409 }
-        );
+  return withReservationMiddleware(async (req: NextRequest) => {
+    try {
+      const reservationId = req.nextUrl.pathname.split('/').pop() as string;
+      if (!reservationId) {
+        return ApiResponse.badRequest('ID de reserva requerido');
       }
+
+      const body = await req.json();
+      const validatedData = UpdateReservationSchema.parse(body);
+
+      const user = (req as any).user;
+      if (!user?.id) {
+        return ApiResponse.unauthorized('No autorizado');
+      }
+
+      // Verificar que la reserva pertenece al usuario
+      const userReservations = await reservationService.getReservationsByUser(
+        user.id
+      );
+
+      const existingReservation = userReservations.find(r => r.id === reservationId);
+
+      if (!existingReservation) {
+        return ApiResponse.notFound('Reserva');
+      }
+
+      // Verificar que la reserva se puede modificar
+      if (existingReservation.status === 'CANCELLED' || existingReservation.status === 'COMPLETED') {
+        return ApiResponse.error('No se puede modificar una reserva cancelada o completada', 400);
+      }
+
+      const updatedReservation = await reservationService.updateReservation(
+        reservationId,
+        validatedData
+      );
+
+      return ApiResponse.success({
+        message: 'Reserva actualizada exitosamente',
+        reservation: updatedReservation,
+      });
+    } catch (error) {
+      console.error('Error actualizando reserva:', error);
+
+      if (error instanceof z.ZodError) {
+        return ApiResponse.error('Datos inválidos', 400, error.errors);
+      }
+
+      if (error instanceof Error && (error.message.includes('no disponible') || error.message.includes('conflicto')) ) {
+        return ApiResponse.error(error.message, 409);
+      }
+
+      return ApiResponse.error('Error interno del servidor', 500);
     }
-    
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
+  })(request);
 }
 
 /**
@@ -175,79 +149,54 @@ export async function PUT(
 export async function DELETE(
   request: NextRequest
 ) {
-  try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 401 }
-      );
-    }
-
-    const pathname = request.nextUrl.pathname;
-    const reservationId = pathname.split('/').pop() as string;
-    
-    if (!reservationId) {
-      return NextResponse.json(
-        { error: 'ID de reserva requerido' },
-        { status: 400 }
-      );
-    }
-
-    // Verificar que la reserva pertenece al usuario
-    const userReservations = await reservationService.getReservationsByUser(
-      session.user.id
-    );
-    
-    const existingReservation = userReservations.find(r => r.id === reservationId);
-    
-    if (!existingReservation) {
-      return NextResponse.json(
-        { error: 'Reserva no encontrada' },
-        { status: 404 }
-      );
-    }
-    
-    // Verificar que la reserva se puede cancelar
-    if (existingReservation.status === 'CANCELLED') {
-      return NextResponse.json(
-        { error: 'La reserva ya está cancelada' },
-        { status: 400 }
-      );
-    }
-    
-    if (existingReservation.status === 'COMPLETED') {
-      return NextResponse.json(
-        { error: 'No se puede cancelar una reserva completada' },
-        { status: 400 }
-      );
-    }
-    
-    const cancelledReservation = await reservationService.cancelReservation(
-      reservationId,
-      session.user.id
-    );
-    
-    return NextResponse.json({
-      message: 'Reserva cancelada exitosamente',
-      reservation: cancelledReservation,
-    });
-  } catch (error) {
-    console.error('Error cancelando reserva:', error);
-    
-    if (error instanceof Error) {
-      if (error.message.includes('muy tarde') || 
-          error.message.includes('no se puede cancelar')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 400 }
-        );
+  return withReservationMiddleware(async (req: NextRequest) => {
+    try {
+      const reservationId = req.nextUrl.pathname.split('/').pop() as string;
+      if (!reservationId) {
+        return ApiResponse.badRequest('ID de reserva requerido');
       }
+
+      const user = (req as any).user;
+      if (!user?.id) {
+        return ApiResponse.unauthorized('No autorizado');
+      }
+
+      // Verificar que la reserva pertenece al usuario
+      const userReservations = await reservationService.getReservationsByUser(
+        user.id
+      );
+
+      const existingReservation = userReservations.find(r => r.id === reservationId);
+      if (!existingReservation) {
+        return ApiResponse.notFound('Reserva');
+      }
+
+      // Verificar que la reserva se puede cancelar
+      if (existingReservation.status === 'CANCELLED') {
+        return ApiResponse.error('La reserva ya está cancelada', 400);
+      }
+
+      if (existingReservation.status === 'COMPLETED') {
+        return ApiResponse.error('No se puede cancelar una reserva completada', 400);
+      }
+
+      const cancelledReservation = await reservationService.cancelReservation(
+        reservationId,
+        user.id
+      );
+
+      return ApiResponse.success({
+        message: 'Reserva cancelada exitosamente',
+        reservation: cancelledReservation,
+      });
+    } catch (error) {
+      console.error('Error cancelando reserva:', error);
+
+      if (error instanceof Error && (error.message.includes('muy tarde') || error.message.includes('no se puede cancelar'))) {
+        return ApiResponse.error(error.message, 400);
+      }
+
+      return ApiResponse.error('Error interno del servidor', 500);
     }
-    
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
+  })(request);
 }

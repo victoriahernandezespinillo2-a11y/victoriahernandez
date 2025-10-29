@@ -1,35 +1,31 @@
-import { NextRequest } from 'next/server';
-import { auth } from '@repo/auth';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@repo/db';
-import { stripeService } from '@repo/payments';
+import { withReservationMiddleware, ApiResponse } from '@/lib/middleware';
 
 export async function POST(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401 });
-  }
-  try {
-    const id = request.nextUrl.pathname.split('/').slice(-2, -1)[0];
-    if (!id) return new Response(JSON.stringify({ error: 'ID requerido' }), { status: 400 });
-    const reservation = await db.reservation.findUnique({ where: { id }, include: { user: true, court: true } });
-    if (!reservation || reservation.userId !== session.user.id) {
-      return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401 });
+  return withReservationMiddleware(async (req) => {
+    try {
+      const id = req.nextUrl.pathname.split('/').slice(-2, -1)[0];
+      if (!id) return ApiResponse.badRequest('ID requerido');
+
+      const user = (req as any).user;
+      if (!user?.id) return ApiResponse.unauthorized('No autorizado');
+
+      const reservation = await db.reservation.findUnique({ where: { id }, include: { user: true, court: true } });
+      if (!reservation || reservation.userId !== user.id) {
+        return ApiResponse.unauthorized('No autorizado');
+      }
+
+      // Generar URL de redirección a Redsys (pasarela vigente)
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+      const redirectUrl = `${apiUrl}/api/payments/redsys/redirect?rid=${encodeURIComponent(id)}`;
+      // Responder en formato plano esperado por el frontend
+      return NextResponse.json({ url: redirectUrl }, { status: 200 });
+    } catch (e) {
+      console.error('Error generando payment-link:', e);
+      return ApiResponse.error('Error interno del servidor', 500);
     }
-    const amount = Number(reservation.totalPrice || 0);
-    const successUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/dashboard/reservations/success?reservationId=${reservation.id}`;
-    const cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/dashboard/reservations`;
-    const checkout = await stripeService.createCheckoutSession({
-      amount,
-      currency: 'eur',
-      successUrl,
-      cancelUrl,
-      metadata: { reservationId: reservation.id },
-      description: `Reserva ${reservation.court?.name}`,
-    });
-    return new Response(JSON.stringify({ url: checkout.url }), { status: 200 });
-  } catch (e) {
-    return new Response(JSON.stringify({ error: 'Error interno del servidor' }), { status: 500 });
-  }
+  })(request);
 }
 
 

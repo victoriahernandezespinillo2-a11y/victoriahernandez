@@ -112,6 +112,9 @@ export default function NewReservationPage() {
 
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [showTimeSlotsDesktop, setShowTimeSlotsDesktop] = useState(false);
+  const [showUserBookedActions, setShowUserBookedActions] = useState(false);
+  const [slotForActions, setSlotForActions] = useState<any | null>(null);
+  const [conflictKind, setConflictKind] = useState<'none' | 'blocked' | 'user_owned'>('none');
 
   // Helper function to determine if a time slot is during day or night
   const isDayTime = (timeString: string): boolean => {
@@ -363,7 +366,7 @@ export default function NewReservationPage() {
   // Obtener fecha máxima (30 días desde hoy)
   const maxDate = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (isRetry = false) => {
     if (!selectedCourt || !selectedDate || !selectedCalendarSlot) {
       alert('Por favor completa todos los campos requeridos');
       return;
@@ -424,11 +427,27 @@ export default function NewReservationPage() {
         router.push('/dashboard/reservations');
       }
     } catch (error: any) {
-      console.error('Error creating reservation:', error);
+      // Evitar ruido en conflictos recuperables
+      const isConflict = error?.status === 409 || error?.message?.includes?.('Horario no disponible');
+      if (!isConflict) {
+        console.error('Error creating reservation:', error);
+      }
       
       // Manejo específico de errores de conflicto de horario
-      if (error.status === 409 && error.message?.includes('Horario no disponible')) {
-        // Mostrar modal de conflicto con opciones
+      const msg = `${error?.message || ''} ${(error?.originalError?.error || '')}`.toLowerCase();
+      if (error.status === 409 && (msg.includes('horario no disponible'))) {
+        // Si no hemos reintentado aún, liberar y reintentar automáticamente
+        if (!isRetry) {
+          await releaseConflictsAndRetry();
+          return;
+        }
+        // Si ya reintentamos, mostrar el modal con opciones
+        setConflictKind('blocked');
+        setError('conflict');
+        setShowConflictModal(true);
+      } else if (error.status === 409 && (msg.includes('usuario ya tiene una reserva') || msg.includes('ya tienes una reserva'))) {
+        // Conflicto porque el propio usuario ya tiene una reserva en ese horario (pagada/confirmada)
+        setConflictKind('user_owned');
         setError('conflict');
         setShowConflictModal(true);
       } else {
@@ -444,6 +463,95 @@ export default function NewReservationPage() {
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Liberar reservas PENDING del usuario que bloquean el rango actual y reintentar
+  const releaseConflictsAndRetry = async () => {
+    try {
+      if (!selectedCourt || !selectedDate || !selectedCalendarSlot) {
+        setShowConflictModal(false);
+        return;
+      }
+
+      // Construir inicio/fin como en handleSubmit
+      let startTimeIso: string;
+      if (selectedCalendarSlot.startTime.includes('T')) {
+        startTimeIso = selectedCalendarSlot.startTime;
+      } else {
+        startTimeIso = new Date(`${selectedDate}T${selectedCalendarSlot.startTime}:00`).toISOString();
+      }
+      const endTimeIso = new Date(new Date(startTimeIso).getTime() + duration * 60 * 1000).toISOString();
+
+      // Llamar al endpoint de liberación
+      await fetch('/api/reservations/release-conflicts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ courtId: selectedCourt.id, startTime: startTimeIso, endTime: endTimeIso })
+      });
+
+      // Cerrar modal, recargar slots y reintentar creación
+      setShowConflictModal(false);
+      setError(null);
+      if (selectedCourt?.id && selectedDate) {
+        await loadTimeSlots(selectedCourt.id, selectedDate, selectedDuration);
+      }
+      await handleSubmit(true);
+    } catch (e) {
+      console.error('Error liberando conflictos y reintentando:', e);
+      // Solo cerrar modal y dejar que el usuario vuelva a intentar
+      setShowConflictModal(false);
+    }
+  };
+
+  // Liberar un slot concreto marcado como USER_BOOKED (Mi reserva)
+  const releaseSpecificSlot = async (slot: any) => {
+    try {
+      if (!selectedCourt || !selectedDate) return;
+
+      // slot.startTime puede ser ISO o HH:MM
+      let startTimeIso: string;
+      if (slot.startTime?.includes('T')) {
+        startTimeIso = slot.startTime;
+      } else {
+        startTimeIso = new Date(`${selectedDate}T${slot.startTime}:00`).toISOString();
+      }
+      const endTimeIso = slot.endTime?.includes?.('T')
+        ? slot.endTime
+        : new Date(new Date(startTimeIso).getTime() + (selectedDuration || duration) * 60 * 1000).toISOString();
+
+      await fetch('/api/reservations/release-conflicts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ courtId: selectedCourt.id, startTime: startTimeIso, endTime: endTimeIso })
+      });
+
+      // Refrescar slots para liberar visualmente
+      if (selectedCourt?.id && selectedDate) {
+        await loadTimeSlots(selectedCourt.id, selectedDate, selectedDuration);
+      }
+    } catch (e) {
+      console.error('Error al liberar slot USER_BOOKED:', e);
+    }
+  };
+
+  // Ir a pagar la reserva pendiente solapada con el slot seleccionado
+  const goToPayForSelected = () => {
+    try {
+      if (!selectedCalendarSlot || !selectedDate) return;
+      let startIso: string;
+      if (selectedCalendarSlot.startTime.includes('T')) {
+        startIso = selectedCalendarSlot.startTime;
+      } else {
+        startIso = new Date(`${selectedDate}T${selectedCalendarSlot.startTime}:00`).toISOString();
+      }
+      setShowConflictModal(false);
+      router.push(`/dashboard/reservations?payStart=${encodeURIComponent(startIso)}`);
+    } catch {
+      setShowConflictModal(false);
+      router.push('/dashboard/reservations');
     }
   };
 
@@ -1102,7 +1210,7 @@ export default function NewReservationPage() {
                             </div>
                           )}
                           <button
-                            onClick={handleSubmit}
+                            onClick={() => handleSubmit(false)}
                             disabled={isLoading}
                             className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
@@ -1139,9 +1247,13 @@ export default function NewReservationPage() {
                                     message: 'Disponible',
                                     conflicts: []
                                   });
+                                } else if (slot.status === 'USER_BOOKED') {
+                                  // Mostrar opciones: Pagar, Liberar, Cancelar
+                                  setSlotForActions(slot);
+                                  setShowUserBookedActions(true);
                                 }
                               }}
-                              disabled={slot.status !== 'AVAILABLE'}
+                              disabled={!(slot.status === 'AVAILABLE' || slot.status === 'USER_BOOKED')}
                               className={`
                                 p-2 rounded-md text-center transition-all duration-200 font-medium text-xs
                                 ${isSelected
@@ -1151,7 +1263,7 @@ export default function NewReservationPage() {
                                     : slot.status === 'BOOKED'
                                       ? 'bg-red-100 text-red-900 border-2 border-red-400 cursor-not-allowed'
                                       : slot.status === 'USER_BOOKED'
-                                        ? 'bg-purple-100 text-purple-900 border-2 border-purple-400 cursor-not-allowed'
+                                        ? 'bg-purple-100 text-purple-900 border-2 border-purple-400 hover:bg-purple-200'
                                         : slot.status === 'MAINTENANCE'
                                           ? 'bg-yellow-100 text-yellow-900 border-2 border-yellow-400 cursor-not-allowed'
                                           : 'bg-gray-100 text-gray-500 border-2 border-gray-300 cursor-not-allowed'
@@ -1308,13 +1420,15 @@ export default function NewReservationPage() {
               <div className="flex items-center mb-4">
                 <AlertCircle className="h-6 w-6 text-orange-500 mr-3" />
                 <h3 className="text-lg font-semibold text-gray-900">
-                  Horario No Disponible
+                  {conflictKind === 'user_owned' ? '📅 Ya tienes una reserva en ese horario' : 'Horario No Disponible'}
                 </h3>
               </div>
               
               <div className="mb-6">
                 <p className="text-gray-600 mb-4">
-                  El horario seleccionado ya está reservado o en proceso de pago. Tienes las siguientes opciones:
+                  {conflictKind === 'user_owned'
+                    ? 'Ese horario ya pertenece a otra de tus reservas. Puedes ir a Mis Reservas o elegir otro horario.'
+                    : 'El horario seleccionado ya está reservado o en proceso de pago. Tienes las siguientes opciones:'}
                 </p>
                 
                 <div className="space-y-3">
@@ -1325,12 +1439,14 @@ export default function NewReservationPage() {
                     </p>
                   </div>
                   
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <h4 className="font-medium text-green-900 mb-1">Opción 2: Liberar reserva anterior</h4>
-                    <p className="text-sm text-green-700">
-                      Si tienes una reserva pendiente en este horario, puedes liberarla.
-                    </p>
-                  </div>
+                  {conflictKind !== 'user_owned' && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <h4 className="font-medium text-green-900 mb-1">Opción 2: Liberar reserva anterior</h4>
+                      <p className="text-sm text-green-700">
+                        Si tienes una reserva pendiente en este horario, puedes liberarla.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -1349,16 +1465,20 @@ export default function NewReservationPage() {
                   Ver Horarios Actualizados
                 </button>
                 
+                {conflictKind !== 'user_owned' && (
+                  <button
+                    onClick={releaseConflictsAndRetry}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+                  >
+                    Liberar Reserva Anterior
+                  </button>
+                )}
+                
                 <button
-                  onClick={() => {
-                    setShowConflictModal(false);
-                    setError(null);
-                    // Aquí podrías implementar la lógica para liberar reservas anteriores
-                    // Por ahora, solo cerramos el modal
-                  }}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+                  onClick={goToPayForSelected}
+                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors"
                 >
-                  Liberar Reserva Anterior
+                  {conflictKind === 'user_owned' ? 'Ver Mis Reservas' : 'Ir a Pagar'}
                 </button>
               </div>
               
@@ -1367,6 +1487,67 @@ export default function NewReservationPage() {
                   setShowConflictModal(false);
                   setError(null);
                 }}
+                className="w-full mt-3 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Acciones para chip "Mi reserva" */}
+      {showUserBookedActions && slotForActions && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <AlertCircle className="h-6 w-6 text-purple-600 mr-3" />
+                <h3 className="text-lg font-semibold text-gray-900">Tienes una reserva pendiente</h3>
+              </div>
+              <p className="text-gray-600 mb-6">
+                El horario {slotForActions.time || slotForActions.startTime} está retenido como "Mi reserva". ¿Qué deseas hacer?
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    // Construir startTime ISO del slot para pasar al listado y abrir modal de pago
+                    try {
+                      let startIso: string;
+                      if (slotForActions.startTime?.includes?.('T')) {
+                        startIso = slotForActions.startTime;
+                      } else if (selectedDate) {
+                        startIso = new Date(`${selectedDate}T${slotForActions.startTime}:00`).toISOString();
+                      } else {
+                        startIso = '';
+                      }
+                      setShowUserBookedActions(false);
+                      if (startIso) {
+                        router.push(`/dashboard/reservations?payStart=${encodeURIComponent(startIso)}`);
+                      } else {
+                        router.push('/dashboard/reservations');
+                      }
+                    } catch {
+                      setShowUserBookedActions(false);
+                      router.push('/dashboard/reservations');
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                >
+                  Pagar ahora
+                </button>
+                <button
+                  onClick={async () => {
+                    await releaseSpecificSlot(slotForActions);
+                    setShowUserBookedActions(false);
+                  }}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
+                >
+                  Liberar reserva
+                </button>
+              </div>
+              <button
+                onClick={() => setShowUserBookedActions(false)}
                 className="w-full mt-3 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
               >
                 Cancelar

@@ -19,10 +19,13 @@ import {
   CreditCard,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { getFirebaseIdTokenSafe } from '@/lib/api';
 import { useReservations } from '@/lib/hooks';
 import { useErrorModal } from '@/app/components/ErrorModal';
 import { ReservationPaymentModal } from '@/components/ReservationPaymentModal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@repo/ui/dialog';
+import { Button } from '@repo/ui/button';
 
 // Hook para detectar dispositivo móvil
 function useIsMobile() {
@@ -122,6 +125,8 @@ export default function ReservationsPage() {
   const { reservations, loading, error, cancelReservation, getReservations } = useReservations();
   const isMobile = useIsMobile();
   const { showError, ErrorModalComponent } = useErrorModal();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [linkLoadingId, setLinkLoadingId] = useState<string | null>(null);
   const [filteredReservations, setFilteredReservations] = useState<Reservation[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -130,6 +135,9 @@ export default function ReservationsPage() {
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedReservationForPayment, setSelectedReservationForPayment] = useState<Reservation | null>(null);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [reservationIdToCancel, setReservationIdToCancel] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
   const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://polideportivo-api.vercel.app').replace(/\/$/, '');
 
   const openPaymentModal = (reservation: Reservation) => {
@@ -142,6 +150,29 @@ export default function ReservationsPage() {
     setPaymentModalOpen(false);
     setSelectedReservationForPayment(null);
   };
+
+  // Abrir modal de pago si viene indicado por query (?payStart=ISO o ?pay=ID)
+  useEffect(() => {
+    const payId = searchParams.get('pay');
+    const payStart = searchParams.get('payStart');
+    if (!reservations || (!payId && !payStart)) return;
+
+    let target: Reservation | undefined;
+    if (payId) {
+      target = reservations.find(r => r.id === payId);
+    }
+    if (!target && payStart) {
+      // Comparar por inicio (ISO). Tolerancia: exacta
+      target = reservations.find(r => (r.startTime || '').startsWith(payStart.substring(0, 16)));
+    }
+    if (target && target.paymentStatus === 'pending') {
+      openPaymentModal(target);
+      // limpiar query para evitar reabrir al navegar dentro
+      try {
+        router.replace('/dashboard/reservations');
+      } catch {}
+    }
+  }, [reservations, searchParams]);
 
   const openReservationPdf = async (id: string, kind: 'receipt' | 'pass') => {
     try {
@@ -260,14 +291,25 @@ export default function ReservationsPage() {
     getReservations().catch(() => {});
   }, [getReservations]);
 
-  const handleCancelReservation = async (reservationId: string) => {
-    if (confirm('¿Estás seguro de que quieres cancelar esta reserva?')) {
+  const handleCancelReservation = (reservationId: string) => {
+    setReservationIdToCancel(reservationId);
+    setCancelDialogOpen(true);
+  };
+
+  const confirmCancelReservation = async () => {
+    if (!reservationIdToCancel) return;
+    try {
+      setIsCancelling(true);
+      await cancelReservation(reservationIdToCancel);
+      setCancelDialogOpen(false);
+      setReservationIdToCancel(null);
+    } catch (error) {
+      console.error('Error al cancelar la reserva:', error);
       try {
-        await cancelReservation(reservationId);
-      } catch (error) {
-        console.error('Error al cancelar la reserva:', error);
-        alert('Error al cancelar la reserva. Por favor, inténtalo de nuevo.');
-      }
+        showError('No se pudo cancelar la reserva. Por favor, inténtalo de nuevo.');
+      } catch {}
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -928,6 +970,34 @@ export default function ReservationsPage() {
       
       {/* Modal de Error Profesional */}
       <ErrorModalComponent />
+
+      {/* Modal de confirmación de cancelación (estilo del sistema) */}
+      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancelar Reserva</DialogTitle>
+            <p className="mt-1 text-sm text-gray-600">
+              ¿Estás seguro de que quieres cancelar esta reserva? Se liberará el horario y no podrás deshacer esta acción.
+            </p>
+          </DialogHeader>
+          <div className="mt-4 flex justify-end space-x-3">
+            <Button
+              variant="outline"
+              onClick={() => setCancelDialogOpen(false)}
+              disabled={isCancelling}
+            >
+              No cancelar
+            </Button>
+            <Button
+              onClick={confirmCancelReservation}
+              disabled={isCancelling}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isCancelling ? 'Cancelando…' : 'Cancelar reserva'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

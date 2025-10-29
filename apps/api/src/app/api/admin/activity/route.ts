@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       const hoursAgo = new Date();
       hoursAgo.setHours(hoursAgo.getHours() - params.hours);
       
-      const [recentReservations, newUsers, recentPayments] = await Promise.all([
+      const [recentReservations, newUsers, recentPayments, cancelledEvents] = await Promise.all([
         db.reservation.findMany({
           where: { createdAt: { gte: hoursAgo } },
           include: { user: { select: { name: true } }, court: { select: { name: true, sportType: true } } },
@@ -61,7 +61,16 @@ export async function GET(request: NextRequest) {
           orderBy: { updatedAt: 'desc' },
           take: Math.floor(params.limit * 0.3),
         }),
-      ]).catch(() => [[], [], []] as any);
+        db.outboxEvent.findMany({
+          where: {
+            createdAt: { gte: hoursAgo },
+            eventType: { in: ['RESERVATION_CANCELLED','RESERVATION_AUTO_CANCELLED','RESERVATION_EXPIRED'] },
+          },
+          select: { eventType: true, eventData: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+          take: params.limit * 2,
+        }),
+      ]).catch(() => [[], [], [], []] as any);
       
       const activities: any[] = [];
       (recentReservations as Array<{ id: string; createdAt: Date; user?: { name?: string|null }; court?: { name?: string|null } }>).forEach((reservation) => {
@@ -72,6 +81,32 @@ export async function GET(request: NextRequest) {
       });
       (recentPayments as Array<{ id: string; updatedAt: Date; user?: { name?: string|null } }>).forEach((payment) => {
         activities.push({ id: `payment-${payment.id}`, type: 'payment', user: payment.user?.name || 'Usuario', action: 'Pago completado', target: `€${Number((payment as any).totalPrice || 0).toLocaleString()}`, time: getTimeAgo(payment.updatedAt), timestamp: payment.updatedAt, icon: 'CurrencyDollarIcon' });
+      });
+      // Enriquecer cancelaciones con nombre de usuario y cancha
+      const cancelledReservationIds = (cancelledEvents as any[])
+        .map(ev => ev?.eventData?.reservationId)
+        .filter((id: any) => typeof id === 'string');
+      let cancelledReservationsData: Array<{ id: string; user?: { name?: string|null }; court?: { name?: string|null } }> = [];
+      if (cancelledReservationIds.length) {
+        cancelledReservationsData = await db.reservation.findMany({
+          where: { id: { in: cancelledReservationIds as any } },
+          include: { user: { select: { name: true } }, court: { select: { name: true } } },
+        }).catch(() => []);
+      }
+      const cancelledMap = new Map<string, { userName?: string|null; courtName?: string|null }>();
+      for (const r of cancelledReservationsData) {
+        cancelledMap.set(r.id, { userName: r.user?.name, courtName: r.court?.name });
+      }
+
+      (cancelledEvents as Array<{ eventType: string; createdAt: Date; eventData: any }>).forEach((ev) => {
+        const rid = ev?.eventData?.reservationId as string | undefined;
+        const enriched = rid ? cancelledMap.get(rid) : undefined;
+        const userName = enriched?.userName || ev?.eventData?.userName || 'Usuario';
+        const courtName = enriched?.courtName || ev?.eventData?.courtName || ev?.eventData?.courtId || '';
+        const label = ev.eventType === 'RESERVATION_AUTO_CANCELLED' || ev.eventType === 'RESERVATION_EXPIRED'
+          ? 'Reserva auto-cancelada'
+          : 'Reserva cancelada';
+        activities.push({ id: `cancel-${rid || ev.createdAt.toISOString()}`, type: 'reservation', user: userName, action: label, target: `${courtName}`, time: getTimeAgo(ev.createdAt), timestamp: ev.createdAt, icon: 'XCircleIcon' });
       });
       
       const sortedActivities = activities

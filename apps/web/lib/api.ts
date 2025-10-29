@@ -251,7 +251,12 @@ export async function apiRequest<T = any>(
       } : undefined
     };
     
-    console.error(`🚨 [API-REQUEST] Error en ${endpoint}:`, errorInfo);
+    // Evitar ruido de logs en conflictos esperados (reintentos controlados)
+    const isRecoverableConflict = errorInfo.status === 409 && typeof errorInfo.endpoint === 'string'
+      && errorInfo.endpoint.startsWith('/api/reservations');
+    if (!isRecoverableConflict) {
+      console.error(`🚨 [API-REQUEST] Error en ${endpoint}:`, errorInfo);
+    }
     
     // 🔒 PRESERVAR INFORMACIÓN DEL ERROR PARA EL ERROR HANDLER
     if (error instanceof Error) {
