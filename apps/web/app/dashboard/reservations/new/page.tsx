@@ -1002,6 +1002,10 @@ export default function NewReservationPage() {
                   // Reset lighting selection when changing slot
                   setLightingSelected(false);
                 }}
+                onUserBookedSelect={(slot) => {
+                  setSlotForActions(slot);
+                  setShowUserBookedActions(true);
+                }}
                 loading={loadingTimeSlots}
                 loadingReservation={loadingReservation}
                 courtName={selectedCourt?.name || ''}

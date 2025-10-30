@@ -32,6 +32,7 @@ interface MobileCalendarProps {
   timeSlots: TimeSlot[];
   selectedSlot: TimeSlot | null;
   onSlotSelect: (slot: TimeSlot) => void;
+  onUserBookedSelect?: (slot: TimeSlot) => void;
   loading?: boolean;
   loadingReservation?: boolean;
   courtName?: string;
@@ -51,6 +52,7 @@ export function MobileCalendar({
   timeSlots,
   selectedSlot,
   onSlotSelect,
+  onUserBookedSelect,
   loading = false,
   loadingReservation = false,
   courtName = '',
@@ -197,7 +199,7 @@ export function MobileCalendar({
       case 'MAINTENANCE':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'USER_BOOKED':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'bg-purple-100 text-purple-900 border-purple-200 hover:bg-purple-200';
       case 'PAST':
         return 'bg-gray-100 text-gray-500 border-gray-200';
       default:
@@ -442,62 +444,74 @@ export function MobileCalendar({
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              {timeSlots.map((slot, index) => (
-                <button
-                  key={index}
-                  onClick={() => slot.available && onSlotSelect(slot)}
-                  disabled={!slot.available}
-                  className={`
-                    p-4 rounded-xl border-2 transition-all duration-200 text-left relative
-                    ${selectedSlot?.startTime === slot.startTime ? 'bg-blue-600 text-white border-blue-600' : ''}
-                    ${slot.available ? 'active:scale-95' : 'cursor-not-allowed opacity-60'}
-                    ${!selectedSlot || selectedSlot?.startTime !== slot.startTime ? getSlotColor(slot) : ''}
-                  `}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center">
-                      {getSlotIcon(slot)}
-                      <span className="ml-2 font-semibold">
-                        {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
-                      </span>
+              {timeSlots.map((slot, index) => {
+                const isUserBooked = slot.status === 'USER_BOOKED';
+                const isInteractive = slot.status === 'AVAILABLE' || (isUserBooked && !!onUserBookedSelect);
+                const isSelected = selectedSlot?.startTime === slot.startTime;
+
+                return (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      if (slot.status === 'AVAILABLE') {
+                        onSlotSelect(slot);
+                      } else if (slot.status === 'USER_BOOKED' && onUserBookedSelect) {
+                        onUserBookedSelect(slot);
+                      }
+                    }}
+                    disabled={!isInteractive}
+                    className={`
+                      p-4 rounded-xl border-2 transition-all duration-200 text-left relative
+                      ${isSelected ? 'bg-blue-600 text-white border-blue-600' : ''}
+                      ${isInteractive ? 'active:scale-95' : 'cursor-not-allowed opacity-60'}
+                      ${!isSelected ? getSlotColor(slot) : ''}
+                    `}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center">
+                        {getSlotIcon(slot)}
+                        <span className="ml-2 font-semibold">
+                          {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                        </span>
+                      </div>
+                      {isSelected && (
+                        <Check className="h-5 w-5 text-white" />
+                      )}
                     </div>
-                    {selectedSlot?.startTime === slot.startTime && (
-                      <Check className="h-5 w-5 text-white" />
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium">
-                      {selectedSlot?.startTime === slot.startTime
-                        ? 'SELECCIONADO'
-                        : slot.status === 'AVAILABLE'
-                          ? 'Disponible'
-                          : slot.status === 'BOOKED'
-                            ? 'Ocupado'
-                            : slot.status === 'MAINTENANCE'
-                              ? (slot as any)?.message || ((slot as any)?.activityType === 'TRAINING'
-                                  ? 'Entrenamiento'
-                                  : (slot as any)?.activityType === 'CLASS'
-                                    ? 'Clase'
-                                    : (slot as any)?.activityType === 'WARMUP'
-                                      ? 'Calentamiento'
-                                      : (slot as any)?.activityType === 'EVENT'
-                                        ? 'Evento'
-                                        : (slot as any)?.activityType === 'MEETING'
-                                          ? 'Reunión'
-                                          : 'Mantenimiento')
-                              : slot.status === 'USER_BOOKED'
-                                ? 'Tu reserva'
-                                : 'No disponible'}
-                    </span>
-                    {slot.available && (
-                      <span className={`text-sm font-bold ${selectedSlot?.startTime === slot.startTime ? 'text-white' : ''}`}>
-                        {formatCurrency(slot.price)}
+                    
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium">
+                        {isSelected
+                          ? 'SELECCIONADO'
+                          : slot.status === 'AVAILABLE'
+                            ? 'Disponible'
+                            : slot.status === 'BOOKED'
+                              ? 'Ocupado'
+                              : slot.status === 'MAINTENANCE'
+                                ? (slot as any)?.message || ((slot as any)?.activityType === 'TRAINING'
+                                    ? 'Entrenamiento'
+                                    : (slot as any)?.activityType === 'CLASS'
+                                      ? 'Clase'
+                                      : (slot as any)?.activityType === 'WARMUP'
+                                        ? 'Calentamiento'
+                                        : (slot as any)?.activityType === 'EVENT'
+                                          ? 'Evento'
+                                          : (slot as any)?.activityType === 'MEETING'
+                                            ? 'Reunión'
+                                            : 'Mantenimiento')
+                                : slot.status === 'USER_BOOKED'
+                                  ? 'Mi reserva pendiente'
+                                  : 'No disponible'}
                       </span>
-                    )}
-                  </div>
-                </button>
-              ))}
+                      {(slot.available || slot.status === 'USER_BOOKED') && (
+                        <span className={`text-sm font-bold ${isSelected ? 'text-white' : ''}`}>
+                          {formatCurrency(slot.price)}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
