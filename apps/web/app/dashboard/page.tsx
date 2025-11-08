@@ -119,9 +119,17 @@ export default function DashboardPage() {
       // Procesar cada reserva con su centro específico
       for (const reservation of reservations) {
         const centerId = reservation.center?.id;
-        const cost = reservation.cost || 0;
+        const rawCost = reservation.cost ?? 0;
+        const normalizedCost =
+          typeof rawCost === 'number'
+            ? rawCost
+            : Number(String(rawCost).replace(',', '.').replace(/[^\d.-]/g, ''));
+
+        if (!Number.isFinite(normalizedCost) || normalizedCost <= 0) {
+          continue;
+        }
         
-        if (centerId && cost > 0) {
+        if (centerId) {
           // Obtener configuración del centro si no la tenemos
           if (!centerConfigs.has(centerId)) {
             const center = centers?.find(c => c.id === centerId);
@@ -138,7 +146,8 @@ export default function DashboardPage() {
           const euroPerCredit = centerConfigs.get(centerId);
           if (euroPerCredit !== null) {
             // Usar configuración real del centro
-            totalCreditsUsedReservations += Math.ceil(cost / euroPerCredit);
+            const creditsUsed = Number((normalizedCost / euroPerCredit).toFixed(2));
+            totalCreditsUsedReservations += creditsUsed;
           } else {
             // Si no hay configuración, no podemos calcular créditos reales
             console.warn(`No se encontró configuración de créditos para el centro ${centerId}`);
@@ -148,17 +157,20 @@ export default function DashboardPage() {
       
       // 2. Créditos usados en PEDIDOS (datos directos de la base de datos)
       const totalCreditsUsedOrders = orders.reduce((acc, order) => {
-        // Los pedidos ya tienen el campo creditsUsed calculado correctamente
-        return acc + (order.creditsUsed || 0);
+        const rawValue = Number(order?.creditsUsed ?? 0);
+        return acc + (Number.isFinite(rawValue) ? rawValue : 0);
       }, 0);
       
       // 3. Total de créditos usados (reservas + pedidos)
       const creditsUsed = totalCreditsUsedReservations + totalCreditsUsedOrders;
+      const normalizedCreditsUsed = Number.isFinite(creditsUsed)
+        ? Number((Math.max(0, creditsUsed)).toFixed(2))
+        : 0;
 
       setUserStats({
         totalReservations: reservations.length,
         upcomingReservations: upcoming.length,
-        creditsUsed: creditsUsed,
+        creditsUsed: normalizedCreditsUsed,
         favoriteCourtType,
         memberSince: profile?.createdAt || '',
         totalHoursPlayed: Math.round(totalHours),

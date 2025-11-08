@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useAdminCourts, useAdminCenters } from '@/lib/hooks';
@@ -8,6 +8,8 @@ import { adminApi } from '@/lib/api';
 import { useToast } from '@/components/ToastProvider';
 import WeekCalendar from '@/components/WeekCalendar';
 import { MAX_OVERRIDE_PERCENT, validatePriceOverride } from '@/lib/constants';
+
+const WEB_APP_BASE_URL = (process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 export default function AdminNewReservationPage() {
   const { data: session } = useSession();
@@ -41,6 +43,23 @@ export default function AdminNewReservationPage() {
   const [overrideAmount, setOverrideAmount] = useState<string>('');
   const [overrideReason, setOverrideReason] = useState<string>('');
   const [confirmOverrideOpen, setConfirmOverrideOpen] = useState(false);
+  const [linkModal, setLinkModal] = useState<{ open: boolean; url: string; shareUrl: string; reservationId: string }>({ open: false, url: '', shareUrl: '', reservationId: '' });
+  const [isSendingLinkEmail, setIsSendingLinkEmail] = useState(false);
+  const [linkEmailStatus, setLinkEmailStatus] = useState<'idle' | 'sent' | 'error'>('idle');
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [copyShareLinkStatus, setCopyShareLinkStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [lastCreatedReservation, setLastCreatedReservation] = useState<{
+    id: string;
+    paymentUrl: string;
+    shareUrl: string;
+    summary: {
+      court: string;
+      date: string;
+      time: string;
+      duration: string;
+      amount: string;
+    };
+  } | null>(null);
   const [weekStart, setWeekStart] = useState<string>(() => {
     const d = new Date();
     const day = d.getDay() === 0 ? 7 : d.getDay();
@@ -309,6 +328,290 @@ export default function AdminNewReservationPage() {
     return true;
   };
 
+  const buildPaymentPayload = () => {
+    const payload: Record<string, any> = {
+      method: paymentMethod,
+    };
+
+    if (typeof price?.final === 'number') {
+      payload.amount = price.final;
+    }
+
+    if ((paymentDetails.reason || '').trim()) {
+      payload.reason = paymentDetails.reason?.trim();
+    }
+
+    const details: Record<string, any> = {};
+    if (paymentDetails.authCode) {
+      details.authCode = paymentDetails.authCode.trim();
+    }
+    if (paymentDetails.reference) {
+      details.reference = paymentDetails.reference.trim();
+    }
+    if (Object.keys(details).length > 0) {
+      payload.details = details;
+    }
+
+    if (paymentMethod === 'LINK') {
+      payload.sendEmail = false;
+    }
+
+    return payload;
+  };
+
+  const currencyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat('es-ES', {
+        style: 'currency',
+        currency: 'EUR',
+        minimumFractionDigits: 2,
+      }),
+    []
+  );
+
+  const selectedCourt = useMemo(() => {
+    const list = Array.isArray(courts) ? courts : [];
+    return list.find((c: any) => c.id === courtId) ?? null;
+  }, [courts, courtId]);
+
+  const formattedReservationDate = useMemo(() => {
+    if (!date) return null;
+    const parsed = new Date(`${date}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toLocaleDateString('es-ES', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: '2-digit',
+    });
+  }, [date]);
+
+  const formattedReservationTime = useMemo(() => {
+    if (!time) return null;
+    const [hh, mm] = time.split(':');
+    if (!hh || !mm) return time;
+    const normalized = new Date();
+    normalized.setHours(Number(hh) || 0, Number(mm) || 0, 0, 0);
+    return normalized.toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }, [time]);
+
+  const durationLabel = useMemo(() => {
+    if (!duration || !Number.isFinite(duration)) return null;
+    return duration % 60 === 0
+      ? `${Math.round(duration / 60)} ${duration === 60 ? 'hora' : 'horas'}`
+      : `${duration} minutos`;
+  }, [duration]);
+
+  const buildShareUrl = useCallback(
+    (baseUrl: string) => {
+      const shareParams = new URLSearchParams();
+      shareParams.set('target', baseUrl);
+      const formattedDate = formattedReservationDate || '';
+      const formattedTime = formattedReservationTime || '';
+      const durationLbl = durationLabel || `${duration} minutos`;
+      const total = price?.final ?? price?.base ?? 0;
+      const formattedAmount = currencyFormatter.format(total);
+      if (selectedCourt?.name) shareParams.set('court', selectedCourt.name);
+      if (formattedDate) shareParams.set('date', formattedDate);
+      if (formattedTime) shareParams.set('time', formattedTime);
+      if (durationLbl) shareParams.set('duration', durationLbl);
+      shareParams.set('amount', formattedAmount);
+      return `${WEB_APP_BASE_URL}/payments/share?${shareParams.toString()}`;
+    },
+    [
+      currencyFormatter,
+      duration,
+      formattedReservationDate,
+      formattedReservationTime,
+      price?.base,
+      price?.final,
+      selectedCourt?.name,
+    ]
+  );
+
+  const openLinkModal = useCallback(
+    (reservationId: string, url: string) => {
+      const shareUrl = buildShareUrl(url);
+      const summary = {
+        court: selectedCourt?.name ?? '',
+        date: formattedReservationDate ?? '',
+        time: formattedReservationTime ?? '',
+        duration: durationLabel ?? `${duration} minutos`,
+        amount: currencyFormatter.format(price?.final ?? price?.base ?? 0),
+      };
+      setLinkModal({ open: true, reservationId, url, shareUrl });
+      setLastCreatedReservation({ id: reservationId, paymentUrl: url, shareUrl, summary });
+    setLinkEmailStatus('idle');
+    setCopyStatus('idle');
+      setCopyShareLinkStatus('idle');
+    setIsSendingLinkEmail(false);
+    },
+    [
+      buildShareUrl,
+      currencyFormatter,
+      duration,
+      durationLabel,
+      formattedReservationDate,
+      formattedReservationTime,
+      price?.base,
+      price?.final,
+      selectedCourt?.name,
+    ]
+  );
+
+  const closeLinkModal = (redirect?: boolean) => {
+    setLinkModal({ open: false, reservationId: '', url: '', shareUrl: '' });
+    setLinkEmailStatus('idle');
+    setCopyStatus('idle');
+    setCopyShareLinkStatus('idle');
+    setIsSendingLinkEmail(false);
+    if (redirect) {
+      window.location.href = '/reservations';
+    }
+  };
+  const reopenLinkModal = useCallback(() => {
+    if (!lastCreatedReservation) return;
+    openLinkModal(lastCreatedReservation.id, lastCreatedReservation.paymentUrl);
+  }, [lastCreatedReservation, openLinkModal]);
+
+  const resetAfterSuccess = useCallback(() => {
+    setLastCreatedReservation(null);
+    setLinkModal({ open: false, reservationId: '', url: '', shareUrl: '' });
+    setLinkEmailStatus('idle');
+    setCopyStatus('idle');
+    setCopyShareLinkStatus('idle');
+    setIsSendingLinkEmail(false);
+    setError(null);
+    setOverrideEnabled(false);
+    setOverrideAmount('');
+    setOverrideReason('');
+    setSuggestions([]);
+    setPrice({});
+    setPriceError(null);
+    setNotes('');
+    setCenterId('');
+    setCourtId('');
+    setDate('');
+    setTime('');
+    setDuration(60);
+    setPaymentMethod('CASH');
+    setPaymentDetails({});
+    setUserSearch('');
+    setUserId('');
+    setNewUser({ name: '' });
+    setStep(1);
+  }, []);
+  const buildPaymentLinkMessage = useCallback(() => {
+    if (!linkModal.url) return '';
+
+    const shareUrl = linkModal.shareUrl || buildShareUrl(linkModal.url);
+    const total = price?.final ?? price?.base ?? 0;
+    const formattedAmount = currencyFormatter.format(total);
+
+    const icons = {
+      wave: String.fromCodePoint(0x1f44b),
+      venue: String.fromCodePoint(0x1f3df),
+      calendar: String.fromCodePoint(0x1f4c5),
+      clock: String.fromCodePoint(0x23f0),
+      duration: String.fromCodePoint(0x23f3),
+      card: String.fromCodePoint(0x1f4b3),
+      link: String.fromCodePoint(0x1f517),
+      thanks: String.fromCodePoint(0x1f64c),
+    };
+
+    const lines = [
+      `¡Hola! ${icons.wave}`,
+      'Te compartimos los detalles de tu reserva en el Polideportivo Victoria Hernández:',
+      '',
+      `${icons.venue} Cancha: ${selectedCourt?.name ?? 'Por confirmar'}`,
+      formattedReservationDate ? `${icons.calendar} Fecha: ${formattedReservationDate}` : null,
+      formattedReservationTime ? `${icons.clock} Hora: ${formattedReservationTime}` : null,
+      durationLabel ? `${icons.duration} Duración: ${durationLabel}` : null,
+      `${icons.card} Total a pagar: ${formattedAmount}`,
+      '',
+      'Completa tu pago en un clic:',
+      `${icons.link} ${shareUrl}`,
+      '',
+      `¡Gracias por elegirnos! Nos vemos en la cancha ${icons.thanks}`,
+    ].filter(Boolean) as string[];
+
+    return lines.join('\n');
+  }, [
+    buildShareUrl,
+    currencyFormatter,
+    durationLabel,
+    formattedReservationDate,
+    formattedReservationTime,
+    linkModal.url,
+    linkModal.shareUrl,
+    price?.base,
+    price?.final,
+    selectedCourt?.name,
+  ]);
+
+  const handleCopyLink = async () => {
+    if (!linkModal.url) return;
+    const message = buildPaymentLinkMessage();
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopyStatus('copied');
+      showToast({ variant: 'success', message: 'Resumen y enlace copiados al portapapeles' });
+    } catch (error) {
+      console.error('No se pudo copiar el enlace:', error);
+      setCopyStatus('error');
+      showToast({ variant: 'error', message: 'No se pudo copiar el enlace' });
+    }
+  };
+
+  const handleCopyShareUrl = async () => {
+    const shareUrl = linkModal.shareUrl || buildShareUrl(linkModal.url);
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopyShareLinkStatus('copied');
+      showToast({ variant: 'success', message: 'Enlace con previsualización copiado' });
+    } catch (error) {
+      console.error('No se pudo copiar el enlace público:', error);
+      setCopyShareLinkStatus('error');
+      showToast({ variant: 'error', message: 'No se pudo copiar el enlace público' });
+    }
+  };
+
+  const handleShareWhatsapp = () => {
+    if (!linkModal.url) return;
+    const message = buildPaymentLinkMessage();
+    const target = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(target, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleSendLinkEmail = async () => {
+    if (!linkModal.reservationId) return;
+    try {
+      setIsSendingLinkEmail(true);
+      setLinkEmailStatus('idle');
+      const res = await fetch(`/api/admin/reservations/${linkModal.reservationId}/payment-link-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = body?.error || body?.message || `HTTP ${res.status}`;
+        throw new Error(message);
+      }
+      setLinkEmailStatus('sent');
+      showToast({ variant: 'success', message: 'Enlace enviado por correo al usuario' });
+    } catch (error: any) {
+      console.error('Error enviando enlace por correo:', error);
+      setLinkEmailStatus('error');
+      showToast({ variant: 'error', message: error?.message || 'No se pudo enviar el correo' });
+    } finally {
+      setIsSendingLinkEmail(false);
+    }
+  };
+
   const handleCreate = async () => {
     try {
       setError(null);
@@ -333,20 +636,14 @@ export default function AdminNewReservationPage() {
           startTime: start.toISOString(),
           duration,
           notes,
-              payment: {
-                method: paymentMethod,
-                amount: price?.final,
-                reason: paymentDetails.reason,
-                details: {
-                  authCode: paymentDetails.authCode,
-                  reference: paymentDetails.reference,
-                }
-              },
+          payment: buildPaymentPayload(),
           sendNotifications: true,
         }),
       });
+      const body = await res.json().catch(() => ({}));
+      const payload = body?.data ?? body ?? {};
+      console.debug('[ADMIN_RESERVATIONS] Respuesta creación reserva', { body, payload, status: res.status });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
         if (Array.isArray(body?.details) && body.details.length > 0) {
           const first = body.details[0];
           throw new Error(`${body.error}: ${first.field} - ${first.message}`);
@@ -355,13 +652,24 @@ export default function AdminNewReservationPage() {
           throw new Error(`${body?.error}`);
         }
         if (res.status === 409) {
-          // Generar sugerencias de horarios alternativos
           generateSuggestions().catch(() => {});
           throw new Error(body?.error || 'Conflicto de disponibilidad. Te sugerimos horarios alternativos.');
         }
         throw new Error(body?.error || `HTTP ${res.status}`);
       }
+
       showToast({ variant: 'success', title: 'Reserva creada', message: 'La reserva se registró correctamente.' });
+
+      if (paymentMethod === 'LINK') {
+        const reservationId = payload?.id;
+        const paymentLinkUrl = payload?.paymentLinkUrl;
+        if (!reservationId || !paymentLinkUrl) {
+          throw new Error('No se pudo generar el enlace de pago. Verifica la configuración.');
+        }
+        openLinkModal(reservationId as string, paymentLinkUrl as string);
+        return;
+      }
+
       window.location.href = '/reservations';
     } catch (e: any) {
       setError(e?.message || 'Error creando la reserva');
@@ -389,13 +697,15 @@ export default function AdminNewReservationPage() {
           startTime: start.toISOString(),
           duration,
           notes,
-          payment: { method: paymentMethod, amount: price?.final, reason: paymentDetails.reason, details: { authCode: paymentDetails.authCode, reference: paymentDetails.reference } },
+          payment: buildPaymentPayload(),
           pricingOverride: { amount: Number(overrideAmount), reason: overrideReason },
           sendNotifications: true,
         }),
       });
+      const body = await res.json().catch(() => ({}));
+      const payload = body?.data ?? body ?? {};
+      console.debug('[ADMIN_RESERVATIONS] Respuesta creación reserva (override)', { body, payload, status: res.status });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
         if (res.status === 409) {
           generateSuggestions().catch(() => {});
           throw new Error(body?.error || 'Conflicto de disponibilidad. Te sugerimos horarios alternativos.');
@@ -407,6 +717,17 @@ export default function AdminNewReservationPage() {
         throw new Error(body?.error || `HTTP ${res.status}`);
       }
       showToast({ variant: 'success', title: 'Reserva creada', message: 'La reserva se registró correctamente.' });
+
+      if (paymentMethod === 'LINK') {
+        const reservationId = payload?.id;
+        const paymentLinkUrl = payload?.paymentLinkUrl;
+        if (!reservationId || !paymentLinkUrl) {
+          throw new Error('No se pudo generar el enlace de pago. Verifica la configuración.');
+        }
+        openLinkModal(reservationId as string, paymentLinkUrl as string);
+        return;
+      }
+
       window.location.href = '/reservations';
     } catch (e: any) {
       setError(e?.message || 'Error creando la reserva');
@@ -736,7 +1057,7 @@ export default function AdminNewReservationPage() {
             )}
             {paymentMethod === 'LINK' && (
               <div className="md:col-span-2 text-xs text-gray-600">
-                Se generará un enlace de pago (Stripe Checkout) para enviar al cliente.
+                Se generará un enlace de pago vía Redsys para enviar al cliente.
               </div>
             )}
             {/* Override de precio (solo ADMIN) */}
@@ -810,20 +1131,80 @@ export default function AdminNewReservationPage() {
           )}
         </div>
       )}
-      <div className="flex gap-2 items-center">
+      {lastCreatedReservation && (
+        <div className="mt-6 border border-emerald-200 bg-emerald-50 rounded-2xl p-4 space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold text-emerald-900">Reserva creada correctamente</h3>
+              <p className="text-sm text-emerald-700">ID: {lastCreatedReservation.id}</p>
+            </div>
+            <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
+              Lista para compartir
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-emerald-800">
+            {lastCreatedReservation.summary.court && <div><span className="font-semibold">Cancha:</span> {lastCreatedReservation.summary.court}</div>}
+            {lastCreatedReservation.summary.date && <div><span className="font-semibold">Fecha:</span> {lastCreatedReservation.summary.date}</div>}
+            {lastCreatedReservation.summary.time && <div><span className="font-semibold">Hora:</span> {lastCreatedReservation.summary.time}</div>}
+            {lastCreatedReservation.summary.duration && <div><span className="font-semibold">Duración:</span> {lastCreatedReservation.summary.duration}</div>}
+            <div><span className="font-semibold">Total:</span> {lastCreatedReservation.summary.amount}</div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={reopenLinkModal}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition-colors"
+            >
+              Compartir enlace
+            </button>
+            <button
+              onClick={() => (window.location.href = '/reservations')}
+              className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 transition-colors"
+            >
+              Ir al listado de reservas
+            </button>
+            <button
+              onClick={resetAfterSuccess}
+              className="px-4 py-2 border border-emerald-300 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors"
+            >
+              Crear otra reserva
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2 items-center mt-4">
         <button onClick={() => (window.location.href = '/reservations')} className="px-4 py-2 border rounded text-black">Cancelar</button>
         {step < 3 && (
           <button
-            onClick={() => setStep((s) => (s===1 ? (canProceedUser()?2:1) : (canProceedSchedule()?3:2)))}
+            onClick={() => setStep((s) => (s === 1 ? (canProceedUser() ? 2 : 1) : canProceedSchedule() ? 3 : 2))}
             className="px-4 py-2 bg-gray-800 text-white rounded"
           >
             Siguiente
           </button>
         )}
-        {step === 3 && (
-          <button onClick={handleCreate} disabled={isSubmitting || !canProceedUser() || !canProceedSchedule() || !canProceedPayment()} className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50">
-            {isSubmitting ? 'Creando...' : 'Crear Reserva'}
+        {step === 3 && !lastCreatedReservation && (
+          <button
+            onClick={handleCreate}
+            disabled={isSubmitting || !canProceedUser() || !canProceedSchedule() || !canProceedPayment()}
+            className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+          >
+            {isSubmitting ? (paymentMethod === 'LINK' ? 'Generando enlace...' : 'Creando...') : paymentMethod === 'LINK' ? 'Generar enlace de pago' : 'Crear reserva'}
           </button>
+        )}
+        {step === 3 && lastCreatedReservation && (
+          <>
+            <button
+              onClick={reopenLinkModal}
+              className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 transition-colors"
+            >
+              Compartir enlace
+            </button>
+            <button
+              onClick={resetAfterSuccess}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-100 transition-colors"
+            >
+              Nueva reserva
+            </button>
+          </>
         )}
       </div>
 
@@ -848,6 +1229,88 @@ export default function AdminNewReservationPage() {
                 className="px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700"
               >
                 Confirmar y crear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {linkModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-5">
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900">Enlace de pago generado</h3>
+              <p className="text-sm text-gray-600 mt-1">Comparte el enlace con el cliente usando una de las siguientes opciones.</p>
+            </div>
+
+            <div className="bg-gray-100 border border-gray-200 rounded-lg p-3 text-xs text-gray-700 break-all">
+              {linkModal.url}
+            </div>
+            {linkModal.shareUrl && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 break-all">
+                <div className="font-semibold text-blue-700">Enlace con vista previa</div>
+                <div className="mt-1">{linkModal.shareUrl}</div>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Mensaje sugerido</label>
+              <textarea
+                readOnly
+                value={buildPaymentLinkMessage()}
+                className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 bg-gray-50 h-28"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={handleSendLinkEmail}
+                disabled={isSendingLinkEmail || linkEmailStatus === 'sent'}
+                className={`w-full px-4 py-2 rounded-lg font-medium transition-colors ${
+                  linkEmailStatus === 'sent'
+                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed'
+                }`}
+              >
+                {isSendingLinkEmail ? 'Enviando correo...' : linkEmailStatus === 'sent' ? 'Enlace enviado por correo' : 'Enviar por correo'}
+              </button>
+              {linkEmailStatus === 'error' && (
+                <p className="text-xs text-red-600">No se pudo enviar el correo. Inténtalo nuevamente.</p>
+              )}
+
+              <button
+                onClick={handleCopyLink}
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 text-gray-800 hover:bg-gray-100 transition-colors"
+              >
+                {copyStatus === 'copied' ? 'Mensaje copiado' : 'Copiar mensaje con enlace'}
+              </button>
+
+              <button
+                onClick={handleCopyShareUrl}
+                className="w-full px-4 py-2 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors"
+              >
+                {copyShareLinkStatus === 'copied' ? 'Enlace con preview copiado' : 'Copiar enlace con vista previa'}
+              </button>
+
+              <button
+                onClick={handleShareWhatsapp}
+                className="w-full px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors"
+              >
+                Compartir por WhatsApp
+              </button>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => closeLinkModal(false)}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+              >
+                Seguir aquí
+              </button>
+              <button
+                onClick={() => closeLinkModal(true)}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Ir a reservas
               </button>
             </div>
           </div>

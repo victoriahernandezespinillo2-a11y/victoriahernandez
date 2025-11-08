@@ -599,6 +599,19 @@ export const api = {
     addMethod: (data: { brand: string; last4: string; expMonth: number; expYear: number; holderName?: string; setDefault?: boolean; }) =>
       apiRequest('/api/payments/methods', { method: 'POST', body: JSON.stringify(data) }),
     deleteMethod: (id: string) => apiRequest(`/api/payments/methods?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    // Listado de pagos (historial unificado: órdenes + reservas)
+    list: (params?: { page?: number; limit?: number; status?: string; dateFrom?: string; dateTo?: string; centerId?: string }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            searchParams.append(key, String(value));
+          }
+        });
+      }
+      const query = searchParams.toString();
+      return apiRequest(`/api/payments${query ? `?${query}` : ''}`);
+    },
   },
 
   // Monedero

@@ -26,7 +26,8 @@ export const CreatePaymentSchema = z.object({
   tournamentId: z.string().optional(),
   userId: z.string().min(1, 'ID de usuario requerido'),
   paymentMethod: z.enum(['CARD', 'TRANSFER', 'CASH']).default('CARD'),
-  provider: z.enum(['STRIPE', 'REDSYS', 'MANUAL']).default('STRIPE'),
+  // Proveedor por defecto: REDSYS (Stripe se mantiene solo para compatibilidad con registros antiguos)
+  provider: z.enum(['STRIPE', 'REDSYS', 'MANUAL']).default('REDSYS'),
   metadata: z.record(z.string()).optional()
 });
 
@@ -392,7 +393,8 @@ export class PaymentService {
         throw new Error('El monto del reembolso no puede ser mayor al monto del pago');
       }
 
-      let refund: Stripe.Refund | null = null;
+      // Para Redsys registramos un reembolso PENDING (manual en TPV). Para Stripe se crea el objeto real de Refund
+      let refund: (Stripe.Refund & { status?: string | null }) | { id: string; status: 'PENDING' } | null = null;
 
       if (payment.provider === 'STRIPE' && payment.transactionId) {
         // Procesar reembolso en Stripe
@@ -400,6 +402,9 @@ export class PaymentService {
            payment.transactionId,
            refundAmount // El servicio ya maneja la conversión
          );
+      } else if (payment.provider === 'REDSYS') {
+        // Redsys: no hay API de reembolso integrada. Registramos un reembolso pendiente.
+        refund = { id: `REDSYS_REFUND_${payment.id}_${Date.now()}`, status: 'PENDING' };
       }
 
       // Crear registro de reembolso
@@ -408,14 +413,14 @@ export class PaymentService {
           paymentId: payment.id,
           amount: refundAmount,
           reason: validatedData.reason,
-          status: refund ? 'COMPLETED' : 'PENDING',
+          status: refund && (refund as any).status === 'PENDING' ? 'PENDING' : (refund ? 'COMPLETED' : 'PENDING'),
           externalId: refund?.id,
-          processedAt: refund ? new Date() : null
+          processedAt: refund && (refund as any).status !== 'PENDING' ? new Date() : null
         }
       });
 
-      // Actualizar estado del pago si es reembolso completo
-      if (refundAmount === payment.amount) {
+      // Actualizar estado del pago si es reembolso completo y fue procesado automáticamente (Stripe)
+      if (refundAmount === payment.amount && refund && (refund as any).status !== 'PENDING') {
         await (prisma as any).payment.update({
           where: { id: payment.id },
           data: { status: 'REFUNDED' }
@@ -452,8 +457,10 @@ export class PaymentService {
         success: true,
         refundId: refundRecord.id,
         amount: refundAmount,
-        status: refund?.status || 'pending',
-        message: 'Reembolso procesado exitosamente'
+        status: (refund as any)?.status || refundRecord.status || 'PENDING',
+        message: payment.provider === 'REDSYS'
+          ? 'Reembolso registrado como PENDING. Completa la devolución en el TPV Redsys.'
+          : 'Reembolso procesado exitosamente'
       };
     } catch (error) {
       console.error('Error procesando reembolso:', error);

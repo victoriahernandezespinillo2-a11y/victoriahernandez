@@ -1,9 +1,9 @@
-import { db } from '../index';
+import { db } from '../index.js';
 
 async function main() {
   const args = process.argv.slice(2);
-  const emailArgIndex = args.findIndex((a) => a === '--email');
-  const idArgIndex = args.findIndex((a) => a === '--id');
+  const emailArgIndex = args.findIndex((a: string) => a === '--email');
+  const idArgIndex = args.findIndex((a: string) => a === '--id');
   const email = emailArgIndex >= 0 ? args[emailArgIndex + 1] : undefined;
   const userId = idArgIndex >= 0 ? args[idArgIndex + 1] : undefined;
 

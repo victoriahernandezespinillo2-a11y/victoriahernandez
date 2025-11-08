@@ -317,12 +317,31 @@ export default function CalendarVisualModal({
       console.log('🔍 [REDSYS-DEBUG] Response API reserva:', response);
       // Extraer objeto de reserva: puede venir directo o en 'reservation'
       const reservation = (response as any)?.reservation ?? (response as any);
+      const rawPricing =
+        (response as any)?.pricing ??
+        (response as any)?.data?.pricing ??
+        (reservation as any)?.pricing ??
+        null;
+      const sanitizedPricing = rawPricing
+        ? {
+            basePrice: Number(rawPricing.basePrice ?? 0),
+            discount: Number(rawPricing.discount ?? 0),
+            total: Number(rawPricing.total ?? rawPricing.finalPrice ?? 0),
+            breakdown: Array.isArray(rawPricing.breakdown) ? rawPricing.breakdown : [],
+            appliedRules: Array.isArray(rawPricing.appliedRules) ? rawPricing.appliedRules : [],
+          }
+        : undefined;
       // Intentar construir desglose de precio si está disponible
       try {
-        const base = Number((response as any)?.pricing?.basePrice ?? 0);
-        const lighting = Number((response as any)?.pricing?.lighting?.extra ?? (response as any)?.lighting?.extra ?? 0);
-        const total = Number((reservation as any)?.totalPrice ?? (response as any)?.pricing?.total ?? 0);
-        if (!isNaN(base) && !isNaN(lighting) && !isNaN(total)) {
+        const base = sanitizedPricing?.basePrice ?? Number((reservation as any)?.basePrice ?? 0);
+        const lighting = Number(
+          rawPricing?.lighting?.extra ??
+            (response as any)?.lighting?.extra ??
+            (reservation as any)?.lighting?.extra ??
+            0
+        );
+        const total = sanitizedPricing?.total ?? Number((reservation as any)?.totalPrice ?? 0);
+        if (!Number.isNaN(base) && !Number.isNaN(lighting) && !Number.isNaN(total)) {
           setPriceSummary({ base, lighting, total });
         }
       } catch {}
@@ -334,7 +353,16 @@ export default function CalendarVisualModal({
           const end = new Date(start.getTime() + duration * 60000);
           const dateLabel = start.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
           const timeLabel = `${start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
-          setPaymentInfo({ reservationId: reservation.id, amount: reservation.totalPrice || 0, dateLabel, timeLabel });
+          const amount =
+            sanitizedPricing?.total ??
+            Number((reservation as any)?.totalPrice ?? 0);
+          setPaymentInfo({
+            reservationId: reservation.id,
+            amount,
+            dateLabel,
+            timeLabel,
+            pricing: sanitizedPricing,
+          });
         } else {
           // Mobile: misma lógica previa
           window.location.href = `/api/payments/redsys/redirect?rid=${reservation.id}`;
@@ -386,6 +414,13 @@ export default function CalendarVisualModal({
     amount: number;
     dateLabel: string;
     timeLabel: string;
+    pricing?: {
+      basePrice?: number;
+      discount?: number;
+      total?: number;
+      breakdown?: { description: string; amount: number }[];
+      appliedRules?: string[];
+    };
   } | null>(null);
   const [priceSummary, setPriceSummary] = useState<{ base: number; lighting: number; total: number } | null>(null);
 
@@ -859,6 +894,7 @@ export default function CalendarVisualModal({
           courtName={selectedCourt?.name || 'Cancha'}
           dateLabel={paymentInfo.dateLabel}
           timeLabel={paymentInfo.timeLabel}
+          pricingDetails={paymentInfo.pricing}
           onSuccess={closePaymentModal}
         />
       )}

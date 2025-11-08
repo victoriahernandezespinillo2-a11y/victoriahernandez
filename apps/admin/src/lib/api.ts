@@ -866,6 +866,131 @@ export const adminApi = {
       }),
   },
 
+  // Tarifas reguladas
+  tariffs: {
+    list: async (params?: {
+      segment?: string;
+      isActive?: boolean;
+      from?: string;
+      to?: string;
+      page?: number;
+      limit?: number;
+    }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        if (params.segment) searchParams.append('segment', params.segment);
+        if (params.isActive !== undefined) searchParams.append('isActive', String(params.isActive));
+        if (params.from) searchParams.append('from', params.from);
+        if (params.to) searchParams.append('to', params.to);
+        if (params.page) searchParams.append('page', String(params.page));
+        if (params.limit) searchParams.append('limit', String(params.limit));
+      }
+      const query = searchParams.toString();
+      const payload: any = await apiClient.request(`/api/admin/tariffs${query ? `?${query}` : ''}`);
+      const raw = payload?.data ?? payload ?? {};
+      const rawItems = Array.isArray(raw?.items)
+        ? raw.items
+        : Array.isArray(raw?.tariffs)
+          ? raw.tariffs
+          : Array.isArray(raw)
+            ? raw
+            : [];
+      const rawPagination = raw?.pagination ?? {};
+      const normalizedItems = rawItems.map((item: any) => ({
+        ...item,
+        courts: Array.isArray(item?.courts)
+          ? item.courts.map((entry: any) => ({
+              courtId: entry.courtId ?? entry.court_id ?? entry?.court?.id,
+              court: entry.court
+                ? {
+                    id: entry.court.id,
+                    name: entry.court.name,
+                    centerId: entry.court.centerId ?? entry.court.center_id ?? '',
+                  }
+                : undefined,
+            }))
+          : [],
+      }));
+      const total = Number(rawPagination.total ?? rawItems.length ?? 0);
+      const page = Number(rawPagination.page ?? params?.page ?? 1);
+      const limit = Number(rawPagination.limit ?? params?.limit ?? (rawItems.length > 0 ? rawItems.length : 1)) || 1;
+      const pages = Number(rawPagination.pages ?? Math.max(1, Math.ceil(total / (limit || 1))));
+      return {
+        items: normalizedItems,
+        pagination: {
+          total,
+          page,
+          limit,
+          pages,
+        },
+      };
+    },
+
+    create: (data: Record<string, unknown>) =>
+      apiClient.request('/api/admin/tariffs', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    update: (id: string, data: Record<string, unknown>) =>
+      apiClient.request(`/api/admin/tariffs/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+
+    listEnrollments: async (params?: {
+      status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+      segment?: string;
+      userId?: string;
+      page?: number;
+      limit?: number;
+    }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value === undefined || value === null || value === '') return;
+          searchParams.append(key, String(value));
+        });
+      }
+      const query = searchParams.toString();
+      const payload: any = await apiClient.request(`/api/admin/tariffs/enrollments${query ? `?${query}` : ''}`);
+      const raw = payload?.data ?? payload ?? {};
+      const rawItems = Array.isArray(raw?.items)
+        ? raw.items
+        : Array.isArray(raw?.enrollments)
+          ? raw.enrollments
+          : Array.isArray(raw)
+            ? raw
+            : [];
+      const rawPagination = raw?.pagination ?? {};
+      const total = Number(rawPagination.total ?? rawItems.length ?? 0);
+      const page = Number(rawPagination.page ?? params?.page ?? 1);
+      const limit = Number(rawPagination.limit ?? params?.limit ?? (rawItems.length > 0 ? rawItems.length : 1)) || 1;
+      const pages = Number(rawPagination.pages ?? Math.max(1, Math.ceil(total / (limit || 1))));
+      return {
+        items: rawItems,
+        pagination: {
+          total,
+          page,
+          limit,
+          pages,
+        },
+      };
+    },
+
+    approveEnrollment: (id: string, data?: { notes?: string }) =>
+      apiClient.request(`/api/admin/tariffs/enrollments/${id}/approve`, {
+        method: 'POST',
+        body: data ? JSON.stringify(data) : undefined,
+      }),
+
+    rejectEnrollment: (id: string, data: { reason: string; notes?: string }) =>
+      apiClient.request(`/api/admin/tariffs/enrollments/${id}/reject`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  },
+
   // Reportes
   reports: {
     getRevenue: (params?: {

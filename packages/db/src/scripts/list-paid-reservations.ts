@@ -1,4 +1,5 @@
-import { db } from '../index';
+import { db } from '../index.js';
+import type { Prisma } from '@prisma/client';
 
 type ArgMap = Record<string, string | boolean | undefined>;
 
@@ -6,7 +7,7 @@ function parseArgs(): ArgMap {
   const out: ArgMap = {};
   const args = process.argv.slice(2);
   for (let i = 0; i < args.length; i++) {
-    const a = args[i];
+    const a = args[i]!; // non-null assertion safe due to loop bound
     if (a.startsWith('--')) {
       const key = a.replace(/^--/, '');
       const next = args[i + 1];
@@ -60,7 +61,17 @@ async function main() {
     },
   });
 
-  const totalEUR = rows.reduce((sum, r) => sum + Number(r.totalPrice || 0), 0);
+  type Row = {
+    id: string;
+    status: string;
+    totalPrice: Prisma.Decimal | null;
+    createdAt: Date;
+    startTime: Date;
+    endTime: Date;
+    user: { id: string; email: string | null; name: string | null };
+    court: { id: string; name: string | null; centerId: string };
+  };
+  const totalEUR = rows.reduce((sum: number, r: any) => sum + Number(r.totalPrice ?? 0), 0);
 
   const result = {
     filter: {

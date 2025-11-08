@@ -13,7 +13,7 @@
       }
     ],
     // Usar la resolución por defecto de Next.js (Bundler) heredada del preset compartido
-    "types": ["node"]
+    "types": ["node", "jest"]
   },
   "include": [
     "**/*.ts",

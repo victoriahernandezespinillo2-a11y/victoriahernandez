@@ -25,6 +25,7 @@ import {
   TagIcon,
   ChevronRightIcon,
   ChevronLeftIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { useAdminNotifications } from '@/lib/hooks';
 import { useSidebarBadges } from '@/lib/hooks/useSidebarBadges';
@@ -78,6 +79,7 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
         { name: 'Promociones', href: '/promotions', icon: StarIcon },
         { name: 'Precios', href: '/pricing', icon: ChartBarIcon },
         { name: 'Membresías', href: '/memberships', icon: UsersIcon },
+        { name: 'Tarifas Reguladas', href: '/tariffs', icon: ShieldCheckIcon },
       ],
     },
     {

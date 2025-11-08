@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
@@ -26,43 +26,43 @@ async function addCourts() {
         name: 'Cancha de Fútbol 1',
         sportType: 'football',
         capacity: 22,
-        basePricePerHour: 50.00
+        basePricePerHour: new Prisma.Decimal(50.00)
       },
       {
         name: 'Cancha de Fútbol 2',
         sportType: 'football',
         capacity: 22,
-        basePricePerHour: 50.00
+        basePricePerHour: new Prisma.Decimal(50.00)
       },
       {
         name: 'Pista de Tenis 1',
         sportType: 'tennis',
         capacity: 4,
-        basePricePerHour: 25.00
+        basePricePerHour: new Prisma.Decimal(25.00)
       },
       {
         name: 'Pista de Tenis 2',
         sportType: 'tennis',
         capacity: 4,
-        basePricePerHour: 25.00
+        basePricePerHour: new Prisma.Decimal(25.00)
       },
       {
         name: 'Cancha de Baloncesto',
         sportType: 'basketball',
         capacity: 10,
-        basePricePerHour: 35.00
+        basePricePerHour: new Prisma.Decimal(35.00)
       },
       {
         name: 'Pista de Pádel 1',
         sportType: 'padel',
         capacity: 4,
-        basePricePerHour: 30.00
+        basePricePerHour: new Prisma.Decimal(30.00)
       },
       {
         name: 'Pista de Pádel 2',
         sportType: 'padel',
         capacity: 4,
-        basePricePerHour: 30.00
+        basePricePerHour: new Prisma.Decimal(30.00)
       }
     ]
 
@@ -83,9 +83,9 @@ async function addCourts() {
           name: 'Horario Normal',
           timeStart: '08:00',
           timeEnd: '18:00',
-          daysOfWeek: '1,2,3,4,5', // Lunes a Viernes
-          priceMultiplier: 1.0,
-          memberDiscount: 0.1, // 10% descuento para miembros
+          daysOfWeek: { set: [1, 2, 3, 4, 5] }, // Lunes a Viernes
+          priceMultiplier: new Prisma.Decimal(1.0),
+          memberDiscount: new Prisma.Decimal(0.1), // 10% descuento para miembros
           isActive: true
         }
       })
@@ -96,9 +96,9 @@ async function addCourts() {
           name: 'Horario Premium',
           timeStart: '18:00',
           timeEnd: '22:00',
-          daysOfWeek: '1,2,3,4,5,6,7', // Todos los días
-          priceMultiplier: 1.3, // 30% más caro
-          memberDiscount: 0.15, // 15% descuento para miembros
+          daysOfWeek: { set: [1, 2, 3, 4, 5, 6, 7] }, // Todos los días
+          priceMultiplier: new Prisma.Decimal(1.3), // 30% más caro
+          memberDiscount: new Prisma.Decimal(0.15), // 15% descuento para miembros
           isActive: true
         }
       })
@@ -109,9 +109,9 @@ async function addCourts() {
           name: 'Fin de Semana',
           timeStart: '08:00',
           timeEnd: '22:00',
-          daysOfWeek: '6,7', // Sábado y Domingo
-          priceMultiplier: 1.2, // 20% más caro
-          memberDiscount: 0.1, // 10% descuento para miembros
+          daysOfWeek: { set: [6, 7] }, // Sábado y Domingo
+          priceMultiplier: new Prisma.Decimal(1.2), // 20% más caro
+          memberDiscount: new Prisma.Decimal(0.1), // 10% descuento para miembros
           isActive: true
         }
       })

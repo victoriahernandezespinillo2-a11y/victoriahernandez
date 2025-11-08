@@ -148,5 +148,7 @@ export type {
   MaintenanceStatus
 } from '@prisma/client';
 
+export { TariffSegment, TariffEnrollmentStatus } from '@prisma/client';
+
 // Exportar el cliente de Prisma como instancia por defecto
 export default db;

@@ -37,15 +37,38 @@ interface UserProfile {
 
 export default function ProfilePage() {
   const { data: session } = useSession();
-  const { profile: userProfile, loading, error, updateProfile } = useUserProfile();
+  const { profile: userProfile, loading, error, updateProfile, getProfile } = useUserProfile();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<UserProfile>({} as UserProfile);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Cargar perfil al montar el componente
+  useEffect(() => {
+    getProfile().catch((e) => {
+      console.error('Error cargando perfil:', e);
+    });
+  }, [getProfile]);
+
   // Actualizar formData cuando se carga el perfil
   useEffect(() => {
     if (userProfile) {
-      setFormData(userProfile);
+      // Normalizar dateOfBirth para el input type="date" (YYYY-MM-DD)
+      const normalizedDob = (() => {
+        const dob = (userProfile as any).dateOfBirth;
+        if (!dob) return undefined;
+        try {
+          const d = new Date(dob);
+          if (isNaN(d.getTime())) return undefined;
+          return d.toISOString().slice(0, 10);
+        } catch {
+          return undefined;
+        }
+      })();
+
+      setFormData({
+        ...(userProfile as any),
+        dateOfBirth: normalizedDob,
+      } as UserProfile);
     }
   }, [userProfile]);
 
@@ -62,7 +85,18 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      await updateProfile(formData);
+      // Enviar solo los campos soportados por el backend y con el formato adecuado
+      const payload: Partial<UserProfile> = {
+        firstName: (formData.firstName || '').trim() || undefined,
+        lastName: (formData.lastName || '').trim() || undefined,
+        phone: (formData.phone || '').trim() || undefined,
+        // Convertir "YYYY-MM-DD" a ISO string aceptada por Zod .datetime()
+        dateOfBirth: formData.dateOfBirth
+          ? new Date(`${formData.dateOfBirth}T00:00:00Z`).toISOString()
+          : undefined,
+      };
+
+      await updateProfile(payload);
       setIsEditing(false);
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -106,7 +140,19 @@ export default function ProfilePage() {
     );
   }
 
-  const profile = userProfile || {} as UserProfile;
+  const profile = userProfile || ({} as UserProfile);
+  const displayName = ((profile.firstName || '') + ' ' + (profile.lastName || '')).trim();
+  const memberSinceRaw = profile.memberSince || (profile as any).createdAt || '';
+  const memberSinceLabel = (() => {
+    if (!memberSinceRaw) return null;
+    try {
+      const d = new Date(memberSinceRaw);
+      if (isNaN(d.getTime())) return null;
+      return d.toLocaleDateString('es-ES', { year: 'numeric', month: 'long' });
+    } catch {
+      return null;
+    }
+  })();
 
   return (
     <div className="space-y-6 pb-24">
@@ -133,7 +179,7 @@ export default function ProfilePage() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">
-                  {profile.name || 'Usuario'}
+                  {displayName || profile.name || 'Usuario'}
                 </h1>
                 <p className="text-gray-500">{profile.email}</p>
                 <div className="flex items-center mt-2 space-x-4">
@@ -142,10 +188,11 @@ export default function ProfilePage() {
                     {profile.membershipType || 'Básico'}
                   </span>
                   <span className="text-sm text-gray-500">
-                    Miembro desde {new Date(profile.memberSince || '').toLocaleDateString('es-ES', {
-                      year: 'numeric',
-                      month: 'long'
-                    })}
+                    {memberSinceLabel ? (
+                      <>Miembro desde {memberSinceLabel}</>
+                    ) : (
+                      <>Miembro desde —</>
+                    )}
                   </span>
                 </div>
               </div>

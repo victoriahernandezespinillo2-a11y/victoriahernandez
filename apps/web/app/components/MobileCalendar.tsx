@@ -42,6 +42,8 @@ interface MobileCalendarProps {
   lightingSelected?: boolean;
   onLightingChange?: (selected: boolean) => void;
   lightingExtraPrice?: number;
+  minDate: string;
+  maxDate: string;
 }
 
 export function MobileCalendar({
@@ -61,8 +63,14 @@ export function MobileCalendar({
   lightingSelected = false,
   onLightingChange,
   lightingExtraPrice = 0,
+  minDate,
+  maxDate,
 }: MobileCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+  const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
+  const calendarRef = useRef<HTMLDivElement | null>(null);
+  const timeSlotsRef = useRef<HTMLDivElement | null>(null);
 
   // Helper consistente: YYYY-MM-DD en zona local
   const toLocalYMD = (d: Date) => {
@@ -71,11 +79,33 @@ export function MobileCalendar({
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
   };
-  const [showTimeSlots, setShowTimeSlots] = useState(false);
-  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
-  const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
-  const calendarRef = useRef<HTMLDivElement>(null);
-  const timeSlotsRef = useRef<HTMLDivElement>(null);
+
+  const toLocalDate = (dateString: string): Date => {
+    const segments = dateString.split('-').map((segment) => Number(segment));
+    const yearRaw = segments[0];
+    const monthRaw = segments[1];
+    const dayRaw = segments[2];
+    const now = new Date();
+
+    const year = typeof yearRaw === 'number' && Number.isFinite(yearRaw) ? yearRaw : now.getFullYear();
+    const month = typeof monthRaw === 'number' && Number.isFinite(monthRaw) ? monthRaw : now.getMonth() + 1;
+    const day = typeof dayRaw === 'number' && Number.isFinite(dayRaw) ? dayRaw : now.getDate();
+
+    return new Date(year, month - 1, day);
+  };
+
+  const minDateObj = toLocalDate(minDate);
+  const maxDateObj = toLocalDate(maxDate);
+  const minMonth = new Date(minDateObj.getFullYear(), minDateObj.getMonth(), 1);
+  const maxMonth = new Date(maxDateObj.getFullYear(), maxDateObj.getMonth(), 1);
+
+  useEffect(() => {
+    const base = selectedDate ? toLocalDate(selectedDate) : new Date();
+    let target = base;
+    if (target < minDateObj) target = minDateObj;
+    if (target > maxDateObj) target = maxDateObj;
+    setCurrentMonth(new Date(target.getFullYear(), target.getMonth(), 1));
+  }, [selectedDate, minDate, maxDate, minDateObj, maxDateObj]);
 
   // Generar días del mes - Formato español (lunes a domingo)
   const generateCalendarDays = () => {
@@ -100,7 +130,8 @@ export function MobileCalendar({
       
       const isCurrentMonth = date.getMonth() === month;
       const isToday = date.getTime() === today.getTime();
-      const isPast = date < today;
+      const isPast = date < minDateObj;
+      const isAfterMax = date > maxDateObj;
       const isSelected = selectedDate === toLocalYMD(date);
       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
       
@@ -112,7 +143,8 @@ export function MobileCalendar({
         isPast,
         isSelected,
         isWeekend,
-      dateString: toLocalYMD(date),
+        dateString: toLocalYMD(date),
+        isAfterMax,
       });
     }
 
@@ -123,12 +155,19 @@ export function MobileCalendar({
 
   // Navegación de meses
   const goToPreviousMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+    const prev = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
+    if (prev < minMonth) return;
+    setCurrentMonth(prev);
   };
 
   const goToNextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+    const next = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+    if (next > maxMonth) return;
+    setCurrentMonth(next);
   };
+
+  const canGoPrev = currentMonth > minMonth;
+  const canGoNext = currentMonth < maxMonth;
 
   // Gestos táctiles para navegación
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -161,15 +200,20 @@ export function MobileCalendar({
     if (isHorizontalSwipe && Math.abs(distanceX) > minSwipeDistance) {
       if (distanceX > 0) {
         // Swipe left - next month
-        goToNextMonth();
+        if (canGoNext) {
+          goToNextMonth();
+          if ('vibrate' in navigator) {
+            navigator.vibrate(10);
+          }
+        }
       } else {
         // Swipe right - previous month
-        goToPreviousMonth();
-      }
-      
-      // Haptic feedback
-      if ('vibrate' in navigator) {
-        navigator.vibrate(10);
+        if (canGoPrev) {
+          goToPreviousMonth();
+          if ('vibrate' in navigator) {
+            navigator.vibrate(10);
+          }
+        }
       }
     }
   };
@@ -233,8 +277,11 @@ export function MobileCalendar({
 
   // Manejar selección de fecha
   const handleDateSelect = (dateString: string) => {
+    const candidate = toLocalDate(dateString);
+    if (candidate < minDateObj || candidate > maxDateObj) {
+      return;
+    }
     onDateChange(dateString);
-    setShowTimeSlots(true);
     
     // Scroll suave a los horarios
     setTimeout(() => {
@@ -260,9 +307,10 @@ export function MobileCalendar({
         <div className="flex items-center justify-between mb-3">
           <button
             onClick={goToPreviousMonth}
-            className="p-2 rounded-full hover:bg-white hover:bg-opacity-20 transition-colors"
+            disabled={!canGoPrev}
+            className={`p-2 rounded-full transition-colors ${canGoPrev ? 'hover:bg-gray-200' : 'opacity-40 cursor-not-allowed'}`}
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="w-5 h-5" />
           </button>
           
           <h2 className="text-xl font-bold capitalize">
@@ -271,9 +319,10 @@ export function MobileCalendar({
           
           <button
             onClick={goToNextMonth}
-            className="p-2 rounded-full hover:bg-white hover:bg-opacity-20 transition-colors"
+            disabled={!canGoNext}
+            className={`p-2 rounded-full transition-colors ${canGoNext ? 'hover:bg-gray-200' : 'opacity-40 cursor-not-allowed'}`}
           >
-            <ChevronRight className="h-5 w-5" />
+            <ChevronRight className="w-5 h-5" />
           </button>
         </div>
         
@@ -304,8 +353,8 @@ export function MobileCalendar({
         {calendarDays.map((day, index) => (
           <button
             key={index}
-            onClick={() => !day.isPast && day.isCurrentMonth && day.dateString && handleDateSelect(day.dateString)}
-            disabled={day.isPast || !day.isCurrentMonth}
+            onClick={() => !day.isPast && !day.isAfterMax && day.dateString && handleDateSelect(day.dateString)}
+            disabled={day.isPast || day.isAfterMax}
             className={`
               aspect-square p-2 text-sm font-medium transition-all duration-200 relative
               ${day.isCurrentMonth ? 'text-gray-900' : 'text-gray-300'}
@@ -417,7 +466,7 @@ export function MobileCalendar({
       )}
 
       {/* Horarios disponibles */}
-      {showTimeSlots && selectedDate && (
+      {timeSlots.length > 0 && selectedDate && (
         <div ref={timeSlotsRef} className="p-4 border-t border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">

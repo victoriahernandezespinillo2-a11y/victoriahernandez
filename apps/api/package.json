@@ -11,7 +11,8 @@
     "lint": "eslint . --max-warnings 50000",
     "check-types": "tsc --noEmit",
     "seed:membership-plans": "tsx src/scripts/seed-membership-plans.ts",
-    "ledger:backfill": "tsx src/scripts/ledger-backfill.ts"
+    "ledger:backfill": "tsx src/scripts/ledger-backfill.ts",
+    "cleanup:user-history": "tsx src/scripts/purge-user-history.ts"
   },
   "dependencies": {
     "@prisma/client": "6.15.0",
@@ -44,6 +45,7 @@
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
+    "@types/jest": "^29.5.0",
     "@types/jszip": "^3.1.0",
     "@types/node": "^22.15.3",
     "@types/pdfkit": "^0.17.2",

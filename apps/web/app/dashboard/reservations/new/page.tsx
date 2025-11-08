@@ -23,6 +23,7 @@ import { api } from '@/lib/api';
 import { useCourts, usePricing } from '@/lib/hooks';
 import { ErrorHandler } from '../../../../lib/error-handler';
 import { useFirebaseAuth } from '@/components/auth/FirebaseAuthProvider';
+import { useSession } from 'next-auth/react';
 
 import CalendarVisualModal from '@/components/CalendarVisualModal';
 import { MobileCourtSelector } from '@/app/components/MobileCourtSelector';
@@ -47,6 +48,46 @@ function useIsMobile() {
 
   return isMobile;
 }
+
+const DEFAULT_MAX_ADVANCE_DAYS = 90;
+
+const formatYMD = (date: Date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const addDaysLocal = (date: Date, days: number) => {
+  const clone = new Date(date);
+  clone.setHours(0, 0, 0, 0);
+  clone.setDate(clone.getDate() + days);
+  return clone;
+};
+
+const clampDateString = (value: string, min: string, max: string) => {
+  if (!value) return min;
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+};
+
+const toDisplayDate = (value: string) => {
+  if (!value) return '';
+  const segments = value.split('-').map((segment) => Number(segment));
+  const [yRaw, mRaw, dRaw] = segments;
+  const now = new Date();
+  const year = typeof yRaw === 'number' && Number.isFinite(yRaw) ? yRaw : now.getFullYear();
+  const month = typeof mRaw === 'number' && Number.isFinite(mRaw) ? mRaw : now.getMonth() + 1;
+  const day = typeof dRaw === 'number' && Number.isFinite(dRaw) ? dRaw : now.getDate();
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
 
 interface Court {
   id: string;
@@ -78,6 +119,7 @@ interface TimeSlot {
 
 export default function NewReservationPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const { courts, getCourts } = useCourts();
   const { pricing, calculatePrice, reset: resetPricing } = usePricing();
   const isMobile = useIsMobile();
@@ -163,16 +205,21 @@ export default function NewReservationPage() {
   // Función para cargar timeSlots desde la API
   const loadTimeSlots = async (courtId: string, date: string, duration: number) => {
     if (!courtId || !date) return;
-    
+    const clampedDate = clampDate(date);
+    if (clampedDate !== date) {
+      console.warn('[RESERVAS] Fecha fuera de rango, se ignoró la solicitud de slots');
+      return;
+    }
+
     setLoadingTimeSlots(true);
     try {
       console.log('🔴 [FRONTEND-DEBUG] Llamando a getCalendarStatus con los siguientes datos:', {
         courtId,
-        date,
+        date: clampedDate,
         duration
       });
       const calendarData = await api.courts.getCalendarStatus(courtId, {
-        date,
+        date: clampedDate,
         duration
       });
       
@@ -563,14 +610,7 @@ export default function NewReservationPage() {
     }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-ES', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
+  const formatDate = (dateString: string) => toDisplayDate(dateString);
 
 
 
@@ -641,18 +681,23 @@ export default function NewReservationPage() {
           }
         }
         if (!startISO) return;
-        await calculatePrice({ 
+        const payload: Record<string, any> = {
           courtId: selectedCourt.id, 
           startTime: startISO, 
-          duration 
-        });
+          duration,
+        };
+        const userId = (session?.user as any)?.id;
+        if (userId) {
+          payload.userId = userId;
+        }
+        await calculatePrice(payload);
       } catch {
         // noop
       }
     };
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCalendarSlot]);
+  }, [selectedCalendarSlot, session?.user?.id]);
 
   // ⏳ INDICADOR DE CARGA MIENTRAS FIREBASE VERIFICA EL ESTADO
   if (authLoading) {
@@ -670,6 +715,31 @@ export default function NewReservationPage() {
   }
 
   const hasMultipleCenters = centers.length > 1;
+
+  const todayYMD = useMemo(() => formatYMD(new Date()), []);
+
+  const maxAdvanceDays = useMemo(() => {
+    if (!selectedCenter) return DEFAULT_MAX_ADVANCE_DAYS;
+    const raw = selectedCenter.bookingPolicy?.maxAdvanceDays ?? selectedCenter?.settings?.reservations?.maxAdvanceDays;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return DEFAULT_MAX_ADVANCE_DAYS;
+    const normalized = Math.trunc(parsed);
+    return Math.min(Math.max(normalized, 1), 365);
+  }, [selectedCenter]);
+
+  const minSelectableDate = todayYMD;
+  const maxSelectableDate = useMemo(() => formatYMD(addDaysLocal(new Date(), maxAdvanceDays)), [maxAdvanceDays]);
+
+  const clampDate = useMemo(() => {
+    return (dateValue: string) => clampDateString(dateValue, minSelectableDate, maxSelectableDate);
+  }, [minSelectableDate, maxSelectableDate]);
+
+  useEffect(() => {
+    const clamped = clampDate(selectedDate || minSelectableDate);
+    if (clamped !== selectedDate) {
+      setSelectedDate(clamped);
+    }
+  }, [selectedDate, clampDate, minSelectableDate]);
 
   return (
     <div className="space-y-6">
@@ -973,7 +1043,10 @@ export default function NewReservationPage() {
               // Vista móvil con MobileCalendar
               <MobileCalendar
                 selectedDate={selectedDate}
-                onDateChange={setSelectedDate}
+                onDateChange={(date) => {
+                  const clamped = clampDate(date);
+                  setSelectedDate(clamped);
+                }}
                 duration={selectedDuration}
                 onDurationChange={async (newDuration) => {
                   console.log('🔄 [DURATION-CHANGE-DESKTOP] Cambiando duración de', selectedDuration, 'a', newDuration);
@@ -984,7 +1057,7 @@ export default function NewReservationPage() {
                   // 🔄 Recargar slots con la nueva duración
                   if (selectedCourt && selectedDate) {
                     console.log('🔄 [DURATION-CHANGE-DESKTOP] Llamando loadTimeSlots con duración:', newDuration);
-                    await loadTimeSlots(selectedCourt.id, selectedDate, newDuration);
+                    await loadTimeSlots(selectedCourt.id, clampDate(selectedDate), newDuration);
                   }
                 }}
                 timeSlots={timeSlots}
@@ -1016,6 +1089,8 @@ export default function NewReservationPage() {
                   setLightingSelected(selected);
                 }}
                 lightingExtraPrice={selectedCourt?.lightingExtraPerHour || 0}
+                minDate={minSelectableDate}
+                maxDate={maxSelectableDate}
                 onContinue={async () => {
                    // En móvil, crear la reserva directamente con el slot seleccionado
                    if (selectedSlot && selectedCourt && selectedDate && !loadingReservation) {
@@ -1119,10 +1194,12 @@ export default function NewReservationPage() {
                       // 🔄 Recargar slots con la nueva duración
                       if (selectedCourt && selectedDate) {
                         console.log('🔄 [DURATION-CHANGE] Llamando loadTimeSlots con duración:', newDuration);
-                        await loadTimeSlots(selectedCourt.id, selectedDate, newDuration);
+                        await loadTimeSlots(selectedCourt.id, clampDate(selectedDate), newDuration);
                       }
                     }}
                     courtName={selectedCourt?.name}
+                    minDate={minSelectableDate}
+                    maxDate={maxSelectableDate}
                   />
                 </div>
 
@@ -1144,12 +1221,7 @@ export default function NewReservationPage() {
 
                       <div className="mb-4">
                         <p className="text-sm text-gray-600">
-                          {new Date(selectedDate).toLocaleDateString('es-ES', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
+                          {toDisplayDate(selectedDate)}
                         </p>
                         <p className="text-xs text-gray-500">
                           Duración: {duration === 60 ? '1 hora' : duration === 90 ? '1.5 horas' : duration === 120 ? '2 horas' : '3 horas'}
@@ -1395,7 +1467,7 @@ export default function NewReservationPage() {
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
           reservationId={createdReservationId || ''}
-          amount={Number(totalCost || 0)}
+          amount={Number((pricing?.total ?? totalCost) || 0)}
           currency="EUR"
           courtName={selectedCourt?.name || ''}
           dateLabel={selectedDate ? formatDate(selectedDate) : ''}
@@ -1407,11 +1479,22 @@ export default function NewReservationPage() {
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
           reservationId={createdReservationId || ''}
-          amount={Number(totalCost || 0)}
+          amount={Number((pricing?.total ?? totalCost) || 0)}
           currency="EUR"
           courtName={selectedCourt?.name || ''}
           dateLabel={selectedDate ? formatDate(selectedDate) : ''}
           timeLabel={selectedCalendarSlot ? `${selectedCalendarSlot.startTime} - ${selectedCalendarSlot.endTime}` : selectedTime}
+          pricingDetails={
+            pricing
+              ? {
+                  basePrice: pricing.basePrice ?? pricing.subtotal ?? totalCost ?? 0,
+                  discount: pricing.discount ?? 0,
+                  total: pricing.total ?? totalCost ?? 0,
+                  breakdown: Array.isArray(pricing.breakdown) ? pricing.breakdown : [],
+                  appliedRules: Array.isArray(pricing.appliedRules) ? pricing.appliedRules : [],
+                }
+              : undefined
+          }
           onSuccess={() => router.push('/dashboard/reservations')}
         />
       )}

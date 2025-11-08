@@ -1,6 +1,7 @@
 import { db, type PricingRule, type Court, type User } from '@repo/db';
 // Evitar enums de Prisma en este entorno; usar literales
 import { z } from 'zod';
+import { TariffService } from './tariff.service';
 
 // Esquemas de validación
 export const CalculatePriceSchema = z.object({
@@ -51,6 +52,7 @@ export interface PriceCalculation {
 }
 
 export class PricingService {
+  private tariffService = new TariffService();
   /**
    * Calcular precio dinámico para una reserva
    */
@@ -83,6 +85,7 @@ export class PricingService {
     
     // Obtener información del usuario si se proporciona
     let user: (User & { memberships: any[] }) | null = null;
+    let tariffEnrollment: Awaited<ReturnType<TariffService['hasApprovedEnrollment']>> | null = null;
     if (validatedInput.userId) {
       user = await db.user.findUnique({
         where: { id: validatedInput.userId },
@@ -96,6 +99,14 @@ export class PricingService {
           },
         },
       });
+      try {
+        tariffEnrollment = await this.tariffService.hasApprovedEnrollment(
+          validatedInput.userId,
+          validatedInput.startTime
+        );
+      } catch (error) {
+        console.error('[TARIFF-DISCOUNT] Error obteniendo tarifa aprobada:', error);
+      }
     }
     
     // Calcular precio base por hora
@@ -149,8 +160,28 @@ export class PricingService {
     
     // Calcular precios
     const subtotal = basePrice * finalMultiplier;
-    const discount = subtotal * memberDiscount;
-    let total = subtotal - discount;
+    let tariffDiscountRate = 0;
+    let tariffDiscountAmount = 0;
+    const allowedCourtIds = Array.isArray((tariffEnrollment as any)?.tariff?.courts)
+      ? (tariffEnrollment as any).tariff.courts.map((c: any) => c.courtId)
+      : [];
+    const courtEligible = allowedCourtIds.length === 0 || allowedCourtIds.includes(court.id);
+
+    if (tariffEnrollment?.tariff && courtEligible) {
+      tariffDiscountRate = Number(tariffEnrollment.tariff.discountPercent ?? 0);
+      if (tariffDiscountRate > 1) {
+        tariffDiscountRate = tariffDiscountRate / 100;
+      }
+      if (tariffDiscountRate > 0) {
+        tariffDiscountAmount = Number((subtotal * tariffDiscountRate).toFixed(2));
+        appliedRules.push(`Tarifa regulada (${tariffEnrollment.tariff.segment})`);
+      }
+    }
+
+    const subtotalAfterTariff = subtotal - tariffDiscountAmount;
+    const memberDiscountAmount = Number((subtotalAfterTariff * memberDiscount).toFixed(2));
+    const discount = tariffDiscountAmount + memberDiscountAmount;
+    let total = subtotalAfterTariff - memberDiscountAmount;
     // Impuestos (IVA/IGIC) desde configuración del centro
     const centerSettings: any = (court as any).center?.settings || {};
     const taxesCfg: any = centerSettings.taxes || {};
@@ -178,11 +209,19 @@ export class PricingService {
       amount: basePrice,
     });
     
+    // Agregar descuento de tarifa regulada si aplica
+    if (tariffDiscountAmount > 0) {
+      breakdown.push({
+        description: `Descuento tarifa regulada (${(tariffDiscountRate * 100).toFixed(0)}%)`,
+        amount: -tariffDiscountAmount,
+      });
+    }
+    
     // Agregar descuento de miembro si aplica
-    if (discount > 0) {
+    if (memberDiscountAmount > 0) {
       breakdown.push({
         description: `Descuento de miembro (${memberDiscount * 100}%)`,
-        amount: -discount,
+        amount: -memberDiscountAmount,
       });
     }
     

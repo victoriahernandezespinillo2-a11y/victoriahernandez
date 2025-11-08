@@ -12,7 +12,8 @@ async function cleanDatabase() {
     // Eliminar eventos y webhooks
     await prisma.outboxEvent.deleteMany()
     await prisma.webhookEvent.deleteMany()
-    await prisma.gdprDeletionRequest.deleteMany()
+    // No existe el modelo gdprDeletionRequest en el esquema actual
+    // Se omite esta limpieza para evitar errores de tipo
     
     // Eliminar datos relacionados con usuarios
     await prisma.waitingList.deleteMany()

@@ -258,7 +258,15 @@ export async function POST(request: NextRequest) {
       }
 
       const amount = Number(reservation.totalPrice || 0);
-      const creditsNeeded = Math.ceil(amount / euroPerCredit);
+      const creditsNeededRaw = amount / euroPerCredit;
+      const creditsNeeded = Number(creditsNeededRaw.toFixed(6));
+
+      if (!Number.isFinite(creditsNeeded) || creditsNeeded <= 0) {
+        return NextResponse.json(
+          { error: 'Monto inválido para el cobro en créditos' },
+          { status: 400 }
+        );
+      }
 
       // Idempotency-Key para evitar dobles cargos
       const idemKey = request.headers.get('Idempotency-Key') || undefined;
@@ -267,7 +275,7 @@ export async function POST(request: NextRequest) {
       await (db as any).$transaction(async (tx: any) => {
         // Idempotencia: si ya existe movimiento con el mismo idempotencyKey, no repetir
         if (idemKey) {
-          const existing = await tx.walletLedger.findUnique({ where: { idempotency_key: idemKey } }).catch(() => null);
+          const existing = await tx.walletLedger.findUnique({ where: { idempotencyKey: idemKey } }).catch(() => null);
           if (existing) {
             // En caso idempotente, asegurar que la reserva estÃ© marcada pagada
             await tx.reservation.update({ where: { id: reservation.id }, data: { status: 'PAID', paymentMethod: 'CREDITS' } });
@@ -277,21 +285,30 @@ export async function POST(request: NextRequest) {
 
         const user = await tx.user.findUnique({ where: { id: finalUserId }, select: { creditsBalance: true } });
         if (!user) throw new Error('Usuario no encontrado');
-        if ((user.creditsBalance || 0) < creditsNeeded) {
+        if (Number(user.creditsBalance || 0) < creditsNeeded) {
           throw new Error('Saldo de crÃ©ditos insuficiente');
         }
 
-        await tx.user.update({ where: { id: finalUserId }, data: { creditsBalance: { decrement: creditsNeeded } } });
+        const updatedUser = await tx.user.update({
+          where: { id: finalUserId },
+          data: { creditsBalance: { decrement: creditsNeeded } },
+          select: { creditsBalance: true }
+        });
         await tx.reservation.update({ where: { id: reservation.id }, data: { status: 'PAID', paymentMethod: 'CREDITS' } });
 
         await tx.walletLedger.create({
           data: {
             userId: finalUserId!,
-            reservationId: reservation.id,
-            amount: -creditsNeeded,
             type: 'DEBIT',
-            description: 'Pago de reserva con crÃ©ditos',
-            idempotency_key: idemKey,
+            reason: 'ORDER',
+            credits: creditsNeeded,
+            balanceAfter: Number(updatedUser.creditsBalance || 0),
+            metadata: {
+              reservationId: reservation.id,
+              amountEuro: amount,
+              euroPerCredit,
+            },
+            idempotencyKey: idemKey || null,
           }
         });
 

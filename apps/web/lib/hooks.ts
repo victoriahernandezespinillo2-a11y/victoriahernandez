@@ -485,19 +485,39 @@ export function useWaitingList() {
 /**
  * Hook para cálculo de precios
  */
+type PricingState = {
+  pricing: any | null;
+  recurringPricing: any | null;
+  raw: any;
+} | null;
+
 export function usePricing() {
-  const { data, loading, error, execute, reset } = useApiState<any>(null);
+  const { data, loading, error, execute, reset } = useApiState<PricingState>(null);
 
   const calculatePrice = useCallback((pricingData: any) => {
-    return execute(() => api.pricing.calculate(pricingData) as Promise<any>);
+    return execute(async () => {
+      const response = await api.pricing.calculate(pricingData) as any;
+      const normalized: PricingState = {
+        pricing: response?.pricing ?? response?.data?.pricing ?? (response?.success ? response?.data : response) ?? null,
+        recurringPricing: response?.recurringPricing ?? response?.data?.recurringPricing ?? null,
+        raw: response,
+      };
+      return normalized;
+    });
   }, [execute]);
 
+  const resetPricing = useCallback(() => {
+    reset();
+  }, [reset]);
+
   return {
-    pricing: data,
+    pricing: data?.pricing ?? null,
+    recurringPricing: data?.recurringPricing ?? null,
+    pricingRaw: data?.raw ?? null,
     loading,
     error,
     calculatePrice,
-    reset,
+    reset: resetPricing,
   };
 }
 

@@ -3,6 +3,7 @@ import { reservationService } from '../../../../lib/services/reservation.service
 import { withReservationMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { z } from 'zod';
+import { processReservationAutoRefund } from '@/lib/services/outbox-refund-processor';
 
 // Esquema para actualizar reserva (normaliza estados a mayúsculas válidas)
 const StatusEnum = z.enum(['PENDING', 'PAID', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW']);
@@ -185,9 +186,18 @@ export async function DELETE(
         user.id
       );
 
+      // Intentar reembolso automático en créditos (fuera de la transacción de cancelación)
+      let autoRefund = { success: false, reason: 'No procesado' } as { success: boolean; creditsRefunded?: number; reason?: string };
+      try {
+        autoRefund = await processReservationAutoRefund(reservationId);
+      } catch (e: any) {
+        console.warn('Auto-refund fallo no bloqueante:', e?.message || e);
+      }
+
       return ApiResponse.success({
         message: 'Reserva cancelada exitosamente',
         reservation: cancelledReservation,
+        autoRefund,
       });
     } catch (error) {
       console.error('Error cancelando reserva:', error);

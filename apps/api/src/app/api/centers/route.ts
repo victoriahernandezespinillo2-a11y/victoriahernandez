@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@repo/auth';
 import { db } from '@repo/db';
 import { z } from 'zod';
+import { resolveMaxAdvanceDays, resolveMinAdvanceHours } from '@/lib/utils/booking-settings';
 
 // Esquema para filtros de búsqueda de centros
 const GetCentersSchema = z.object({
@@ -180,6 +181,9 @@ export async function GET(request: NextRequest) {
         max: Math.max(...center.courts.map((court: any) => Number((court as any).basePricePerHour || 0))),
       } : null;
       
+      const maxAdvanceDays = resolveMaxAdvanceDays(s);
+      const minAdvanceHours = resolveMinAdvanceHours(s);
+
       return {
         id: center.id,
         name: center.name,
@@ -206,6 +210,10 @@ export async function GET(request: NextRequest) {
         })),
         createdAt: center.createdAt,
         updatedAt: center.updatedAt,
+        bookingPolicy: {
+          maxAdvanceDays,
+          minAdvanceHours,
+        },
       };
     });
     

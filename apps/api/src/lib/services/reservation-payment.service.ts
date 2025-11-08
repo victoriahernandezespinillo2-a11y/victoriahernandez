@@ -54,7 +54,7 @@ export class ReservationPaymentService {
       console.log('🔍 [CREDITS-PAYMENT] Buscando reserva...');
       const reservation = await this.prisma.reservation.findUnique({
         where: { id: reservationId },
-        include: { user: true, court: true }
+        include: { user: true, court: { include: { center: true } } }
       });
 
       if (!reservation) {
@@ -95,8 +95,39 @@ export class ReservationPaymentService {
         };
       }
 
+      const centerSettings: any = (reservation.court as any)?.center?.settings || {};
+      const creditsCfg: any = centerSettings.credits || {};
+      const euroPerCredit = typeof creditsCfg.euroPerCredit === 'number' && creditsCfg.euroPerCredit > 0
+        ? creditsCfg.euroPerCredit
+        : null;
+
+      if (!euroPerCredit) {
+        console.error('❌ [CREDITS-PAYMENT] euroPerCredit no configurado para el centro');
+        return {
+          success: false,
+          reservationId,
+          paymentMethod: 'CREDITS',
+          amount,
+          error: 'El centro no tiene configurado el valor euroPorCrédito. Contacta con el administrador.'
+        };
+      }
+
+      const creditsToChargeRaw = amount / euroPerCredit;
+      const creditsToCharge = Number(creditsToChargeRaw.toFixed(6));
+
+      if (!Number.isFinite(creditsToCharge) || creditsToCharge <= 0) {
+        console.error('❌ [CREDITS-PAYMENT] Créditos a cobrar inválidos:', { amount, euroPerCredit, creditsToCharge });
+        return {
+          success: false,
+          reservationId,
+          paymentMethod: 'CREDITS',
+          amount,
+          error: 'Monto inválido para el cobro en créditos.'
+        };
+      }
+
       // 2. Verificar que el usuario tiene suficientes créditos
-      const canAfford = await this.creditSystemService.canAfford(userId, amount);
+      const canAfford = await this.creditSystemService.canAfford(userId, creditsToCharge);
       if (!canAfford) {
         const currentBalance = await this.creditSystemService.getBalance(userId);
         return {
@@ -104,7 +135,7 @@ export class ReservationPaymentService {
           reservationId,
           paymentMethod: 'CREDITS',
           amount,
-          error: `Saldo insuficiente. Disponible: ${currentBalance} créditos, Requerido: ${amount} créditos`
+          error: `Saldo insuficiente. Disponible: ${currentBalance} créditos, Requerido: ${creditsToCharge} créditos (importe €${amount})`
         };
       }
 
@@ -139,7 +170,7 @@ export class ReservationPaymentService {
         console.log('💰 [CREDITS-PAYMENT] Deduciendo créditos...');
         const creditResult = await this.creditSystemService.deductCredits({
           userId,
-          credits: amount,
+          credits: creditsToCharge,
           reason: 'ORDER',
           referenceId: reservationId,
           metadata: {
@@ -147,7 +178,9 @@ export class ReservationPaymentService {
             courtId: reservation.courtId,
             courtName: reservation.court?.name,
             startTime: reservation.startTime,
-            endTime: reservation.endTime
+            endTime: reservation.endTime,
+            amountEuro: amount,
+            euroPerCredit
           },
           idempotencyKey: idempotencyKey || `RESERVATION_CREDITS:${reservationId}:${Date.now()}`
         });
@@ -162,7 +195,7 @@ export class ReservationPaymentService {
             status: 'PAID',
             paidAt: new Date(),
             paymentMethod: 'CREDITS',
-            creditsUsed: amount,
+            creditsUsed: creditsToCharge,
             creditDiscount: 0, // Sin descuento por ahora
             // Agregar información de promoción si existe
             ...(input.appliedPromo && input.appliedPromo.code && {
@@ -179,7 +212,7 @@ export class ReservationPaymentService {
         // ✨ Aplicar USAGE_BONUS automáticamente si existe (fuera de transacción para no bloquear)
         setImmediate(async () => {
           try {
-            await this.applyUsageBonus(userId, amount);
+            await this.applyUsageBonus(userId, creditsToCharge);
           } catch (promoError) {
             console.error('⚠️ [PAYMENT] Error aplicando USAGE_BONUS (no crítico):', promoError);
           }
@@ -248,7 +281,7 @@ export class ReservationPaymentService {
               amount: amount,
               currency: 'EUR',
               method: 'CREDITS',
-              creditAmount: amount,
+              creditAmount: creditsToCharge,
               cardAmount: 0,
               status: 'PAID',
               referenceType: 'RESERVATION',
@@ -259,7 +292,9 @@ export class ReservationPaymentService {
                 courtName: reservation.court?.name,
                 startTime: reservation.startTime,
                 endTime: reservation.endTime,
-                paymentMethod: 'CREDITS'
+                paymentMethod: 'CREDITS',
+                amountEuro: amount,
+                euroPerCredit
               },
               processedAt: new Date()
             }
@@ -276,7 +311,7 @@ export class ReservationPaymentService {
           reservationId,
           paymentMethod: 'CREDITS',
           amount,
-          creditsUsed: amount,
+          creditsUsed: creditsToCharge,
           balanceAfter: creditResult.balanceAfter
         };
         console.log('✅ [CREDITS-PAYMENT] Transacción completada exitosamente:', result);
@@ -301,7 +336,9 @@ export class ReservationPaymentService {
           metadata: { 
             provider: 'CREDITS',
             reservationId,
-            courtId: reservation?.courtId
+            courtId: reservation?.courtId,
+            creditsUsed: creditsToCharge,
+            euroPerCredit
           }
         });
       } catch (e) {
@@ -318,7 +355,7 @@ export class ReservationPaymentService {
               userId,
               paymentMethod: 'CREDITS',
               amount,
-              creditsUsed: amount
+              creditsUsed: creditsToCharge
             }
           }
         });

@@ -2,9 +2,11 @@ import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { z } from 'zod';
-import { stripeService } from '@repo/payments';
+import { PaymentService } from '@/lib/services/payment.service';
 import { ledgerService } from '@/lib/services/ledger.service';
 import { walletService } from '@/lib/services/wallet.service';
+
+const paymentService = new PaymentService();
 
 const RefundSchema = z.object({
   amount: z.number().positive().optional(),
@@ -53,15 +55,21 @@ export async function POST(request: NextRequest) {
           metadata: { reservationId: reservation.id, refundReason: input.reason },
           idempotencyKey: `REFUND_CREDITS:RES:${reservation.id}`
         });
-      } else if (paymentIntentId) {
-        // Reembolso tradicional con Stripe
-        refund = await stripeService.createRefund({
-          paymentIntentId,
-          amount: input.amount,
-          reason: 'requested_by_customer',
-        });
       } else {
-        return ApiResponse.badRequest('La reserva no tiene un método de pago válido para reembolsar');
+        // Reembolso de pago con tarjeta (Redsys por defecto)
+        const payment = await db.payment.findFirst({
+          where: { referenceType: 'RESERVATION', referenceId: reservation.id },
+          orderBy: { processedAt: 'desc' }
+        });
+        if (!payment) {
+          return ApiResponse.badRequest('No se encontró un pago completado asociado a la reserva');
+        }
+        refund = await paymentService.processRefund({
+          paymentId: payment.id,
+          amount: input.amount || Number(reservation.totalPrice || 0),
+          reason: input.reason,
+          refundType: input.amount ? 'PARTIAL' : 'FULL'
+        });
       }
 
       // Registrar evento en outbox para que el front muestre estado "REFUNDED"
@@ -71,7 +79,7 @@ export async function POST(request: NextRequest) {
           eventData: {
             reservationId: reservation.id,
             paymentIntentId,
-            refundId: refund?.id || null,
+            refundId: refund?.refundId || null,
             amount: input.amount || Number(reservation.totalPrice || 0),
             reason: input.reason,
             creditsRefunded: creditsToRefund,
@@ -88,10 +96,10 @@ export async function POST(request: NextRequest) {
           currency: 'EUR',
           method: paymentMethod === 'CREDITS' ? 'CREDITS' : 'CARD',
           paidAt: new Date(),
-          gatewayRef: refund?.id || null,
-          idempotencyKey: `REFUND:RES:${reservation.id}:${refund?.id || 'credits'}`,
+          gatewayRef: refund?.refundId || null,
+          idempotencyKey: `REFUND:RES:${reservation.id}:${refund?.refundId || 'credits'}`,
           metadata: { 
-            provider: paymentMethod === 'CREDITS' ? 'CREDITS' : 'STRIPE',
+            provider: paymentMethod === 'CREDITS' ? 'CREDITS' : (paymentIntentId ? 'STRIPE' : 'REDSYS'),
             creditsRefunded: creditsToRefund
           }
         });
@@ -100,7 +108,7 @@ export async function POST(request: NextRequest) {
       }
 
       return ApiResponse.success({ 
-        refundId: refund?.id || null, 
+        refundId: refund?.refundId || null, 
         status: refund?.status || 'completed',
         creditsRefunded: creditsToRefund
       });

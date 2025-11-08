@@ -57,6 +57,9 @@ model User {
   referrals             User[]                 @relation("UserReferrals")
   waitingLists          WaitingList[]
   walletLedger          WalletLedger[]
+  tariffEnrollments     TariffEnrollment[]     @relation("UserTariffEnrollments")
+  approvedTariffEnrollments TariffEnrollment[] @relation("AdminTariffApprovals")
+  tariffEnrollmentAuditChanges TariffEnrollmentAudit[] @relation("TariffAuditChanges")
 
   @@index([createdAt, role])
   @@index([isActive, createdAt])
@@ -110,11 +113,82 @@ model Court {
   pricingRules         PricingRule[]
   reservations         Reservation[]
   waitingLists         WaitingList[]
+  tariffCourts         TariffCourt[]
 
   @@index([sportType, isActive])
   @@index([maintenanceStatus, isActive])
   @@index([centerId, sportType])
   @@map("courts")
+}
+
+model AgeBasedTariff {
+  id                     String                 @id @default(cuid())
+  segment                TariffSegment
+  minAge                 Int                    @map("min_age")
+  maxAge                 Int?                   @map("max_age")
+  discountPercent        Decimal                @map("discount_percent")
+  description            String?
+  requiresManualApproval Boolean               @default(true) @map("requires_manual_approval")
+  validFrom              DateTime               @map("valid_from")
+  validUntil             DateTime?              @map("valid_until")
+  isActive               Boolean               @default(true) @map("is_active")
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
+  enrollments            TariffEnrollment[]
+  courts                 TariffCourt[]
+
+  @@index([isActive, validFrom, validUntil], map: "age_based_tariffs_is_active_valid_from_valid_until_idx")
+  @@map("age_based_tariffs")
+}
+
+model TariffEnrollment {
+  id          String                  @id @default(cuid())
+  userId      String                  @map("user_id")
+  tariffId    String                  @map("tariff_id")
+  status      TariffEnrollmentStatus  @default(PENDING)
+  requestedAt DateTime                @map("requested_at")
+  approvedAt  DateTime?               @map("approved_at")
+  approvedBy  String?                 @map("approved_by")
+  notes       String?
+  documentUrl String?                 @map("document_url")
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+  tariff      AgeBasedTariff          @relation(fields: [tariffId], references: [id], onDelete: Restrict)
+  user        User                    @relation("UserTariffEnrollments", fields: [userId], references: [id], onDelete: Cascade)
+  approvedByUser User?                @relation("AdminTariffApprovals", fields: [approvedBy], references: [id])
+  audits      TariffEnrollmentAudit[]
+
+  @@index([userId, status], map: "tariff_enrollments_user_id_status_idx")
+  @@index([tariffId, status], map: "tariff_enrollments_tariff_id_status_idx")
+  @@map("tariff_enrollments")
+}
+
+model TariffEnrollmentAudit {
+  id            String                 @id @default(cuid())
+  enrollmentId  String                 @map("enrollment_id")
+  oldStatus     TariffEnrollmentStatus @map("old_status")
+  newStatus     TariffEnrollmentStatus @map("new_status")
+  changedBy     String?                @map("changed_by")
+  changedAt     DateTime               @default(now()) @map("changed_at")
+  notesSnapshot String?                @map("notes_snapshot")
+  metadata      Json?
+  enrollment    TariffEnrollment       @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  changedByUser User?                  @relation("TariffAuditChanges", fields: [changedBy], references: [id])
+
+  @@index([enrollmentId], map: "tariff_enrollment_audit_enrollment_id_idx")
+  @@map("tariff_enrollment_audit")
+}
+
+model TariffCourt {
+  tariffId  String           @map("tariff_id")
+  courtId   String           @map("court_id")
+  createdAt DateTime         @default(now()) @map("created_at")
+  tariff    AgeBasedTariff   @relation(fields: [tariffId], references: [id], onDelete: Cascade)
+  court     Court            @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  @@id([tariffId, courtId])
+  @@index([courtId], map: "tariff_allowed_courts_court_id_idx")
+  @@map("tariff_allowed_courts")
 }
 
 model Reservation {
@@ -919,6 +993,20 @@ enum UserRole {
   USER
   STAFF
   ADMIN
+}
+
+enum TariffSegment {
+  INFANTIL
+  JOVEN
+  SENIOR
+  PERSONALIZADA
+}
+
+enum TariffEnrollmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
 }
 
 enum ReservationStatus {

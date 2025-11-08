@@ -25,4 +25,7 @@ export interface CalendarData {
   };
   slots: CalendarSlot[];
   legend: Record<string, { color: string; label: string }>;
+  limits?: {
+    maxAdvanceDays: number;
+  };
 }

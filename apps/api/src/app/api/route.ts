@@ -113,6 +113,17 @@ export async function GET(request: NextRequest) {
           types: 'GET /api/memberships/types',
           stats: 'GET /api/memberships/stats'
         },
+        tariffs: {
+          listPublic: 'GET /api/tariffs',
+          enroll: 'POST /api/tariffs/enroll',
+          myEnrollments: 'GET /api/tariffs/enrollments/me',
+          adminList: 'GET /api/admin/tariffs',
+          adminCreate: 'POST /api/admin/tariffs',
+          adminUpdate: 'PUT /api/admin/tariffs/[id]',
+          adminEnrollments: 'GET /api/admin/tariffs/enrollments',
+          adminApprove: 'POST /api/admin/tariffs/enrollments/[id]/approve',
+          adminReject: 'POST /api/admin/tariffs/enrollments/[id]/reject'
+        },
         
         // Torneos
         tournaments: {

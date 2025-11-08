@@ -244,6 +244,7 @@ const ManualReservationSchema = z.object({
     amount: z.number().min(0).optional(),
     reason: z.string().optional(),
     details: z.record(z.any()).optional(),
+    sendEmail: z.boolean().optional(),
   }).optional(),
   sendNotifications: z.boolean().optional().default(true),
 });
@@ -423,16 +424,20 @@ export async function POST(request: NextRequest) {
           if (!euroPerCredit || euroPerCredit <= 0) {
             return ApiResponse.badRequest('Configuración de créditos no definida en el centro');
           }
-          const creditsNeeded = Math.ceil(amount / euroPerCredit);
+          const creditsNeededRaw = amount / euroPerCredit;
+          const creditsNeeded = Number(creditsNeededRaw.toFixed(6));
+          if (!Number.isFinite(creditsNeeded) || creditsNeeded <= 0) {
+            return ApiResponse.badRequest('Monto inválido para el cobro en créditos');
+          }
           await db.$transaction(async (tx: any) => {
             const user = await tx.user.findUnique({ where: { id: userId }, select: { creditsBalance: true } });
             if (!user) throw new Error('Usuario no encontrado');
-            if ((user.creditsBalance || 0) < creditsNeeded) {
+            if (Number(user.creditsBalance || 0) < creditsNeeded) {
               throw new Error('Saldo de créditos insuficiente');
             }
             await tx.user.update({ where: { id: userId }, data: { creditsBalance: { decrement: creditsNeeded } } });
             await tx.reservation.update({ where: { id: reservation.id }, data: { status: 'PAID' as any, paymentMethod: 'CREDITS' } });
-            await tx.outboxEvent.create({ data: { eventType: 'CREDITS_DEBITED', eventData: { reservationId: reservation.id, userId, credits: creditsNeeded, euroPerCredit } as any } });
+            await tx.outboxEvent.create({ data: { eventType: 'CREDITS_DEBITED', eventData: { reservationId: reservation.id, userId, credits: creditsNeeded, euroPerCredit, amountEuro: amount } as any } });
           });
           break;
         }
@@ -445,7 +450,7 @@ export async function POST(request: NextRequest) {
       let paymentLinkUrl: string | undefined;
 
       // 4) Si el método es LINK, generar enlace de pago (Redsys redirect) y enviar por email
-      if (input.payment?.method === 'LINK') {
+  if (input.payment?.method === 'LINK') {
         const amountDue = Number(reservation.totalPrice || 0);
         // Reglas: no generar si importe 0 o estado incompatible o ya hay pago
         const blockedStatuses = new Set(['PAID','COMPLETED','CANCELLED']);
@@ -455,7 +460,7 @@ export async function POST(request: NextRequest) {
         if (!(amountDue > 0)) {
           return ApiResponse.badRequest('La reserva no tiene importe a cobrar');
         }
-        const existingPayment = await db.outboxEvent.findFirst({
+    const existingPayment = await db.outboxEvent.findFirst({
           where: {
             eventType: { in: ['PAYMENT_RECORDED','RESERVATION_PAID'] },
             eventData: { path: ['reservationId'], equals: reservation.id } as any,
@@ -468,7 +473,7 @@ export async function POST(request: NextRequest) {
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
         const redirectUrl = `${apiUrl}/api/payments/redsys/redirect?rid=${encodeURIComponent(reservation.id)}`;
-        paymentLinkUrl = redirectUrl;
+    paymentLinkUrl = redirectUrl;
         await db.outboxEvent.create({
           data: {
             eventType: 'PAYMENT_LINK_CREATED',
@@ -483,14 +488,15 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        const user = await db.user.findUnique({ where: { id: userId } });
-        if (user?.email && paymentLinkUrl) {
-          await emailService.sendEmail({
-            to: user.email,
-            subject: 'Enlace de pago de tu reserva',
-            html: `<p>Hola ${user.name || ''},</p><p>Puedes completar el pago de tu reserva haciendo clic en el siguiente enlace:</p><p><a href="${paymentLinkUrl}">Pagar ahora</a></p>`,
-          });
-        }
+    const user = await db.user.findUnique({ where: { id: userId } });
+    const shouldSendEmail = !!input.payment?.sendEmail;
+    if (shouldSendEmail && user?.email && paymentLinkUrl) {
+      await emailService.sendEmail({
+        to: user.email,
+        subject: 'Enlace de pago de tu reserva',
+        html: `<p>Hola ${user.name || ''},</p><p>Puedes completar el pago de tu reserva haciendo clic en el siguiente enlace:</p><p><a href="${paymentLinkUrl}">Pagar ahora</a></p>`,
+      });
+    }
       }
 
       // 5) Notificaciones básicas (deferred via outbox)

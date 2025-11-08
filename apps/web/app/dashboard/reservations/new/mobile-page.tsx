@@ -36,6 +36,7 @@ interface Court {
   rating?: number;
   sportType?: string;
   lightingExtraPerHour?: number;
+  centerId?: string; // Added centerId to Court interface
 }
 
 interface CalendarSlot {
@@ -69,6 +70,8 @@ export default function MobileNewReservationPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [createdReservationId, setCreatedReservationId] = useState<string | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [bookingPolicy, setBookingPolicy] = useState<{ maxAdvanceDays: number; minAdvanceHours: number } | null>(null);
+  const [policyCache, setPolicyCache] = useState<Record<string, { maxAdvanceDays: number; minAdvanceHours: number }>>({});
 
   // Deportes disponibles
   const sports = ['football', 'basketball', 'tennis', 'volleyball'];
@@ -110,10 +113,38 @@ export default function MobileNewReservationPage() {
     return courts.filter(court => court.sportType === selectedSport);
   }, [selectedSport, courts]);
 
-  // Fechas disponibles (formato local YYYY-MM-DD)
-  const toLocalYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  const minDate = toLocalYMD(new Date());
-  const maxDate = toLocalYMD(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+  const DEFAULT_MAX_ADVANCE_DAYS = 90;
+
+  const formatYMD = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+  const addDaysLocal = (date: Date, days: number) => {
+    const clone = new Date(date);
+    clone.setHours(0, 0, 0, 0);
+    clone.setDate(clone.getDate() + days);
+    return clone;
+  };
+
+  const clampDateString = (value: string, min: string, max: string) => {
+    if (!value) return min;
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
+  };
+
+  const todayYMD = useMemo(() => formatYMD(new Date()), []);
+  const maxAdvanceDays = bookingPolicy?.maxAdvanceDays ?? DEFAULT_MAX_ADVANCE_DAYS;
+  const minSelectableDate = todayYMD;
+  const maxSelectableDate = useMemo(() => formatYMD(addDaysLocal(new Date(), maxAdvanceDays)), [maxAdvanceDays]);
+  const clampDate = useMemo(() => {
+    return (value: string) => clampDateString(value, minSelectableDate, maxSelectableDate);
+  }, [minSelectableDate, maxSelectableDate]);
+
+  useEffect(() => {
+    const clamped = clampDate(selectedDate || minSelectableDate);
+    if (clamped !== selectedDate) {
+      setSelectedDate(clamped);
+    }
+  }, [selectedDate, clampDate, minSelectableDate]);
 
   // Calcular precio cuando cambien las selecciones
   useEffect(() => {
@@ -215,6 +246,54 @@ export default function MobileNewReservationPage() {
       default: return false;
     }
   };
+
+  // Cargar política de reservas del centro asociado a la cancha seleccionada
+  useEffect(() => {
+    const controller = new AbortController();
+    const fetchPolicy = async (centerId: string) => {
+      if (policyCache[centerId]) {
+        setBookingPolicy(policyCache[centerId]);
+        return;
+      }
+      try {
+        const response: any = await api.centers.getById(centerId);
+        const data = (response?.data || response) as any;
+        const settings = data?.settings || {};
+        const rawMax = settings?.reservations?.maxAdvanceDays ?? data?.bookingPolicy?.maxAdvanceDays;
+        const rawMin = settings?.reservations?.minAdvanceHours ?? data?.bookingPolicy?.minAdvanceHours;
+        let maxDays = Number(rawMax);
+        if (!Number.isFinite(maxDays)) maxDays = DEFAULT_MAX_ADVANCE_DAYS;
+        maxDays = Math.min(Math.max(Math.trunc(maxDays), 1), 365);
+        let minHours = Number(rawMin);
+        if (!Number.isFinite(minHours) || minHours < 0) minHours = 0;
+        const policy = { maxAdvanceDays: maxDays, minAdvanceHours: minHours };
+        if (!controller.signal.aborted) {
+          setPolicyCache(prev => ({ ...prev, [centerId]: policy }));
+          setBookingPolicy(policy);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setBookingPolicy({ maxAdvanceDays: DEFAULT_MAX_ADVANCE_DAYS, minAdvanceHours: 0 });
+        }
+      }
+    };
+
+    if (selectedCourt?.centerId) {
+      fetchPolicy(selectedCourt.centerId);
+    } else {
+      setBookingPolicy(null);
+    }
+
+    return () => controller.abort();
+  }, [selectedCourt?.centerId, policyCache]);
+
+  useEffect(() => {
+    if (!selectedCourt?.centerId) return;
+    const clamped = clampDate(selectedDate || minSelectableDate);
+    if (clamped !== selectedDate) {
+      setSelectedDate(clamped);
+    }
+  }, [selectedCourt?.centerId, clampDate, selectedDate, minSelectableDate]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -417,15 +496,14 @@ export default function MobileNewReservationPage() {
                   </label>
                   <input
                     type="date"
-                    min={minDate}
-                    max={maxDate}
+                    min={minSelectableDate}
+                    max={maxSelectableDate}
                     value={selectedDate}
                     lang="es-ES"
                     data-locale="es-ES"
                     onChange={(e) => {
-                      setSelectedDate(e.target.value);
-                      setSelectedTime('');
-                      setSelectedCalendarSlot(null);
+                      const clamped = clampDate(e.target.value);
+                      setSelectedDate(clamped);
                     }}
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg"
                   />
@@ -628,11 +706,22 @@ export default function MobileNewReservationPage() {
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
         reservationId={createdReservationId || ''}
-        amount={Number(totalCost || 0)}
+        amount={Number((pricing?.total ?? totalCost) || 0)}
         currency="COP"
         courtName={selectedCourt?.name || ''}
         dateLabel={selectedDate}
         timeLabel={selectedTime}
+        pricingDetails={
+          pricing
+            ? {
+                basePrice: pricing.basePrice ?? pricing.subtotal ?? totalCost ?? 0,
+                discount: pricing.discount ?? 0,
+                total: pricing.total ?? totalCost ?? 0,
+                breakdown: Array.isArray(pricing.breakdown) ? pricing.breakdown : [],
+                appliedRules: Array.isArray(pricing.appliedRules) ? pricing.appliedRules : [],
+              }
+            : undefined
+        }
         onSuccess={() => router.push('/dashboard/reservations')}
       />
     </div>

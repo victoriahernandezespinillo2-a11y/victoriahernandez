@@ -9,6 +9,10 @@ import { zonedTimeToUtc, utcToZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { db } from '@repo/db';
 import { withAuthMiddleware, ApiResponse } from '@/lib/middleware';
 import { ScheduleCompatibilityService } from '@/lib/services/schedule-compatibility.service';
+import {
+  resolveMaxAdvanceDays,
+  validateWithinAdvanceWindow,
+} from '@/lib/utils/booking-settings';
 
 // Forzar renderizado dinámico para deshabilitar el cacheo de esta ruta
 export const dynamic = 'force-dynamic';
@@ -72,13 +76,40 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         return ApiResponse.badRequest('Fecha requerida');
       }
 
-      // 1. Definir la zona horaria del centro como la fuente de verdad.
-      const centerTz = 'Europe/Madrid';
+      const court = await db.court.findUnique({
+        where: { id: courtId },
+        select: {
+          id: true,
+          isActive: true,
+          maintenanceStatus: true,
+          center: {
+            select: {
+              settings: true,
+              timezone: true,
+            },
+          },
+        },
+      });
 
-      // 2. Simplificar construcción de fechas
-      const startOfDay = new Date(`${date}T00:00:00`);
-      const endOfDay = new Date(`${date}T23:59:59`);
-      const targetDate = startOfDay;
+      if (!court) {
+        return ApiResponse.notFound('Cancha no encontrada');
+      }
+
+      const centerSettings = (court.center?.settings as any) || {};
+      const centerTz = court.center?.timezone || centerSettings?.general?.timezone || 'Europe/Madrid';
+      const maxAdvanceDays = resolveMaxAdvanceDays(centerSettings);
+
+      const targetDate = new Date(`${date}T00:00:00`);
+      const now = new Date();
+
+      if (!validateWithinAdvanceWindow(targetDate, now, maxAdvanceDays)) {
+        return ApiResponse.badRequest(`Las reservas solo pueden consultarse hasta ${maxAdvanceDays} días de antelación`);
+      }
+
+      const startOfDay = new Date(targetDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(targetDate);
+      endOfDay.setHours(23, 59, 59, 999);
 
       // 🔍 LOGGING PARA DEBUGGING DE FECHAS (AHORA ZONIFICADO)
       console.log(`🔍 [CALENDAR-DATES] Fechas calculadas para zona horaria ${centerTz}:`, {
@@ -154,21 +185,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     // 3) Información de la cancha
-    const court = await db.court.findUnique({
-        where: { id: courtId },
-        select: {
-          id: true,
-          name: true,
-          isActive: true,
-          maintenanceStatus: true,
-          center: {
-            select: {
-              settings: true
-            }
-          }
-        }
-      });
-
     // 4) Reservas del usuario ese día (todas canchas) 
     const userReservations = await db.reservation.findMany({
         where: {
@@ -219,7 +235,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const slotMinutes = 30; // Intervalo de 30 minutos
     
     // 🕒 OBTENER HORARIOS DE OPERACIÓN DEL CENTRO (ENTERPRISE COMPATIBILITY)
-    const centerSettings = court?.center?.settings as any || {};
     const weekday = targetDate.getDay(); // Usar directamente el día de la fecha objetivo
     
     // 🚀 NUEVA LÓGICA: Usar servicio de compatibilidad enterprise
@@ -235,13 +250,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (daySlots.length === 0) {
       // Centro cerrado este día - no generar slots
       console.log(`📅 [CALENDAR-ENTERPRISE] Centro cerrado el día ${weekday}`);
-      return NextResponse.json({
+      return ApiResponse.success({
         courtId,
         date,
         duration,
         summary: { total: 0, available: 0, booked: 0, maintenance: 0, userBooked: 0, past: 0, unavailable: 0 },
         slots: [],
-        legend: {}
+        legend: {},
+        limits: { maxAdvanceDays },
       });
     }
 
@@ -271,13 +287,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         if (ex) {
           if (ex.closed === true) {
             // Centro cerrado: devolver sin slots
-            return NextResponse.json({
+            return ApiResponse.success({
               courtId,
               date,
               duration,
               summary: { total: 0, available: 0, booked: 0, maintenance: 0, userBooked: 0, past: 0, unavailable: 0 },
               slots: [],
-              legend: {}
+              legend: {},
+              limits: { maxAdvanceDays },
             });
           }
           if (Array.isArray(ex.ranges) && ex.ranges.length > 0) {
@@ -400,7 +417,34 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.log(`⚠️ [CALENDAR-ENTERPRISE] Sin horarios configurados para este día`);
     }
 
-    return ApiResponse.success({ courtId, date: targetDate.toISOString(), slots: calendarSlots });
+    const normalizedSummary = {
+      total: calendarSlots.length,
+      available: calendarSlots.filter((slot) => slot.status === 'AVAILABLE').length,
+      booked: calendarSlots.filter((slot) => slot.status === 'BOOKED').length,
+      maintenance: calendarSlots.filter((slot) => slot.status === 'MAINTENANCE').length,
+      userBooked: calendarSlots.filter((slot) => slot.status === 'USER_BOOKED').length,
+      past: calendarSlots.filter((slot) => slot.status === 'PAST').length,
+      unavailable: calendarSlots.filter((slot) => slot.status === 'UNAVAILABLE').length,
+    };
+
+    const legend = {
+      AVAILABLE: { color: '#10b981', label: 'Disponible' },
+      BOOKED: { color: '#ef4444', label: 'Reservado' },
+      MAINTENANCE: { color: '#f59e0b', label: 'Mantenimiento' },
+      USER_BOOKED: { color: '#6366f1', label: 'Reserva del usuario' },
+      PAST: { color: '#9ca3af', label: 'Horario pasado' },
+      UNAVAILABLE: { color: '#dc2626', label: 'No disponible' },
+    } as const;
+
+    return ApiResponse.success({
+      courtId,
+      date: targetDate.toISOString(),
+      duration,
+      summary: normalizedSummary,
+      slots: calendarSlots,
+      legend,
+      limits: { maxAdvanceDays },
+    });
   } catch (error) {
     console.error('❌ [CALENDAR-STATUS] Error:', error);
     return ApiResponse.internalError('Error obteniendo estado del calendario');

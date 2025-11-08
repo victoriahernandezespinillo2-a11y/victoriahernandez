@@ -26,6 +26,8 @@ interface DesktopCalendarProps {
   duration: number;
   onDurationChange: (duration: number) => void;
   courtName?: string;
+  minDate?: string;
+  maxDate?: string;
 }
 
 export function DesktopCalendar({
@@ -34,6 +36,8 @@ export function DesktopCalendar({
   duration,
   onDurationChange,
   courtName = '',
+  minDate,
+  maxDate,
 }: DesktopCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const calendarRef = useRef<HTMLDivElement>(null);
@@ -45,6 +49,21 @@ export function DesktopCalendar({
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
   };
+
+  const toLocalDate = (dateString: string): Date => {
+    const segments = dateString.split('-').map((segment) => Number(segment));
+    const [yearRaw, monthRaw, dayRaw] = segments;
+    const now = new Date();
+    const year = typeof yearRaw === 'number' && Number.isFinite(yearRaw) ? yearRaw : now.getFullYear();
+    const month = typeof monthRaw === 'number' && Number.isFinite(monthRaw) ? monthRaw : now.getMonth() + 1;
+    const day = typeof dayRaw === 'number' && Number.isFinite(dayRaw) ? dayRaw : now.getDate();
+    return new Date(year, month - 1, day);
+  };
+
+  const minDateObj = minDate ? toLocalDate(minDate) : null;
+  const maxDateObj = maxDate ? toLocalDate(maxDate) : null;
+  const minMonth = minDateObj ? new Date(minDateObj.getFullYear(), minDateObj.getMonth(), 1) : null;
+  const maxMonth = maxDateObj ? new Date(maxDateObj.getFullYear(), maxDateObj.getMonth(), 1) : null;
 
   // Generar días del mes - Formato español (lunes a domingo)
   const generateCalendarDays = () => {
@@ -68,7 +87,9 @@ export function DesktopCalendar({
       
       const isCurrentMonth = date.getMonth() === month;
       const isToday = date.getTime() === today.getTime();
-      const isPast = date < today;
+      const isBeforeMin = minDateObj ? date < minDateObj : false;
+      const isAfterMax = maxDateObj ? date > maxDateObj : false;
+      const isPast = isBeforeMin || (!minDateObj && date < today);
       // Comparar usando fecha local para evitar desfases por UTC
       const isSelected = selectedDate === toLocalYMD(date);
       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
@@ -83,6 +104,8 @@ export function DesktopCalendar({
         isWeekend,
         // Persistir la fecha seleccionable en formato local (no UTC)
         dateString: toLocalYMD(date),
+        isBeforeMin,
+        isAfterMax,
       });
     }
 
@@ -93,11 +116,15 @@ export function DesktopCalendar({
 
   // Navegación del calendario
   const goToPreviousMonth = () => {
-    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    const prev = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
+    if (minMonth && prev < minMonth) return;
+    setCurrentMonth(prev);
   };
 
   const goToNextMonth = () => {
-    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    const next = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+    if (maxMonth && next > maxMonth) return;
+    setCurrentMonth(next);
   };
 
   // Formatear mes y año
@@ -110,6 +137,10 @@ export function DesktopCalendar({
 
   // Manejar selección de fecha
   const handleDateSelect = (dateString: string) => {
+    if (!dateString) return;
+    const candidate = toLocalDate(dateString);
+    if (minDateObj && candidate < minDateObj) return;
+    if (maxDateObj && candidate > maxDateObj) return;
     onDateChange(dateString);
   };
 
@@ -169,21 +200,25 @@ export function DesktopCalendar({
         {calendarDays.map((day, index) => (
           <button
             key={index}
-            onClick={() => !day.isPast && day.dateString && handleDateSelect(day.dateString)}
-            disabled={day.isPast}
+            onClick={() => !day.isPast && !day.isBeforeMin && !day.isAfterMax && day.dateString && handleDateSelect(day.dateString)}
+            disabled={day.isPast || day.isBeforeMin || day.isAfterMax}
             className={`
-              p-2 text-center transition-all duration-200 hover:bg-blue-50
-              ${day.isCurrentMonth ? 'text-gray-900' : 'text-gray-400'}
+              aspect-square p-2 text-sm font-medium transition-all duration-200 relative
+              ${day.isCurrentMonth ? 'text-gray-900' : 'text-gray-300'}
+              ${day.isSelected ? 'bg-blue-600 text-white shadow-inner' : 'hover:bg-blue-50'}
               ${day.isToday ? 'bg-blue-100 font-bold' : ''}
               ${day.isSelected ? 'bg-blue-600 text-white font-bold' : ''}
-              ${day.isPast ? 'cursor-not-allowed opacity-50' : 'hover:bg-blue-50 cursor-pointer'}
+              ${day.isPast || day.isBeforeMin || day.isAfterMax ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}
               ${day.isWeekend ? 'bg-gray-50' : ''}
               ${day.isSelected && day.isWeekend ? 'bg-blue-700' : ''}
             `}
           >
-            <div className="text-sm">{day.day}</div>
+            <span>{day.day}</span>
             {day.isToday && !day.isSelected && (
-              <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mx-auto mt-1"></div>
+              <span className="absolute top-1 right-1 text-[10px] font-semibold text-blue-600">Hoy</span>
+            )}
+            {day.isAfterMax && (
+              <span className="absolute top-1 left-1 text-[10px] font-semibold text-gray-400">Max</span>
             )}
           </button>
         ))}

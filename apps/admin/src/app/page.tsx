@@ -421,25 +421,54 @@ export default function AdminHomePage() {
                   
                   // Colores por deporte
                   const getSportColor = (sportType: string) => {
+                    const key = (sportType || '').toUpperCase();
                     const colors = {
                       'FUTBOL': { bg: 'bg-green-500', hover: 'hover:bg-green-600', border: 'border-green-300' },
-                      'BASQUET': { bg: 'bg-orange-500', hover: 'hover:bg-orange-600', border: 'border-orange-300' },
-                      'TENIS': { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', border: 'border-blue-300' },
-                      'VOLEIBOL': { bg: 'bg-purple-500', hover: 'hover:bg-purple-600', border: 'border-purple-300' },
-                      'PADDLE': { bg: 'bg-pink-500', hover: 'hover:bg-pink-600', border: 'border-pink-300' },
-                      'SQUASH': { bg: 'bg-teal-500', hover: 'hover:bg-teal-600', border: 'border-teal-300' },
-                      'BASKETBALL': { bg: 'bg-orange-500', hover: 'hover:bg-orange-600', border: 'border-orange-300' },
                       'FOOTBALL': { bg: 'bg-green-500', hover: 'hover:bg-green-600', border: 'border-green-300' },
+                      'FOOTBALL7': { bg: 'bg-emerald-500', hover: 'hover:bg-emerald-600', border: 'border-emerald-300' },
+                      'FUTSAL': { bg: 'bg-lime-500', hover: 'hover:bg-lime-600', border: 'border-lime-300' },
+                      'BASQUET': { bg: 'bg-orange-500', hover: 'hover:bg-orange-600', border: 'border-orange-300' },
+                      'BASKETBALL': { bg: 'bg-orange-500', hover: 'hover:bg-orange-600', border: 'border-orange-300' },
+                      'TENIS': { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', border: 'border-blue-300' },
                       'TENNIS': { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', border: 'border-blue-300' },
+                      'VOLEIBOL': { bg: 'bg-purple-500', hover: 'hover:bg-purple-600', border: 'border-purple-300' },
                       'VOLLEYBALL': { bg: 'bg-purple-500', hover: 'hover:bg-purple-600', border: 'border-purple-300' },
+                      'PADDLE': { bg: 'bg-pink-500', hover: 'hover:bg-pink-600', border: 'border-pink-300' },
+                      'PADEL': { bg: 'bg-pink-500', hover: 'hover:bg-pink-600', border: 'border-pink-300' },
+                      'SQUASH': { bg: 'bg-teal-500', hover: 'hover:bg-teal-600', border: 'border-teal-300' },
+                      'BADMINTON': { bg: 'bg-amber-500', hover: 'hover:bg-amber-600', border: 'border-amber-300' },
+                      'MULTIPURPOSE': { bg: 'bg-slate-500', hover: 'hover:bg-slate-600', border: 'border-slate-300' },
+                    } as const;
+                    return colors[key as keyof typeof colors] || { bg: 'bg-gray-500', hover: 'hover:bg-gray-600', border: 'border-gray-300' };
+                  };
+
+                  const getSportLabel = (sportType: string) => {
+                    const key = (sportType || '').toUpperCase();
+                    const labels: Record<string, string> = {
+                      FOOTBALL: 'Fútbol',
+                      FOOTBALL7: 'Fútbol 7',
+                      FUTBOL: 'Fútbol',
+                      FUTSAL: 'Fútbol Sala',
+                      BASKETBALL: 'Baloncesto',
+                      BASQUET: 'Baloncesto',
+                      TENNIS: 'Tenis',
+                      TENIS: 'Tenis',
+                      VOLLEYBALL: 'Voleibol',
+                      VOLEIBOL: 'Voleibol',
+                      PADDLE: 'Pádel',
+                      PADEL: 'Pádel',
+                      SQUASH: 'Squash',
+                      BADMINTON: 'Bádminton',
+                      MULTIPURPOSE: 'Multiusos',
                     };
-                    return colors[sportType as keyof typeof colors] || { bg: 'bg-gray-500', hover: 'hover:bg-gray-600', border: 'border-gray-300' };
+                    return labels[key] || sportType || 'Sin definir';
                   };
                   
                   return (
                     <div className="flex items-end h-56 justify-around bg-gray-50 p-4 rounded overflow-hidden">
                       {bySport.map((s, index) => {
                         const colors = getSportColor(s.sportType);
+                        const sportLabel = getSportLabel(s.sportType);
                         return (
                           <div key={`${s.sportType}-${index}`} className="flex-1 flex flex-col items-center">
                             <div
@@ -449,10 +478,10 @@ export default function AdminHomePage() {
                                 minHeight: '20px',
                                 maxHeight: '180px'
                               }}
-                              title={`${s.sportType}: ${s.count}`}
+                              title={`${sportLabel}: ${s.count}`}
                             />
                             <div className="mt-2 text-xs text-gray-700 truncate w-full text-center font-medium">
-                              {s.sportType}
+                              {sportLabel}
                             </div>
                             <div className="text-xs font-bold text-gray-900">{s.count}</div>
                           </div>

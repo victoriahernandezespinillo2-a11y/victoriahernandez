@@ -8,6 +8,7 @@ import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { z } from 'zod';
+import { resolveMaxAdvanceDays, resolveMinAdvanceHours } from '@/lib/utils/booking-settings';
 
 const GetCentersQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
@@ -92,6 +93,8 @@ export async function GET(request: NextRequest) {
         const dayStart = (c as any).dayStart || s.dayStart || '';
         const nightStart = (c as any).nightStart || s.nightStart || '';
         const timezone = (c as any).timezone || s.timezone || '';
+        const maxAdvanceDays = resolveMaxAdvanceDays(s);
+        const minAdvanceHours = resolveMinAdvanceHours(s);
         // Calcular horario comercial del día actual desde operatingHours
         let businessOpen = '';
         let businessClose = '';
@@ -122,6 +125,10 @@ export async function GET(request: NextRequest) {
           businessOpen: businessOpen || '-',
           businessClose: businessClose || '-',
           timezone,
+          bookingPolicy: {
+            maxAdvanceDays,
+            minAdvanceHours,
+          },
         };
       });
 

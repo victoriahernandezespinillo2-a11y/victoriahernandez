@@ -137,13 +137,7 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
       setIsSubmitting(true);
       setStep('processing');
       try {
-        // 🎁 CORREGIDO: Usar finalAmount con descuento aplicado
         const finalAmount = appliedPromo ? appliedPromo.finalAmount : amount;
-        
-        // Verificar saldo antes del pago
-        if (creditsBalance < finalAmount) {
-          throw new Error('Saldo insuficiente para realizar el pago');
-        }
 
         console.log('💰 [MOBILE-PAYMENT] Monto para créditos:', {
           originalAmount: amount,
@@ -173,8 +167,13 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
           throw new Error(data.message || 'No se pudo procesar el pago con créditos');
         }
 
-        // Actualizar saldo local con el monto final
-        setCreditsBalance(prev => prev - finalAmount);
+        const creditsUsed = typeof data.creditsUsed === 'number' ? data.creditsUsed : finalAmount;
+        setCreditsBalance(prev => {
+          if (typeof data.balanceAfter === 'number') {
+            return data.balanceAfter;
+          }
+          return prev - creditsUsed;
+        });
         
         console.log('🎉 [MOBILE-PAYMENT-MODAL] Pago con créditos exitoso, redirigiendo a página de éxito...');
         console.log('🎯 [MOBILE-PAYMENT-MODAL] reservationId para redirección:', reservationId);

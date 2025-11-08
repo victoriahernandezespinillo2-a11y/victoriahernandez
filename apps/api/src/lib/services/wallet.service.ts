@@ -27,7 +27,7 @@ export class WalletService {
     const result = await (db as any).$transaction(async (tx: any) => {
       // Idempotencia: si existe un registro con la misma llave, devolver balanceAfter
       if (idempotencyKey) {
-        const existing = await tx.walletLedger.findUnique({ where: { idempotency_key: idempotencyKey } }).catch(() => null);
+        const existing = await tx.walletLedger.findUnique({ where: { idempotencyKey } }).catch(() => null);
         if (existing) {
           return { balanceAfter: existing.balanceAfter as number };
         }
@@ -73,7 +73,7 @@ export class WalletService {
     const result = await (db as any).$transaction(async (tx: any) => {
       // Idempotencia
       if (idempotencyKey) {
-        const existing = await tx.walletLedger.findUnique({ where: { idempotency_key: idempotencyKey } }).catch(() => null);
+        const existing = await tx.walletLedger.findUnique({ where: { idempotencyKey } }).catch(() => null);
         if (existing) {
           return { balanceAfter: existing.balanceAfter as number };
         }
@@ -143,7 +143,7 @@ export class WalletService {
     const result = await (db as any).$transaction(async (tx: any) => {
       // Idempotencia: si existe un registro con la misma llave, devolver balanceAfter
       if (idempotencyKey) {
-        const existing = await tx.walletLedger.findUnique({ where: { idempotency_key: idempotencyKey } }).catch(() => null);
+        const existing = await tx.walletLedger.findUnique({ where: { idempotencyKey } }).catch(() => null);
         if (existing) {
           return { balanceAfter: existing.balanceAfter as number };
         }

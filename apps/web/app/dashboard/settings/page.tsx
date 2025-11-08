@@ -160,18 +160,16 @@ export default function SettingsPage() {
     { id: 'account', label: 'Cuenta', icon: User },
     { id: 'notifications', label: 'Notificaciones', icon: Bell },
     { id: 'privacy', label: 'Privacidad', icon: Shield },
-    { id: 'app', label: 'Aplicación', icon: Smartphone },
+    // { id: 'app', label: 'Aplicación', icon: Smartphone }, // Oculto temporalmente por no aportar funcionalidad real
     { id: 'billing', label: 'Facturación', icon: CreditCard },
   ];
 
   const handleSaveSettings = async () => {
     setIsLoading(true);
     try {
-      if (profile?.id) {
-        const firstName = (document.querySelector('#firstName') as HTMLInputElement)?.value;
-        const lastName = (document.querySelector('#lastName') as HTMLInputElement)?.value;
-        const phone = (document.querySelector('#phone') as HTMLInputElement)?.value;
-        await updateProfile({ firstName, lastName, phone });
+      // Evitar edición de datos personales aquí para mantener una única fuente de edición en /dashboard/profile
+      if (activeTab === 'account') {
+        showNotification('info', 'La edición de tus datos se realiza en tu Perfil');
       }
       
       // Guardar configuraciones de aplicación si estamos en esa tab
@@ -363,55 +361,41 @@ export default function SettingsPage() {
         <div className="grid grid-cols-1 gap-3 md:gap-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">
-                Nombre
-              </label>
-              <input
-                id="firstName"
-                type="text"
-                defaultValue={profile?.firstName || ''}
-                className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 placeholder-gray-500 bg-white"
-                placeholder="Tu nombre"
-              />
+              <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">Nombre</label>
+              <div className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-gray-900">
+                {profile?.firstName || '-'}
+              </div>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">
-                Apellido
-              </label>
-              <input
-                id="lastName"
-                type="text"
-                defaultValue={profile?.lastName || ''}
-                className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 placeholder-gray-500 bg-white"
-                placeholder="Tu apellido"
-              />
+              <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">Apellido</label>
+              <div className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-gray-900">
+                {profile?.lastName || '-'}
+              </div>
             </div>
           </div>
-          
+
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              defaultValue={profile?.email || ''}
-              className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-gray-600 cursor-not-allowed"
-              disabled
-            />
+            <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">Email</label>
+            <div className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-gray-600">
+              {profile?.email || '-'}
+            </div>
             <p className="text-xs text-gray-500 mt-1">El email no se puede cambiar</p>
           </div>
-          
+
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">
-              Teléfono
-            </label>
-            <input
-              id="phone"
-              type="tel"
-              defaultValue={profile?.phone || ''}
-              className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 placeholder-gray-500 bg-white"
-              placeholder="Tu número de teléfono"
-            />
+            <label className="block text-sm font-semibold text-gray-700 mb-1 md:mb-2">Teléfono</label>
+            <div className="w-full border-2 border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-gray-900">
+              {profile?.phone || '-'}
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <a
+              href="/dashboard/profile"
+              className="inline-flex items-center px-4 md:px-6 py-2 md:py-3 bg-gradient-to-r from-blue-600 to-green-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-green-700 transition-all shadow-lg text-sm md:text-base"
+            >
+              Editar en Perfil
+            </a>
           </div>
         </div>
       </div>
@@ -899,12 +883,11 @@ export default function SettingsPage() {
             {activeTab === 'account' && renderAccountSettings()}
             {activeTab === 'notifications' && renderNotificationSettings()}
             {activeTab === 'privacy' && renderPrivacySettings()}
-            {activeTab === 'app' && renderAppSettings()}
             {activeTab === 'billing' && renderBillingSettings()}
           </div>
 
-          {/* Save Button moderno - adaptativo */}
-          {activeTab !== 'billing' && (
+          {/* Save Button moderno - adaptativo (no mostrar en Cuenta para evitar confusión) */}
+          {activeTab !== 'billing' && activeTab !== 'account' && (
             <div className="bg-gradient-to-r from-blue-50 to-green-50 px-4 md:px-6 py-3 md:py-4 border-t border-gray-100">
               <button
                 onClick={handleSaveSettings}
@@ -1095,5 +1078,88 @@ function BillingMethods() {
 }
 
 function BillingHistory() {
-  return <div className="text-sm text-gray-500">Sin movimientos.</div>;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [items, setItems] = useState<any[]>([]);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res: any = await api.payments.list({ page: 1, limit: 20 });
+      setItems(res?.items || []);
+    } catch (e: any) {
+      console.error('Error cargando historial de pagos:', e);
+      setError(e?.message || 'Error al cargar historial');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  if (loading) return <div className="text-sm text-gray-500">Cargando historial...</div>;
+  if (error) return <div className="text-sm text-red-600">{error}</div>;
+  if (!items.length) return <div className="text-sm text-gray-500">Sin movimientos.</div>;
+
+  const formatDate = (d: string) => new Date(d).toLocaleString('es-ES');
+  const formatAmount = (a: number, currency?: string) => `${(a ?? 0).toFixed(2)} ${currency || 'EUR'}`;
+  const statusLabel = (s: string) => {
+    switch (s) {
+      case 'COMPLETED':
+      case 'PAID':
+        return 'Completado';
+      case 'PROCESSING':
+        return 'Procesando';
+      case 'PENDING':
+        return 'Pendiente';
+      case 'CANCELLED':
+        return 'Cancelado';
+      case 'REFUNDED':
+        return 'Reembolsado';
+      case 'FAILED':
+        return 'Fallido';
+      case 'IN_PROGRESS':
+        return 'En progreso';
+      default:
+        return s;
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {items.map((p: any) => (
+        <div key={`${p.paymentType}-${p.id}`} className="border border-gray-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-gray-100 rounded-md">
+              <CreditCard className="h-5 w-5 text-gray-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-gray-900">{p.paymentType === 'ORDER' ? 'Compra' : 'Reserva'}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  ['COMPLETED','PAID'].includes(p.status) ? 'bg-green-100 text-green-800' :
+                  ['PROCESSING','IN_PROGRESS'].includes(p.status) ? 'bg-blue-100 text-blue-800' :
+                  p.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                  ['CANCELLED','FAILED'].includes(p.status) ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {statusLabel(p.status)}
+                </span>
+                {p.paymentMethod && (
+                  <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{p.paymentMethod}</span>
+                )}
+              </div>
+              <div className="text-sm text-gray-600">
+                {p.description || (p.paymentType === 'RESERVATION' ? 'Pago de reserva' : 'Pago de orden')}
+              </div>
+              <div className="text-xs text-gray-500">{formatDate(p.createdAt)}</div>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="font-semibold text-gray-900">{formatAmount(Number(p.amount || p.totalPrice || 0), p.currency)}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }

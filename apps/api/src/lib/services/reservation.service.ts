@@ -7,6 +7,12 @@ import { reservationLockService } from './reservation-lock.service';
 import { ScheduleCompatibilityService } from './schedule-compatibility.service';
 import { PaymentMethodSchema } from '../validators/reservation.validator';
 import { createHash } from 'crypto';
+import { ValidationAppError, NotFoundAppError } from '../errors';
+import {
+  resolveMaxAdvanceDays,
+  validateWithinAdvanceWindow,
+  exceedsMaxAdvance,
+} from '../utils/booking-settings';
 // Importar qrcode dinámicamente donde se usa para evitar error de tipos en compilación
 
 // Esquemas de validación
@@ -60,6 +66,35 @@ export class ReservationService {
     
     const startTime = new Date(validatedInput.startTime);
     const endTime = new Date(startTime.getTime() + validatedInput.duration * 60000);
+
+    const courtRef = await db.court.findUnique({
+      where: { id: validatedInput.courtId },
+      select: {
+        id: true,
+        center: {
+          select: {
+            settings: true,
+            timezone: true,
+          },
+        },
+      },
+    });
+
+    if (!courtRef) {
+      throw new NotFoundAppError('Cancha no encontrada');
+    }
+
+    const centerSettings = (courtRef.center?.settings as any) || {};
+    const maxAdvanceDays = resolveMaxAdvanceDays(centerSettings);
+    const now = new Date();
+
+    if (startTime.getTime() < now.getTime()) {
+      throw new ValidationAppError('La fecha seleccionada ya ha pasado');
+    }
+
+    if (!validateWithinAdvanceWindow(startTime, now, maxAdvanceDays)) {
+      throw new ValidationAppError(`Las reservas solo pueden realizarse con hasta ${maxAdvanceDays} días de antelación`);
+    }
 
     // 🔒 PASO 1: Intentar adquirir bloqueo temporal
     const lockAcquired = await reservationLockService.acquireLock(
@@ -221,7 +256,7 @@ export class ReservationService {
 
         // 3) Crear reservas recurrentes si es necesario (sigue dentro de la transacción)
         if (validatedInput.isRecurring && validatedInput.recurringPattern) {
-          await this.createRecurringReservations(tx, created, validatedInput.recurringPattern);
+          await this.createRecurringReservations(tx, created, validatedInput.recurringPattern, maxAdvanceDays, now);
         }
 
         return created as Reservation;
@@ -424,7 +459,9 @@ export class ReservationService {
   private async createRecurringReservations(
     tx: any,
     parentReservation: Reservation,
-    pattern: NonNullable<CreateReservationInput['recurringPattern']>
+    pattern: NonNullable<CreateReservationInput['recurringPattern']>,
+    maxAdvanceDays: number,
+    referenceDate: Date
   ): Promise<void> {
     const { frequency, daysOfWeek, endDate, exceptions = [] } = pattern;
     const startDate = new Date(parentReservation.startTime);
@@ -456,6 +493,14 @@ export class ReservationService {
         );
         
         if (!isException) {
+          if (exceedsMaxAdvance(reservationStart, referenceDate, maxAdvanceDays)) {
+            console.info('[RECURRING-RESERVATION] Fecha omitida por exceder maxAdvanceDays', {
+              reservationStart,
+              maxAdvanceDays,
+            });
+            continue;
+          }
+
           try {
             // Verificar disponibilidad
             await this.checkAvailability(tx, {

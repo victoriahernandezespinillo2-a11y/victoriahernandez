@@ -53,7 +53,7 @@ export class OrderService {
     const order = await (db as any).$transaction(async (tx: any) => {
       // Idempotencia
       if (idempotencyKey) {
-        const existing = await tx.order.findUnique({ where: { idempotency_key: idempotencyKey } }).catch(() => null);
+        const existing = await tx.order.findUnique({ where: { idempotencyKey } }).catch(() => null);
         if (existing) return existing;
       }
 
@@ -121,7 +121,7 @@ export class OrderService {
       // Debitar créditos e idempotencia por Order.id
       await (db as any).$transaction(async (tx: any) => {
         if (idempotencyKey) {
-          const existing = await tx.walletLedger.findUnique({ where: { idempotency_key: idempotencyKey } }).catch(() => null);
+          const existing = await tx.walletLedger.findUnique({ where: { idempotencyKey } }).catch(() => null);
           if (existing) return;
         }
         

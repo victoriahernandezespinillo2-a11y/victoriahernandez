@@ -162,6 +162,7 @@ export default function CentersPage() {
     showStripeReferences?: boolean;
   }>({});
   const [creditsForm, setCreditsForm] = useState<{ euroPerCredit?: string }>({});
+  const [reservationsForm, setReservationsForm] = useState<{ maxAdvanceDays?: string; minAdvanceHours?: string }>({});
   const [taxesForm, setTaxesForm] = useState<{ rate?: string; included?: boolean }>({});
   // Datos básicos del centro (edición)
   const [centerEditForm, setCenterEditForm] = useState<{ 
@@ -398,7 +399,11 @@ export default function CentersPage() {
 
       {/* Centers Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {paginatedCenters.map((center: any) => (
+        {paginatedCenters.map((center: any) => {
+          const centerSettings = (center as any)?.settings || {};
+          const reservationsSettings = centerSettings?.reservations || {};
+          const maxAdvanceDaysBadge = (center as any)?.bookingPolicy?.maxAdvanceDays ?? reservationsSettings?.maxAdvanceDays;
+          return (
           <div key={center.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
             <div className="p-6">
               {/* Header */}
@@ -442,6 +447,25 @@ export default function CentersPage() {
                           scheduleSlots: s.schedule_slots || prev.scheduleSlots, // ✅ AGREGAR schedule_slots
                           exceptions: Array.isArray(s.exceptions) ? s.exceptions : prev.exceptions,
                         }));
+                        const rc = s?.receipt || {};
+                        setReceiptForm({
+                          legalName: rc.legalName || s.legalName || '',
+                          taxId: rc.taxId || s.taxId || '',
+                          fiscalAddress: rc.fiscalAddress || s.fiscalAddress || '',
+                          contactEmail: rc.contactEmail || s.contactEmail || center.email || '',
+                          contactPhone: rc.contactPhone || s.contactPhone || center.phone || '',
+                          footerNotes: rc.footerNotes || '',
+                          showStripeReferences: !!rc.showStripeReferences,
+                        });
+                        const cr = s?.credits || {};
+                        setCreditsForm({ euroPerCredit: cr?.euroPerCredit != null ? String(cr.euroPerCredit) : '' });
+                        const rs = s?.reservations || {};
+                        setReservationsForm({
+                          maxAdvanceDays: rs?.maxAdvanceDays != null ? String(rs.maxAdvanceDays) : '',
+                          minAdvanceHours: rs?.minAdvanceHours != null ? String(rs.minAdvanceHours) : '',
+                        });
+                        const tx = s?.taxes || {};
+                        setTaxesForm({ rate: tx?.rate != null ? String(tx.rate) : '', included: !!tx.included });
                         setShowEdit(true);
                       } catch (e) {
                         alert('No se pudieron cargar los detalles del centro');
@@ -518,6 +542,11 @@ export default function CentersPage() {
                         });
                         const cr = settings?.credits || {};
                         setCreditsForm({ euroPerCredit: cr?.euroPerCredit != null ? String(cr.euroPerCredit) : '' });
+                        const rs = settings?.reservations || {};
+                        setReservationsForm({
+                          maxAdvanceDays: rs?.maxAdvanceDays != null ? String(rs.maxAdvanceDays) : '',
+                          minAdvanceHours: rs?.minAdvanceHours != null ? String(rs.minAdvanceHours) : '',
+                        });
                         const tx = settings?.taxes || {};
                         setTaxesForm({ rate: tx?.rate != null ? String(tx.rate) : '', included: !!tx.included });
                         setShowEdit(true);
@@ -554,6 +583,13 @@ export default function CentersPage() {
                   {(center as any).businessOpen || '-'} - {(center as any).businessClose || '-'}
                 </span>
               </div>
+              {typeof maxAdvanceDaysBadge === 'number' && maxAdvanceDaysBadge > 0 && (
+                <div className="flex items-center text-gray-600 mb-3">
+                  <span className="inline-flex items-center text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                    📅 Reservas hasta {maxAdvanceDaysBadge} días
+                  </span>
+                </div>
+              )}
               {/* Tramo de iluminación (día/noche) */}
               <div className="flex items-center text-gray-600 mb-3">
                 <span className="inline-flex items-center text-xs bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded">
@@ -591,7 +627,8 @@ export default function CentersPage() {
               </div>
             </div>
           </div>
-        ))}
+        );
+        })}
       </div>
 
       {/* Empty State */}
@@ -835,6 +872,26 @@ export default function CentersPage() {
                     </div>
                   </div>
                 </div>
+                {/* Reservas */}
+                <div className="border rounded p-4 space-y-3">
+                  <h4 className="text-md font-semibold text-gray-900">Reservas</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-1">Días máximos de anticipación</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={reservationsForm.maxAdvanceDays || ''}
+                        onChange={(e) => setReservationsForm(prev => ({ ...prev, maxAdvanceDays: e.target.value }))}
+                        className="w-32 border rounded px-3 py-2"
+                        placeholder="Ej: 90"
+                      />
+                      <p className="text-xs text-gray-700 mt-1">Controla hasta cuántos días en el futuro se pueden abrir reservas (1-365).</p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Créditos */}
                 <div className="border rounded p-4 space-y-3">
                   <h4 className="text-md font-semibold text-gray-900">Créditos</h4>
@@ -998,6 +1055,15 @@ export default function CentersPage() {
                   setIsLoading(true);
                   try {
                     const normalizedHours = normalizeOperatingHours(ohForm.operatingHours, ohForm.operatingHours);
+                    const parsedMaxAdvance = reservationsForm.maxAdvanceDays ? Number(reservationsForm.maxAdvanceDays) : undefined;
+                    const parsedMinAdvance = reservationsForm.minAdvanceHours ? Number(reservationsForm.minAdvanceHours) : undefined;
+                    const reservationsSettings: Record<string, number> = {};
+                    if (parsedMaxAdvance && Number.isFinite(parsedMaxAdvance)) {
+                      reservationsSettings.maxAdvanceDays = Math.min(Math.max(Math.trunc(parsedMaxAdvance), 1), 365);
+                    }
+                    if (parsedMinAdvance && Number.isFinite(parsedMinAdvance)) {
+                      reservationsSettings.minAdvanceHours = Math.max(Math.trunc(parsedMinAdvance), 0);
+                    }
                     const payload: any = {
                       // Datos básicos (opcionales si no cambian)
                       name: centerEditForm.name?.trim(),
@@ -1053,6 +1119,9 @@ export default function CentersPage() {
                       },
                       scheduleSlots: ohForm.scheduleSlots, // 🆕 AGREGAR SCHEDULE SLOTS
                     };
+                    if (Object.keys(reservationsSettings).length > 0) {
+                      (payload.settings as any).reservations = reservationsSettings;
+                    }
                     await updateCenter(editingCenterId, payload as any);
                     setShowEdit(false);
                     setEditingCenterId(null);

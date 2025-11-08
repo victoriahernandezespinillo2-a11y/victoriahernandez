@@ -1,10 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiRequest } from '@/lib/api';
 import { toast } from 'sonner';
 import { PromoCodeInput } from '@/components/PromoCodeInput';
+
+interface PricingSummary {
+  basePrice?: number;
+  discount?: number;
+  total?: number;
+  breakdown?: {
+    description: string;
+    amount: number;
+  }[];
+  appliedRules?: string[];
+}
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -16,12 +27,24 @@ interface PaymentModalProps {
   dateLabel: string; // texto ya formateado
   timeLabel: string; // texto ya formateado
   onSuccess: () => void; // navegar/listar tras pago
+  pricingDetails?: PricingSummary;
 }
 
 type PaymentMethod = 'CARD' | 'BIZUM' | 'ONSITE' | 'CREDITS';
 
 export default function PaymentModal(props: PaymentModalProps) {
-  const { isOpen, onClose, reservationId, amount, currency = 'EUR', courtName, dateLabel, timeLabel, onSuccess } = props;
+  const {
+    isOpen,
+    onClose,
+    reservationId,
+    amount,
+    currency = 'EUR',
+    courtName,
+    dateLabel,
+    timeLabel,
+    onSuccess,
+    pricingDetails,
+  } = props;
   const router = useRouter();
 
   const [method, setMethod] = useState<PaymentMethod>('CARD');
@@ -34,6 +57,32 @@ export default function PaymentModal(props: PaymentModalProps) {
   const [creditsBalance, setCreditsBalance] = useState<number>(0);
   const [loadingCredits, setLoadingCredits] = useState<boolean>(false);
   const [appliedPromo, setAppliedPromo] = useState<any>(null);
+  const baseAmount = useMemo(() => {
+    const raw = pricingDetails?.total ?? amount;
+    const numeric = typeof raw === 'number' ? raw : Number(raw ?? 0);
+    return Number.isFinite(numeric) ? numeric : 0;
+  }, [pricingDetails?.total, amount]);
+  const pricingBreakdown = useMemo(
+    () => (pricingDetails?.breakdown ? [...pricingDetails.breakdown] : []),
+    [pricingDetails?.breakdown]
+  );
+  const totalDiscount = useMemo(() => {
+    if (!pricingDetails) return 0;
+    if (typeof pricingDetails.discount === 'number') {
+      return pricingDetails.discount;
+    }
+    if (typeof pricingDetails.basePrice === 'number') {
+      return pricingDetails.basePrice - baseAmount;
+    }
+    return 0;
+  }, [pricingDetails, baseAmount]);
+  const effectiveAmount = useMemo(() => {
+    const promoAmount = appliedPromo?.finalAmount;
+    if (typeof promoAmount === 'number' && Number.isFinite(promoAmount)) {
+      return promoAmount;
+    }
+    return baseAmount;
+  }, [appliedPromo?.finalAmount, baseAmount]);
   
   // 🚀 GESTOS TÁCTILES PARA MÓVIL
   const [touchStart, setTouchStart] = useState<{ y: number; time: number } | null>(null);
@@ -152,18 +201,35 @@ export default function PaymentModal(props: PaymentModalProps) {
 
   const formattedAmount = useMemo(() => {
     try {
-      return new Intl.NumberFormat('es-ES', { style: 'currency', currency }).format(amount);
+      return new Intl.NumberFormat('es-ES', { style: 'currency', currency }).format(baseAmount);
     } catch {
-      return `${amount}`;
+      return `${baseAmount}`;
     }
-  }, [amount, currency]);
+  }, [baseAmount, currency]);
+  const formattedEffectiveAmount = useMemo(() => {
+    try {
+      return new Intl.NumberFormat('es-ES', { style: 'currency', currency }).format(effectiveAmount);
+    } catch {
+      return `${effectiveAmount}`;
+    }
+  }, [effectiveAmount, currency]);
+  const formatCurrency = useCallback(
+    (value: number) => {
+      try {
+        return new Intl.NumberFormat('es-ES', { style: 'currency', currency }).format(value);
+      } catch {
+        return `${Number(value || 0).toFixed(2)}€`;
+      }
+    },
+    [currency]
+  );
 
   // El flujo demo se elimina; sólo redirigimos a Redsys para tarjeta
   const handlePay = async () => {
     console.log('🚀 [PAYMENT-MODAL] Iniciando proceso de pago...');
     console.log('🚀 [PAYMENT-MODAL] Método seleccionado:', method);
     console.log('🚀 [PAYMENT-MODAL] Reservation ID:', reservationId);
-    console.log('🚀 [PAYMENT-MODAL] Amount:', amount);
+    console.log('🚀 [PAYMENT-MODAL] Amount:', baseAmount);
     console.log('🚀 [PAYMENT-MODAL] Credits balance:', creditsBalance);
     
     setError(null);
@@ -173,17 +239,12 @@ export default function PaymentModal(props: PaymentModalProps) {
       setIsSubmitting(true);
       try {
         // 🎁 CORREGIDO: Verificar saldo con el monto final (con descuento)
-        const finalAmount = appliedPromo ? appliedPromo.finalAmount : amount;
-        if (creditsBalance < finalAmount) {
-          console.error('❌ [PAYMENT-MODAL] Saldo insuficiente:', creditsBalance, '<', finalAmount);
-          throw new Error('Saldo insuficiente para realizar el pago');
-        }
-
-        console.log('✅ [PAYMENT-MODAL] Saldo suficiente, enviando request...');
+        const finalAmount = effectiveAmount;
+        console.log('✅ [PAYMENT-MODAL] Enviando request para validar y procesar créditos...');
         
         // 🎁 CORREGIDO: Usar finalAmount con descuento aplicado (ya declarado arriba)
         console.log('💰 [PAYMENT-MODAL] Monto para créditos:', {
-          originalAmount: amount,
+          originalAmount: baseAmount,
           finalAmount: finalAmount,
           appliedPromo: appliedPromo?.code,
           discount: appliedPromo?.savings
@@ -219,10 +280,14 @@ export default function PaymentModal(props: PaymentModalProps) {
         console.log('✅ [PAYMENT-MODAL] Pago exitoso, actualizando saldo local...');
         console.log('🎯 [PAYMENT-MODAL] data.success:', data.success);
         console.log('🎯 [PAYMENT-MODAL] data:', JSON.stringify(data, null, 2));
-        // Actualizar saldo local con el monto final
+        const creditsUsed = typeof data.creditsUsed === 'number' ? data.creditsUsed : finalAmount;
         setCreditsBalance(prev => {
-          const newBalance = prev - finalAmount;
-          console.log('💰 [PAYMENT-MODAL] Balance actualizado:', prev, '->', newBalance);
+          if (typeof data.balanceAfter === 'number') {
+            console.log('💰 [PAYMENT-MODAL] Balance actualizado desde backend:', data.balanceAfter);
+            return data.balanceAfter;
+          }
+          const newBalance = prev - creditsUsed;
+          console.log('💰 [PAYMENT-MODAL] Balance actualizado (fallback):', prev, '->', newBalance);
           return newBalance;
         });
         
@@ -267,7 +332,7 @@ export default function PaymentModal(props: PaymentModalProps) {
       return;
     }
     // 🎯 LÓGICA INTELIGENTE: Verificar si el monto final es 0 después del descuento
-    const finalAmount = appliedPromo ? appliedPromo.finalAmount : amount;
+    const finalAmount = effectiveAmount;
     console.log('💰 [PAYMENT-MODAL] Monto final después de descuento:', finalAmount);
     console.log('🎁 [PAYMENT-MODAL] Promoción aplicada:', appliedPromo);
     
@@ -444,7 +509,7 @@ export default function PaymentModal(props: PaymentModalProps) {
               {/* Código Promocional */}
               <div className="border-t border-gray-200 pt-2 mt-2">
                 <PromoCodeInput
-                  amount={amount}
+                  amount={baseAmount}
                   type="RESERVATION"
                   onPromoApplied={(promo) => {
                     console.log('🎁 [PAYMENT] Promoción aplicada:', promo);
@@ -464,16 +529,40 @@ export default function PaymentModal(props: PaymentModalProps) {
                     <span className="font-semibold text-gray-900">Total a pagar</span>
                   </div>
                   <span className="text-xl font-bold text-blue-600">
-                    {appliedPromo 
-                      ? `${appliedPromo.finalAmount.toFixed(2)}€` 
-                      : formattedAmount
-                    }
+                    {appliedPromo ? formattedEffectiveAmount : formattedAmount}
                   </span>
                 </div>
                 {appliedPromo && appliedPromo.savings > 0 && (
                   <p className="text-sm text-green-600 mt-1 text-right">
                     ¡Ahorraste {appliedPromo.savings.toFixed(2)}€!
                   </p>
+                )}
+                {pricingBreakdown.length > 0 && (
+                  <div className="mt-2 space-y-1 rounded-lg border border-blue-100 bg-blue-50/60 p-2">
+                    {pricingBreakdown.map((item, idx) => (
+                      <div
+                        key={`${item.description}-${idx}`}
+                        className={`flex items-center justify-between text-xs ${
+                          item.amount < 0 ? 'text-green-600' : 'text-gray-600'
+                        }`}
+                      >
+                        <span className="pr-2">{item.description}</span>
+                        <span className="font-semibold">{formatCurrency(item.amount)}</span>
+                      </div>
+                    ))}
+                    {totalDiscount !== 0 && (
+                      <div className="flex items-center justify-between text-xs font-semibold text-green-700 border-t border-blue-100 pt-1 mt-1">
+                        <span>Descuentos aplicados</span>
+                        <span>{formatCurrency(-Math.abs(totalDiscount))}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {pricingDetails?.appliedRules && pricingDetails.appliedRules.length > 0 && (
+                  <div className="mt-2 text-[11px] text-gray-500">
+                    <span className="font-medium text-gray-600">Reglas activas:</span>{' '}
+                    {pricingDetails.appliedRules.join(', ')}
+                  </div>
                 )}
               </div>
             </div>
@@ -557,11 +646,11 @@ export default function PaymentModal(props: PaymentModalProps) {
               <button
                 type="button"
                 onClick={() => setMethod('CREDITS')}
-                disabled={creditsBalance < amount || loadingCredits}
+                disabled={creditsBalance < effectiveAmount || loadingCredits}
                 className={`group relative p-2 rounded-lg border-2 transition-all duration-300 ${
                   method === 'CREDITS' 
                     ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-purple-100 text-purple-900 shadow-lg scale-105' 
-                    : creditsBalance < amount || loadingCredits
+                    : creditsBalance < effectiveAmount || loadingCredits
                     ? 'border-gray-200 bg-gradient-to-br from-gray-50 to-gray-100 text-gray-400 cursor-not-allowed opacity-60'
                     : 'border-gray-200 bg-white text-gray-700 hover:border-purple-300 hover:bg-purple-50 hover:shadow-lg active:scale-95'
                 }`}
@@ -578,7 +667,7 @@ export default function PaymentModal(props: PaymentModalProps) {
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-lg transition-colors ${
                       method === 'CREDITS' 
                         ? 'bg-purple-100 text-purple-600' 
-                        : creditsBalance < amount
+                        : creditsBalance < effectiveAmount
                         ? 'bg-gray-100 text-gray-400'
                         : 'bg-gray-100 text-gray-500 group-hover:bg-purple-100 group-hover:text-purple-600'
                     }`}>
@@ -587,11 +676,11 @@ export default function PaymentModal(props: PaymentModalProps) {
                     <span className="font-medium text-xs">Monedero</span>
                     <div className="flex flex-col items-center">
                       <span className={`text-xs ${
-                        creditsBalance < amount ? 'text-red-500' : 'text-gray-500'
+                        creditsBalance < effectiveAmount ? 'text-red-500' : 'text-gray-500'
                       }`}>
                         {creditsBalance.toFixed(2)} créditos
                       </span>
-                      {creditsBalance < amount && (
+                      {creditsBalance < effectiveAmount && (
                         <span className="text-xs text-red-500">
                           Saldo insuficiente
                         </span>
@@ -602,7 +691,7 @@ export default function PaymentModal(props: PaymentModalProps) {
                 {method === 'CREDITS' && (
                   <div className="absolute top-2 right-2 w-3 h-3 bg-purple-500 rounded-full"></div>
                 )}
-                {creditsBalance < amount && !loadingCredits && (
+                {creditsBalance < effectiveAmount && !loadingCredits && (
                   <div className="absolute top-2 right-2 w-3 h-3 bg-red-400 rounded-full"></div>
                 )}
               </button>
@@ -626,16 +715,20 @@ export default function PaymentModal(props: PaymentModalProps) {
                   <span>Tu reserva quedará confirmada y podrás pagar al llegar a nuestras instalaciones</span>
                 </div>
               )}
-              {method === 'CREDITS' && creditsBalance < (appliedPromo ? appliedPromo.finalAmount : amount) && (
+              {method === 'CREDITS' && creditsBalance < effectiveAmount && (
                 <div className="flex items-center space-x-2 text-sm text-red-600">
                   <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                  <span>Saldo insuficiente. Necesitas {(appliedPromo ? appliedPromo.finalAmount : amount).toFixed(2)} créditos, tienes {creditsBalance.toFixed(2)}</span>
+                  <span>
+                    Saldo insuficiente. Necesitas {effectiveAmount.toFixed(2)} créditos, tienes {creditsBalance.toFixed(2)}
+                  </span>
                 </div>
               )}
-              {method === 'CREDITS' && creditsBalance >= (appliedPromo ? appliedPromo.finalAmount : amount) && (
+              {method === 'CREDITS' && creditsBalance >= effectiveAmount && (
                 <div className="flex items-center space-x-2 text-sm text-purple-600">
                   <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                  <span>Se descontarán {(appliedPromo ? appliedPromo.finalAmount : amount).toFixed(2)} créditos. Quedarán {(creditsBalance - (appliedPromo ? appliedPromo.finalAmount : amount)).toFixed(2)} créditos</span>
+                  <span>
+                    Se descontarán {effectiveAmount.toFixed(2)} créditos. Quedarán {(creditsBalance - effectiveAmount).toFixed(2)} créditos
+                  </span>
                 </div>
               )}
             </div>

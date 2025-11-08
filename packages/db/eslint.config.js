@@ -52,7 +52,6 @@ export default [
 	{
 		files: [
 			"apply-permissions.js",
-			"open-supabase-fix.js",
 		],
 		rules: {
 			"no-redeclare": "off",
