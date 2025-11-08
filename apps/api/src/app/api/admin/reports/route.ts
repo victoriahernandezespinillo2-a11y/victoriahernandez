@@ -496,35 +496,40 @@ async function generateUsageReport(startDate: Date, endDate: Date, centerId?: st
 }
 
 async function generateUsersReport(startDate: Date, endDate: Date, groupBy: string = 'day') {
-  const baseFilter = {
+  const periodFilter = {
     createdAt: { gte: startDate, lte: endDate }
   };
-  
-  const [totalUsers, usersByRole, usersByActive, usersList] = await Promise.all([
-    prisma.user.count({ where: baseFilter }),
-    
+
+  const [
+    totalUsers,
+    activeUsersCount,
+    newUsersCount,
+    usersByRole,
+    periodUsersByRole,
+    usersList
+  ] = await Promise.all([
+    prisma.user.count(),
+    prisma.user.count({ where: { isActive: true } }),
+    prisma.user.count({ where: periodFilter }),
     prisma.user.groupBy({
       by: ['role'],
-      where: baseFilter,
       _count: { id: true }
     }),
-    
     prisma.user.groupBy({
-      by: ['isActive'],
-      where: baseFilter,
+      by: ['role'],
+      where: periodFilter,
       _count: { id: true }
     }),
-    
-    // Obtener lista de usuarios con sus reservas
     prisma.user.findMany({
-      where: baseFilter,
       select: {
         id: true,
         name: true,
         email: true,
         role: true,
         isActive: true,
+        phone: true,
         createdAt: true,
+        lastLoginAt: true,
         _count: {
           select: {
             reservations: {
@@ -538,24 +543,43 @@ async function generateUsersReport(startDate: Date, endDate: Date, groupBy: stri
       orderBy: {
         createdAt: 'desc'
       },
-      take: 1000 // Límite para evitar problemas de memoria
+      take: 5000
     })
   ]);
-  
+
+  const inactiveUsersCount = totalUsers - activeUsersCount;
+
+  const byActive = [
+    { isActive: true, _count: { id: activeUsersCount } },
+    { isActive: false, _count: { id: inactiveUsersCount } }
+  ];
+
+  const periodRoleMap = new Map(periodUsersByRole.map(role => [role.role, role._count.id]));
+  const byRole = usersByRole.map(role => ({
+    role: role.role,
+    _count: role._count,
+    periodCount: periodRoleMap.get(role.role) ?? 0
+  }));
+
   console.log('👥 [USERS] Datos generados:', {
     totalUsers,
+    activeUsers: activeUsersCount,
+    newUsers: newUsersCount,
     usersByRole: usersByRole.length,
-    usersByActive: usersByActive.length,
-    usersList: usersList.length,
-    firstUser: usersList[0]
+    usersList: usersList.length
   });
-  
+
   return {
     summary: {
-      totalUsers
+      totalUsers,
+      activeUsers: activeUsersCount,
+      inactiveUsers: inactiveUsersCount,
+      newUsers: newUsersCount,
+      periodStart: startDate.toISOString(),
+      periodEnd: endDate.toISOString()
     },
-    byRole: usersByRole,
-    byActive: usersByActive,
+    byRole,
+    byActive,
     users: usersList
   };
 }

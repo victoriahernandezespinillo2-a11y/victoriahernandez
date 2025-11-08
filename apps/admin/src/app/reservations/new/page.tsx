@@ -9,8 +9,6 @@ import { useToast } from '@/components/ToastProvider';
 import WeekCalendar from '@/components/WeekCalendar';
 import { MAX_OVERRIDE_PERCENT, validatePriceOverride } from '@/lib/constants';
 
-const WEB_APP_BASE_URL = (process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000').replace(/\/$/, '');
-
 export default function AdminNewReservationPage() {
   const { data: session } = useSession();
   const { courts, getCourts } = useAdminCourts();
@@ -48,6 +46,7 @@ export default function AdminNewReservationPage() {
   const [linkEmailStatus, setLinkEmailStatus] = useState<'idle' | 'sent' | 'error'>('idle');
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyShareLinkStatus, setCopyShareLinkStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [copyDirectStatus, setCopyDirectStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [lastCreatedReservation, setLastCreatedReservation] = useState<{
     id: string;
     paymentUrl: string;
@@ -67,6 +66,25 @@ export default function AdminNewReservationPage() {
     const s = d.toISOString().split('T')[0] || '';
     return s;
   });
+
+  const webBaseUrl = useMemo(() => {
+    const envCandidate = (process.env.NEXT_PUBLIC_SHARE_BASE_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.NEXT_PUBLIC_WEB_URL ||
+      '').trim();
+    if (envCandidate) {
+      return envCandidate.replace(/\/$/, '');
+    }
+
+    if (typeof window !== 'undefined') {
+      const { origin, hostname } = window.location;
+      if (hostname && !/localhost|127\.0\.0\.1/i.test(hostname)) {
+        return origin.replace(/\/$/, '');
+      }
+    }
+
+    return 'http://localhost:3000';
+  }, []);
 
   useEffect(() => {
     getCenters({ page: 1, limit: 100 }).catch(() => {});
@@ -419,13 +437,14 @@ export default function AdminNewReservationPage() {
       if (formattedTime) shareParams.set('time', formattedTime);
       if (durationLbl) shareParams.set('duration', durationLbl);
       shareParams.set('amount', formattedAmount);
-      return `${WEB_APP_BASE_URL}/payments/share?${shareParams.toString()}`;
+      return `${webBaseUrl}/payments/share?${shareParams.toString()}`;
     },
     [
       currencyFormatter,
       duration,
       formattedReservationDate,
       formattedReservationTime,
+      webBaseUrl,
       price?.base,
       price?.final,
       selectedCourt?.name,
@@ -444,10 +463,11 @@ export default function AdminNewReservationPage() {
       };
       setLinkModal({ open: true, reservationId, url, shareUrl });
       setLastCreatedReservation({ id: reservationId, paymentUrl: url, shareUrl, summary });
-    setLinkEmailStatus('idle');
-    setCopyStatus('idle');
+      setLinkEmailStatus('idle');
+      setCopyStatus('idle');
       setCopyShareLinkStatus('idle');
-    setIsSendingLinkEmail(false);
+      setCopyDirectStatus('idle');
+      setIsSendingLinkEmail(false);
     },
     [
       buildShareUrl,
@@ -467,6 +487,7 @@ export default function AdminNewReservationPage() {
     setLinkEmailStatus('idle');
     setCopyStatus('idle');
     setCopyShareLinkStatus('idle');
+    setCopyDirectStatus('idle');
     setIsSendingLinkEmail(false);
     if (redirect) {
       window.location.href = '/reservations';
@@ -483,6 +504,7 @@ export default function AdminNewReservationPage() {
     setLinkEmailStatus('idle');
     setCopyStatus('idle');
     setCopyShareLinkStatus('idle');
+    setCopyDirectStatus('idle');
     setIsSendingLinkEmail(false);
     setError(null);
     setOverrideEnabled(false);
@@ -519,6 +541,7 @@ export default function AdminNewReservationPage() {
       duration: String.fromCodePoint(0x23f3),
       card: String.fromCodePoint(0x1f4b3),
       link: String.fromCodePoint(0x1f517),
+      preview: String.fromCodePoint(0x1f440),
       thanks: String.fromCodePoint(0x1f64c),
     };
 
@@ -533,7 +556,8 @@ export default function AdminNewReservationPage() {
       `${icons.card} Total a pagar: ${formattedAmount}`,
       '',
       'Completa tu pago en un clic:',
-      `${icons.link} ${shareUrl}`,
+      `${icons.link} Pago directo: ${linkModal.url}`,
+      shareUrl && shareUrl !== linkModal.url ? `${icons.preview} Vista previa: ${shareUrl}` : null,
       '',
       `¡Gracias por elegirnos! Nos vemos en la cancha ${icons.thanks}`,
     ].filter(Boolean) as string[];
@@ -577,6 +601,19 @@ export default function AdminNewReservationPage() {
       console.error('No se pudo copiar el enlace público:', error);
       setCopyShareLinkStatus('error');
       showToast({ variant: 'error', message: 'No se pudo copiar el enlace público' });
+    }
+  };
+
+  const handleCopyDirectUrl = async () => {
+    if (!linkModal.url) return;
+    try {
+      await navigator.clipboard.writeText(linkModal.url);
+      setCopyDirectStatus('copied');
+      showToast({ variant: 'success', message: 'Enlace directo copiado al portapapeles' });
+    } catch (error) {
+      console.error('No se pudo copiar el enlace directo:', error);
+      setCopyDirectStatus('error');
+      showToast({ variant: 'error', message: 'No se pudo copiar el enlace directo' });
     }
   };
 
@@ -1236,42 +1273,92 @@ export default function AdminNewReservationPage() {
       )}
 
       {linkModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-5">
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900">Enlace de pago generado</h3>
-              <p className="text-sm text-gray-600 mt-1">Comparte el enlace con el cliente usando una de las siguientes opciones.</p>
-            </div>
-
-            <div className="bg-gray-100 border border-gray-200 rounded-lg p-3 text-xs text-gray-700 break-all">
-              {linkModal.url}
-            </div>
-            {linkModal.shareUrl && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 break-all">
-                <div className="font-semibold text-blue-700">Enlace con vista previa</div>
-                <div className="mt-1">{linkModal.shareUrl}</div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4">
+          <div className="w-full max-w-lg sm:max-w-xl rounded-2xl bg-white shadow-2xl max-h-[88vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-start justify-between gap-4 px-5 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Enlace de pago generado</h3>
+                <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                  Comparte el enlace con el cliente usando una de las siguientes opciones.
+                </p>
               </div>
-            )}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Mensaje sugerido</label>
-              <textarea
-                readOnly
-                value={buildPaymentLinkMessage()}
-                className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 bg-gray-50 h-28"
-              />
+              <button
+                onClick={() => closeLinkModal(false)}
+                className="rounded-full p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Enlace directo (TPV)</label>
+                <div className="bg-gray-100 border border-gray-200 rounded-lg p-3 text-xs sm:text-sm text-gray-700 break-all">
+                  {linkModal.url}
+                </div>
+              </div>
+              {linkModal.shareUrl && (
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Enlace con vista previa</label>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs sm:text-sm text-blue-800 break-all">
+                    {linkModal.shareUrl}
+                  </div>
+                </div>
+              )}
+
+              {lastCreatedReservation?.summary && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3 text-sm">
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Resumen de la reserva</div>
+                  <div className="text-gray-700 leading-relaxed">
+                    <p className="font-medium text-gray-800">{lastCreatedReservation.summary.court || '—'}</p>
+                    <p>
+                      {lastCreatedReservation.summary.date || '—'} · {lastCreatedReservation.summary.time || '—'}
+                    </p>
+                    <p>
+                      {lastCreatedReservation.summary.duration || '—'} · {lastCreatedReservation.summary.amount || '—'}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-600 text-xs font-semibold">
+                        TPV
+                      </span>
+                      <span>Enlace directo para el TPV Redsys.</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-sky-100 text-sky-600 text-xs font-semibold">
+                        OG
+                      </span>
+                      <span>Vista previa con metadatos sociales.</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide">Mensaje sugerido</label>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs sm:text-sm text-gray-700 whitespace-pre-line">
+                  {buildPaymentLinkMessage()}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-4 space-y-2 border-t border-gray-100 bg-white">
               <button
                 onClick={handleSendLinkEmail}
                 disabled={isSendingLinkEmail || linkEmailStatus === 'sent'}
-                className={`w-full px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`w-full px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
                   linkEmailStatus === 'sent'
                     ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                     : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed'
                 }`}
               >
-                {isSendingLinkEmail ? 'Enviando correo...' : linkEmailStatus === 'sent' ? 'Enlace enviado por correo' : 'Enviar por correo'}
+                {isSendingLinkEmail
+                  ? 'Enviando correo...'
+                  : linkEmailStatus === 'sent'
+                  ? 'Enlace enviado por correo'
+                  : 'Enviar por correo'}
               </button>
               {linkEmailStatus === 'error' && (
                 <p className="text-xs text-red-600">No se pudo enviar el correo. Inténtalo nuevamente.</p>
@@ -1279,39 +1366,46 @@ export default function AdminNewReservationPage() {
 
               <button
                 onClick={handleCopyLink}
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 text-gray-800 hover:bg-gray-100 transition-colors"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 text-gray-800 hover:bg-gray-100 transition-colors text-sm"
               >
                 {copyStatus === 'copied' ? 'Mensaje copiado' : 'Copiar mensaje con enlace'}
               </button>
 
               <button
+                onClick={handleCopyDirectUrl}
+                className="w-full px-4 py-2 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors text-sm"
+              >
+                {copyDirectStatus === 'copied' ? 'Enlace directo copiado' : 'Copiar enlace directo'}
+              </button>
+
+              <button
                 onClick={handleCopyShareUrl}
-                className="w-full px-4 py-2 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors"
+                className="w-full px-4 py-2 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors text-sm"
               >
                 {copyShareLinkStatus === 'copied' ? 'Enlace con preview copiado' : 'Copiar enlace con vista previa'}
               </button>
 
               <button
                 onClick={handleShareWhatsapp}
-                className="w-full px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors"
+                className="w-full px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors text-sm"
               >
                 Compartir por WhatsApp
               </button>
-            </div>
 
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                onClick={() => closeLinkModal(false)}
-                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
-              >
-                Seguir aquí
-              </button>
-              <button
-                onClick={() => closeLinkModal(true)}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-              >
-                Ir a reservas
-              </button>
+              <div className="flex flex-col sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-2">
+                <button
+                  onClick={() => closeLinkModal(false)}
+                  className="w-full sm:w-auto px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
+                >
+                  Seguir aquí
+                </button>
+                <button
+                  onClick={() => closeLinkModal(true)}
+                  className="w-full sm:w-auto px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm"
+                >
+                  Ir a reservas
+                </button>
+              </div>
             </div>
           </div>
         </div>

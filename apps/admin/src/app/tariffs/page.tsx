@@ -540,7 +540,7 @@ export default function TariffsPage() {
 
       {showTariffModal && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-900/50 px-4 py-6 sm:py-10">
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900">
                 {editingTariff ? 'Editar tarifa regulada' : 'Nueva tarifa regulada'}
@@ -556,7 +556,7 @@ export default function TariffsPage() {
               </button>
             </div>
             <form onSubmit={handleSubmitTariff} className="flex-1 flex flex-col overflow-hidden">
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <label className="flex flex-col gap-1 text-sm text-gray-600">
                     Segmento
@@ -646,73 +646,72 @@ export default function TariffsPage() {
                     Tarifa activa
                   </label>
                 </div>
-              </div>
+                <label className="flex flex-col gap-1 text-sm text-gray-600">
+                  Descripción (opcional)
+                  <textarea
+                    value={tariffForm.description}
+                    onChange={(event) => handleTariffFormChange('description', event.target.value)}
+                    rows={3}
+                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    placeholder="Información adicional que verán los usuarios al solicitar la tarifa"
+                  />
+                </label>
 
-              <label className="flex flex-col gap-1 text-sm text-gray-600">
-                Descripción (opcional)
-                <textarea
-                  value={tariffForm.description}
-                  onChange={(event) => handleTariffFormChange('description', event.target.value)}
-                  rows={3}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                  placeholder="Información adicional que verán los usuarios al solicitar la tarifa"
-                />
-              </label>
-
-              <div className="border-t border-gray-200 pt-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Aplicación por cancha</label>
-                    <p className="text-xs text-gray-500">
-                      Selecciona las canchas donde se aplicará esta tarifa. Si no seleccionas ninguna, se aplicará a todas.
-                    </p>
+                <div className="border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Aplicación por cancha</label>
+                      <p className="text-xs text-gray-500">
+                        Selecciona las canchas donde se aplicará esta tarifa. Si no seleccionas ninguna, se aplicará a todas.
+                      </p>
+                    </div>
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={applyToAllCourts}
+                        onChange={(event) => handleApplyAllCourtsChange(event.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      Aplicar a todas
+                    </label>
                   </div>
-                  <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={applyToAllCourts}
-                      onChange={(event) => handleApplyAllCourtsChange(event.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    Aplicar a todas
-                  </label>
+
+                  {!applyToAllCourts && (
+                    <div className="max-h-52 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white">
+                      {loadingCourts ? (
+                        <div className="p-3 text-sm text-gray-500">Cargando canchas...</div>
+                      ) : (availableCourts?.length ?? 0) === 0 ? (
+                        <div className="p-3 text-sm text-gray-500">No hay canchas disponibles.</div>
+                      ) : (
+                        (availableCourts ?? []).map((court: any) => {
+                          const checked = tariffForm.courtIds.includes(court.id);
+                          return (
+                            <label
+                              key={court.id}
+                              className="flex items-center justify-between gap-3 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer"
+                            >
+                              <div>
+                                <span className="font-medium text-gray-800">{court.name}</span>
+                                {centerLookup.get(court.id) && (
+                                  <span className="ml-2 text-xs text-gray-500">({centerLookup.get(court.id)})</span>
+                                )}
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleCourtSelection(court.id)}
+                                className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                              />
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
                 </div>
-
-                {!applyToAllCourts && (
-                  <div className="max-h-52 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
-                    {loadingCourts ? (
-                      <div className="p-3 text-sm text-gray-500">Cargando canchas...</div>
-                    ) : (availableCourts?.length ?? 0) === 0 ? (
-                      <div className="p-3 text-sm text-gray-500">No hay canchas disponibles.</div>
-                    ) : (
-                      (availableCourts ?? []).map((court: any) => {
-                        const checked = tariffForm.courtIds.includes(court.id);
-                        return (
-                          <label
-                            key={court.id}
-                            className="flex items-center justify-between gap-3 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer"
-                          >
-                            <div>
-                              <span className="font-medium text-gray-800">{court.name}</span>
-                              {centerLookup.get(court.id) && (
-                                <span className="ml-2 text-xs text-gray-500">({centerLookup.get(court.id)})</span>
-                              )}
-                            </div>
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleCourtSelection(court.id)}
-                              className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                            />
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
               </div>
 
-              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-white">
+            <div className="sticky bottom-0 inset-x-0 flex items-center justify-end gap-3 px-5 sm:px-6 py-3 sm:py-4 border-t border-gray-200 bg-white shadow-[0_-2px_12px_rgba(15,23,42,0.08)]">
                 <button
                   type="button"
                   onClick={() => {

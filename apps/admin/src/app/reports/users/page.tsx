@@ -72,7 +72,8 @@ export default function UsersReportPage() {
           params.set('endDate', dateRange.end);
         }
         const result = await getCustomersReport(params);
-        if (active) setData(result);
+        const normalized = (result as any)?.data ?? result;
+        if (active) setData(normalized);
       } catch (err) {
         if (active) {
           console.error('Error loading users report:', err);
@@ -191,7 +192,7 @@ export default function UsersReportPage() {
 
   // Cálculo de métricas
   const calculatedMetrics = useMemo(() => {
-    if (!data) return {
+    const baseResult = {
       totalUsers: 0,
       activeUsers: 0,
       inactiveUsers: 0,
@@ -199,87 +200,110 @@ export default function UsersReportPage() {
       engagementRate: 0,
       retentionRate: 0,
       avgReservationsPerUser: 0,
-      byRole: [],
-      activity: [],
-      timeline: [],
-      usersList: [],
-      topUsers: []
+      byRole: [] as any[],
+      activity: [] as any[],
+      timeline: [] as any[],
+      usersList: [] as any[],
+      topUsers: [] as any[],
     };
 
-    const users = data.users || [];
-    const totalUsers = users.length;
-    const activeUsers = users.filter((u: any) => u.isActive).length;
-    const inactiveUsers = totalUsers - activeUsers;
-    const newUsers = users.filter((u: any) => {
-      const createdAt = new Date(u.createdAt);
-      const periodStart = new Date(getPeriodStartDate(period));
-      return createdAt >= periodStart;
-    }).length;
+    if (!data) {
+      return baseResult;
+    }
 
-    // Calcular engagement rate (usuarios con reservas en el período)
-    const usersWithReservations = users.filter((u: any) => (u._count?.reservations || 0) > 0).length;
-    const engagementRate = totalUsers > 0 ? Math.round((usersWithReservations / totalUsers) * 100) : 0;
+    const summary = (data.summary ?? {}) as {
+      totalUsers?: number;
+      activeUsers?: number;
+      inactiveUsers?: number;
+      newUsers?: number;
+      periodStart?: string;
+      periodEnd?: string;
+    };
 
-    // Calcular retención (usuarios activos que han hecho reservas recientemente)
-    const retentionRate = totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 100) : 0;
+    const users = Array.isArray(data.users) ? data.users : [];
 
-    // Calcular promedio de reservas por usuario
-    const totalReservations = users.reduce((sum: number, u: any) => sum + (u._count?.reservations || 0), 0);
-    const avgReservationsPerUser = totalUsers > 0 ? Math.round(totalReservations / totalUsers * 10) / 10 : 0;
+    const fallbackStartStr =
+      period === 'custom' && dateRange.start ? dateRange.start : getPeriodStartDate(period);
+    const periodStart = summary.periodStart
+      ? new Date(summary.periodStart)
+      : new Date(`${fallbackStartStr}T00:00:00`);
 
-    // Agrupar por rol
-    const byRole = users.reduce((acc: any, user: any) => {
+    const totalUsers = summary.totalUsers ?? users.length;
+    const activeUsers = summary.activeUsers ?? users.filter((u: any) => u.isActive).length;
+    const inactiveUsers = summary.inactiveUsers ?? Math.max(0, totalUsers - activeUsers);
+    const newUsers =
+      summary.newUsers ??
+      users.filter((u: any) => {
+        if (!u.createdAt) return false;
+        return new Date(u.createdAt) >= periodStart;
+      }).length;
+
+    const usersWithReservations = users.filter(
+      (u: any) => (u._count?.reservations || 0) > 0
+    ).length;
+    const engagementRate =
+      totalUsers > 0 ? Math.round((usersWithReservations / totalUsers) * 100) : 0;
+
+    const activeForRetention = summary.activeUsers ?? activeUsers;
+    const retentionRate =
+      totalUsers > 0 ? Math.round((activeForRetention / totalUsers) * 100) : 0;
+
+    const totalReservations = users.reduce(
+      (sum: number, u: any) => sum + (u._count?.reservations || 0),
+      0
+    );
+    const avgReservationsPerUser =
+      totalUsers > 0 ? Math.round((totalReservations / totalUsers) * 10) / 10 : 0;
+
+    const byRoleMap = users.reduce((acc: Record<string, { role: string; count: number }>, user: any) => {
       const role = user.role || 'UNKNOWN';
       if (!acc[role]) {
-        acc[role] = { role, count: 0, users: [] };
+        acc[role] = { role, count: 0 };
       }
-      acc[role].count++;
-      acc[role].users.push(user);
+      acc[role].count += 1;
       return acc;
     }, {});
 
-    const byRoleArray = Object.values(byRole).map((roleData: any) => ({
+    const byRole = Object.values(byRoleMap).map((roleData: any) => ({
       role: roleData.role,
       count: roleData.count,
-      percentage: totalUsers > 0 ? Math.round((roleData.count / totalUsers) * 100) : 0
+      percentage: totalUsers > 0 ? Math.round((roleData.count / totalUsers) * 100) : 0,
     }));
 
-    // Actividad por día (últimos 7 días)
-    const activity = [];
+    const activity: Array<{ date: string; count: number; label: string }> = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().slice(0, 10);
       const dayUsers = users.filter((u: any) => {
-        const createdAt = new Date(u.createdAt);
-        return createdAt.toISOString().slice(0, 10) === dateStr;
+        if (!u.createdAt) return false;
+        return new Date(u.createdAt).toISOString().slice(0, 10) === dateStr;
       }).length;
       activity.push({
         date: dateStr,
         count: dayUsers,
-        label: date.toLocaleDateString('es-ES', { weekday: 'short' })
+        label: date.toLocaleDateString('es-ES', { weekday: 'short' }),
       });
     }
 
-    // Timeline de registros (últimos 14 días)
-    const timeline = [];
+    const timeline: Array<{ date: string; count: number; label: string }> = [];
     for (let i = 13; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().slice(0, 10);
       const dayUsers = users.filter((u: any) => {
-        const createdAt = new Date(u.createdAt);
-        return createdAt.toISOString().slice(0, 10) === dateStr;
+        if (!u.createdAt) return false;
+        return new Date(u.createdAt).toISOString().slice(0, 10) === dateStr;
       }).length;
       timeline.push({
         date: dateStr,
         count: dayUsers,
-        label: date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+        label: date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
       });
     }
 
-    // Top usuarios por reservas
     const topUsers = users
+      .slice()
       .sort((a: any, b: any) => (b._count?.reservations || 0) - (a._count?.reservations || 0))
       .slice(0, 5)
       .map((user: any) => ({
@@ -287,7 +311,7 @@ export default function UsersReportPage() {
         name: user.name || 'Sin nombre',
         email: user.email,
         reservations: user._count?.reservations || 0,
-        role: user.role
+        role: user.role,
       }));
 
     return {
@@ -298,13 +322,13 @@ export default function UsersReportPage() {
       engagementRate,
       retentionRate,
       avgReservationsPerUser,
-      byRole: byRoleArray,
+      byRole,
       activity,
       timeline,
       usersList: users,
-      topUsers
+      topUsers,
     };
-  }, [data, period]);
+  }, [data, period, dateRange.start, dateRange.end]);
 
   // Filtros y paginación
   const filteredUsers = useMemo(() => {
