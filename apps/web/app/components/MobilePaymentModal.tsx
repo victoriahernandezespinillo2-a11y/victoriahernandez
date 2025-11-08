@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiRequest } from '@/lib/api';
 import { toast } from 'sonner';
@@ -16,6 +16,17 @@ import {
   Building2,
 } from 'lucide-react';
 
+interface PricingSummary {
+  basePrice?: number;
+  discount?: number;
+  total?: number;
+  breakdown?: {
+    description: string;
+    amount: number;
+  }[];
+  appliedRules?: string[];
+}
+
 interface MobilePaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -26,6 +37,7 @@ interface MobilePaymentModalProps {
   dateLabel: string;
   timeLabel: string;
   onSuccess: () => void;
+  pricingDetails?: PricingSummary;
 }
 
 type PaymentMethod = 'CARD' | 'BIZUM' | 'ONSITE' | 'CREDITS';
@@ -41,6 +53,7 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
     dateLabel,
     timeLabel,
     onSuccess,
+  pricingDetails,
   } = props;
   
   const router = useRouter();
@@ -51,6 +64,37 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
   const [creditsBalance, setCreditsBalance] = useState<number>(0);
   const [loadingCredits, setLoadingCredits] = useState<boolean>(false);
   const [appliedPromo, setAppliedPromo] = useState<any>(null);
+  const baseAmount = useMemo(() => {
+    const rawTotal = pricingDetails?.total ?? amount;
+    const numeric = typeof rawTotal === 'number' ? rawTotal : Number(rawTotal ?? 0);
+    return Number.isFinite(numeric) ? numeric : 0;
+  }, [pricingDetails?.total, amount]);
+  const basePriceBeforeDiscount = useMemo(() => {
+    if (typeof pricingDetails?.basePrice === 'number') {
+      return pricingDetails.basePrice;
+    }
+    return baseAmount;
+  }, [pricingDetails?.basePrice, baseAmount]);
+  const discountAmount = useMemo(() => {
+    if (typeof pricingDetails?.discount === 'number') {
+      return pricingDetails.discount;
+    }
+    if (typeof pricingDetails?.basePrice === 'number') {
+      return pricingDetails.basePrice - baseAmount;
+    }
+    return 0;
+  }, [pricingDetails?.discount, pricingDetails?.basePrice, baseAmount]);
+  const pricingBreakdown = useMemo(
+    () => (pricingDetails?.breakdown ? [...pricingDetails.breakdown] : []),
+    [pricingDetails?.breakdown]
+  );
+  const effectiveAmount = useMemo(() => {
+    const promoAmount = appliedPromo?.finalAmount;
+    if (typeof promoAmount === 'number' && Number.isFinite(promoAmount)) {
+      return promoAmount;
+    }
+    return baseAmount;
+  }, [appliedPromo?.finalAmount, baseAmount]);
   
   // Gestos táctiles para cerrar
   const [touchStart, setTouchStart] = useState<{ y: number; time: number } | null>(null);
@@ -122,12 +166,12 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
     setDragOffset(0);
   };
   
-  const formatAmount = (amount: number) => {
+  const formatAmount = (value: number) => {
     return new Intl.NumberFormat('es-ES', {
       style: 'currency',
       currency: currency,
       minimumFractionDigits: 2,
-    }).format(amount);
+    }).format(value);
   };
   
   const handlePay = async () => {
@@ -137,7 +181,7 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
       setIsSubmitting(true);
       setStep('processing');
       try {
-        const finalAmount = appliedPromo ? appliedPromo.finalAmount : amount;
+        const finalAmount = effectiveAmount;
 
         console.log('💰 [MOBILE-PAYMENT] Monto para créditos:', {
           originalAmount: amount,
@@ -199,11 +243,53 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
       router.push(`/dashboard/reservations/success?reservationId=${reservationId}`);
       return;
     }
+    const finalAmount = effectiveAmount;
+    if (finalAmount <= 0) {
+      setIsSubmitting(true);
+      setStep('processing');
+      try {
+        const requestData = {
+          paymentMethod: 'FREE',
+          amount: 0,
+          appliedPromo: appliedPromo
+            ? {
+                code: appliedPromo.code,
+                finalAmount: appliedPromo.finalAmount,
+                savings: appliedPromo.savings,
+                rewardAmount: appliedPromo.reward?.amount || appliedPromo.savings,
+              }
+            : undefined,
+        };
+
+        const data = await apiRequest(`/api/reservations/${reservationId}/pay`, {
+          method: 'POST',
+          body: JSON.stringify(requestData),
+        });
+
+        if (!data.success) {
+          throw new Error(data.message || 'No se pudo procesar el pago.');
+        }
+
+        onClose();
+        router.push(`/dashboard/reservations/success?reservationId=${reservationId}`);
+      } catch (e: any) {
+        setError(e?.message || 'No se pudo procesar el pago.');
+        setStep('payment');
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     setIsSubmitting(true);
     setStep('processing');
     try {
       const bizumFlag = method === 'BIZUM' ? '&bizum=1' : '';
-      const url = `/api/payments/redsys/redirect?rid=${encodeURIComponent(reservationId)}${bizumFlag}`;
+      const promoFlag = appliedPromo
+        ? `&promo=${encodeURIComponent(appliedPromo.code)}&finalAmount=${finalAmount}`
+        : '';
+      const url = `/api/payments/redsys/redirect?rid=${encodeURIComponent(
+        reservationId
+      )}${bizumFlag}${promoFlag}`;
       window.location.href = url;
     } catch (e: any) {
       setError(e?.message || 'No se pudo iniciar el pago.');
@@ -325,19 +411,57 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
               </div>
               
               {/* Total */}
-              <div className="bg-green-50 rounded-2xl p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-green-800 font-medium">Total a pagar:</span>
+              <div className="bg-green-50 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between text-sm text-green-900">
+                  <span>Subtotal</span>
+                  <span className="font-medium">{formatAmount(basePriceBeforeDiscount)}</span>
+                </div>
+                {pricingBreakdown.length > 0 && (
+                  <div className="space-y-1 text-xs">
+                    {pricingBreakdown.map((item, idx) => (
+                      <div
+                        key={`${item.description}-${idx}`}
+                        className={`flex items-center justify-between ${
+                          item.amount < 0 ? 'text-green-700' : 'text-gray-600'
+                        }`}
+                      >
+                        <span>{item.description}</span>
+                        <span className="font-semibold">{formatAmount(item.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {discountAmount !== 0 && (
+                  <div className="flex items-center justify-between text-sm text-green-700">
+                    <span>Descuentos aplicados</span>
+                    <span className="font-semibold">
+                      {formatAmount(-Math.abs(discountAmount))}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-green-800 font-semibold">Total a pagar:</span>
                   <span className="text-2xl font-bold text-green-900">
-                    {formatAmount(amount)}
+                    {formatAmount(appliedPromo ? effectiveAmount : baseAmount)}
                   </span>
                 </div>
+                {appliedPromo && appliedPromo.savings > 0 && (
+                  <p className="text-xs text-green-600 text-right">
+                    ¡Ahorraste {appliedPromo.savings.toFixed(2)}€!
+                  </p>
+                )}
+                {pricingDetails?.appliedRules && pricingDetails.appliedRules.length > 0 && (
+                  <div className="text-[11px] text-gray-500">
+                    <span className="font-medium text-gray-600">Reglas activas:</span>{' '}
+                    {pricingDetails.appliedRules.join(', ')}
+                  </div>
+                )}
               </div>
 
               {/* Código Promocional */}
               <div className="bg-white rounded-xl p-2 border border-gray-200">
                 <PromoCodeInput
-                  amount={amount}
+                  amount={baseAmount}
                   type="RESERVATION"
                   onPromoApplied={(promo) => {
                     console.log('🎁 [MOBILE-PAYMENT] Promoción aplicada:', promo);
@@ -351,22 +475,6 @@ export default function MobilePaymentModal(props: MobilePaymentModalProps) {
               </div>
 
               {/* Total Final con Descuento */}
-              {appliedPromo && appliedPromo.savings > 0 && (
-                <div className="bg-green-50 rounded-xl p-2 border-2 border-green-300">
-                  <div className="flex justify-between items-center">
-                    <span className="text-green-800 font-medium">Total final:</span>
-                    <div className="text-right">
-                      <span className="text-2xl font-bold text-green-900">
-                        {appliedPromo.finalAmount.toFixed(2)}€
-                      </span>
-                      <p className="text-xs text-green-600">
-                        ¡Ahorraste {appliedPromo.savings.toFixed(2)}€!
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
               {/* Botón continuar */}
               <button
                 onClick={() => setStep('payment')}

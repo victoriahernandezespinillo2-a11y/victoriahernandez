@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -94,10 +94,16 @@ export function MobileCalendar({
     return new Date(year, month - 1, day);
   };
 
-  const minDateObj = toLocalDate(minDate);
-  const maxDateObj = toLocalDate(maxDate);
-  const minMonth = new Date(minDateObj.getFullYear(), minDateObj.getMonth(), 1);
-  const maxMonth = new Date(maxDateObj.getFullYear(), maxDateObj.getMonth(), 1);
+  const minDateObj = useMemo(() => toLocalDate(minDate), [minDate]);
+  const maxDateObj = useMemo(() => toLocalDate(maxDate), [maxDate]);
+  const minMonth = useMemo(
+    () => new Date(minDateObj.getFullYear(), minDateObj.getMonth(), 1),
+    [minDateObj]
+  );
+  const maxMonth = useMemo(
+    () => new Date(maxDateObj.getFullYear(), maxDateObj.getMonth(), 1),
+    [maxDateObj]
+  );
 
   useEffect(() => {
     const base = selectedDate ? toLocalDate(selectedDate) : new Date();
@@ -105,7 +111,7 @@ export function MobileCalendar({
     if (target < minDateObj) target = minDateObj;
     if (target > maxDateObj) target = maxDateObj;
     setCurrentMonth(new Date(target.getFullYear(), target.getMonth(), 1));
-  }, [selectedDate, minDate, maxDate, minDateObj, maxDateObj]);
+  }, [selectedDate, minDateObj, maxDateObj]);
 
   // Generar días del mes - Formato español (lunes a domingo)
   const generateCalendarDays = () => {
