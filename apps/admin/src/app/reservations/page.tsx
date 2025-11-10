@@ -537,7 +537,9 @@ export default function ReservationsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {paginatedReservations.map((reservation) => (
+              {paginatedReservations.map((reservation) => {
+                const normalizedMethodCode = normalizeMethod((reservation as any).paymentMethod as string);
+                return (
                 <tr key={reservation.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -604,8 +606,13 @@ export default function ReservationsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                     <div className="flex items-center gap-2">
-                      <span>{methodLabel(normalizeMethod((reservation as any).paymentMethod as string))}</span>
-                      {reservation.paymentStatus === 'PENDING' && normalizeMethod((reservation as any).paymentMethod as string) === 'ONSITE' && (
+                      <span>{methodLabel(normalizedMethodCode)}</span>
+                      {normalizedMethodCode === 'PENDING' && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs" title="Reserva pendiente de cobro">
+                          ⏳ Por cobrar
+                        </span>
+                      )}
+                      {reservation.paymentStatus === 'PENDING' && normalizedMethodCode === 'ONSITE' && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 text-xs" title="Usuario eligió pagar en sede">
                           🏢 Pagar en sede
                         </span>
@@ -701,8 +708,8 @@ export default function ReservationsPage() {
                           ■
                         </button>
                       )}
-                      {/* Cobrar en sede: sólo si pendiente y método ONSITE */}
-                      {reservation.paymentStatus === 'PENDING' && normalizeMethod((reservation as any).paymentMethod as string) === 'ONSITE' && (
+                      {/* Cobrar en sede: pendiente con método en sitio o pendiente */}
+                      {reservation.paymentStatus === 'PENDING' && ['ONSITE', 'PENDING'].includes(normalizedMethodCode) && (
                         <button
                           className="text-green-700 hover:text-green-900"
                           title="Cobrar en sede"
@@ -712,7 +719,7 @@ export default function ReservationsPage() {
                             userName: reservation.userName as string,
                             courtName: reservation.courtName as string,
                             totalAmount: Number(reservation.totalAmount || 0),
-                            currentMethod: methodLabel('ONSITE')
+                            currentMethod: methodLabel(normalizedMethodCode)
                           })}
                         >
                           💵
@@ -807,7 +814,8 @@ export default function ReservationsPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>

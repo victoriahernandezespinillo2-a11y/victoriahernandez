@@ -390,19 +390,25 @@ export const adminApi = {
       role: string;
       phone?: string;
       password: string;
+      dateOfBirth?: string;
+      gdprConsent: boolean;
+      membershipType?: string;
+      sendWelcomeEmail?: boolean;
     }) => {
-      // Backend espera 'password', 'name' y 'isActive' en CreateUserSchema
       const payload = {
         email: data.email,
         password: data.password,
+        firstName: data.firstName,
+        lastName: data.lastName,
         name: `${data.firstName || ''} ${data.lastName || ''}`.trim(),
         role: data.role,
         phone: data.phone,
-        isActive: true,
+        dateOfBirth: data.dateOfBirth,
+        gdprConsent: data.gdprConsent,
+        membershipType: data.membershipType,
+        sendWelcomeEmail: data.sendWelcomeEmail ?? true,
       };
-      
 
-      
       return apiClient.request('/api/admin/users', {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -938,6 +944,17 @@ export const adminApi = {
         body: JSON.stringify(data),
       }),
 
+    createEnrollment: (data: {
+      userId: string;
+      tariffId: string;
+      notes?: string;
+      autoApprove?: boolean;
+    }) =>
+      apiClient.request('/api/admin/tariffs/enrollments', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
     listEnrollments: async (params?: {
       status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
       segment?: string;
@@ -988,6 +1005,17 @@ export const adminApi = {
       apiClient.request(`/api/admin/tariffs/enrollments/${id}/reject`, {
         method: 'POST',
         body: JSON.stringify(data),
+      }),
+
+    updateEnrollment: (id: string, data: Record<string, unknown>) =>
+      apiClient.request(`/api/admin/tariffs/enrollments/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    deleteEnrollment: (id: string) =>
+      apiClient.request(`/api/admin/tariffs/enrollments/${id}`, {
+        method: 'DELETE',
       }),
   },
 
@@ -1376,6 +1404,28 @@ export const adminApi = {
     getDashboard: (period?: string) => {
       const params = period ? `?period=${period}` : '';
       return apiClient.request(`/api/admin/credits/dashboard${params}`);
+    },
+
+    listUsers: (params?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      withBalance?: boolean;
+      orderBy?: 'balance' | 'name';
+      direction?: 'asc' | 'desc';
+    }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        const { page, limit, search, withBalance, orderBy, direction } = params;
+        if (page !== undefined) searchParams.set('page', String(page));
+        if (limit !== undefined) searchParams.set('limit', String(limit));
+        if (search) searchParams.set('search', search);
+        if (withBalance !== undefined) searchParams.set('withBalance', withBalance ? 'true' : 'false');
+        if (orderBy) searchParams.set('orderBy', orderBy);
+        if (direction) searchParams.set('direction', direction);
+      }
+      const query = searchParams.toString();
+      return apiClient.request(`/api/admin/credits/users${query ? `?${query}` : ''}`);
     },
 
     adjustBalance: (data: {

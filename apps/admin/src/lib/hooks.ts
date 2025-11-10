@@ -198,8 +198,23 @@ export function useAdminUsers() {
     role: string;
     phone?: string;
     password: string;
+    dateOfBirth?: string;
+    gdprConsent?: boolean;
+    membershipType?: string;
+    sendWelcomeEmail?: boolean;
   }) => {
-    const newUser = await adminApi.users.create(userData) as User;
+    const newUser = await adminApi.users.create({
+      email: userData.email,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      role: userData.role,
+      phone: userData.phone,
+      password: userData.password,
+      dateOfBirth: userData.dateOfBirth,
+      membershipType: userData.membershipType,
+      gdprConsent: userData.gdprConsent ?? true,
+      sendWelcomeEmail: userData.sendWelcomeEmail ?? true,
+    }) as User;
     setData(prev => prev ? [newUser, ...prev] : [newUser]);
     return newUser;
   }, [setData]);

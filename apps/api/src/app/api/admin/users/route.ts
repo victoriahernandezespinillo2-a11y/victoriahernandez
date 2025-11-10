@@ -27,8 +27,16 @@ const GetUsersQuerySchema = z.object({
 const CreateUserSchema = z.object({
   email: z.string().email('Email invÃ¡lido'),
   password: z.string().min(8, 'La contraseÃ±a debe tener al menos 8 caracteres'),
-  name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
+  firstName: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
+  lastName: z.string().min(2, 'El apellido debe tener al menos 2 caracteres'),
   phone: z.string().optional(),
+  dateOfBirth: z
+    .string()
+    .datetime({ message: 'Fecha de nacimiento invÃ¡lida' })
+    .optional()
+    .nullable(),
+  gdprConsent: z.boolean().default(false),
+  membershipType: z.string().optional().nullable(),
   role: z.enum(['USER', 'STAFF', 'ADMIN']).default('USER'),
   status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
   centerId: z.string().optional(),
@@ -305,8 +313,13 @@ export async function POST(request: NextRequest) {
         data: {
           email: userData.email,
           password: hashedPassword,
-          name: userData.name,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          name: `${userData.firstName} ${userData.lastName}`.trim(),
           phone: userData.phone,
+          dateOfBirth: userData.dateOfBirth ? new Date(userData.dateOfBirth) : null,
+          gdprConsent: userData.gdprConsent,
+          membershipType: userData.membershipType ?? null,
           role: userData.role,
           isActive: userData.status === 'ACTIVE',
           emailVerified: true,
@@ -316,8 +329,13 @@ export async function POST(request: NextRequest) {
         select: {
           id: true,
           email: true,
+          firstName: true,
+          lastName: true,
           name: true,
           phone: true,
+          dateOfBirth: true,
+          gdprConsent: true,
+          membershipType: true,
           role: true,
           isActive: true,
           emailVerified: true,

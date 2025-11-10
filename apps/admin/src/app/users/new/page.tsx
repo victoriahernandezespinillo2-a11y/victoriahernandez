@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminApi } from '@/lib/api';
 import { UsersIcon, XCircleIcon } from '@heroicons/react/24/outline';
@@ -14,15 +14,32 @@ export default function NewUserPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<'USER' | 'STAFF' | 'ADMIN'>('USER');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [membershipType, setMembershipType] = useState('');
+  const [gdprConsent, setGdprConsent] = useState(false);
+  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  const canSubmit = firstName.trim().length >= 2 && 
-                   emailRegex.test(email) && 
-                   password.length >= 8 && 
-                   password === confirmPassword;
+  const isDateInFuture = useMemo(() => {
+    if (!dateOfBirth) return false;
+    const selected = new Date(dateOfBirth);
+    const today = new Date();
+    selected.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    return selected.getTime() >= today.getTime();
+  }, [dateOfBirth]);
+
+  const canSubmit =
+    firstName.trim().length >= 2 &&
+    lastName.trim().length >= 2 &&
+    emailRegex.test(email) &&
+    password.length >= 8 &&
+    password === confirmPassword &&
+    gdprConsent &&
+    !isDateInFuture;
 
   const onSubmit = async () => {
     try {
@@ -34,7 +51,11 @@ export default function NewUserPage() {
         email, 
         role, 
         phone,
-        password 
+        password,
+        dateOfBirth: dateOfBirth || undefined,
+        membershipType: membershipType || undefined,
+        gdprConsent,
+        sendWelcomeEmail,
       });
       router.push('/users');
     } catch (e: any) {
@@ -83,6 +104,19 @@ export default function NewUserPage() {
               placeholder="Apellido"
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Nacimiento</label>
+            <input
+              type="date"
+              value={dateOfBirth}
+              onChange={(e) => setDateOfBirth(e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            {isDateInFuture && (
+              <p className="mt-1 text-sm text-red-600">La fecha no puede ser futura.</p>
+            )}
+            <p className="mt-1 text-xs text-gray-500">Necesario para calcular tarifas por edad.</p>
+          </div>
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input
@@ -101,6 +135,19 @@ export default function NewUserPage() {
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="+57..."
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Membresía</label>
+            <select
+              value={membershipType}
+              onChange={(e) => setMembershipType(e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Sin membresía</option>
+              <option value="BASIC">Básica</option>
+              <option value="PREMIUM">Premium</option>
+              <option value="VIP">VIP</option>
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
@@ -154,17 +201,48 @@ export default function NewUserPage() {
           </div>
         </div>
 
-        <div className="mt-6 flex gap-2">
+        <div className="mt-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <input
+              id="gdprConsent"
+              type="checkbox"
+              checked={gdprConsent}
+              onChange={(e) => setGdprConsent(e.target.checked)}
+              className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="gdprConsent" className="text-sm text-gray-700">
+              Confirmo que el usuario ha aceptado la política de privacidad y los términos del servicio (GDPR).
+            </label>
+          </div>
+          {!gdprConsent && (
+            <p className="text-sm text-red-600">Debes confirmar el consentimiento GDPR.</p>
+          )}
+
+          <div className="flex items-start gap-3">
+            <input
+              id="sendWelcomeEmail"
+              type="checkbox"
+              checked={sendWelcomeEmail}
+              onChange={(e) => setSendWelcomeEmail(e.target.checked)}
+              className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="sendWelcomeEmail" className="text-sm text-gray-700">
+              Enviar correo de bienvenida automáticamente.
+            </label>
+          </div>
+        </div>
+
+        <div className="mt-6 flex gap-3">
           <button
             onClick={() => router.push('/users')}
-            className="px-4 py-2 border rounded"
+            className="px-4 py-2 border border-gray-300 text-gray-700 bg-white rounded hover:bg-gray-50 transition-colors shadow-sm"
           >
             Cancelar
           </button>
           <button
             onClick={onSubmit}
             disabled={!canSubmit || loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+            className="px-4 py-2 bg-blue-600 text-white rounded shadow-sm font-semibold transition-colors hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 disabled:bg-blue-100 disabled:text-blue-500 disabled:cursor-not-allowed disabled:hover:bg-blue-100 disabled:shadow-none"
           >
             {loading ? 'Creando...' : 'Crear Usuario'}
           </button>

@@ -154,8 +154,12 @@ export class AuthService {
     // Generar tokens
     const tokens = await this.generateTokens(user);
 
-    // Enviar email de verificación
-    await this.sendVerificationEmail(user);
+    // Enviar email de verificación (tolerante a fallos del proveedor)
+    try {
+      await this.sendVerificationEmail(user);
+    } catch (emailError) {
+      console.error('⚠️ [SIGNUP] Error enviando email de verificación (continuando registro):', emailError);
+    }
 
     // Actualizar último login
     await this.updateLastLogin(user.id);

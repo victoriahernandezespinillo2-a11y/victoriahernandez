@@ -441,6 +441,40 @@ export async function POST(request: NextRequest) {
           });
           break;
         }
+        case 'PENDING': {
+          const reason = (input.payment?.reason || '').trim();
+          if (!reason) {
+            return ApiResponse.badRequest('Indica un motivo o recordatorio para el pago pendiente.');
+          }
+
+          const pendingNote = `[Pago pendiente] ${reason}`;
+          const notesToPersist = reservation.notes
+            ? `${reservation.notes}\n${pendingNote}`
+            : pendingNote;
+
+          reservation = await db.reservation.update({
+            where: { id: reservation.id },
+            data: {
+              paymentStatus: 'PENDING',
+              paymentMethod: 'PENDING',
+              notes: notesToPersist,
+            },
+          });
+
+          await db.outboxEvent.create({
+            data: {
+              eventType: 'PAYMENT_PENDING',
+              eventData: {
+                reservationId: reservation.id,
+                userId,
+                amountDue: amount,
+                reason,
+                timestamp: new Date().toISOString(),
+              } as any,
+            },
+          });
+          break;
+        }
         case 'LINK': {
           // ya se maneja más abajo (generación de enlace), no marcar como pagado
           break;
@@ -545,5 +579,3 @@ export async function POST(request: NextRequest) {
     }
   })(request);
 }
-
-

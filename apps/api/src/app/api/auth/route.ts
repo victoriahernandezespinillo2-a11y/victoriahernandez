@@ -1,54 +1,20 @@
 /**
- * API Routes para autenticación
- * POST /api/auth - Registro de usuarios
+ * Endpoint legacy /api/auth
+ * Se mantiene only para compatibilidad pero se marca como obsoleto.
  */
 
-import { NextRequest } from 'next/server';
-import { AuthService, SignUpSchema } from '@/lib/services/auth.service';
-import { withPublicMiddleware, ApiResponse } from '@/lib/middleware';
-import { z } from 'zod';
+import { NextResponse } from 'next/server';
 
-const authService = new AuthService();
-
-/**
- * POST /api/auth
- * Registro de nuevo usuario
- * Acceso: Público
- */
-export async function POST(request: NextRequest) {
-  return withPublicMiddleware(async (req) => {
-    try {
-      const body = await req.json();
-      
-      const result = await authService.signUp(body);
-      
-      return ApiResponse.success(result);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return ApiResponse.validation(
-          error.errors.map(err => ({
-            field: err.path.join('.'),
-            message: err.message,
-          }))
-        );
-      }
-      
-      if (error instanceof Error) {
-        if (error.message.includes('ya existe')) {
-          return ApiResponse.conflict(error.message);
-        }
-      }
-      
-      console.error('Error en registro:', error);
-      return ApiResponse.internalError('Error interno del servidor');
-    }
-  })(request);
+export async function POST() {
+  return NextResponse.json(
+    {
+      success: false,
+      error: 'Este endpoint ha sido reemplazado por /api/auth/signup. Actualiza el cliente.',
+    },
+    { status: 410 }
+  );
 }
 
-/**
- * OPTIONS /api/auth
- * Manejar preflight requests
- */
 export async function OPTIONS() {
-  return ApiResponse.success(null);
+  return NextResponse.json(null, { status: 204 });
 }

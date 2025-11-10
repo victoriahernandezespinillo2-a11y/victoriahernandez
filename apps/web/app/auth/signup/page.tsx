@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense, useEffect } from 'react';
+import { useState, Suspense, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { useForm } from 'react-hook-form';
@@ -8,7 +8,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Link from 'next/link';
 import { Eye, EyeOff, Mail, Lock, User, Phone, AlertCircle, CheckCircle } from 'lucide-react';
-import { signUpWithFirebase, signInWithGoogleFirebase } from '../../../lib/firebase-provider';
+import { signUpWithFirebase } from '../../../lib/firebase-provider';
+import { getFirebaseAuth } from '../../../lib/firebase';
 import { updateProfile } from 'firebase/auth';
 
 const signUpSchema = z.object({
@@ -35,8 +36,10 @@ function SignUpContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [redirectPath, setRedirectPath] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     register,
@@ -57,99 +60,116 @@ function SignUpContent() {
     }
   }, [searchParams, setValue]);
 
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+      }
+    };
+  }, []);
+
   const referredByValue = watch('referredBy');
 
   const onSubmit = async (data: SignUpFormData) => {
     setIsLoading(true);
     setError(null);
+    setSuccess(false);
+    setRedirectPath(null);
 
     try {
-      // Registrar usuario en Firebase
-      const firebaseUser = await signUpWithFirebase(data.email, data.password);
-      
-      // Actualizar perfil de Firebase con nombre completo
-      if (firebaseUser.uid) {
-        await updateProfile(firebaseUser as any, {
-          displayName: `${data.firstName} ${data.lastName}`
-        });
+      await signUpWithFirebase(data.email, data.password);
+
+      try {
+        const authInstance = getFirebaseAuth();
+        if (authInstance.currentUser) {
+          await updateProfile(authInstance.currentUser, {
+            displayName: `${data.firstName} ${data.lastName}`.trim(),
+          });
+        } else {
+          console.warn('⚠️ [SIGNUP] No se encontró currentUser para actualizar el perfil.');
+        }
+      } catch (profileError) {
+        console.warn('⚠️ [SIGNUP] No se pudo actualizar el perfil de Firebase:', profileError);
       }
-      
-      // Sincronizar con NextAuth y base de datos local
-      const result = await signIn('firebase-credentials', {
-        email: data.email,
-        password: data.password,
-        action: 'signup',
-        redirect: false,
+
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          phone: data.phone,
+          password: data.password,
+          acceptTerms: data.acceptTerms,
+          referredBy: data.referredBy,
+        }),
       });
 
-      if (result?.error) {
-        throw new Error('Error al crear la cuenta. Por favor, intenta nuevamente.');
+      let payload: any = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
       }
 
-      setSuccess(true);
-      
-      // Auto-login después del registro exitoso
-      setTimeout(() => {
-        router.push('/dashboard');
-      }, 2000);
-
-    } catch (err: any) {
-      // 1) Error devuelto por Firebase antes de llamar al backend
-      if (err?.code === 'auth/email-already-in-use') {
-        setError('Ese correo ya está registrado. Inicia sesión o recupera tu contraseña.');
-        setIsLoading(false);
+      if (!response.ok) {
+        const message =
+          payload?.error ||
+          (response.status === 409
+            ? 'Ese correo ya está registrado. Inicia sesión o recupera tu contraseña.'
+            : 'Error al registrar usuario. Intenta nuevamente.');
+        setError(message);
         return;
       }
 
-      // Fallback al método tradicional
       try {
-        const response = await fetch('/api/auth/signup', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            firstName: data.firstName,
-            lastName: data.lastName,
-            email: data.email,
-            phone: data.phone,
-            password: data.password,
-            acceptTerms: data.acceptTerms,
-            referredBy: data.referredBy, // Agregar código de referido
-          }),
+        const signInResult = await signIn('credentials', {
+          email: data.email,
+          password: data.password,
+          redirect: false,
         });
+        let nextRoute = '/dashboard';
 
-        const result = await response.json();
-
-        if (!response.ok) {
-          if (response.status === 409) {
-            throw new Error(result.error || 'Ese correo ya está registrado. Inicia sesión o recupera tu contraseña.');
-          }
-          throw new Error(result.error || 'Error al registrar usuario');
+        if (signInResult?.error) {
+          nextRoute = signInResult.url ?? '/auth/signin?message=registered';
+        } else if (signInResult?.ok) {
+          nextRoute = '/dashboard';
+        } else if (signInResult?.url) {
+          nextRoute = signInResult.url;
         }
 
+        setRedirectPath(nextRoute);
         setSuccess(true);
-        
-        setTimeout(async () => {
-          const signInResult = await signIn('credentials', {
-            email: data.email,
-            password: data.password,
-            redirect: false,
-          });
-
-          if (signInResult?.ok) {
-            router.push('/dashboard');
-          } else {
-            router.push('/auth/signin?message=registered');
-          }
+        if (redirectTimerRef.current) {
+          clearTimeout(redirectTimerRef.current);
+        }
+        redirectTimerRef.current = setTimeout(() => {
+          router.replace(nextRoute);
         }, 2000);
-      } catch (fallbackErr: any) {
-        setError(fallbackErr.message || err?.message || 'Error de conexión. Por favor, intenta nuevamente.');
+      } catch (signInError) {
+        console.error('⚠️ [SIGNUP] Error auto-inicio de sesión:', signInError);
+        setRedirectPath('/auth/signin?message=registered');
+        setSuccess(true);
+        if (redirectTimerRef.current) {
+          clearTimeout(redirectTimerRef.current);
+        }
+        redirectTimerRef.current = setTimeout(() => {
+          router.replace('/auth/signin?message=registered');
+        }, 2000);
+      }
+    } catch (err: any) {
+      if (err?.code === 'auth/email-already-in-use') {
+        setError('Ese correo ya está registrado. Inicia sesión o recupera tu contraseña.');
+      } else {
+        setError(err?.message || 'Error al crear la cuenta. Por favor, intenta nuevamente.');
       }
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   const handleGoogleSignUp = async () => {
     setIsLoading(true);
@@ -186,12 +206,27 @@ function SignUpContent() {
             ¡Registro Exitoso!
           </h2>
           <p className="text-gray-600">
-            Tu cuenta ha sido creada correctamente. Redirigiendo...
+            {redirectPath === '/dashboard'
+              ? 'Tu cuenta está lista. Te llevaremos a tu panel en unos instantes.'
+              : redirectPath
+                ? 'Tu cuenta ha sido creada. En breve te llevaremos a la pantalla de inicio de sesión.'
+                : 'Tu cuenta ha sido creada correctamente. Finalizando el proceso...'}
           </p>
         </div>
         <div className="flex justify-center">
           <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
         </div>
+        {redirectPath && (
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={() => router.replace(redirectPath)}
+              className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors"
+            >
+              Ir ahora
+            </button>
+          </div>
+        )}
       </div>
     );
   }

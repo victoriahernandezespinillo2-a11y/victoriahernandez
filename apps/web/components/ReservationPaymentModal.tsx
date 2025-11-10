@@ -35,6 +35,9 @@ interface ReservationPaymentModalProps {
     courtName: string;
     startTime: string;
     endTime: string;
+    startTimeIso?: string;
+    endTimeIso?: string;
+    duration?: number;
     totalPrice: number;
   };
   onPaymentSuccess?: () => void;
@@ -89,6 +92,7 @@ export function ReservationPaymentModal({
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           paymentMethod: selectedMethod,
           amount: reservation.totalPrice
@@ -102,9 +106,18 @@ export function ReservationPaymentModal({
           toast.success(`Pago procesado exitosamente con créditos`);
           onPaymentSuccess?.();
           onClose();
-        } else if (selectedMethod === 'CARD' && data.data.redirectUrl) {
-          // Redirigir a Redsys
-          window.location.href = data.data.redirectUrl;
+        } else if (selectedMethod === 'CARD') {
+          const redirectUrl =
+            data?.data?.redirectUrl ||
+            data?.redirectUrl ||
+            data?.data?.url ||
+            data?.url;
+
+          if (redirectUrl) {
+            window.location.href = redirectUrl;
+          } else {
+            toast.error('No se recibió la URL de redirección para Redsys. Intenta nuevamente.');
+          }
         }
       } else {
         toast.error(data.message || 'Error procesando el pago');
@@ -116,6 +129,27 @@ export function ReservationPaymentModal({
       setProcessing(false);
     }
   };
+
+  const startDate = reservation.startTimeIso
+    ? new Date(reservation.startTimeIso)
+    : new Date(reservation.startTime);
+  const endDate = reservation.endTimeIso
+    ? new Date(reservation.endTimeIso)
+    : reservation.endTime
+    ? new Date(reservation.endTime)
+    : new Date(startDate.getTime() + (reservation.duration || 0) * 60000);
+
+  const formattedDate = startDate.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const formattedTimeRange = `${startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  const formattedDuration = Number.isFinite(reservation.duration)
+    ? `${reservation.duration} minutos`
+    : `${Math.max(0, Math.round((endDate.getTime() - startDate.getTime()) / 60000))} minutos`;
 
   const getMethodIcon = (method: PaymentMethod) => {
     if (method.method === 'CREDITS') {
@@ -134,140 +168,132 @@ export function ReservationPaymentModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Pagar Reserva</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-w-2xl p-0 overflow-hidden">
+        <div className="flex max-h-[85vh] flex-col">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200">
+            <DialogTitle>Pagar Reserva</DialogTitle>
+          </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Información de la reserva */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Detalles de la Reserva</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Cancha:</span>
-                <span className="font-medium">{reservation.courtName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Fecha y hora:</span>
-                <span className="font-medium">
-                  {new Date(reservation.startTime).toLocaleDateString('es-ES', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Duración:</span>
-                <span className="font-medium">
-                  {Math.round((new Date(reservation.endTime).getTime() - new Date(reservation.startTime).getTime()) / (1000 * 60))} minutos
-                </span>
-              </div>
-              <div className="flex justify-between border-t pt-2">
-                <span className="text-sm font-semibold">Total a pagar:</span>
-                <span className="text-lg font-bold text-green-600">
-                  €{reservation.totalPrice.toFixed(2)}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Métodos de pago */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Métodos de Pago</CardTitle>
-              <CardDescription>
-                Selecciona cómo deseas pagar tu reserva
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loadingMethods ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                  <span className="ml-2">Cargando métodos de pago...</span>
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Detalles de la Reserva</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Cancha:</span>
+                  <span className="font-medium text-gray-900">{reservation.courtName}</span>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {paymentMethods.map((method) => (
-                    <div
-                      key={method.method}
-                      className={`border rounded-lg p-4 cursor-pointer transition-all ${
-                        selectedMethod === method.method
-                          ? 'border-blue-500 bg-blue-50'
-                          : method.available
-                          ? 'border-gray-200 hover:border-gray-300'
-                          : 'border-gray-200 bg-gray-50 opacity-60'
-                      }`}
-                      onClick={() => method.available && setSelectedMethod(method.method)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          {getMethodIcon(method)}
-                          <div>
-                            <div className="font-medium">{method.name}</div>
-                            <div className="text-sm text-gray-600">
-                              {method.description}
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Fecha:</span>
+                  <span className="font-medium text-gray-900 capitalize">{formattedDate}</span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Horario:</span>
+                  <span className="font-medium text-gray-900">{formattedTimeRange}</span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Duración:</span>
+                  <span className="font-medium text-gray-900">{formattedDuration}</span>
+                </div>
+                <div className="flex justify-between border-t pt-3 text-sm font-semibold">
+                  <span>Total a pagar:</span>
+                  <span className="text-lg font-bold text-green-600">€{reservation.totalPrice.toFixed(2)}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Métodos de Pago</CardTitle>
+                <CardDescription>Selecciona cómo deseas pagar tu reserva</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingMethods ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    <span className="ml-2">Cargando métodos de pago...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {paymentMethods.map((method) => (
+                      <button
+                        key={method.method}
+                        type="button"
+                        className={`w-full text-left border rounded-lg p-4 transition-all ${
+                          selectedMethod === method.method
+                            ? 'border-blue-500 bg-blue-50 shadow-sm'
+                            : method.available
+                            ? 'border-gray-200 hover:border-gray-300'
+                            : 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
+                        }`}
+                        onClick={() => method.available && setSelectedMethod(method.method)}
+                        disabled={!method.available}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            {getMethodIcon(method)}
+                            <div>
+                              <div className="font-medium text-gray-900">{method.name}</div>
+                              <div className="text-sm text-gray-600">{method.description}</div>
+                              {method.method === 'CREDITS' && method.creditsAvailable !== undefined && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  Disponible: {method.creditsAvailable} créditos
+                                  {method.balanceAfter !== undefined && (
+                                    <span> • Después: {method.balanceAfter} créditos</span>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            {method.method === 'CREDITS' && method.creditsAvailable !== undefined && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                Disponible: {method.creditsAvailable} créditos
-                                {method.balanceAfter !== undefined && (
-                                  <span> • Después: {method.balanceAfter} créditos</span>
-                                )}
-                              </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {getMethodStatus(method)}
+                            {selectedMethod === method.method && (
+                              <CheckCircle className="h-5 w-5 text-blue-600" />
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          {getMethodStatus(method)}
-                          {selectedMethod === method.method && (
-                            <CheckCircle className="h-5 w-5 text-blue-600" />
-                          )}
-                        </div>
-                      </div>
-                      {!method.available && method.disabledReason === 'SALDO_INSUFICIENTE' && (
-                        <div className="mt-2 flex items-center text-sm text-red-600">
-                          <AlertCircle className="h-4 w-4 mr-1" />
-                          Saldo insuficiente para pagar con créditos
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                        {!method.available && method.disabledReason === 'SALDO_INSUFICIENTE' && (
+                          <div className="mt-2 flex items-center text-sm text-red-600">
+                            <AlertCircle className="h-4 w-4 mr-1" />
+                            Saldo insuficiente para pagar con créditos
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
-          {/* Botones de acción */}
-          <div className="flex justify-end space-x-3">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              disabled={processing}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handlePayment}
-              disabled={!selectedMethod || processing || loadingMethods}
-            >
-              {processing ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Procesando...
-                </>
-              ) : (
-                <>
-                  {selectedMethod === 'CREDITS' ? 'Pagar con Créditos' : 'Pagar con Tarjeta'}
-                </>
-              )}
-            </Button>
+          <div className="border-t border-gray-200 bg-gray-50 px-6 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                onClick={onClose}
+                disabled={processing}
+                className="sm:min-w-[140px]"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handlePayment}
+                disabled={!selectedMethod || processing || loadingMethods}
+                className="sm:min-w-[180px]"
+              >
+                {processing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Procesando...
+                  </>
+                ) : selectedMethod === 'CREDITS' ? (
+                  'Pagar con Créditos'
+                ) : (
+                  'Pagar con Tarjeta'
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

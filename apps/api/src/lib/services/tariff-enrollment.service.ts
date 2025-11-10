@@ -18,6 +18,16 @@ const updateStatusSchema = z.object({
   notes: z.string().max(500).optional(),
 });
 
+const updateEnrollmentSchema = updateStatusSchema.extend({
+  status: z.nativeEnum(TariffEnrollmentStatus).optional(),
+  reason: z.string().max(500).optional(),
+});
+
+const deleteEnrollmentSchema = z.object({
+  enrollmentId: cuidOrUuid('ID de solicitud inválido'),
+  adminId: cuidOrUuid('ID de administrador inválido'),
+});
+
 const listEnrollmentsSchema = z.object({
   status: z.nativeEnum(TariffEnrollmentStatus).optional(),
   segment: z.string().optional(),
@@ -29,6 +39,8 @@ const listEnrollmentsSchema = z.object({
 export type CreateEnrollmentInput = z.infer<typeof createEnrollmentSchema>;
 export type UpdateEnrollmentStatusInput = z.infer<typeof updateStatusSchema>;
 export type ListEnrollmentsInput = z.infer<typeof listEnrollmentsSchema>;
+export type UpdateEnrollmentInput = z.infer<typeof updateEnrollmentSchema>;
+export type DeleteEnrollmentInput = z.infer<typeof deleteEnrollmentSchema>;
 
 export class TariffEnrollmentService {
   private tariffService: TariffService;
@@ -212,6 +224,121 @@ export class TariffEnrollmentService {
     });
 
     return updated;
+  }
+
+  async updateEnrollment(input: UpdateEnrollmentInput) {
+    const data = updateEnrollmentSchema.parse(input);
+
+    if (data.status === TariffEnrollmentStatus.APPROVED) {
+      return this.approveEnrollment({
+        enrollmentId: data.enrollmentId,
+        adminId: data.adminId,
+        notes: data.notes,
+      });
+    }
+
+    if (data.status === TariffEnrollmentStatus.REJECTED) {
+      const reason = data.reason?.trim();
+      if (!reason || reason.length < 3) {
+        throw new Error('Debes indicar un motivo para el rechazo (mínimo 3 caracteres).');
+      }
+      return this.rejectEnrollment({
+        enrollmentId: data.enrollmentId,
+        adminId: data.adminId,
+        reason,
+        notes: data.notes,
+      });
+    }
+
+    const enrollment = await db.tariffEnrollment.findUnique({
+      where: { id: data.enrollmentId },
+      include: {
+        tariff: {
+          include: {
+            courts: {
+              include: {
+                court: { select: { id: true, name: true, centerId: true } },
+              },
+            },
+          },
+        },
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        approvedByUser: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+
+    if (!enrollment) {
+      throw new Error('Solicitud no encontrada');
+    }
+
+    const updates: Record<string, unknown> = {};
+    let newStatus = enrollment.status;
+
+    if (data.notes !== undefined) {
+      updates.notes = data.notes;
+    }
+
+    if (data.status && data.status !== enrollment.status) {
+      newStatus = data.status;
+      switch (data.status) {
+        case TariffEnrollmentStatus.PENDING:
+          updates.status = TariffEnrollmentStatus.PENDING;
+          updates.approvedAt = null;
+          updates.approvedBy = null;
+          break;
+        case TariffEnrollmentStatus.EXPIRED:
+          updates.status = TariffEnrollmentStatus.EXPIRED;
+          break;
+        default:
+          throw new Error('Estado de solicitud no soportado para edición manual.');
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return enrollment;
+    }
+
+    const updated = await db.tariffEnrollment.update({
+      where: { id: data.enrollmentId },
+      data: updates,
+      include: {
+        tariff: {
+          include: {
+            courts: {
+              include: {
+                court: { select: { id: true, name: true, centerId: true } },
+              },
+            },
+          },
+        },
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        approvedByUser: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+
+    await this.createAuditEntry({
+      enrollmentId: updated.id,
+      oldStatus: enrollment.status,
+      newStatus,
+      changedBy: data.adminId,
+      notesSnapshot: updated.notes ?? null,
+    });
+
+    return updated;
+  }
+
+  async deleteEnrollment(input: DeleteEnrollmentInput) {
+    const data = deleteEnrollmentSchema.parse(input);
+
+    const enrollment = await db.tariffEnrollment.findUnique({ where: { id: data.enrollmentId } });
+
+    if (!enrollment) {
+      throw new Error('Solicitud no encontrada');
+    }
+
+    await db.tariffEnrollment.delete({ where: { id: data.enrollmentId } });
+
+    return { success: true };
   }
 
   async listEnrollments(input: ListEnrollmentsInput) {

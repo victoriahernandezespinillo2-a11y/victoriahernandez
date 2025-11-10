@@ -87,6 +87,7 @@ export default function MembershipsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showNewMembershipModal, setShowNewMembershipModal] = useState(false);
+  const [showAssignMembershipModal, setShowAssignMembershipModal] = useState(false);
   const [selectedMembership, setSelectedMembership] = useState<UiMembership | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,42 +118,54 @@ export default function MembershipsPage() {
     duration: 1,
     benefits: [] as string[],
   });
+  const [newUserMembershipForm, setNewUserMembershipForm] = useState({
+    userId: '',
+    planId: '',
+    duration: 1,
+    paymentMethod: 'CASH' as 'CASH' | 'TRANSFER' | 'REDSYS' | 'STRIPE',
+    startDate: new Date().toISOString().slice(0, 10),
+  });
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [foundUsers, setFoundUsers] = useState<any[]>([]);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+
+  const mapMembershipPlans = (res: any): UiMembership[] => {
+    const list = Array.isArray(res?.membershipPlans)
+      ? res.membershipPlans
+      : Array.isArray(res?.data?.membershipPlans)
+        ? res.data.membershipPlans
+        : Array.isArray(res?.memberships)
+          ? res.memberships
+          : Array.isArray(res?.data?.memberships)
+            ? res.data.memberships
+            : Array.isArray(res)
+              ? res
+              : [];
+    return list.map((m: any) => ({
+      id: m.id,
+      name: m.name || m.type || 'Membresía',
+      type: (m.type || 'basic').toLowerCase(),
+      price: Number(m.price || m.monthlyPrice || 0),
+      duration: Number(m.durationMonths || m.duration || 1),
+      benefits: Array.isArray(m.benefits?.features) ? m.benefits.features :
+        Array.isArray(m.benefits) ? m.benefits : [],
+      maxReservations: Number(m.benefits?.maxReservations ?? m.maxReservations ?? -1),
+      discountPercentage: Number(m.benefits?.discountPercentage ?? m.discountPercentage ?? 0),
+      status: (m.status || (m.isActive ? 'active' : 'inactive')) as 'active' | 'inactive',
+      subscribersCount: Number(m.subscribersCount ?? 0),
+      createdAt: m.createdAt || new Date().toISOString(),
+    }));
+  };
+
+  const refreshMemberships = async () => {
+    const res = await adminApi.memberships?.getAll?.({ page: 1, limit: 200 });
+    setMemberships(mapMembershipPlans(res));
+  };
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await adminApi.memberships?.getAll?.({ page: 1, limit: 200 });
-        const list = Array.isArray(res?.membershipPlans)
-          ? res.membershipPlans
-          : Array.isArray(res?.data?.membershipPlans)
-            ? res.data.membershipPlans
-            : Array.isArray(res?.memberships)
-              ? res.memberships
-              : Array.isArray(res?.data?.memberships)
-                ? res.data.memberships
-                : Array.isArray(res)
-                  ? res
-                  : [];
-        const mapped: UiMembership[] = list.map((m: any) => ({
-          id: m.id,
-          name: m.name || m.type || 'Membresía',
-          type: (m.type || 'basic').toLowerCase(),
-          price: Number(m.price || m.monthlyPrice || 0),
-          duration: Number(m.durationMonths || m.duration || 1),
-          benefits: Array.isArray(m.benefits?.features) ? m.benefits.features : 
-                   Array.isArray(m.benefits) ? m.benefits : [],
-          maxReservations: Number(m.benefits?.maxReservations ?? m.maxReservations ?? -1),
-          discountPercentage: Number(m.benefits?.discountPercentage ?? m.discountPercentage ?? 0),
-          status: (m.status || (m.isActive ? 'active' : 'inactive')) as 'active' | 'inactive',
-          subscribersCount: Number(m.subscribersCount ?? 0),
-          createdAt: m.createdAt || new Date().toISOString(),
-        }));
-        setMemberships(mapped);
-      } catch {
-        setMemberships([]);
-      }
-    };
-    load();
+    refreshMemberships().catch(() => setMemberships([]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filteredMemberships = memberships.filter(membership => {
@@ -173,6 +186,10 @@ export default function MembershipsPage() {
   );
   const activeMemberships = memberships.filter(m => m.status === 'active').length;
   const averagePrice = memberships.length > 0 ? (memberships.reduce((sum, m) => sum + m.price, 0) / memberships.length) : 0;
+  const selectedPlan = useMemo(
+    () => memberships.find((plan) => plan.id === newUserMembershipForm.planId) ?? null,
+    [memberships, newUserMembershipForm.planId]
+  );
 
   // Funciones para manejar acciones
   const handleView = (membership: UiMembership) => {
@@ -208,31 +225,7 @@ export default function MembershipsPage() {
       setError(null);
       
       await adminApi.memberships?.delete?.(selectedMembership.id);
-      
-      // Recargar la lista
-      const res = await adminApi.memberships?.getAll?.({ page: 1, limit: 200 });
-      const list = Array.isArray(res?.membershipPlans)
-        ? res.membershipPlans
-        : Array.isArray(res?.data?.membershipPlans)
-          ? res.data.membershipPlans
-          : Array.isArray(res)
-            ? res
-            : [];
-      const mapped: UiMembership[] = list.map((m: any) => ({
-        id: m.id,
-        name: m.name || m.type || 'Membresía',
-        type: (m.type || 'basic').toLowerCase(),
-        price: Number(m.price || m.monthlyPrice || 0),
-        duration: Number(m.durationMonths || m.duration || 1),
-        benefits: Array.isArray(m.benefits?.features) ? m.benefits.features : 
-                 Array.isArray(m.benefits) ? m.benefits : [],
-        maxReservations: Number(m.benefits?.maxReservations ?? m.maxReservations ?? -1),
-        discountPercentage: Number(m.benefits?.discountPercentage ?? m.discountPercentage ?? 0),
-        status: (m.status || (m.isActive ? 'active' : 'inactive')) as 'active' | 'inactive',
-        subscribersCount: Number(m.subscribersCount ?? 0),
-        createdAt: m.createdAt || new Date().toISOString(),
-      }));
-      setMemberships(mapped);
+      await refreshMemberships();
       
       setShowDeleteDialog(false);
       setSelectedMembership(null);
@@ -248,9 +241,9 @@ export default function MembershipsPage() {
     setShowEditModal(false);
     setShowDeleteDialog(false);
     setShowNewMembershipModal(false);
+    setShowAssignMembershipModal(false);
     setSelectedMembership(null);
     setError(null);
-    setSuccess(null);
     // Resetear formularios
     setNewMembershipForm({
       name: '',
@@ -272,12 +265,39 @@ export default function MembershipsPage() {
       duration: 1,
       benefits: [],
     });
+    setNewUserMembershipForm({
+      userId: '',
+      planId: '',
+      duration: 1,
+      paymentMethod: 'CASH',
+      startDate: new Date().toISOString().slice(0, 10),
+    });
+    setSelectedUser(null);
+    setUserSearchTerm('');
+    setFoundUsers([]);
+    setIsSearchingUsers(false);
     setNewBenefit('');
     setEditBenefit('');
   };
 
   const handleNewMembership = () => {
     setShowNewMembershipModal(true);
+  };
+
+  const handleAssignMembership = () => {
+    setError(null);
+    setSuccess(null);
+    setNewUserMembershipForm({
+      userId: '',
+      planId: '',
+      duration: 1,
+      paymentMethod: 'CASH',
+      startDate: new Date().toISOString().slice(0, 10),
+    });
+    setSelectedUser(null);
+    setUserSearchTerm('');
+    setFoundUsers([]);
+    setShowAssignMembershipModal(true);
   };
 
   const addBenefit = () => {
@@ -313,6 +333,83 @@ export default function MembershipsPage() {
       ...prev,
       benefits: prev.benefits.filter((_, i) => i !== index)
     }));
+  };
+
+  const handleUserSearchChange = async (value: string) => {
+    setUserSearchTerm(value);
+    setSelectedUser(null);
+    if (value.trim().length < 3) {
+      setFoundUsers([]);
+      setIsSearchingUsers(false);
+      return;
+    }
+    setIsSearchingUsers(true);
+    try {
+      const users = await adminApi.users.getAll({
+        search: value.trim(),
+        limit: 5,
+      });
+      const items = Array.isArray(users)
+        ? users
+        : Array.isArray((users as any)?.items)
+          ? (users as any).items
+          : [];
+      setFoundUsers(items);
+    } catch (err) {
+      console.error('Error buscando usuarios para membresía:', err);
+      setFoundUsers([]);
+    } finally {
+      setIsSearchingUsers(false);
+    }
+  };
+
+  const createNewUserMembership = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      if (!selectedUser?.id) {
+        setError('Debe seleccionar un usuario.');
+        return;
+      }
+      if (!newUserMembershipForm.planId) {
+        setError('Debe seleccionar un plan de membresía.');
+        return;
+      }
+      if (newUserMembershipForm.duration <= 0) {
+        setError('La duración debe ser al menos 1 mes.');
+        return;
+      }
+      if (!newUserMembershipForm.startDate) {
+        setError('Debe seleccionar una fecha de inicio.');
+        return;
+      }
+
+      const selectedPlan = memberships.find((plan) => plan.id === newUserMembershipForm.planId);
+      if (!selectedPlan) {
+        setError('Plan de membresía no encontrado.');
+        return;
+      }
+
+      const payload = {
+        userId: selectedUser.id,
+        type: (selectedPlan.type || 'basic').toUpperCase(),
+        duration: newUserMembershipForm.duration,
+        paymentMethod: newUserMembershipForm.paymentMethod,
+        startDate: new Date(newUserMembershipForm.startDate).toISOString(),
+      };
+
+      await adminApi.memberships?.create?.(payload);
+
+      setSuccess(`Membresía asignada correctamente a ${selectedUser.firstName ?? selectedUser.name ?? 'el usuario'}.`);
+      closeModals();
+      await refreshMemberships();
+    } catch (err: any) {
+      setError(err?.message || 'Error asignando la membresía al usuario');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const createNewMembership = async () => {
@@ -356,31 +453,7 @@ export default function MembershipsPage() {
 
       // Llamar a la API para crear la membresía
       await adminApi.memberships?.create?.(payload);
-
-      // Recargar la lista
-      const res = await adminApi.memberships?.getAll?.({ page: 1, limit: 200 });
-      const list = Array.isArray(res?.membershipPlans)
-        ? res.membershipPlans
-        : Array.isArray(res?.data?.membershipPlans)
-          ? res.data.membershipPlans
-          : Array.isArray(res)
-            ? res
-            : [];
-      const mapped: UiMembership[] = list.map((m: any) => ({
-        id: m.id,
-        name: m.name || m.type || 'Membresía',
-        type: (m.type || 'basic').toLowerCase(),
-        price: Number(m.price || m.monthlyPrice || 0),
-        duration: Number(m.durationMonths || m.duration || 1),
-        benefits: Array.isArray(m.benefits?.features) ? m.benefits.features : 
-                 Array.isArray(m.benefits) ? m.benefits : [],
-        maxReservations: Number(m.benefits?.maxReservations ?? m.maxReservations ?? -1),
-        discountPercentage: Number(m.benefits?.discountPercentage ?? m.discountPercentage ?? 0),
-        status: (m.status || (m.isActive ? 'active' : 'inactive')) as 'active' | 'inactive',
-        subscribersCount: Number(m.subscribersCount ?? 0),
-        createdAt: m.createdAt || new Date().toISOString(),
-      }));
-      setMemberships(mapped);
+      await refreshMemberships();
 
       setSuccess('Plan de membresía creado exitosamente');
       closeModals();
@@ -472,18 +545,27 @@ export default function MembershipsPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Gestión de Membresías</h1>
             <p className="text-gray-600">Administra los planes de membresía y suscripciones</p>
           </div>
-          <button 
-            onClick={handleNewMembership}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Nueva Membresía
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleAssignMembership}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+            >
+              <Users className="w-4 h-4" />
+              Asignar a Usuario
+            </button>
+            <button 
+              onClick={handleNewMembership}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Nueva Membresía
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1069,6 +1151,181 @@ export default function MembershipsPage() {
                 ) : (
                   'Eliminar'
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para asignar membresía a usuario */}
+      {showAssignMembershipModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl">
+            <div className="flex justify-between items-center mb-5">
+              <h2 className="text-xl font-bold text-gray-900">Asignar Membresía a Usuario</h2>
+              <button
+                onClick={closeModals}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <label htmlFor="userSearch" className="block text-sm font-medium text-gray-700 mb-1">
+                  Buscar Usuario (Email o Nombre)
+                </label>
+                <input
+                  id="userSearch"
+                  type="text"
+                  value={userSearchTerm}
+                  onChange={(e) => handleUserSearchChange(e.target.value)}
+                  placeholder="Introduce al menos 3 caracteres"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                {isSearchingUsers && (
+                  <p className="mt-2 text-sm text-gray-500">Buscando usuarios...</p>
+                )}
+                {foundUsers.length > 0 && (
+                  <ul className="border border-gray-200 rounded-lg mt-2 divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                    {foundUsers.map((user: any) => (
+                      <li
+                        key={user.id}
+                        className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex justify-between items-center"
+                        onClick={() => {
+                          setSelectedUser(user);
+                          setUserSearchTerm(
+                            `${[user.firstName, user.lastName].filter(Boolean).join(' ')} (${user.email})`
+                          );
+                          setFoundUsers([]);
+                        }}
+                      >
+                        <span className="text-sm text-gray-700">
+                          {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.name || 'Usuario sin nombre'}
+                        </span>
+                        <span className="text-xs text-gray-500">{user.email}</span>
+                        {selectedUser?.id === user.id && <Check className="w-4 h-4 text-green-500" />}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {selectedUser && (
+                  <p className="mt-2 text-sm text-emerald-700">
+                    Usuario seleccionado: {[selectedUser.firstName, selectedUser.lastName].filter(Boolean).join(' ')} ({selectedUser.email})
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="planId" className="block text-sm font-medium text-gray-700 mb-1">
+                    Plan de Membresía
+                  </label>
+                  <select
+                    id="planId"
+                    value={newUserMembershipForm.planId}
+                    onChange={(e) =>
+                      setNewUserMembershipForm((prev) => ({ ...prev, planId: e.target.value }))
+                    }
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Selecciona un plan</option>
+                    {memberships.map((plan) => (
+                      <option key={plan.id} value={plan.id}>
+                        {plan.name} ({formatCurrency(plan.price)}/mes)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="duration" className="block text-sm font-medium text-gray-700 mb-1">
+                    Duración (meses)
+                  </label>
+                  <input
+                    id="duration"
+                    type="number"
+                    min={1}
+                    max={24}
+                    value={newUserMembershipForm.duration}
+                    onChange={(e) =>
+                      setNewUserMembershipForm((prev) => ({
+                        ...prev,
+                        duration: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha de inicio
+                  </label>
+                  <input
+                    id="startDate"
+                    type="date"
+                    value={newUserMembershipForm.startDate}
+                    onChange={(e) =>
+                      setNewUserMembershipForm((prev) => ({ ...prev, startDate: e.target.value }))
+                    }
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-1">
+                    Método de pago
+                  </label>
+                  <select
+                    id="paymentMethod"
+                    value={newUserMembershipForm.paymentMethod}
+                    onChange={(e) =>
+                      setNewUserMembershipForm((prev) => ({
+                        ...prev,
+                        paymentMethod: e.target.value as 'CASH' | 'TRANSFER' | 'REDSYS' | 'STRIPE',
+                      }))
+                    }
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="CASH">Efectivo</option>
+                    <option value="TRANSFER">Transferencia</option>
+                    <option value="REDSYS">Redsys</option>
+                    <option value="STRIPE">Stripe</option>
+                  </select>
+                </div>
+              </div>
+
+              {selectedPlan && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                  <p className="text-sm text-slate-700">
+                    Precio mensual del plan: <span className="font-semibold">{formatCurrency(selectedPlan.price)}</span>
+                  </p>
+                  <p className="text-sm text-slate-700">
+                    Total estimado ({newUserMembershipForm.duration} {newUserMembershipForm.duration === 1 ? 'mes' : 'meses'}):{' '}
+                    <span className="font-semibold">
+                      {formatCurrency(selectedPlan.price * Math.max(1, newUserMembershipForm.duration))}
+                    </span>
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={closeModals}
+                disabled={loading}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={createNewUserMembership}
+                disabled={loading}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {loading ? 'Asignando...' : 'Asignar Membresía'}
               </button>
             </div>
           </div>

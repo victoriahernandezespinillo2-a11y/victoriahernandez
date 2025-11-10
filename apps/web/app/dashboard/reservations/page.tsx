@@ -49,6 +49,8 @@ interface Reservation {
   courtName: string;
   courtType: string;
   date: string;
+  startTimeIso: string;
+  endTimeIso: string;
   startTime: string;
   endTime: string;
   duration: number;
@@ -163,7 +165,7 @@ export default function ReservationsPage() {
     }
     if (!target && payStart) {
       // Comparar por inicio (ISO). Tolerancia: exacta
-      target = reservations.find(r => (r.startTime || '').startsWith(payStart.substring(0, 16)));
+      target = reservations.find(r => (r.startTimeIso || '').startsWith(payStart.substring(0, 16)));
     }
     if (target && target.paymentStatus === 'pending') {
       openPaymentModal(target);
@@ -962,6 +964,9 @@ export default function ReservationsPage() {
             courtName: selectedReservationForPayment.courtName,
             startTime: selectedReservationForPayment.startTime,
             endTime: selectedReservationForPayment.endTime,
+            startTimeIso: selectedReservationForPayment.startTimeIso,
+            endTimeIso: selectedReservationForPayment.endTimeIso,
+            duration: selectedReservationForPayment.duration,
             totalPrice: Number(selectedReservationForPayment.cost || 0)
           }}
           onPaymentSuccess={handlePaymentSuccess}

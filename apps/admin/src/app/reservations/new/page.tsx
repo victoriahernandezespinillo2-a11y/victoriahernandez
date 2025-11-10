@@ -27,7 +27,7 @@ export default function AdminNewReservationPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchTimer, setSearchTimer] = useState<any>(null);
   const [newUser, setNewUser] = useState<{ name: string; email?: string; phone?: string }>({ name: '' });
-  const [paymentMethod, setPaymentMethod] = useState<'CASH'|'TPV'|'TRANSFER'|'CREDITS'|'COURTESY'|'LINK'>('CASH');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH'|'TPV'|'TRANSFER'|'CREDITS'|'COURTESY'|'LINK'|'PENDING'>('CASH');
   const [paymentDetails, setPaymentDetails] = useState<{ amount?: string; reason?: string; authCode?: string; reference?: string }>(() => ({}));
   const [price, setPrice] = useState<{ base?: number; final?: number; breakdown?: { description: string; amount: number }[] }>({});
   const [priceLoading, setPriceLoading] = useState(false);
@@ -333,16 +333,26 @@ export default function AdminNewReservationPage() {
   const canProceedUser = () => !!(userId || (newUser.name && (newUser.email || newUser.phone)));
   const canProceedSchedule = () => !!(courtId && date && time && duration);
   const canProceedPayment = () => {
-    if (paymentMethod === 'COURTESY') return !!(paymentDetails.reason || '').trim();
+    const trimmedReason = (paymentDetails.reason || '').trim();
+
+    if (paymentMethod === 'COURTESY' && trimmedReason.length === 0) {
+      return false;
+    }
+
+    if (paymentMethod === 'PENDING' && trimmedReason.length < 5) {
+      return false;
+    }
+
     if (overrideEnabled) {
       const amt = Number(overrideAmount);
       if (!Number.isFinite(amt)) return false;
       if ((overrideReason || '').trim().length < 5) return false;
+
       const baseTotal = Number(price?.final || 0);
-      // Usar validación centralizada y robusta
       const validation = validatePriceOverride(amt, baseTotal);
       if (!validation.isValid) return false;
     }
+
     return true;
   };
 
@@ -1066,6 +1076,7 @@ export default function AdminNewReservationPage() {
                 <option value="CREDITS">Créditos</option>
                 <option value="COURTESY">Cortesía</option>
                 <option value="LINK">Enlace de pago</option>
+                <option value="PENDING">Pendiente por cobrar</option>
               </select>
             </div>
             {/* Subformularios por método */}
@@ -1085,6 +1096,25 @@ export default function AdminNewReservationPage() {
               <div className="md:col-span-2">
                 <label className="block text-sm text-gray-700 mb-1">Motivo de cortesía (requerido)</label>
                 <input value={paymentDetails.reason || ''} onChange={(e) => setPaymentDetails({ ...paymentDetails, reason: e.target.value })} className="w-full border rounded px-3 py-2" />
+              </div>
+            )}
+            {paymentMethod === 'PENDING' && (
+              <div className="md:col-span-2 space-y-2">
+                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                  La reserva quedará confirmada pero marcada como <span className="font-semibold">pendiente de cobro</span>. Documenta la promesa de pago (fecha, responsable, canal).
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Nota interna / recordatorio (mínimo 5 caracteres)</label>
+                  <input
+                    value={paymentDetails.reason || ''}
+                    onChange={(e) => setPaymentDetails({ ...paymentDetails, reason: e.target.value })}
+                    className={`w-full border rounded px-3 py-2 ${((paymentDetails.reason || '').trim().length > 0 && (paymentDetails.reason || '').trim().length < 5) ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'}`}
+                    placeholder="Ej. Pagará el 15/11 (confirmado con recepción)"
+                  />
+                  {((paymentDetails.reason || '').trim().length > 0 && (paymentDetails.reason || '').trim().length < 5) && (
+                    <p className="mt-1 text-xs text-red-600">Describe la promesa de pago con al menos 5 caracteres.</p>
+                  )}
+                </div>
               </div>
             )}
             {paymentMethod === 'CREDITS' && (

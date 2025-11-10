@@ -47,6 +47,7 @@ export const VALID_PAYMENT_METHODS = [
   'CREDITS',
   'COURTESY',
   'LINK',
+  'PENDING',
   'CARD',
   'ONSITE',
   'BIZUM',
@@ -62,9 +63,9 @@ export const VALID_ADMIN_PAYMENT_METHODS = [
   'TRANSFER',
   'CREDITS',
   'COURTESY',
-  'LINK'
+  'LINK',
+  'PENDING'
 ] as const;
-
 // Métodos de pago para reservas de usuarios
 export const VALID_USER_PAYMENT_METHODS = [
   'stripe',
@@ -252,9 +253,6 @@ export const PricingOverrideSchema = z.object({
     .min(5, 'La razón del override debe tener al menos 5 caracteres')
     .max(500, 'La razón del override no puede exceder 500 caracteres'),
 });
-
-
-
 
 
 

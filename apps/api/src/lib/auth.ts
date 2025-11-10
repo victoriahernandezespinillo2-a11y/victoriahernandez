@@ -35,9 +35,26 @@ export async function getAuthUser(req: NextRequest): Promise<AuthUser | null> {
 
     // 2. Intentar con cookie de NextAuth
     console.log('🍪 [getAuthUser] Intentando autenticación con cookie NextAuth');
-    const token = await getToken({ req, secret: process.env.AUTH_SECRET });
-    
-    if (token) {
+    const cookieCandidates = [
+      'next-auth.session-token',
+      '__Secure-next-auth.session-token',
+      'next-auth.session-token-web',
+      '__Secure-next-auth.session-token-web',
+      'next-auth.session-token-admin',
+      '__Secure-next-auth.session-token-admin',
+    ];
+
+    let token = null as Awaited<ReturnType<typeof getToken>> | null;
+
+    for (const cookieName of cookieCandidates) {
+      token = await getToken({ req, secret: process.env.AUTH_SECRET, cookieName });
+      if (token) {
+        console.log('🎫 [getAuthUser] Token encontrado usando cookie:', cookieName);
+        break;
+      }
+    }
+ 
+    if (token && typeof token !== 'string') {
       console.log('🎫 [getAuthUser] Token encontrado:', { sub: token.sub, id: token.id, email: token.email });
       
       // Intentar obtener userId de diferentes propiedades

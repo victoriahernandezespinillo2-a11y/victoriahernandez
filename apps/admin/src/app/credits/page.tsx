@@ -5,14 +5,13 @@
  * Panel de administración del sistema de créditos
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   CurrencyDollarIcon,
   UserGroupIcon,
   ArrowTrendingUpIcon,
   ChartBarIcon,
   PlusIcon,
-  MinusIcon,
   MagnifyingGlassIcon,
   CalendarIcon,
 } from '@heroicons/react/24/outline';
@@ -54,16 +53,51 @@ interface DashboardData {
   };
 }
 
+interface CreditUser {
+  id: string;
+  name: string;
+  email: string;
+  balance: number;
+}
+
+interface CreditsPagination {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
+const USERS_PAGE_SIZE = 10;
+
 export default function CreditsManagementPage() {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [period, setPeriod] = useState('30d');
-  const [searchUserId, setSearchUserId] = useState('');
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [users, setUsers] = useState<CreditUser[]>([]);
+  const [usersPagination, setUsersPagination] = useState<CreditsPagination>({
+    page: 1,
+    limit: USERS_PAGE_SIZE,
+    total: 0,
+    pages: 1,
+  });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<CreditUser | null>(null);
   const [adjustAmount, setAdjustAmount] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
+  const lastSearchRef = useRef<string>('');
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
   useEffect(() => {
     loadDashboard();
@@ -123,6 +157,88 @@ export default function CreditsManagementPage() {
     }
   };
 
+  const fetchUsers = useCallback(
+    async (options?: { page?: number; search?: string }) => {
+      const page = options?.page ?? 1;
+      const search = options?.search;
+
+      setUsersLoading(true);
+      try {
+        const response = await adminApi.credits.listUsers({
+          page,
+          limit: USERS_PAGE_SIZE,
+          search,
+          orderBy: 'balance',
+          direction: 'desc',
+        });
+
+        const payload = (response as any)?.data ?? response;
+        const rawUsers = Array.isArray(payload)
+          ? payload
+          : payload?.users ?? payload?.items ?? [];
+
+        const normalizedUsers: CreditUser[] = Array.isArray(rawUsers)
+          ? rawUsers.map((user: any) => ({
+              id: user.id,
+              name: user.name ?? user.fullName ?? user.email ?? 'Usuario sin nombre',
+              email: user.email ?? '',
+              balance: Number(user.balance ?? user.creditsBalance ?? user.walletBalance ?? 0),
+            }))
+          : [];
+
+        const rawPagination =
+          payload?.pagination ??
+          payload?.meta ??
+          (payload?.total !== undefined
+            ? {
+                page: payload?.page,
+                limit: payload?.limit,
+                total: payload?.total,
+                pages: payload?.pages,
+              }
+            : null);
+
+        const limit = Math.max(1, Number(rawPagination?.limit ?? USERS_PAGE_SIZE) || USERS_PAGE_SIZE);
+        const total = Math.max(0, Number(rawPagination?.total ?? normalizedUsers.length ?? 0));
+        const pagesCandidate = rawPagination?.pages ?? Math.ceil(total / limit);
+        const pages = Math.max(1, Number(pagesCandidate || 1));
+        const pageNumber = Math.min(Math.max(1, Number(rawPagination?.page ?? page) || 1), pages);
+
+        setUsers(normalizedUsers);
+        setUsersPagination({ page: pageNumber, limit, total, pages });
+
+        if (pageNumber !== page) {
+          setCurrentPage(pageNumber);
+        }
+      } catch (error) {
+        console.error('💥 Error obteniendo usuarios de créditos:', error);
+        showToast({
+          variant: 'error',
+          title: 'Error',
+          message: 'No se pudo cargar el listado de usuarios: ' + ((error as Error)?.message || 'Desconocido'),
+        });
+      } finally {
+        setUsersLoading(false);
+      }
+    },
+    [showToast],
+  );
+
+  useEffect(() => {
+    if (debouncedSearch !== lastSearchRef.current) {
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+        return;
+      }
+      lastSearchRef.current = debouncedSearch;
+    }
+
+    void fetchUsers({
+      page: currentPage,
+      search: debouncedSearch ? debouncedSearch : undefined,
+    });
+  }, [currentPage, debouncedSearch, fetchUsers]);
+
   const handleAdjustCredits = async () => {
     if (!selectedUser || !adjustAmount || !adjustReason) {
       showToast({ variant: 'warning', title: 'Datos incompletos', message: 'Completa todos los campos' });
@@ -130,10 +246,11 @@ export default function CreditsManagementPage() {
     }
 
     try {
-      const response = await adminApi.post('/api/admin/credits/adjust', {
+      const response = await adminApi.credits.adjustBalance({
         userId: selectedUser.id,
         amount: parseFloat(adjustAmount),
-        reason: adjustReason
+        reason: adjustReason,
+        type: parseFloat(adjustAmount) >= 0 ? 'ADD' : 'SUBTRACT',
       });
 
       console.log('📤 [ADJUST] Respuesta del endpoint:', response);
@@ -151,6 +268,10 @@ export default function CreditsManagementPage() {
         setAdjustAmount('');
         setAdjustReason('');
         loadDashboard();
+        await fetchUsers({
+          page: currentPage,
+          search: debouncedSearch ? debouncedSearch : undefined,
+        });
       } else {
         showToast({ variant: 'error', title: 'Error', message: 'Respuesta inválida del servidor' });
       }
@@ -160,11 +281,19 @@ export default function CreditsManagementPage() {
     }
   };
 
-  const openAdjustModal = (user: any) => {
+  const openAdjustModal = (user: CreditUser) => {
     setSelectedUser(user);
     setAdjustModalOpen(true);
   };
 
+  const totalPages = usersPagination.pages || 1;
+  const baseIndex = (usersPagination.page - 1) * usersPagination.limit;
+  const rangeStart = usersPagination.total === 0 ? 0 : baseIndex + 1;
+  const rangeEnd = Math.min(usersPagination.total, baseIndex + users.length);
+  const hasResults = users.length > 0;
+  const canGoPrev = usersPagination.page > 1;
+  const canGoNext = usersPagination.page < totalPages;
+ 
   if (loading || !dashboard) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -261,6 +390,134 @@ export default function CreditsManagementPage() {
               {dashboard.promotions.applicationsInPeriod} aplicaciones
             </p>
           </div>
+        </div>
+ 
+        {/* Gestión de balances por usuario */}
+        <div className="bg-white rounded-lg shadow p-6 mb-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Usuarios y balances</h2>
+              <p className="text-sm text-gray-500">
+                Busca por nombre o correo y ajusta créditos sin salir del panel.
+              </p>
+            </div>
+            <div className="relative w-full md:w-72">
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar usuario..."
+                className="w-full rounded-md border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+              />
+            </div>
+          </div>
+
+          <div className="mt-6">
+            {usersLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <div key={index} className="h-16 animate-pulse rounded-lg bg-gray-100" />
+                ))}
+              </div>
+            ) : !hasResults ? (
+              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 py-10 text-center">
+                <p className="text-sm font-medium text-gray-700">Sin usuarios en esta búsqueda</p>
+                <p className="mt-1 text-sm text-gray-500">Prueba con otro término o limpia el filtro.</p>
+              </div>
+            ) : (
+              <>
+                <div className="mb-3 flex flex-col gap-2 text-sm text-gray-500 md:flex-row md:items-center md:justify-between">
+                  <p>
+                    Mostrando <span className="font-medium text-gray-700">{rangeStart}</span>-<span className="font-medium text-gray-700">{rangeEnd}</span> de{' '}
+                    <span className="font-medium text-gray-700">{usersPagination.total}</span>{' '}
+                    {usersPagination.total === 1 ? 'usuario' : 'usuarios'}
+                  </p>
+                  <p>
+                    Resultados ordenados por saldo disponible (mayor a menor).
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  {users.map((user, index) => (
+                    <div
+                      key={user.id}
+                      className="flex items-center justify-between rounded-lg bg-gray-50 p-4 transition-colors hover:bg-gray-100"
+                    >
+                      <div className="flex items-start space-x-3 min-w-0">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+                          <span className="text-sm font-semibold text-blue-600">{baseIndex + index + 1}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-gray-900" title={user.name}>
+                            {user.name}
+                          </p>
+                          <p className="truncate text-xs text-gray-500" title={user.email}>
+                            {user.email}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <p className="text-lg font-bold text-green-600">{user.balance.toFixed(2)}</p>
+                        <button
+                          type="button"
+                          onClick={() => openAdjustModal(user)}
+                          className="rounded p-1 text-blue-600 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                          title="Ajustar balance"
+                        >
+                          <PlusIcon className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {usersPagination.pages > 1 && (
+            <div className="mt-6 border-t border-gray-200 pt-4">
+              <div className="flex justify-between sm:hidden">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(Math.max(1, usersPagination.page - 1))}
+                  disabled={!canGoPrev}
+                  className="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(Math.min(totalPages, usersPagination.page + 1))}
+                  disabled={!canGoNext}
+                  className="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Siguiente
+                </button>
+              </div>
+              <div className="hidden sm:flex sm:items-center sm:justify-between">
+                <p className="text-sm text-gray-600">
+                  Página <span className="font-medium text-gray-700">{usersPagination.page}</span> de{' '}
+                  <span className="font-medium text-gray-700">{totalPages}</span>
+                </p>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Paginación">
+                  {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNumber) => (
+                    <button
+                      key={pageNumber}
+                      type="button"
+                      onClick={() => setCurrentPage(pageNumber)}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                        pageNumber === usersPagination.page
+                          ? 'z-10 border-blue-500 bg-blue-50 text-blue-600'
+                          : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      {pageNumber}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Transacciones por Tipo y Razón */}

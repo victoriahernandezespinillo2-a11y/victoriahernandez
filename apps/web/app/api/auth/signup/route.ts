@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Hacer la petición al backend API (endpoint correcto /api/auth/signup)
-    const response = await fetch(`${API_BASE_URL}/api/auth`, {
+    const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
