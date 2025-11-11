@@ -10,6 +10,9 @@ import { RouteUtils, RATE_LIMITS } from '../routes';
 import { z } from 'zod';
 import { getToken } from 'next-auth/jwt';
 import { db } from '@repo/db';
+import { NON_EXPIRABLE_PAYMENT_METHODS } from '@/lib/constants/reservation.constants';
+import { reservationNotificationService } from '@/lib/services/reservation-notification.service';
+import { ReservationReminderService } from '@/lib/services/reservation-reminder.service';
 
 // Crear instancia de AuthService
 const authService = new AuthService();
@@ -452,8 +455,9 @@ export const withCors = (handler: ApiHandler): ApiHandler => {
         .map((s) => s.trim())
         .filter(Boolean);
       const defaultProd = [
-        'https://polideportivo.com',
-        'https://admin.polideportivo.com',
+        'https://polideportivovictoriahernandez.es',
+        'https://admin.polideportivovictoriahernandez.es',
+        'https://api.polideportivovictoriahernandez.es',
         'https://victoriahernandezweb.vercel.app',
         'https://polideportivo-api.vercel.app',
         'https://polideportivo-web.vercel.app',
@@ -483,8 +487,9 @@ export const withCors = (handler: ApiHandler): ApiHandler => {
       .map((s) => s.trim())
       .filter(Boolean);
     const defaultProd = [
-      'https://polideportivo.com',
-      'https://admin.polideportivo.com',
+      'https://polideportivovictoriahernandez.es',
+      'https://admin.polideportivovictoriahernandez.es',
+      'https://api.polideportivovictoriahernandez.es',
       'https://victoriahernandezweb.vercel.app',
       'https://polideportivo-api.vercel.app',
       'https://polideportivo-web.vercel.app',
@@ -602,15 +607,27 @@ export const withReservationCleanup = (handler: ApiHandler): ApiHandler => {
     
     if (isReservationRoute) {
       try {
-        // Limpiar reservas PENDING expiradas de forma asÃ­ncrona con lógica diferenciada
+        // Procesar recordatorios de pago pendientes antes de limpiar expiradas
         const now = new Date();
+        try {
+          await ReservationReminderService.processPendingPaymentReminders(now);
+        } catch (error) {
+          console.error('❌ [AUTO-CLEANUP] Error procesando recordatorios de pago pendiente:', error);
+        }
+
+        // Limpiar reservas PENDING expiradas de forma asincrona con lógica diferenciada
         const expiredReservations = await db.reservation.findMany({
           where: {
             status: 'PENDING',
+            NOT: {
+              paymentMethod: {
+                in: [...NON_EXPIRABLE_PAYMENT_METHODS],
+              },
+            },
             OR: [
-              // Pago online: expira en 15 minutos (usa expiresAt)
+              // Pago online: expira en ~5 minutos (usa expiresAt configurado)
               {
-                paymentMethod: { in: ['CARD', 'BIZUM', 'CREDITS', 'redsys'] },
+                paymentMethod: { in: ['CARD', 'BIZUM', 'CREDITS', 'redsys', 'LINK', 'stripe'] },
                 expiresAt: { lt: now }
               },
               // Pago en sede: expira 1 hora antes de la reserva (usa startTime)
@@ -627,6 +644,7 @@ export const withReservationCleanup = (handler: ApiHandler): ApiHandler => {
           // Ejecutar limpieza en background sin bloquear el request
           setImmediate(async () => {
             try {
+              const notifications: Array<{ id: string; paymentMethod?: string }> = [];
               await db.$transaction(async (tx) => {
                 for (const reservation of expiredReservations) {
                   await tx.reservation.update({
@@ -646,12 +664,22 @@ export const withReservationCleanup = (handler: ApiHandler): ApiHandler => {
                       }
                     }
                   });
+                  notifications.push({ id: reservation.id, paymentMethod: reservation.paymentMethod as string | undefined });
                 }
               });
               
-              console.log(`ðŸ§¹ [AUTO-CLEANUP] Canceladas ${expiredReservations.length} reservas expiradas`);
+              console.log(`🧹 [AUTO-CLEANUP] Canceladas ${expiredReservations.length} reservas expiradas`);
+              for (const notification of notifications) {
+                try {
+                  await reservationNotificationService.sendAutoCancelledNotification(notification.id, {
+                    cancelReason: 'No recibimos el pago dentro del tiempo establecido.',
+                  });
+                } catch (error) {
+                  console.error('❌ [AUTO-CLEANUP] Error enviando correo de cancelación:', error);
+                }
+              }
             } catch (error) {
-              console.error('âŒ [AUTO-CLEANUP] Error:', error);
+              console.error('❌ [AUTO-CLEANUP] Error:', error);
             }
           });
         }
@@ -675,6 +703,20 @@ export const withAdminMiddleware = compose(
   withRateLimit,
   withAuth,
   withRole('ADMIN')
+);
+
+/**
+ * Middleware completo para rutas de reservas administradas
+ * Incluye la limpieza automática de reservas PENDING vencidas
+ */
+export const withAdminReservationsMiddleware = compose(
+  withErrorHandling,
+  withLogging,
+  withCors,
+  withRateLimit,
+  withAuth,
+  withRole('ADMIN'),
+  withReservationCleanup
 );
 
 /**

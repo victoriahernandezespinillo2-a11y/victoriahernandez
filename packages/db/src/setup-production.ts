@@ -41,7 +41,7 @@ async function setupProduction() {
     console.log(`✅ Centro deportivo creado: ${center.name}`)
 
     // Crear usuario administrador
-    const adminEmail = 'admin@polideportivooroquieta.com'
+    const adminEmail = 'admin@polideportivovictoriahernandez.es'
     const adminPassword = 'admin123' // Cambiar en producción
     
     const existingAdmin = await prisma.user.findUnique({

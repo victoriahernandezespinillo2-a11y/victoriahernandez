@@ -144,7 +144,7 @@ export default function TermsPage() {
       title: '12. Contacto Legal',
       content: (
         <div className="space-y-2 text-gray-700 text-sm">
-          <p>📧 legal@polideportivo.com</p>
+          <p>📧 legal@polideportivovictoriahernandez.es</p>
           <p>📍 Calle Principal #123, Andalucía, España</p>
         </div>
       )

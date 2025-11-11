@@ -17,7 +17,7 @@ const bcrypt = require('bcryptjs');
 
 (async () => {
 	const prisma = new PrismaClient();
-	const email = process.env.ADMIN_EMAIL || 'admin@polideportivo.com';
+	const email = process.env.ADMIN_EMAIL || 'admin@polideportivovictoriahernandez.es';
 	const newPassword = process.argv[2] || process.env.ADMIN_PASSWORD || 'Admin123!';
 
 	if (!process.env.DATABASE_URL) {

@@ -26,7 +26,7 @@ export default function AccessibilityStatementPage() {
             <li>Contenido y controles accesibles en móviles</li>
           </ul>
           <div className="bg-purple-50 border-l-4 border-purple-500 p-4 text-sm text-purple-900">
-            <p><strong>Feedback de Accesibilidad:</strong> Si encuentra barreras o problemas de accesibilidad, escríbanos a accesibilidad@polideportivo.com. Atendemos solicitudes razonables de adaptación.</p>
+            <p><strong>Feedback de Accesibilidad:</strong> Si encuentra barreras o problemas de accesibilidad, escríbanos a accesibilidad@polideportivovictoriahernandez.es. Atendemos solicitudes razonables de adaptación.</p>
           </div>
           <div className="text-sm text-gray-600">
             <p>Última revisión: 15 de enero de 2025</p>

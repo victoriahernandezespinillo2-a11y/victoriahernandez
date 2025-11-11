@@ -101,13 +101,13 @@ GRANT ALL ON memberships TO anon, authenticated;
 
 -- 5. Insertar datos de prueba
 INSERT INTO users (email, name, role) VALUES 
-  ('admin@polideportivo.com', 'Administrador', 'admin'),
-  ('user@polideportivo.com', 'Usuario Test', 'user')
+  ('admin@polideportivovictoriahernandez.es', 'Administrador', 'admin'),
+  ('user@polideportivovictoriahernandez.es', 'Usuario Test', 'user')
 ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO centers (name, address, phone, email) VALUES 
-  ('Centro Deportivo Principal', 'Av. Principal 123', '123-456-7890', 'centro@polideportivo.com'),
-  ('Centro Deportivo Norte', 'Calle Norte 456', '123-456-7891', 'norte@polideportivo.com')
+  ('Centro Deportivo Principal', 'Av. Principal 123', '123-456-7890', 'centro@polideportivovictoriahernandez.es'),
+  ('Centro Deportivo Norte', 'Calle Norte 456', '123-456-7891', 'norte@polideportivovictoriahernandez.es')
 ON CONFLICT DO NOTHING;
 
 -- Obtener IDs para las relaciones

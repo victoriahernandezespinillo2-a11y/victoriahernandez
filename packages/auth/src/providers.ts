@@ -303,11 +303,11 @@ export const updateUserActivity = async (userId: string) => {
 // Configuración de seguridad centralizada
 export const SECURITY_CONFIG = {
   adminEmails: [
-    'admin@polideportivo.com',
-    'director@polideportivo.com',
-    'gerente@polideportivo.com'
+    'admin@polideportivovictoriahernandez.es',
+    'director@polideportivovictoriahernandez.es',
+    'gerente@polideportivovictoriahernandez.es'
   ],
-  staffDomains: ['@polideportivo.com'],
+  staffDomains: ['@polideportivovictoriahernandez.es'],
   allowedProviders: ['google', 'credentials', 'firebase-credentials']
 };
 

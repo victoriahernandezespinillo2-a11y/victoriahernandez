@@ -32,7 +32,7 @@ async function main() {
       name: 'IDB Victoria Hernández',
       address: 'CALLE CONSENSO, 5, 28041 Madrid, España (Los Rosales, Villaverde)',
       phone: '+34 XXX XXX XXX',
-      email: 'info@polideportivovictoriahernandez.es',
+      email: 'admin@polideportivovictoriahernandez.es',
       settings: {
         timezone: 'Europe/Madrid',
         currency: 'EUR',
@@ -81,7 +81,7 @@ async function main() {
   // Admin user
   const adminUser = await db.user.create({
     data: {
-      email: 'admin@polideportivooroquieta.com',
+      email: 'admin@polideportivovictoriahernandez.es',
       password: await bcrypt.hash('admin123', 10),
       name: 'Administrador',
       phone: '+63 88 531 2345',
@@ -232,7 +232,7 @@ async function main() {
 
   const tournament = await db.tournament.create({
     data: {
-      name: 'Torneo de Fútbol Oroquieta 2024',
+      name: 'Torneo de Fútbol Victoria Hernández 2024',
       description: 'Torneo amistoso de fútbol para la comunidad',
       sport: 'FUTBOL',
       centerId: center.id,
@@ -244,8 +244,8 @@ async function main() {
       registrationStartDate: new Date(),
       registrationEndDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
       status: 'OPEN',
-      organizer: 'Polideportivo Oroquieta',
-      contactEmail: 'admin@polideportivooroquieta.com'
+      organizer: 'Polideportivo Victoria Hernández',
+      contactEmail: 'admin@polideportivovictoriahernandez.es'
     }
   });
 

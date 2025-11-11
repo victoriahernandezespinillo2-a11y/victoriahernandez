@@ -10,7 +10,7 @@
 
 ## 📋 RESUMEN EJECUTIVO
 
-Se ha realizado una auditoría de seguridad exhaustiva del proyecto "Polideportivo Oroquieta" desplegado en Vercel. Se identificaron **17 vulnerabilidades CRÍTICAS** y **23 vulnerabilidades de ALTA SEVERIDAD** que requieren atención inmediata antes de operar en producción.
+Se ha realizado una auditoría de seguridad exhaustiva del proyecto "Polideportivo Victoria Hernández" desplegado en Vercel. Se identificaron **17 vulnerabilidades CRÍTICAS** y **23 vulnerabilidades de ALTA SEVERIDAD** que requieren atención inmediata antes de operar en producción.
 
 ### ⚠️ SEVERIDAD GENERAL: **CRÍTICA**
 

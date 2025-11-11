@@ -922,6 +922,36 @@ export const exportUtils = {
     URL.revokeObjectURL(url);
   },
 
+  downloadXLSX: (data: any[][], filename: string, sheetName = 'Sheet1') => {
+    if (!Array.isArray(data) || data.length === 0) {
+      console.warn('[exportUtils] downloadXLSX recibió datos vacíos, se omite la exportación.');
+      return;
+    }
+
+    try {
+      const tableRows = data
+        .map((row) =>
+          `<tr>${row
+            .map((cell) => `<td>${String(cell ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>`)
+            .join('')}</tr>`
+        )
+        .join('');
+
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8" /><title>${sheetName}</title></head><body><table>${tableRows}</table></body></html>`;
+
+      const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename.endsWith('.xlsx') || filename.endsWith('.xls') ? filename : `${filename}.xls`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('[exportUtils] Error exportando XLSX, se realizará fallback a CSV:', error);
+      exportUtils.downloadCSV(data, filename.replace(/\.xlsx?$/, '.csv'));
+    }
+  },
+
   downloadPDF: (data: any, filename: string) => {
     // TODO: Implementar generación de PDF
     console.log('PDF export not implemented yet', { data, filename });

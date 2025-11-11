@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
-import { emailService } from '@repo/notifications';
+import { reservationNotificationService } from '@/lib/services/reservation-notification.service';
+import { ReservationReminderService } from '@/lib/services/reservation-reminder.service';
 
 function extractReservationId(pathname: string): string {
   const segments = pathname.split('/').filter(Boolean);
@@ -47,12 +48,13 @@ export async function POST(request: NextRequest) {
         return ApiResponse.badRequest('El usuario no tiene email registrado');
       }
 
-      const nameFallback = reservation.user?.name || targetEmail.split('@')[0] || 'Cliente';
-      await emailService.sendEmail({
-        to: targetEmail,
-        subject: 'Enlace de pago de tu reserva',
-        html: `<p>Hola ${nameFallback},</p><p>Puedes completar el pago de tu reserva haciendo clic en el siguiente enlace:</p><p><a href="${paymentLinkUrl}">Pagar ahora</a></p>`,
+      const result = await reservationNotificationService.sendPendingPaymentReminder(reservation.id, {
+        paymentLinkUrl,
+        expiresAt: reservation.expiresAt ?? undefined,
+        ctaLabel: 'Pagar ahora',
       });
+
+      await ReservationReminderService.schedulePendingPaymentReminder(reservation.id);
 
       await db.outboxEvent.create({
         data: {
@@ -60,13 +62,13 @@ export async function POST(request: NextRequest) {
           eventData: {
             reservationId: reservation.id,
             userId: reservation.userId,
-            provider: 'redsys',
+            provider: reservation.paymentMethod,
             url: paymentLinkUrl,
           } as any,
         },
       });
 
-      return ApiResponse.success({ url: paymentLinkUrl });
+      return ApiResponse.success({ success: result?.success, url: paymentLinkUrl });
     } catch (error) {
       console.error('Error enviando enlace de pago manual:', error);
       return ApiResponse.internalError('No se pudo enviar el enlace de pago por correo');

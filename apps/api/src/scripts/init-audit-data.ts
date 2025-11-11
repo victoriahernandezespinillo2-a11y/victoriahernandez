@@ -24,7 +24,7 @@ async function initAuditData() {
         tags: ['startup', 'system']
       },
       {
-        userName: 'admin@polideportivo.com',
+        userName: 'admin@polideportivovictoriahernandez.es',
         action: 'LOGIN',
         resource: 'user',
         resourceId: 'admin-user-id',
@@ -37,7 +37,7 @@ async function initAuditData() {
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },
       {
-        userName: 'admin@polideportivo.com',
+        userName: 'admin@polideportivovictoriahernandez.es',
         action: 'CREATE',
         resource: 'user',
         resourceId: 'user-123',
@@ -49,7 +49,7 @@ async function initAuditData() {
         ipAddress: '192.168.1.100'
       },
       {
-        userName: 'admin@polideportivo.com',
+        userName: 'admin@polideportivovictoriahernandez.es',
         action: 'UPDATE',
         resource: 'reservation',
         resourceId: 'reservation-456',
@@ -61,7 +61,7 @@ async function initAuditData() {
         ipAddress: '192.168.1.100'
       },
       {
-        userName: 'admin@polideportivo.com',
+        userName: 'admin@polideportivovictoriahernandez.es',
         action: 'PAYMENT_SUCCESS',
         resource: 'payment',
         resourceId: 'payment-789',
@@ -83,7 +83,7 @@ async function initAuditData() {
         tags: ['backup', 'database', 'maintenance']
       },
       {
-        userName: 'admin@polideportivo.com',
+        userName: 'admin@polideportivovictoriahernandez.es',
         action: 'DELETE',
         resource: 'notification',
         resourceId: 'notification-101',
@@ -106,7 +106,7 @@ async function initAuditData() {
         status: 'ERROR' as const
       },
       {
-        userName: 'admin@polideportivo.com',
+        userName: 'admin@polideportivovictoriahernandez.es',
         action: 'CONFIG_UPDATE',
         resource: 'settings',
         details: 'Configuración del sistema actualizada',

@@ -11,8 +11,9 @@ const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .filter(Boolean);
 
 const defaultProdOrigins = [
-  'https://polideportivo.com',
-  'https://admin.polideportivo.com',
+  'https://polideportivovictoriahernandez.es',
+  'https://admin.polideportivovictoriahernandez.es',
+  'https://api.polideportivovictoriahernandez.es',
   'https://victoriahernandezweb.vercel.app',
   'https://polideportivo-api.vercel.app',
   'https://polideportivo-web.vercel.app',

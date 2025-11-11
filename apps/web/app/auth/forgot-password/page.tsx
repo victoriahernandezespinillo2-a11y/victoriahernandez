@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Link from 'next/link';
 import { Mail, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
+import { SUPPORT_CONTACT } from '@/lib/contact-info';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -167,9 +168,9 @@ export default function ForgotPasswordPage() {
           Si tienes problemas para acceder a tu cuenta, puedes contactarnos:
         </p>
         <div className="space-y-1 text-sm text-gray-600">
-          <p>📧 Email: soporte@polideportivooroquieta.com</p>
-          <p>📞 Teléfono: +57 (5) 123-4567</p>
-          <p>🕒 Horario: Lunes a Viernes, 8:00 AM - 6:00 PM</p>
+          <p>📧 Email: {SUPPORT_CONTACT.email}</p>
+          <p>📞 Teléfono: {SUPPORT_CONTACT.phone}</p>
+          <p>🕒 Horario: {SUPPORT_CONTACT.schedule}</p>
         </div>
       </div>
     </div>

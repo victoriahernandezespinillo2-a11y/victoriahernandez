@@ -1,4 +1,4 @@
-## Polideportivo Oroquieta — Monorepo Full‑Stack
+## Polideportivo Victoria Hernández — Monorepo Full‑Stack
 
 Reservas, membresías, torneos, pagos y administración en un único monorepo productivo.
 

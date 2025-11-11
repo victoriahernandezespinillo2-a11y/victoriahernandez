@@ -6,6 +6,7 @@ import { PaymentService } from '@repo/payments';
 import { reservationLockService } from './reservation-lock.service';
 import { ScheduleCompatibilityService } from './schedule-compatibility.service';
 import { PaymentMethodSchema } from '../validators/reservation.validator';
+import { NON_EXPIRABLE_PAYMENT_METHODS } from '../constants/reservation.constants';
 import { createHash } from 'crypto';
 import { ValidationAppError, NotFoundAppError } from '../errors';
 import {
@@ -204,8 +205,15 @@ export class ReservationService {
 
         // 2) Crear reserva principal con timeout automático
         const now = new Date();
-        
+        const timeoutMinutes = parseInt(process.env.PENDING_RESERVATION_TIMEOUT_MINUTES || '5', 10);
+ 
         // Lógica de expiración diferenciada por método de pago
+        const isNonExpirableMethod = (method?: string | null) =>
+          !!method &&
+          NON_EXPIRABLE_PAYMENT_METHODS.includes(
+            method as (typeof NON_EXPIRABLE_PAYMENT_METHODS)[number]
+          );
+
         const getExpirationTime = (paymentMethod: string | undefined, startTime: Date) => {
           // Si no hay método de pago definido (reservas manuales de admin), 
           // usar tiempo de inicio como expiración (se marcará como PAID antes de expirar)
@@ -213,12 +221,16 @@ export class ReservationService {
             return new Date(startTime.getTime());
           }
           
+          if (isNonExpirableMethod(paymentMethod)) {
+            return null;
+          }
+          
           if (paymentMethod === 'ONSITE') {
             // Pago en sede: 1 hora antes de la reserva
             return new Date(startTime.getTime() - 60 * 60 * 1000);
           }
-          // Otros métodos: 15 minutos desde ahora
-          return new Date(now.getTime() + 15 * 60 * 1000);
+          // Otros métodos: timeout configurable (por defecto 5 minutos)
+          return new Date(now.getTime() + timeoutMinutes * 60 * 1000);
         };
         
         const expiresAt = getExpirationTime(validatedInput.paymentMethod, startTime);

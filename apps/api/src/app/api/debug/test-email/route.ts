@@ -66,7 +66,81 @@ export async function POST(request: NextRequest) {
           template: 'email-verification',
           data: {
             firstName: 'Usuario de Prueba',
-            verificationUrl: 'https://polideportivo.com/auth/verify-email?token=test-token'
+            verificationUrl: 'https://polideportivovictoriahernandez.es/auth/verify-email?token=test-token'
+          }
+        });
+        break;
+
+      case 'password-reset-template':
+        result = await notificationService.sendEmail({
+          to: email,
+          subject: 'Restablecer contraseña - Polideportivo Victoria Hernández',
+          template: 'password-reset',
+          data: {
+            firstName: 'Usuario de Prueba',
+            resetUrl: 'https://polideportivovictoriahernandez.es/auth/reset-password?token=test-token'
+          }
+        });
+        break;
+
+      case 'password-changed-template':
+        result = await notificationService.sendEmail({
+          to: email,
+          subject: 'Tu contraseña ha sido cambiada',
+          template: 'password-changed',
+          data: {
+            firstName: 'Usuario de Prueba',
+            changeTime: new Date().toLocaleString('es-ES')
+          }
+        });
+        break;
+
+      case 'reservation-confirmation-template':
+        result = await notificationService.sendEmail({
+          to: email,
+          subject: '🎾 Reserva confirmada - TEST 1 NO UTILIZAR',
+          template: 'reservationConfirmation',
+          data: {
+            userName: 'Usuario de Prueba',
+            courtName: 'TEST 1 NO UTILIZAR',
+            date: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('es-ES'),
+            startTime: '10:00',
+            endTime: '11:00',
+            duration: '60',
+            price: '12.50',
+            reservationCode: 'ABC1234567',
+            qrCodeDataUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=Reserva+Demo',
+            accessPassUrl: 'https://polideportivovictoriahernandez.es/dashboard/reservations/pass/demo',
+            googleCalendarUrl: 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=Reserva+Polideportivo+Victoria+Hernández&dates=20251115T090000Z/20251115T100000Z&details=Reserva+de+prueba'
+          }
+        });
+        break;
+
+      case 'reservation-reminder-template':
+        result = await notificationService.sendEmail({
+          to: email,
+          subject: 'Recordatorio: tu reserva es mañana',
+          template: 'reservationReminder',
+          data: {
+            userName: 'Usuario de Prueba',
+            courtName: 'TEST 1 NO UTILIZAR',
+            date: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('es-ES'),
+            startTime: '10:00',
+            endTime: '11:00',
+            reservationCode: 'ABC1234567'
+          }
+        });
+        break;
+
+      case 'membership-expiring-template':
+        result = await notificationService.sendEmail({
+          to: email,
+          subject: 'Tu membresía expira pronto',
+          template: 'membershipExpiring',
+          data: {
+            userName: 'Usuario de Prueba',
+            membershipType: 'Premium Anual',
+            expirationDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('es-ES')
           }
         });
         break;
@@ -74,7 +148,7 @@ export async function POST(request: NextRequest) {
       default:
         return NextResponse.json({
           success: false,
-          error: 'Tipo de email no válido. Usa: welcome, payment, verification'
+          error: 'Tipo de email no válido. Usa: welcome, payment, verification, password-reset-template, password-changed-template, reservation-confirmation-template, reservation-reminder-template, membership-expiring-template'
         }, { status: 400 });
     }
 

@@ -176,7 +176,7 @@ Para contribuir a la documentación:
 ## 📞 Soporte
 
 Para soporte técnico relacionado con la documentación:
-- **Email**: soporte@polideportivo.com
+- **Email**: soporte@polideportivovictoriahernandez.es
 - **Teléfono**: +34 900 123 456
 - **Chat**: Disponible en el panel de administración
 

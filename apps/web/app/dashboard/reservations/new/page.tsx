@@ -462,7 +462,7 @@ export default function NewReservationPage() {
         startTime: startTime,
         duration,
         lightingSelected: lightingSelected,
-        // paymentMethod omitido para usar flujo predeterminado en backend
+        paymentMethod: 'redsys',
         notes,
         sport: selectedSport || (selectedCourt as any)?.sportType || undefined,
       } as any);

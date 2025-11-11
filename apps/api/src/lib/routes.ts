@@ -388,8 +388,8 @@ export type CorsConfig = {
 export const CORS_CONFIG = {
   DEFAULT: {
     origin: process.env.NODE_ENV === 'production' 
-      ? ['https://polideportivo.com', 'https://admin.polideportivo.com']
-      : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'],
+      ? ['https://polideportivovictoriahernandez.es', 'https://admin.polideportivovictoriahernandez.es']
+      : ['http://localhost:3000', 'http://localhost:3001'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,

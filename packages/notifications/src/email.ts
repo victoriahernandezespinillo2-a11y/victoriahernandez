@@ -67,7 +67,7 @@ export class EmailService {
   private defaultFrom: string;
 
   constructor() {
-    this.defaultFrom = process.env.EMAIL_FROM || 'noreply@polideportivo.com';
+    this.defaultFrom = process.env.EMAIL_FROM || '"Polideportivo Victoria Hernández" <noreply@polideportivovictoriahernandez.es>';
     this.transporter = this.createTransporter();
   }
 
@@ -239,7 +239,7 @@ export class EmailService {
     const templates: Record<string, EmailTemplate> = {
       'email-verification': {
         name: 'email-verification',
-        subject: 'Verifica tu email - Polideportivo',
+        subject: 'Verifica tu email - Polideportivo Victoria Hernández',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h1 style="color: #2563eb;">Verifica tu cuenta</h1>
@@ -258,7 +258,7 @@ export class EmailService {
 
       'password-reset': {
         name: 'password-reset',
-        subject: 'Restablecer contraseña - Polideportivo',
+        subject: 'Restablecer contraseña - Polideportivo Victoria Hernández',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h1 style="color: #2563eb;">Restablecer contraseña</h1>
@@ -287,6 +287,192 @@ export class EmailService {
         `,
         variables: ['firstName', 'changeTime'],
       },
+
+      'reservation-pending-payment-link': {
+        name: 'reservation-pending-payment-link',
+        subject: 'Acción requerida: completa el pago de tu reserva en {{centerName}}',
+        html: `
+          <div style="font-family: 'Inter', Arial, sans-serif; background-color: #f8fafc; padding: 32px;">
+            <table role="presentation" width="100%" style="max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 45px rgba(15,23,42,0.15);">
+              <tr>
+                <td style="padding: 40px 36px 32px; background: radial-gradient(circle at top left, #1d4ed8, #1e40af); color: #ffffff;">
+                  <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                      <p style="margin: 0; text-transform: uppercase; letter-spacing: 1.5px; font-size: 12px; opacity: 0.75;">Pago pendiente</p>
+                      <h1 style="margin: 6px 0 12px; font-size: 28px; font-weight: 700;">Hola {{userName}},</h1>
+                      <p style="margin: 0; font-size: 16px; opacity: 0.9;">Confirma tu reserva en {{centerName}} completando el pago.</p>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.12); border-radius: 18px; padding: 12px 18px; font-size: 14px;">Importe pendiente:<br /><strong style="font-size: 20px; color: #bfdbfe;">{{amount}} €</strong></div>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 32px 36px 0;">
+                  <div style="background: linear-gradient(135deg, #eff6ff, #fff); border: 1px solid #dbeafe; border-radius: 16px; padding: 24px;">
+                    <h2 style="margin: 0 0 18px; font-size: 18px; color: #1e293b; display: flex; align-items: center;"><span style="display:inline-flex;width:32px;height:32px;border-radius:10px;background:#2563eb1a;align-items:center;justify-content:center;margin-right:12px;color:#2563eb;">📅</span>Resumen de tu reserva</h2>
+                    <table role="presentation" width="100%" style="border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #e2e8f0; color: #1e293b; font-weight: 600;">{{courtName}}</td>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; text-align: right; font-size: 13px;">Instalación</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #e2e8f0; color: #1e293b; font-weight: 600;">{{date}}</td>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; text-align: right; font-size: 13px;">Fecha</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #e2e8f0; color: #1e293b; font-weight: 600;">{{startTime}} - {{endTime}}</td>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; text-align: right; font-size: 13px;">Horario</td>
+                      </tr>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 32px 36px; text-align: center;">
+                  <a href="{{ctaUrl}}" style="display: inline-block; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #ffffff; padding: 16px 36px; border-radius: 999px; font-weight: 600; text-decoration: none; font-size: 16px; box-shadow: 0 10px 25px rgba(37,99,235,0.25);">
+                    {{ctaLabel}}
+                  </a>
+                  <p style="margin: 18px 0 0; color: #64748b; font-size: 13px;">Abre el enlace desde un dispositivo seguro y sigue los pasos para completar el pago.</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 0 36px 32px;">
+                  <div style="background: #fef3c7; border: 1px solid #fbbf24; border-radius: 14px; padding: 20px;">
+                    <h3 style="margin: 0 0 8px; font-size: 16px; color: #92400e;">Recordatorio importante</h3>
+                    <p style="margin: 0; font-size: 14px; color: #b45309; line-height: 1.6;">{{expiresAt}}</p>
+                    <p style="margin: 12px 0 0; font-size: 14px; color: #b45309;">Si el pago no se registra a tiempo, la reserva podría liberarse para otros usuarios.</p>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 0 36px 36px;">
+                  <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 24px; text-align: center;">
+                    <p style="margin: 0 0 6px; font-size: 13px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">¿Necesitas ayuda?</p>
+                    <p style="margin: 0; font-size: 14px; color: #475569;">Escríbenos a <a href="mailto:{{supportEmail}}" style="color: #2563eb; font-weight: 600; text-decoration: none;">{{supportEmail}}</a> o contáctanos vía WhatsApp al <strong>{{supportWhatsapp}}</strong>.</p>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </div>
+        `,
+        variables: ['userName', 'centerName', 'courtName', 'date', 'startTime', 'endTime', 'amount', 'ctaUrl', 'ctaLabel', 'supportEmail', 'supportWhatsapp', 'expiresAt'],
+      },
+
+      'reservation-pending-payment-offline': {
+        name: 'reservation-pending-payment-offline',
+        subject: 'Completa el pago presencial de tu reserva en {{centerName}}',
+        html: `
+          <div style="font-family: 'Inter', Arial, sans-serif; background-color: #fff7ed; padding: 32px;">
+            <table role="presentation" width="100%" style="max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 45px rgba(124,45,18,0.12);">
+              <tr>
+                <td style="padding: 36px 32px; background: linear-gradient(135deg, #f97316, #ea580c); color: #ffffff;">
+                  <h1 style="margin: 0 0 12px; font-size: 26px; font-weight: 700;">Pago pendiente en recepción</h1>
+                  <p style="margin: 0; font-size: 15px; opacity: 0.9;">Hola {{userName}}, registra el pago en nuestro mostrador antes de iniciar tu reserva.</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 28px 32px 0;">
+                  <div style="background: #fff7ed; border: 1px solid #fdba74; border-radius: 16px; padding: 24px;">
+                    <h2 style="margin: 0 0 12px; font-size: 18px; color: #9a3412;">Pasos a seguir</h2>
+                    <ol style="margin: 0; padding-left: 20px; color: #b45309; line-height: 1.8; font-size: 14px;">
+                      <li>Llega al centro con al menos 15 minutos de antelación.</li>
+                      <li>Identifica tu reserva con tu nombre o este correo.</li>
+                      <li>Abona el importe pendiente: <strong>{{amount}} €</strong>.</li>
+                      <li>Recibe tu comprobante y disfruta de tu reserva.</li>
+                    </ol>
+                    <p style="margin: 16px 0 0; font-size: 14px; color: #9a3412;">{{pendingReason}}</p>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 28px 32px;">
+                  <div style="background: linear-gradient(135deg, #f8fafc, #ffffff); border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px;">
+                    <h2 style="margin: 0 0 18px; font-size: 18px; color: #1f2937;">Detalles de la reserva</h2>
+                    <table role="presentation" width="100%" style="border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #1f2937;">{{courtName}}</td>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px; color: #6b7280;">Instalación</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #1f2937;">{{date}}</td>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px; color: #6b7280;">Fecha</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #1f2937;">{{startTime}} - {{endTime}}</td>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px; color: #6b7280;">Horario</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 0; color: #1f2937; font-weight: 600;">{{centerName}}</td>
+                        <td style="padding: 12px 0; text-align: right; font-size: 13px; color: #6b7280;">Centro deportivo</td>
+                      </tr>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 0 32px 32px;">
+                  <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; text-align: center;">
+                    <p style="margin: 0 0 6px; font-size: 13px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">¿Necesitas ayuda?</p>
+                    <p style="margin: 0; font-size: 14px; color: #475569;">Escríbenos a <a href="mailto:{{supportEmail}}" style="color: #dc2626; font-weight: 600; text-decoration: none;">{{supportEmail}}</a> o llámanos al <strong>{{supportPhone}}</strong>.</p>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </div>
+        `,
+        variables: ['userName', 'centerName', 'courtName', 'date', 'startTime', 'endTime', 'amount', 'pendingReason', 'supportEmail', 'supportPhone'],
+      },
+
+      'reservation-cancelled-timeout': {
+        name: 'reservation-cancelled-timeout',
+        subject: 'Reserva cancelada por falta de pago - {{centerName}}',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0;">
+            <div style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); padding: 32px; border-radius: 16px 16px 0 0; color: #ffffff;">
+              <h1 style="margin: 0; font-size: 26px;">Tu reserva ha sido cancelada</h1>
+            </div>
+            <div style="padding: 32px;">
+              <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
+                Hola {{userName}}, lamentablemente tuvimos que cancelar tu reserva en <strong>{{centerName}}</strong> porque no recibimos el pago a tiempo.
+              </p>
+              <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+                <h3 style="margin: 0 0 12px 0; color: #b91c1b; font-size: 18px;">Detalles de la reserva cancelada</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;">
+                  <div>
+                    <span style="display: block; color: #991b1b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Pista</span>
+                    <span style="color: #1f2937; font-weight: 600;">{{courtName}}</span>
+                  </div>
+                  <div>
+                    <span style="display: block; color: #991b1b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Fecha</span>
+                    <span style="color: #1f2937; font-weight: 600;">{{date}}</span>
+                  </div>
+                  <div>
+                    <span style="display: block; color: #991b1b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Horario</span>
+                    <span style="color: #1f2937; font-weight: 600;">{{startTime}} - {{endTime}}</span>
+                  </div>
+                  <div>
+                    <span style="display: block; color: #991b1b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Importe pendiente</span>
+                    <span style="color: #b91c1c; font-weight: 700; font-size: 18px;">{{amount}} €</span>
+                  </div>
+                </div>
+              </div>
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                <h4 style="margin: 0 0 8px 0; color: #1f2937;">¿Qué ocurrió?</h4>
+                <p style="margin: 0; color: #475569; font-size: 14px; line-height: 1.6;">{{cancelReason}}</p>
+                <p style="margin: 12px 0 0; color: #475569; font-size: 14px; line-height: 1.6;">La cancelación se registró el {{cancelledAt}}.</p>
+              </div>
+              <p style="color: #1f2937; font-size: 14px; line-height: 1.6; margin: 0;">
+                Si todavía necesitas la pista, puedes generar una nueva reserva desde tu panel. Estamos disponibles para ayudarte en lo que necesites.
+              </p>
+            </div>
+            <div style="padding: 24px 32px; border-top: 1px solid #e2e8f0; background: #f8fafc; border-radius: 0 0 16px 16px;">
+              <p style="margin: 0; color: #64748b; font-size: 14px;">¿Necesitas asistencia? Escríbenos a <a href="mailto:{{supportEmail}}" style="color: #dc2626; text-decoration: none;">{{supportEmail}}</a>.</p>
+            </div>
+          </div>
+        `,
+        variables: ['userName', 'centerName', 'courtName', 'date', 'startTime', 'endTime', 'amount', 'cancelReason', 'cancelledAt', 'supportEmail'],
+      },
+
       welcome: {
         name: 'welcome',
         subject: '¡Bienvenido a nuestro polideportivo!',
@@ -306,7 +492,7 @@ export class EmailService {
             </div>
             <p>Si tienes alguna pregunta, no dudes en contactarnos.</p>
             <p>¡Nos vemos en las pistas!</p>
-            <p style="color: #6b7280; font-size: 14px;">Equipo del Polideportivo</p>
+            <p style="color: #6b7280; font-size: 14px;">Equipo de Polideportivo Victoria Hernández</p>
           </div>
         `,
         variables: ['name'],
@@ -412,7 +598,7 @@ export class EmailService {
                           
                           <!-- QR Code -->
                           <div style="display: inline-block; padding: 16px; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(30, 64, 175, 0.1);">
-                            <img src="{{qrCodeDataUrl}}" alt="Código QR de acceso" style="width: 140px; height: 140px; border-radius: 8px; display: block;" class="qr-code">
+                            <img src="cid:{{qrCodeCid}}" alt="Código QR de acceso" style="width: 140px; height: 140px; border-radius: 8px; display: block;" class="qr-code">
                           </div>
                           
                           <div style="margin-top: 16px; padding: 12px; background: rgba(30, 64, 175, 0.05); border-radius: 8px;">
@@ -482,7 +668,7 @@ export class EmailService {
           </body>
           </html>
         `,
-        variables: ['userName', 'courtName', 'date', 'startTime', 'endTime', 'duration', 'price', 'reservationCode', 'qrCodeDataUrl', 'accessPassUrl', 'googleCalendarUrl'],
+        variables: ['userName', 'centerName', 'courtName', 'date', 'startTime', 'endTime', 'duration', 'price', 'reservationCode', 'qrCodeCid', 'accessPassUrl', 'googleCalendarUrl'],
       },
       
       reservationReminder: {
@@ -554,7 +740,8 @@ export class EmailService {
   async sendTemplateEmail(
     templateName: string,
     to: string,
-    variables: Record<string, string>
+    variables: Record<string, string>,
+    options?: { from?: string; attachments?: EmailData['attachments']; text?: string }
   ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     const template = this.getTemplate(templateName, variables);
     
@@ -569,6 +756,9 @@ export class EmailService {
       to,
       subject: template.subject,
       html: template.html,
+      from: options?.from,
+      attachments: options?.attachments,
+      text: options?.text,
     });
   }
 

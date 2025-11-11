@@ -4,12 +4,13 @@
  */
 
 import { NextRequest } from 'next/server';
-import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
+import { withAdminReservationsMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { ledgerService } from '@/lib/services/ledger.service';
 import { z } from 'zod';
 import { reservationService } from '@/lib/services/reservation.service';
-import { emailService } from '@repo/notifications';
+import { ReservationReminderService } from '@/lib/services/reservation-reminder.service';
+import { reservationNotificationService } from '@/lib/services/reservation-notification.service';
 import { AutoCompleteService } from '@/lib/services/auto-complete.service';
 import { 
   AdminPaymentMethodSchema, 
@@ -23,6 +24,7 @@ const GetAdminReservationsSchema = z.object({
   status: z.enum(['PENDING','PAID','IN_PROGRESS','COMPLETED','CANCELLED','NO_SHOW']).optional(),
   userId: z.string().optional(),
   courtId: z.string().optional(),
+  courtName: z.string().optional(),
   centerId: z.string().optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
@@ -34,7 +36,7 @@ const GetAdminReservationsSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  return withAdminMiddleware(async (req) => {
+  return withAdminReservationsMiddleware(async (req) => {
     try {
       // Marcación oportunista de NO_SHOW: idempotente, rápida y segura
       try {
@@ -71,7 +73,16 @@ export async function GET(request: NextRequest) {
       if (params.status) where.status = params.status;
       if (params.userId) where.userId = params.userId;
       if (params.courtId) where.courtId = params.courtId;
-      if (params.centerId) where.court = { is: { centerId: params.centerId } };
+      const courtFilters: any = {};
+      if (params.centerId) {
+        courtFilters.centerId = params.centerId;
+      }
+      if (params.courtName) {
+        courtFilters.name = { contains: params.courtName, mode: 'insensitive' };
+      }
+      if (Object.keys(courtFilters).length > 0) {
+        where.court = { is: courtFilters };
+      }
       if (params.startDate || params.endDate) {
         const field = params.dateField || 'startTime';
         const range: any = {};
@@ -250,7 +261,7 @@ const ManualReservationSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  return withAdminMiddleware(async (req) => {
+  return withAdminReservationsMiddleware(async (req) => {
     try {
       const body = await req.json();
       const input = ManualReservationSchema.parse(body);
@@ -369,6 +380,7 @@ export async function POST(request: NextRequest) {
       // 3) Procesar pago según método (CASH/TPV/TRANSFER/COURTESY/CREDITS/LINK)
       const method = input.payment?.method || 'CASH';
       const amount = Number(reservation.totalPrice || 0);
+      const shouldSendEmail = input.payment?.sendEmail !== false;
       const finalizeAsPaid = async (pm: string) => {
         await db.reservation.update({ where: { id: reservation.id }, data: { paymentStatus: 'PAID' as any, paidAt: new Date(), paymentMethod: pm } });
         await db.outboxEvent.create({ data: { eventType: 'PAYMENT_RECORDED', eventData: { reservationId: reservation.id, userId, method: pm, amount, details: input.payment?.details } as any } });
@@ -392,9 +404,15 @@ export async function POST(request: NextRequest) {
         }
       };
 
+      let paymentLinkUrl: string | undefined;
+      let linkExpiresAt: Date | null = null;
+
       switch (method) {
         case 'CASH': {
           await finalizeAsPaid('CASH');
+          if (shouldSendEmail) {
+            await reservationNotificationService.sendReservationConfirmation(reservation.id);
+          }
           break;
         }
         case 'TPV': {
@@ -402,10 +420,16 @@ export async function POST(request: NextRequest) {
             // Aceptamos sin authCode, pero recomendamos enviarlo
           }
           await finalizeAsPaid('TPV');
+          if (shouldSendEmail) {
+            await reservationNotificationService.sendReservationConfirmation(reservation.id);
+          }
           break;
         }
         case 'TRANSFER': {
           await finalizeAsPaid('TRANSFER');
+          if (shouldSendEmail) {
+            await reservationNotificationService.sendReservationConfirmation(reservation.id);
+          }
           break;
         }
         case 'COURTESY': {
@@ -413,6 +437,9 @@ export async function POST(request: NextRequest) {
           if (!reason) return ApiResponse.badRequest('La cortesía requiere motivo');
           await finalizeAsPaid('COURTESY');
           await db.outboxEvent.create({ data: { eventType: 'COURTESY_GRANTED', eventData: { reservationId: reservation.id, userId, reason } as any } });
+          if (shouldSendEmail) {
+            await reservationNotificationService.sendReservationConfirmation(reservation.id);
+          }
           break;
         }
         case 'CREDITS': {
@@ -457,6 +484,7 @@ export async function POST(request: NextRequest) {
             data: {
               paymentStatus: 'PENDING',
               paymentMethod: 'PENDING',
+              expiresAt: null,
               notes: notesToPersist,
             },
           });
@@ -473,15 +501,34 @@ export async function POST(request: NextRequest) {
               } as any,
             },
           });
+
+          if (shouldSendEmail) {
+            await reservationNotificationService.sendPendingPaymentReminder(reservation.id, {
+              pendingReason: reason,
+            });
+          }
           break;
         }
         case 'LINK': {
-          // ya se maneja más abajo (generación de enlace), no marcar como pagado
+          const timeoutMinutes = parseInt(process.env.PENDING_RESERVATION_TIMEOUT_MINUTES || '5', 10);
+          const expiresAt = new Date(Date.now() + timeoutMinutes * 60 * 1000);
+          linkExpiresAt = expiresAt;
+
+          reservation = await db.reservation.update({
+            where: { id: reservation.id },
+            data: {
+              paymentStatus: 'PENDING',
+              paymentMethod: 'LINK',
+              expiresAt,
+            },
+            include: { user: true, court: true },
+          });
+
+          await ReservationReminderService.schedulePendingPaymentReminder(reservation.id);
+
           break;
         }
       }
-
-      let paymentLinkUrl: string | undefined;
 
       // 4) Si el método es LINK, generar enlace de pago (Redsys redirect) y enviar por email
   if (input.payment?.method === 'LINK') {
@@ -522,13 +569,11 @@ export async function POST(request: NextRequest) {
           },
         });
 
-    const user = await db.user.findUnique({ where: { id: userId } });
-    const shouldSendEmail = !!input.payment?.sendEmail;
-    if (shouldSendEmail && user?.email && paymentLinkUrl) {
-      await emailService.sendEmail({
-        to: user.email,
-        subject: 'Enlace de pago de tu reserva',
-        html: `<p>Hola ${user.name || ''},</p><p>Puedes completar el pago de tu reserva haciendo clic en el siguiente enlace:</p><p><a href="${paymentLinkUrl}">Pagar ahora</a></p>`,
+    if (shouldSendEmail && paymentLinkUrl) {
+      await reservationNotificationService.sendPendingPaymentReminder(reservation.id, {
+        paymentLinkUrl,
+        expiresAt: linkExpiresAt,
+        ctaLabel: 'Completar pago',
       });
     }
       }

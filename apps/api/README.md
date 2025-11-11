@@ -52,7 +52,7 @@ npm run dev
 DATABASE_URL="postgresql://user:password@localhost:5432/polideportivo"
 
 # NextAuth.js
-NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_URL="https://api.polideportivovictoriahernandez.es"
 NEXTAUTH_SECRET="your-secret-key"
 
 # Stripe
@@ -372,7 +372,7 @@ docker run -p 3000:3000 polideportivo-api
 ```env
 NODE_ENV=production
 DATABASE_URL="postgresql://..."
-NEXTAUTH_URL="https://api.polideportivo.com"
+NEXTAUTH_URL="https://api.polideportivovictoriahernandez.es"
 STRIPE_SECRET_KEY="sk_live_..."
 # ... otras variables
 ```
@@ -405,8 +405,8 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más det
 
 ## 📞 Soporte
 
-- **Email**: soporte@polideportivo.com
-- **Documentación**: [https://docs.polideportivo.com](https://docs.polideportivo.com)
+- **Email**: soporte@polideportivovictoriahernandez.es
+- **Documentación**: [https://docs.polideportivovictoriahernandez.es](https://docs.polideportivovictoriahernandez.es)
 - **Issues**: [GitHub Issues](https://github.com/polideportivo/platform/issues)
 
 ---

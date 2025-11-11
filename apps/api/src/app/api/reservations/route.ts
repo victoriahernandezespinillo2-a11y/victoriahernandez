@@ -1,6 +1,8 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@repo/auth';
 import { reservationService } from '../../../lib/services/reservation.service';
+import { ReservationReminderService } from '../../../lib/services/reservation-reminder.service';
+import { reservationNotificationService } from '../../../lib/services/reservation-notification.service';
 import AuthService from '../../../lib/services/auth.service';
 import { z } from 'zod';
 import { db } from '@repo/db';
@@ -238,9 +240,17 @@ export async function POST(request: NextRequest) {
       paymentMethod: mappedPaymentMethod,
       userId: finalUserId,
     });
-    console.log('ðŸŽ‰ [RESERVATION-DEBUG] Reserva creada exitosamente:', reservation.id);
+    console.log('🎉 [RESERVATION-DEBUG] Reserva creada exitosamente:', reservation.id);
 
-    // Si el mÃ©todo de pago solicitado es 'credits', realizar cargo de crÃ©ditos y marcar como pagado
+    if (mappedPaymentMethod && ['redsys', 'stripe'].includes(mappedPaymentMethod)) {
+      try {
+        await ReservationReminderService.schedulePendingPaymentReminder(reservation.id);
+      } catch (error) {
+        console.error('[RESERVATION-REMINDER] Error programando recordatorio de pago pendiente:', error);
+      }
+    }
+
+    // Si el método de pago solicitado es 'credits', realizar cargo de créditos y marcar como pagado
     if (validatedData.paymentMethod === 'credits') {
       // Obtener configuraciÃ³n euroPerCredit desde el centro de la cancha
       const court = await db.court.findUnique({

@@ -7,6 +7,8 @@ import { db } from '@repo/db';
 import { getCreditSystemService } from './credit-system.service';
 import { ledgerService } from './ledger.service';
 import { PrismaClient } from '@prisma/client';
+import { notificationService } from '@repo/notifications';
+import { reservationNotificationService } from './reservation-notification.service';
 
 export interface ReservationPaymentResult {
   success: boolean;
@@ -769,150 +771,18 @@ export class ReservationPaymentService {
    */
   private async sendConfirmationEmailWithQR(reservation: any, amount: number): Promise<void> {
     try {
-      console.log('📧 [CREDITS-PAYMENT] Enviando email de confirmación con QR...');
-      console.log('📧 [CREDITS-PAYMENT] Validando datos de entrada:', {
-        hasReservation: !!reservation,
-        hasUser: !!reservation?.user,
-        hasEmail: !!reservation?.user?.email,
-        hasCourt: !!reservation?.court,
-        amount
-      });
-      
-      // Validar datos requeridos
-      if (!reservation?.user?.email) {
-        throw new Error('Email del usuario no encontrado en la reserva');
-      }
-      
-      if (!reservation?.court?.name) {
-        throw new Error('Nombre de la cancha no encontrado en la reserva');
-      }
-      
-      console.log('📧 [CREDITS-PAYMENT] Importando servicios necesarios...');
-      
-      // Importar servicios necesarios (igual que en webhook de Redsys)
-      const { notificationService } = await import('@repo/notifications');
-      const jwt = (await import('jsonwebtoken')) as unknown as typeof import('jsonwebtoken');
-      const QRCode = (await import('qrcode')) as unknown as { toDataURL: (text: string, opts?: any) => Promise<string> };
-      
-      console.log('✅ [CREDITS-PAYMENT] Servicios importados exitosamente');
-      console.log('📧 [CREDITS-PAYMENT] Verificando servicio de notificaciones:', {
-        hasNotificationService: !!notificationService,
-        hasSendEmailMethod: !!notificationService?.sendEmail,
-        hasSendEmailTemplateMethod: !!notificationService?.sendEmailTemplate
-      });
-
-      // Generar tokens de acceso
-      const jwtSecret = process.env.JWT_SECRET || 'fallback-secret';
-      const expSeconds = Math.floor(Date.now() / 1000) + (24 * 60 * 60); // 24 horas
-      const passToken = jwt.sign({ type: 'pass-access', userId: reservation.userId, exp: expSeconds }, jwtSecret);
-
-      // Configurar URLs
-      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002').replace(/\/$/, '');
-      const passUrl = `${apiUrl}/api/reservations/${reservation.id}/pass?token=${encodeURIComponent(passToken)}`;
-
-      // Generar QR Code
-      console.log('📧 [CREDITS-PAYMENT] Generando QR Code...');
-      let qrCodeDataUrl = '';
-      try {
-        qrCodeDataUrl = await QRCode.toDataURL(passUrl, { width: 200, margin: 1 });
-        console.log('✅ [CREDITS-PAYMENT] QR Code generado exitosamente para reserva:', reservation.id);
-      } catch (qrError) {
-        console.error('❌ [CREDITS-PAYMENT] Error generando QR Code:', qrError);
-        qrCodeDataUrl = await QRCode.toDataURL(`${apiUrl}/api/reservations/${reservation.id}/pass`, { width: 200, margin: 1 });
-        console.log('✅ [CREDITS-PAYMENT] QR Code de respaldo generado');
-      }
-
-      // Formatear fechas y horarios
-      const startTimeLocal = new Date(reservation.startTime);
-      const endTimeLocal = new Date(reservation.endTime);
-      const durationMin = Math.round((endTimeLocal.getTime() - startTimeLocal.getTime()) / (1000 * 60));
-      
-      const startTimeFull = startTimeLocal.toLocaleString('es-ES', {
-        timeZone: 'Europe/Madrid',
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-      
-      const [datePart, startTimeFormatted] = startTimeFull.split(', ');
-      
-      const endTimeFull = endTimeLocal.toLocaleString('es-ES', {
-        timeZone: 'Europe/Madrid',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-      
-      const [, endTimeFormatted] = endTimeFull.split(', ');
-
-      // Generar URL de Google Calendar
-      const generateGoogleCalendarUrl = (reservation: any) => {
-        const start = new Date(reservation.startTime).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-        const end = new Date(reservation.endTime).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-        const title = `Reserva ${reservation.court?.name || 'Cancha'}`;
-        const details = `Reserva deportiva en ${reservation.court?.name || 'cancha'}`;
-        return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${start}/${end}&details=${encodeURIComponent(details)}`;
-      };
-
-      // Variables para el template
-      const variables = {
-        userName: reservation.user?.name || reservation.user?.email || 'Usuario',
-        courtName: reservation.court?.name || 'Cancha',
-        date: datePart || startTimeLocal.toLocaleDateString('es-ES'),
-        startTime: startTimeFormatted || startTimeLocal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-        endTime: endTimeFormatted || endTimeLocal.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-        duration: String(durationMin),
-        price: amount.toFixed(2),
-        reservationCode: reservation.id.slice(0, 10).toUpperCase(),
-        qrCodeDataUrl,
-        accessPassUrl: passUrl,
-        googleCalendarUrl: generateGoogleCalendarUrl(reservation),
-      } as Record<string, string>;
-
-      // Enviar email con template de confirmación
-      console.log('📧 [CREDITS-PAYMENT] Preparando envío de email...');
-      console.log('📧 [CREDITS-PAYMENT] Datos del email:', {
-        to: reservation.user.email,
-        subject: 'Reserva confirmada - Pago con créditos',
-        template: 'reservationConfirmation',
-        variablesCount: Object.keys(variables).length,
-        emailProvider: process.env.EMAIL_PROVIDER || 'smtp'
-      });
-      
-      // Verificar configuración de email
-      console.log('📧 [CREDITS-PAYMENT] Configuración de email:', {
-        hasEmailProvider: !!process.env.EMAIL_PROVIDER,
-        emailProvider: process.env.EMAIL_PROVIDER || 'smtp',
-        hasSmtpHost: !!process.env.SMTP_HOST,
-        hasGmailUser: !!process.env.GMAIL_USER,
-        hasSendgridKey: !!process.env.SENDGRID_API_KEY
-      });
-      
-      const emailResult = await notificationService.sendEmail({
-        to: reservation.user.email,
-        subject: 'Reserva confirmada - Pago con créditos',
-        template: 'reservationConfirmation',
-        data: variables,
-      } as any);
-      
-      console.log('📧 [CREDITS-PAYMENT] Resultado del envío de email:', emailResult);
-
-      // Registrar evento de email enviado
+      await reservationNotificationService.sendReservationConfirmation(reservation.id, { amount });
       await this.prisma.outboxEvent.create({
         data: {
           eventType: 'RESERVATION_EMAIL_SENT',
-          eventData: { 
-            reservationId: reservation.id, 
+          eventData: {
+            reservationId: reservation.id,
             provider: 'CREDITS',
             emailSent: true,
-            qrGenerated: true
+            qrGenerated: true,
           } as any,
         },
       });
-
-      console.log('✅ [CREDITS-PAYMENT] Email de confirmación enviado exitosamente');
     } catch (error) {
       console.error('❌ [CREDITS-PAYMENT] Error enviando email de confirmación:', error);
       throw error;

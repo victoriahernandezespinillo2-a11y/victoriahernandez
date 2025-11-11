@@ -21,6 +21,8 @@ import {
   ChartBarIcon
 } from '@heroicons/react/24/outline';
 
+const RESERVATIONS_PAGE_SIZE = 10;
+
 export default function ReservationsReportPage() {
   const { getUsageReport } = useAdminReports();
   const [period, setPeriod] = useState<'7d'|'30d'|'90d'|'1y'|'custom'>('90d');
@@ -41,6 +43,7 @@ export default function ReservationsReportPage() {
   const [reservationsSearch, setReservationsSearch] = useState('');
   const [reservationsStatus, setReservationsStatus] = useState<string>('');
   const [reservationsSport, setReservationsSport] = useState<string>('');
+  const [courtOptions, setCourtOptions] = useState<string[]>([]);
   const [showReservationsTable, setShowReservationsTable] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState<any>(null);
   const [showReservationModal, setShowReservationModal] = useState(false);
@@ -74,7 +77,7 @@ export default function ReservationsReportPage() {
       
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: '50',
+        limit: RESERVATIONS_PAGE_SIZE.toString(),
         startDate: new Date(`${startDate}T00:00:00.000Z`).toISOString(),
         endDate: new Date(`${endDate}T23:59:59.999Z`).toISOString(),
         sortBy: 'startTime',
@@ -84,21 +87,26 @@ export default function ReservationsReportPage() {
       
       if (status) params.append('status', status);
       if (search) params.append('search', search);
+      if (sport) params.append('courtName', sport);
       
       const response = await fetch(`/api/admin/reservations?${params.toString()}`);
       const result = await response.json();
       
       if (result.success) {
-        let rows: any[] = Array.isArray(result?.data?.data) ? result.data.data : [];
-        
-        // Filtrar por deporte si se especifica
-        if (sport) {
-          rows = rows.filter((r: any) => r.courtName?.toLowerCase().includes(sport.toLowerCase()));
-        }
+        const rows: any[] = Array.isArray(result?.data?.data) ? result.data.data : [];
         
         setReservations(rows);
         setReservationsTotal(Number(result?.data?.pagination?.total ?? rows.length));
         setReservationsPage(page);
+        setCourtOptions((prev) => {
+          const names = rows
+            .map((r: any) => r.courtName)
+            .filter((name: unknown): name is string => typeof name === 'string' && name.length > 0);
+          const merged = new Set<string>(page === 1 && !search && !status && !sport ? [] : prev);
+          names.forEach((name) => merged.add(name));
+          if (sport) merged.add(sport);
+          return Array.from(merged);
+        });
       }
     } catch (error) {
       console.error('Error cargando reservas:', error);
@@ -166,6 +174,9 @@ export default function ReservationsReportPage() {
   const pending = metrics.pending;
   const totalRevenue = metrics.totalRevenue;
   const occupancyRate = metrics.occupancyRate;
+  const totalPages = reservationsTotal > 0 ? Math.ceil(reservationsTotal / RESERVATIONS_PAGE_SIZE) : 1;
+  const showingFrom = reservationsTotal === 0 ? 0 : (reservationsPage - 1) * RESERVATIONS_PAGE_SIZE + 1;
+  const showingTo = reservationsTotal === 0 ? 0 : Math.min(reservationsPage * RESERVATIONS_PAGE_SIZE, reservationsTotal);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -331,9 +342,17 @@ export default function ReservationsReportPage() {
           <div className="bg-white rounded-lg shadow-sm border p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-base font-semibold text-gray-900">Reservas ({reservationsTotal.toLocaleString()})</h3>
-              <button onClick={()=>exportFile('json')} className="flex items-center gap-1 px-2 py-1 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-xs">
-                <DocumentTextIcon className="w-3 h-3"/>JSON
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={()=>exportFile('json')} className="flex items-center gap-1 px-2 py-1 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-xs">
+                  <DocumentTextIcon className="w-3 h-3"/>JSON
+                </button>
+                <button onClick={()=>exportFile('csv')} className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs">
+                  <DocumentTextIcon className="w-3 h-3"/>CSV
+                </button>
+                <button onClick={()=>exportFile('xlsx')} className="flex items-center gap-1 px-2 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs">
+                  <DocumentTextIcon className="w-3 h-3"/>Excel
+                </button>
+              </div>
             </div>
 
             {/* Filtros móviles */}
@@ -373,7 +392,7 @@ export default function ReservationsReportPage() {
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 >
                   <option value="">Todos los deportes</option>
-                  {Array.from(new Set(reservations.map(r => r.courtName))).map(sport => (
+                  {courtOptions.map((sport) => (
                     <option key={sport} value={sport}>{sport}</option>
                   ))}
                 </select>
@@ -389,7 +408,7 @@ export default function ReservationsReportPage() {
                     Cargando reservas...
                   </div>
                 </div>
-              ) : reservations.length > 0 ? reservations.slice(0, 10).map((reservation: any, i: number) => (
+              ) : reservations.length > 0 ? reservations.map((reservation: any) => (
                 <div key={reservation.id} className="p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-900">{reservation.userName}</span>
@@ -445,9 +464,28 @@ export default function ReservationsReportPage() {
                   No se encontraron reservas
                 </div>
               )}
-              {reservations.length > 10 && (
-                <div className="text-center py-2 text-xs text-gray-500">
-                  Mostrando 10 de {reservations.length} reservas
+              {reservationsTotal > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-gray-500">
+                  <span className="text-center sm:text-left">
+                    Mostrando {reservationsTotal === 0 ? 0 : `${showingFrom}-${showingTo}`} de {reservationsTotal} reservas
+                  </span>
+                  <div className="flex items-center justify-center gap-2 text-xs">
+                    <button
+                      onClick={() => loadReservations(Math.max(1, reservationsPage - 1), reservationsSearch, reservationsStatus, reservationsSport)}
+                      disabled={reservationsPage <= 1 || reservationsLoading}
+                      className={`px-3 py-1 rounded border ${reservationsPage <= 1 || reservationsLoading ? 'text-gray-400 border-gray-200 cursor-not-allowed bg-gray-50' : 'text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'}`}
+                    >
+                      Anterior
+                    </button>
+                    <span className="text-gray-400">{reservationsPage} / {totalPages}</span>
+                    <button
+                      onClick={() => loadReservations(Math.min(totalPages, reservationsPage + 1), reservationsSearch, reservationsStatus, reservationsSport)}
+                      disabled={reservationsPage >= totalPages || reservationsLoading}
+                      className={`px-3 py-1 rounded border ${reservationsPage >= totalPages || reservationsLoading ? 'text-gray-400 border-gray-200 cursor-not-allowed bg-gray-50' : 'text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'}`}
+                    >
+                      Siguiente
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -542,7 +580,7 @@ export default function ReservationsReportPage() {
     </div>
   );
 
-  function exportFile(format:'csv'|'json'){
+  function exportFile(format:'csv'|'json'|'xlsx'){
     const payload = {
       period,
       dateRange,
@@ -575,8 +613,7 @@ export default function ReservationsReportPage() {
     if (format === 'json') {
       exportUtils.downloadJSON(payload, `${filename}.json`);
     } else {
-      // Para CSV, crear estructura específica para reservations
-      const csvData = [
+      const tabular = [
         ['ID', 'Usuario', 'Email', 'Cancha', 'Centro', 'Fecha', 'Hora Inicio', 'Hora Fin', 'Duración (h)', 'Monto', 'Estado', 'Método Pago'],
         ...reservations.map((r: any) => [
           r.id,
@@ -593,7 +630,12 @@ export default function ReservationsReportPage() {
           r.paymentMethod || ''
         ])
       ];
-      exportUtils.downloadCSV(csvData, `${filename}.csv`);
+
+      if (format === 'csv') {
+        exportUtils.downloadCSV(tabular, `${filename}.csv`);
+      } else {
+        exportUtils.downloadXLSX(tabular, `${filename}.xlsx`, 'Reservas');
+      }
     }
   }
 }

@@ -1,11 +1,14 @@
 import { NextRequest } from 'next/server';
 import { ApiResponse, withAdminMiddleware } from '@/lib/middleware';
+import { NON_EXPIRABLE_PAYMENT_METHODS } from '@/lib/constants/reservation.constants';
+import { reservationNotificationService } from '@/lib/services/reservation-notification.service';
+import { ReservationReminderService } from '@/lib/services/reservation-reminder.service';
 import { db } from '@repo/db';
 
 /**
  * Cron job para limpiar reservas PENDING expiradas
- * Se ejecuta cada 15 minutos para cancelar reservas PENDING que no se completaron
- * en el tiempo establecido (15 minutos por defecto)
+ * Se ejecuta cada 5 minutos (o la frecuencia que configures) para cancelar reservas PENDING que no se completaron
+ * en el tiempo establecido (5 minutos por defecto, configurable por env)
  */
 export async function GET(request: NextRequest) {
   // Protección por secreto para cron jobs externos (GitHub Actions, Vercel Cron)
@@ -26,20 +29,46 @@ export async function GET(request: NextRequest) {
 async function executeCleanup() {
   try {
       console.log('🧹 [CRON] Iniciando limpieza automática de reservas PENDING expiradas...');
+
+      const now = new Date();
+
+      try {
+        await ReservationReminderService.processPendingPaymentReminders(now);
+      } catch (error) {
+        console.error('❌ [CRON] Error procesando recordatorios de pago pendiente:', error);
+      }
       
-      // Configuración del timeout (15 minutos por defecto, configurable via env)
-      const timeoutMinutes = parseInt(process.env.PENDING_RESERVATION_TIMEOUT_MINUTES || '15');
-      const cutoffTime = new Date(Date.now() - timeoutMinutes * 60 * 1000);
+      // Configuración del timeout (5 minutos por defecto, configurable via env)
+      const timeoutMinutes = parseInt(process.env.PENDING_RESERVATION_TIMEOUT_MINUTES || '5');
+      const cutoffTime = new Date(now.getTime() - timeoutMinutes * 60 * 1000);
       
-      console.log(`⏰ [CRON] Buscando reservas PENDING creadas antes de: ${cutoffTime.toISOString()}`);
+      console.log(
+        `⏰ [CRON] Buscando reservas PENDING expiradas (expiresAt < ${now.toISOString()} o legacy antes de ${cutoffTime.toISOString()})`
+      );
       
-      // Buscar reservas PENDING expiradas
+      // Buscar reservas PENDING expiradas, respetando métodos no expirables
       const expiredReservations = await db.reservation.findMany({
         where: {
           status: 'PENDING',
-          createdAt: {
-            lt: cutoffTime
-          }
+          NOT: {
+            paymentMethod: {
+              in: [...NON_EXPIRABLE_PAYMENT_METHODS],
+            },
+          },
+          OR: [
+            {
+              AND: [
+                { expiresAt: { not: null } },
+                { expiresAt: { lt: now } },
+              ],
+            },
+            {
+              AND: [
+                { expiresAt: null },
+                { createdAt: { lt: cutoffTime } },
+              ],
+            },
+          ],
         },
         select: {
           id: true,
@@ -68,6 +97,7 @@ async function executeCleanup() {
       // Cancelar las reservas expiradas en una transacción
       let cleanedCount = 0;
       const cleanupResults = [];
+      const notifications: Array<{ id: string; minutesAgo: number }> = [];
       
       await db.$transaction(async (tx) => {
         for (const reservation of expiredReservations) {
@@ -108,6 +138,7 @@ async function executeCleanup() {
               startTime: reservation.startTime,
               totalPrice: reservation.totalPrice
             });
+            notifications.push({ id: reservation.id, minutesAgo });
             
             console.log(`✅ [CRON] Cancelada reserva ${reservation.id} (${minutesAgo} min de antigüedad)`);
             
@@ -117,6 +148,17 @@ async function executeCleanup() {
           }
         }
       });
+      
+      for (const notification of notifications) {
+        try {
+          await reservationNotificationService.sendAutoCancelledNotification(notification.id, {
+            cancelReason: 'No recibimos el pago dentro del tiempo establecido.',
+            cancelledAt: new Date(),
+          });
+        } catch (error) {
+          console.error('❌ [CRON] Error enviando notificación de cancelación:', error);
+        }
+      }
       
       console.log(`🎉 [CRON] Limpieza automática completada: ${cleanedCount}/${expiredReservations.length} reservas canceladas`);
       

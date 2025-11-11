@@ -12,7 +12,7 @@ async function simpleSeed() {
         name: 'IDB Victoria Hernández',
         address: 'CALLE CONSENSO, 5, 28041 Madrid, España (Los Rosales, Villaverde)',
         phone: '+34 XXX XXX XXX',
-        email: 'info@polideportivovictoriahernandez.es',
+        email: 'admin@polideportivovictoriahernandez.es',
         settings: {
           timezone: 'Europe/Madrid',
           currency: 'EUR',
@@ -59,7 +59,7 @@ async function simpleSeed() {
     // Usuario administrador
     const adminUser = await db.user.create({
       data: {
-        email: 'admin@polideportivo.com',
+        email: 'admin@polideportivovictoriahernandez.es',
         password: await bcrypt.hash('admin123', 10),
         name: 'Administrador Principal',
         phone: '+63 88 531 2345',

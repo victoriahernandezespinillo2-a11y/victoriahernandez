@@ -1,6 +1,6 @@
 /**
  * Credit System Package - Main Export
- * Sistema de créditos enterprise para Polideportivo Oroquieta
+ * Sistema de créditos enterprise para Polideportivo Victoria Hernández
  */
 
 // Domain Entities

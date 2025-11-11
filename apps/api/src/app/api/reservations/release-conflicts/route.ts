@@ -6,6 +6,7 @@
 import { NextRequest } from 'next/server';
 import { db } from '@repo/db';
 import { withReservationMiddleware, ApiResponse } from '@/lib/middleware';
+import { NON_EXPIRABLE_PAYMENT_METHODS } from '@/lib/constants/reservation.constants';
 
 export async function POST(request: NextRequest) {
   return withReservationMiddleware(async (req) => {
@@ -28,6 +29,11 @@ export async function POST(request: NextRequest) {
           userId: user.id,
           courtId,
           status: 'PENDING' as any,
+          NOT: {
+            paymentMethod: {
+              in: [...NON_EXPIRABLE_PAYMENT_METHODS],
+            },
+          },
           // Overlap: start < endRequested && end > startRequested
           startTime: { lt: end },
           endTime: { gt: start },

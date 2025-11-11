@@ -1,7 +1,7 @@
 {
   "name": "@repo/credit-system",
   "version": "1.0.0",
-  "description": "Sistema de créditos enterprise para Polideportivo Oroquieta",
+  "description": "Sistema de créditos enterprise para Polideportivo Victoria Hernández",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
@@ -20,7 +20,7 @@
     "domain-driven-design",
     "clean-architecture"
   ],
-  "author": "Polideportivo Oroquieta",
+  "author": "Polideportivo Victoria Hernández",
   "license": "MIT",
   "dependencies": {
     "@prisma/client": "^6.15.0"

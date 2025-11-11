@@ -45,7 +45,7 @@ export default function PrivacyPolicyPage() {
             </p>
             <p className="text-blue-700 text-sm mt-1">
               Dirección: Polideportivo Victoria Hernández, CALLE CONSENSO, 5, 28041 Madrid, España (Los Rosales, Villaverde)<br/>
-              Email: protecciondatos@polideportivo.com<br/>
+              Email: protecciondatos@polideportivovictoriahernandez.es<br/>
               Teléfono: +57 (xxx) xxx-xxxx
             </p>
           </div>
@@ -347,7 +347,7 @@ export default function PrivacyPolicyPage() {
           <div className="bg-blue-50 border-l-4 border-blue-500 p-4">
             <p className="text-blue-800 font-medium mb-2">📞 Ejercer sus Derechos</p>
             <p className="text-blue-700 text-sm">
-              Para ejercer cualquiera de estos derechos, contáctenos en <strong>protecciondatos@polideportivo.com</strong>. 
+              Para ejercer cualquiera de estos derechos, contáctenos en <strong>protecciondatos@polideportivovictoriahernandez.es</strong>. 
               Responderemos en un plazo máximo de 30 días naturales.
             </p>
           </div>
@@ -567,7 +567,7 @@ export default function PrivacyPolicyPage() {
               <h4 className="font-semibold text-blue-900 mb-2">1️⃣ Contactar Nuestro DPO</h4>
               <div className="text-blue-800 text-sm space-y-1">
                 <p><strong>Delegado de Protección de Datos (DPO)</strong></p>
-                <p>📧 Email: dpo@polideportivo.com</p>
+                <p>📧 Email: dpo@polideportivovictoriahernandez.es</p>
                 <p>📞 Teléfono: +57 (xxx) xxx-xxxx ext. 101</p>
                 <p>📬 Dirección: Victoria Hernández, Cesar, Colombia</p>
               </div>
@@ -652,7 +652,7 @@ export default function PrivacyPolicyPage() {
               <div className="space-y-2 text-sm text-gray-700">
                 <p><strong>Polideportivo Victoria Hernández</strong></p>
                 <p className="flex items-center"><MapPin className="w-4 h-4 mr-2" />Victoria Hernández, Cesar, Colombia</p>
-                <p className="flex items-center"><Mail className="w-4 h-4 mr-2" />protecciondatos@polideportivo.com</p>
+                <p className="flex items-center"><Mail className="w-4 h-4 mr-2" />protecciondatos@polideportivovictoriahernandez.es</p>
                 <p className="flex items-center"><Phone className="w-4 h-4 mr-2" />+57 (xxx) xxx-xxxx</p>
               </div>
             </div>
@@ -665,7 +665,7 @@ export default function PrivacyPolicyPage() {
               <div className="space-y-2 text-sm text-gray-700">
                 <p><strong>María García López</strong></p>
                 <p>Certificación IAPP CIPP/E</p>
-                <p className="flex items-center"><Mail className="w-4 h-4 mr-2" />dpo@polideportivo.com</p>
+                <p className="flex items-center"><Mail className="w-4 h-4 mr-2" />dpo@polideportivovictoriahernandez.es</p>
                 <p className="flex items-center"><Phone className="w-4 h-4 mr-2" />+57 (xxx) xxx-xxxx ext. 101</p>
               </div>
             </div>

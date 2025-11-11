@@ -6,7 +6,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
+import { withAdminReservationsMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { z } from 'zod';
 import { 
@@ -15,7 +15,7 @@ import {
 } from '@/lib/validators/reservation.validator';
 
 export async function GET(request: NextRequest) {
-  return withAdminMiddleware(async (req) => {
+  return withAdminReservationsMiddleware(async (req) => {
     try {
       const id = req.nextUrl.pathname.split('/').pop() as string;
       if (!id) return ApiResponse.badRequest('ID requerido');
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  return withAdminMiddleware(async (req) => {
+  return withAdminReservationsMiddleware(async (req) => {
     try {
       const id = req.nextUrl.pathname.split('/').pop() as string;
       if (!id) return ApiResponse.badRequest('ID requerido');
@@ -60,7 +60,7 @@ export async function PUT(request: NextRequest) {
       const data = UpdateReservationSchema.parse(body);
 
       // Preparar payload (endTime se deriva de startTime + duration)
-      const existing = await db.reservation.findUnique({ where: { id }, select: { startTime: true, endTime: true, duration: true } as any });
+      const existing = await db.reservation.findUnique({ where: { id }, select: { startTime: true, endTime: true } });
       if (!existing) return ApiResponse.notFound('Reserva');
 
       const updateData: any = {};
@@ -69,12 +69,11 @@ export async function PUT(request: NextRequest) {
       if (data.notes !== undefined) updateData.notes = data.notes;
 
       // calcular start/end
-      const existingStart = new Date((existing as any).startTime as any);
-      const existingEnd = new Date((existing as any).endTime as any);
+      const existingStart = new Date(existing.startTime as any);
+      const existingEnd = new Date(existing.endTime as any);
       const newStart = data.startTime ? new Date(data.startTime) : existingStart;
-      const baseDuration = (existing as any).duration ?? Math.max(30, Math.round((existingEnd.getTime() - existingStart.getTime()) / 60000));
-      const newDuration = data.duration ?? baseDuration;
-      const newEnd = new Date(newStart.getTime() + newDuration * 60000);
+      const durationMinutes = data.duration ?? Math.max(30, Math.round((existingEnd.getTime() - existingStart.getTime()) / 60000));
+      const newEnd = new Date(newStart.getTime() + durationMinutes * 60000);
       if (data.startTime || data.duration !== undefined) {
         updateData.startTime = newStart;
         updateData.endTime = newEnd;
@@ -95,7 +94,7 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  return withAdminMiddleware(async (req) => {
+  return withAdminReservationsMiddleware(async (req) => {
     try {
       const id = req.nextUrl.pathname.split('/').pop() as string;
       if (!id) return ApiResponse.badRequest('ID requerido');

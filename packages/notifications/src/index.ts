@@ -51,8 +51,13 @@ export class NotificationService {
   }
 
   // Enviar notificación usando plantilla de email
-  async sendEmailTemplate(templateName: string, to: string, variables: Record<string, string>) {
-    return await this.email.sendTemplateEmail(templateName, to, variables);
+  async sendEmailTemplate(
+    templateName: string,
+    to: string,
+    variables: Record<string, string>,
+    options?: { from?: string; attachments?: EmailData['attachments']; text?: string }
+  ) {
+    return await this.email.sendTemplateEmail(templateName, to, variables, options);
   }
 
   // Enviar notificación usando plantilla de SMS

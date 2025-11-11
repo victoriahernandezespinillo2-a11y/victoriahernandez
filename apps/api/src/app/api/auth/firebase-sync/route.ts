@@ -22,23 +22,23 @@ const FirebaseSyncSchema = z.object({
  * Determina el rol del usuario basado en el email
  */
 function determineUserRole(email: string): 'ADMIN' | 'STAFF' | 'USER' {
-  const adminEmails = [
-    'admin@polideportivo.com',
-    'administrador@polideportivo.com',
-    'director@polideportivo.com'
-  ];
+  const adminEmails = new Set([
+    'admin@polideportivovictoriahernandez.es',
+    'administrador@polideportivovictoriahernandez.es',
+    'director@polideportivovictoriahernandez.es'
+  ]);
   
-  const staffEmails = [
-    'staff@polideportivo.com',
-    'empleado@polideportivo.com',
-    'recepcion@polideportivo.com'
-  ];
+  const staffEmails = new Set([
+    'staff@polideportivovictoriahernandez.es',
+    'empleado@polideportivovictoriahernandez.es',
+    'recepcion@polideportivovictoriahernandez.es'
+  ]);
   
-  if (adminEmails.includes(email.toLowerCase())) {
+  if (adminEmails.has(email.toLowerCase())) {
     return 'ADMIN';
   }
   
-  if (staffEmails.includes(email.toLowerCase())) {
+  if (staffEmails.has(email.toLowerCase())) {
     return 'STAFF';
   }
   

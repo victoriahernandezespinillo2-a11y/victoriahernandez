@@ -31,3 +31,4 @@ export const RESERVATION_STATUS_LABELS = {
 } as const;
 
 export const PASS_EXPIRATION_BUFFER_HOURS = 1; // 1 hora después del fin de la reserva
+export const NON_EXPIRABLE_PAYMENT_METHODS = ['PENDING', 'COURTESY', 'TRANSFER', 'ONSITE'] as const;

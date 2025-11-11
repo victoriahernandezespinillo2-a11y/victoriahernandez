@@ -4,9 +4,10 @@
  */
 
 import { NextRequest } from 'next/server';
-import { withAdminMiddleware, ApiResponse } from '@/lib/middleware';
+import { withAdminReservationsMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { z } from 'zod';
+import { reservationNotificationService } from '@/lib/services/reservation-notification.service';
 
 const UpdatePaymentSchema = z.object({
   paymentMethod: z.enum(['CASH', 'CARD', 'TRANSFER', 'ONSITE', 'CREDITS', 'BIZUM']),
@@ -16,7 +17,7 @@ const UpdatePaymentSchema = z.object({
 });
 
 export async function PUT(request: NextRequest) {
-  return withAdminMiddleware(async (req) => {
+  return withAdminReservationsMiddleware(async (req) => {
     try {
       const id = req.nextUrl.pathname.split('/')[4]; // /api/admin/reservations/[id]/payment
       if (!id) return ApiResponse.badRequest('ID de reserva requerido');
@@ -86,22 +87,9 @@ export async function PUT(request: NextRequest) {
 
       // Enviar notificación de confirmación de pago
       try {
-        const { emailService } = await import('@repo/notifications');
-        await emailService.sendOnSitePaymentConfirmation({
-          reservationId: id,
-          userEmail: updatedReservation.user.email,
-          userName: updatedReservation.user.name || 'Usuario',
-          courtName: updatedReservation.court.name,
-          centerName: updatedReservation.court.center.name,
-          totalAmount: Number(updatedReservation.totalPrice),
-          startTime: updatedReservation.startTime.toISOString(),
-          endTime: updatedReservation.endTime.toISOString(),
-          reservationDate: new Date(updatedReservation.startTime).toLocaleDateString('es-ES'),
-          reservationTime: new Date(updatedReservation.startTime).toLocaleTimeString('es-ES')
-        });
+        await reservationNotificationService.sendReservationConfirmation(id);
       } catch (emailError) {
-        console.warn('Error enviando notificación de pago:', emailError);
-        // No fallar la operación por error de email
+        console.warn('Error enviando confirmación de reserva pagada:', emailError);
       }
 
       return ApiResponse.success({
