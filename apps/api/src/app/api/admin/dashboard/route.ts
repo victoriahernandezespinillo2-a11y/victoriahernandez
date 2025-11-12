@@ -55,16 +55,18 @@ export async function GET(request: NextRequest) {
       // Ejecutar consultas con tolerancia a fallos
       // Ingresos desde ledger (CREDIT, PAID)
       const ledgerFilter: any = { direction: 'CREDIT', paymentStatus: 'PAID', paidAt: { gte: startDate, lte: now } };
-      const [curRevRes, curResRes, curUsrRes, curMemRes, curTourRes] = await Promise.allSettled([
+      const [curRevRes, curResRes, curUsrRes, curUsrActiveRes, curMemRes, curTourRes] = await Promise.allSettled([
         prisma.ledgerTransaction.aggregate({ where: ledgerFilter, _sum: { amountEuro: true } } as any),
         prisma.reservation.count({ where: baseFilter }),
-        prisma.user.count({ where: { createdAt: { gte: startDate, lte: now } } }),
+        prisma.user.count({ where: { createdAt: { gte: startDate, lte: now } } }), // Usuarios nuevos en período
+        prisma.user.count({ where: { isActive: true } }), // Total usuarios activos (corregido)
         prisma.membership.count({ where: baseFilter }),
         prisma.tournament.count({ where: baseFilter }),
       ]);
       const currentRevenue = curRevRes.status === 'fulfilled' ? curRevRes.value : { _sum: { amountEuro: 0 } };
       const currentReservations = curResRes.status === 'fulfilled' ? curResRes.value : 0;
-      const currentUsers = curUsrRes.status === 'fulfilled' ? curUsrRes.value : 0;
+      const newUsersInPeriod = curUsrRes.status === 'fulfilled' ? curUsrRes.value : 0; // Usuarios nuevos en período
+      const currentUsers = curUsrActiveRes.status === 'fulfilled' ? curUsrActiveRes.value : 0; // Total usuarios activos
       const currentMemberships = curMemRes.status === 'fulfilled' ? curMemRes.value : 0;
       const currentTournaments = curTourRes.status === 'fulfilled' ? curTourRes.value : 0;
 
@@ -76,16 +78,17 @@ export async function GET(request: NextRequest) {
       const previousFilter = { createdAt: { gte: previousStartDate, lte: previousEndDate }, ...(params.centerId && { centerId: params.centerId }) } as any;
 
       const prevLedgerFilter: any = { direction: 'CREDIT', paymentStatus: 'PAID', paidAt: { gte: previousStartDate, lte: previousEndDate } };
-      const [prevRevRes, prevResRes, prevUsrRes, prevMemRes, prevTourRes] = await Promise.allSettled([
+      const [prevRevRes, prevResRes, prevUsrRes, prevUsrActiveRes, prevMemRes, prevTourRes] = await Promise.allSettled([
         prisma.ledgerTransaction.aggregate({ where: prevLedgerFilter, _sum: { amountEuro: true } } as any),
         prisma.reservation.count({ where: previousFilter }),
-        prisma.user.count({ where: { createdAt: { gte: previousStartDate, lte: previousEndDate } } }),
+        prisma.user.count({ where: { createdAt: { gte: previousStartDate, lte: previousEndDate } } }), // Usuarios nuevos en período anterior
+        prisma.user.count({ where: { isActive: true } }), // Total usuarios activos en período anterior (mismo cálculo que actual)
         prisma.membership.count({ where: previousFilter }),
         prisma.tournament.count({ where: previousFilter }),
       ]);
       const previousRevenue = prevRevRes.status === 'fulfilled' ? prevRevRes.value : { _sum: { amountEuro: 0 } };
       const previousReservations = prevResRes.status === 'fulfilled' ? prevResRes.value : 0;
-      const previousUsers = prevUsrRes.status === 'fulfilled' ? prevUsrRes.value : 0;
+      const previousUsers = prevUsrActiveRes.status === 'fulfilled' ? prevUsrActiveRes.value : 0; // Usar usuarios activos para comparación
       const previousMemberships = prevMemRes.status === 'fulfilled' ? prevMemRes.value : 0;
       const previousTournaments = prevTourRes.status === 'fulfilled' ? prevTourRes.value : 0;
 

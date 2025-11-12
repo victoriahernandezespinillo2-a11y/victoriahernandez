@@ -58,71 +58,202 @@ export default function RevenueReportPage() {
     return () => { active = false; };
   }, [getRevenueReport, params]);
 
-  // Cargar reservas automáticamente cuando cambie el período
+  // Cargar reservas automáticamente cuando cambie el período o se muestre la tabla
   useEffect(() => {
     if (showReservationsTable) {
-      loadReservations();
+      console.log('🔄 Cargando reservas (tabla visible) - período/fecha cambiaron...');
+      // Resetear a página 1 cuando cambia el período
+      setReservationsPage(1);
+      loadReservations(1, reservationsSearch, reservationsStatus);
     }
   }, [period, dateRange, showReservationsTable]);
 
-  // Cargar reservas automáticamente al cargar la página para mostrar métricas
-  useEffect(() => {
-    console.log('🔄 Cargando reservas automáticamente...');
-    loadReservations();
-  }, [period, dateRange]);
-
-  // Cargar reservas al montar el componente
-  useEffect(() => {
-    console.log('🔄 Cargando reservas al montar componente...');
-    loadReservations();
-  }, []);
-
   // Función para cargar reservas individuales
-  const loadReservations = async (page = 1, search = '', status = '') => {
+  const loadReservations = async (page?: number, search?: string, status?: string) => {
+    // Usar valores proporcionados o los valores actuales del estado
+    const currentPage = page ?? reservationsPage;
+    const currentSearch = search ?? reservationsSearch;
+    const currentStatus = status ?? reservationsStatus;
     setReservationsLoading(true);
     try {
-      // Usar rango real (coherente con backend: startTime)
+      // Usar rango real (coherente con backend: paidAt para coincidir con reporte de ingresos)
       const startDate = period === 'custom' ? dateRange.start : getPeriodStartDate(period);
       const endDate = period === 'custom' ? dateRange.end : new Date().toISOString().slice(0,10);
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '50',
+      
+      // Si no hay filtro de estado, usar createdAt para incluir TODAS las reservas (incluso sin paidAt)
+      // Si hay filtro de estado específico (incluyendo PAID,COMPLETED), usar paidAt para coincidir con el reporte de ingresos
+      const usePaidAt = currentStatus && currentStatus !== '';
+      
+      const baseParams = {
         startDate: new Date(`${startDate}T00:00:00.000Z`).toISOString(),
         endDate: new Date(`${endDate}T23:59:59.999Z`).toISOString(),
-        sortBy: 'startTime',
+        sortBy: usePaidAt ? 'paidAt' : 'createdAt', // Usar paidAt solo cuando hay filtro específico
         sortOrder: 'desc',
-        dateField: 'startTime'
-      });
+        dateField: usePaidAt ? 'paidAt' : 'createdAt' // Usar createdAt para "todos los estados" para incluir todas las reservas
+      };
       
-      // Solo agregar status si no está vacío y es un valor válido
-      if (status && status !== 'PAID,COMPLETED') {
-        params.append('status', status);
-      }
+      let rows: any[] = [];
+      let total = 0;
       
-      if (search) params.append('search', search);
-      
-      console.log('🔍 Cargando reservas con params:', params.toString());
-      const response = await fetch(`/api/admin/reservations?${params.toString()}`);
-      const result = await response.json();
-      
-      console.log('📊 Respuesta de API reservas:', result);
-      
-      if (result.success) {
-        let rows: any[] = Array.isArray(result?.data?.data) ? result.data.data : [];
-        // Filtrado por estado en cliente cuando se requiere combinación
-        if (!status || status === 'PAID,COMPLETED') {
-          rows = rows.filter((r: any) => r.status === 'PAID' || r.status === 'COMPLETED');
-        } else {
-          rows = rows.filter((r: any) => r.status === status);
+      // Si no hay filtro de estado o es "Todos los estados", hacer una sola consulta sin filtro
+      if (!currentStatus || currentStatus === '') {
+        // Consulta sin filtro de estado para obtener TODAS las reservas
+        const params = new URLSearchParams({
+          ...baseParams,
+          page: currentPage.toString(),
+          limit: '50',
+          ...(currentSearch && { search: currentSearch })
+          // No incluir 'status' para obtener todas las reservas
+        });
+        
+        const response = await fetch(`/api/admin/reservations?${params.toString()}`);
+        if (!response.ok) {
+          console.error('❌ Error en consulta sin filtro de estado:', response.status, response.statusText);
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-
-        console.log('✅ Reservas recibidas:', rows.length);
-        setReservations(rows);
-        setReservationsTotal(Number(result?.data?.pagination?.total ?? rows.length));
-        setReservationsPage(page);
+        const result = await response.json();
+        
+        console.log('🔍 [loadReservations] Respuesta sin filtro de estado:', {
+          success: result?.success,
+          dataLength: result?.data?.data?.length,
+          pagination: result?.data?.pagination
+        });
+        
+        if (result.success) {
+          rows = Array.isArray(result?.data?.data) ? result.data.data : [];
+          const pagination = result?.data?.pagination || result?.pagination;
+          total = Number(pagination?.total ?? 0);
+          console.log('✅ TODAS las reservas obtenidas:', rows.length, 'Total:', total, 'Pagination:', pagination);
+        } else {
+          console.error('❌ Error en respuesta de API:', result);
+          rows = [];
+          total = 0;
+        }
+      } else if (currentStatus === 'PAID,COMPLETED') {
+        // Para PAID,COMPLETED, hacer dos consultas y combinar
+        // Para paginación correcta, necesitamos obtener suficientes reservas de cada tipo
+        // y luego combinar y paginar en cliente
+        // Obtener suficientes reservas para la página actual (con margen de seguridad)
+        const itemsPerPage = 50;
+        // Obtener al menos (página actual * items por página) + margen de seguridad
+        // Esto asegura que tenemos suficientes después de combinar y ordenar
+        const fetchLimit = Math.max(itemsPerPage * currentPage + 50, 200);
+        
+        const [paidResponse, completedResponse] = await Promise.all([
+          fetch(`/api/admin/reservations?${new URLSearchParams({
+            ...baseParams,
+            page: '1',
+            limit: fetchLimit.toString(),
+            status: 'PAID',
+            ...(currentSearch && { search: currentSearch })
+          })}`).then(r => {
+            if (!r.ok) {
+              console.error('❌ Error en consulta PAID:', r.status, r.statusText);
+              return { success: false, data: { data: [], pagination: { total: 0 } } };
+            }
+            return r.json();
+          }),
+          fetch(`/api/admin/reservations?${new URLSearchParams({
+            ...baseParams,
+            page: '1',
+            limit: fetchLimit.toString(),
+            status: 'COMPLETED',
+            ...(currentSearch && { search: currentSearch })
+          })}`).then(r => {
+            if (!r.ok) {
+              console.error('❌ Error en consulta COMPLETED:', r.status, r.statusText);
+              return { success: false, data: { data: [], pagination: { total: 0 } } };
+            }
+            return r.json();
+          })
+        ]);
+        
+        console.log('🔍 [loadReservations] Respuestas recibidas:', {
+          paidSuccess: paidResponse?.success,
+          paidData: paidResponse?.data?.data?.length,
+          paidPagination: paidResponse?.data?.pagination,
+          completedSuccess: completedResponse?.success,
+          completedData: completedResponse?.data?.data?.length,
+          completedPagination: completedResponse?.data?.pagination
+        });
+        
+        // Combinar resultados y ordenar por paidAt descendente (o startTime si paidAt no está disponible)
+        const paidRows = Array.isArray(paidResponse?.data?.data) ? paidResponse.data.data : [];
+        const completedRows = Array.isArray(completedResponse?.data?.data) ? completedResponse.data.data : [];
+        const allRows = [...paidRows, ...completedRows]
+          .sort((a, b) => {
+            const dateA = a.paidAt ? new Date(a.paidAt).getTime() : new Date(a.startTime).getTime();
+            const dateB = b.paidAt ? new Date(b.paidAt).getTime() : new Date(b.startTime).getTime();
+            return dateB - dateA;
+          });
+        
+        // Paginar en cliente
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        rows = allRows.slice(startIndex, endIndex);
+        
+        // Sumar los totales de ambas consultas para el total real
+        // Verificar que las respuestas tengan la estructura correcta
+        const paidPagination = paidResponse?.data?.pagination || paidResponse?.pagination;
+        const completedPagination = completedResponse?.data?.pagination || completedResponse?.pagination;
+        const paidTotal = Number(paidPagination?.total ?? 0);
+        const completedTotal = Number(completedPagination?.total ?? 0);
+        total = paidTotal + completedTotal;
+        
+        console.log('🔍 [loadReservations] Totales extraídos:', {
+          paidPagination,
+          completedPagination,
+          paidTotal,
+          completedTotal,
+          total
+        });
+        
+        console.log('✅ PAID reservas obtenidas:', paidRows.length, 'Total en BD:', paidTotal);
+        console.log('✅ COMPLETED reservas obtenidas:', completedRows.length, 'Total en BD:', completedTotal);
+        console.log('✅ Total combinado:', total);
+        console.log('✅ Página', currentPage, '- Mostrando', rows.length, 'de', allRows.length, 'reservas obtenidas');
+        console.log('✅ Estableciendo reservationsTotal a:', total);
       } else {
-        console.error('Error en respuesta de API:', result);
+        // Para un estado específico, hacer una sola consulta
+        const params = new URLSearchParams({
+          ...baseParams,
+          page: currentPage.toString(),
+          limit: '50',
+          status: currentStatus,
+          ...(currentSearch && { search: currentSearch })
+        });
+        
+        const response = await fetch(`/api/admin/reservations?${params.toString()}`);
+        if (!response.ok) {
+          console.error('❌ Error en consulta de estado específico:', response.status, response.statusText);
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const result = await response.json();
+        
+        console.log('🔍 [loadReservations] Respuesta estado específico:', {
+          success: result?.success,
+          dataLength: result?.data?.data?.length,
+          pagination: result?.data?.pagination
+        });
+        
+        if (result.success) {
+          rows = Array.isArray(result?.data?.data) ? result.data.data : [];
+          // Intentar obtener el total de diferentes formas posibles
+          const pagination = result?.data?.pagination || result?.pagination;
+          total = Number(pagination?.total ?? 0);
+          console.log('✅ Reservas recibidas:', rows.length, 'Total:', total, 'Pagination:', pagination);
+        } else {
+          console.error('❌ Error en respuesta de API:', result);
+          rows = [];
+          total = 0;
+        }
       }
+      
+      console.log('🔍 [loadReservations] Final - rows:', rows.length, 'total:', total, 'page:', currentPage);
+      setReservations(rows);
+      setReservationsTotal(total);
+      setReservationsPage(currentPage);
+      console.log('🔍 [loadReservations] Estado actualizado - reservationsTotal:', total, 'page:', currentPage);
     } catch (error) {
       console.error('Error cargando reservas:', error);
     } finally {
@@ -369,8 +500,14 @@ export default function RevenueReportPage() {
             <h3 className="text-base font-semibold text-gray-900">Resumen por Período</h3>
             <button 
               onClick={() => {
-                setShowReservationsTable(!showReservationsTable);
-                if (!showReservationsTable) loadReservations();
+                const newShowState = !showReservationsTable;
+                setShowReservationsTable(newShowState);
+                if (newShowState) {
+                  console.log('🔄 Botón "Ver Detalles" clickeado - cargando reservas...');
+                  // Resetear a página 1 y cargar reservas
+                  setReservationsPage(1);
+                  loadReservations(1, reservationsSearch, reservationsStatus);
+                }
               }}
               className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium"
             >
@@ -450,7 +587,7 @@ export default function RevenueReportPage() {
                     Cargando reservas...
                   </div>
                 </div>
-              ) : reservations.length > 0 ? reservations.slice(0, 10).map((reservation: any, i: number) => (
+              ) : reservations.length > 0 ? reservations.map((reservation: any, i: number) => (
                 <div key={reservation.id} className="p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-900">{reservation.userName}</span>
@@ -498,12 +635,118 @@ export default function RevenueReportPage() {
                   No se encontraron reservas
                 </div>
               )}
-              {reservations.length > 10 && (
-                <div className="text-center py-2 text-xs text-gray-500">
-                  Mostrando 10 de {reservations.length} reservas
-                </div>
-              )}
             </div>
+
+            {/* Paginación - Mostrar si hay más de una página */}
+            {(() => {
+              const totalPages = Math.ceil(reservationsTotal / 50);
+              const shouldShow = totalPages > 1 && reservationsTotal > 0;
+              
+              // Log siempre para debug
+              if (showReservationsTable) {
+                console.log('🔍 [Revenue] Paginación DEBUG:', {
+                  reservationsTotal,
+                  reservationsLength: reservations.length,
+                  reservationsPage,
+                  totalPages,
+                  shouldShow
+                });
+              }
+              
+              return shouldShow;
+            })() && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-gray-600">
+                    Mostrando {((reservationsPage - 1) * 50 + 1)}-{Math.min(reservationsPage * 50, reservationsTotal)} de {reservationsTotal.toLocaleString()} reservas
+                  </p>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => {
+                      const prevPage = Math.max(1, reservationsPage - 1);
+                      setReservationsPage(prevPage);
+                      loadReservations(prevPage, reservationsSearch, reservationsStatus);
+                    }}
+                    disabled={reservationsPage === 1 || reservationsLoading}
+                    className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Anterior
+                  </button>
+                  <div className="flex items-center gap-1">
+                    {(() => {
+                      const totalPages = Math.ceil(reservationsTotal / 50);
+                      const pages: (number | string)[] = [];
+                      
+                      if (totalPages <= 5) {
+                        // Mostrar todas las páginas si son 5 o menos
+                        for (let i = 1; i <= totalPages; i++) {
+                          pages.push(i);
+                        }
+                      } else {
+                        // Lógica para mostrar páginas con elipsis
+                        pages.push(1);
+                        
+                        if (reservationsPage > 3) {
+                          pages.push('...');
+                        }
+                        
+                        const start = Math.max(2, reservationsPage - 1);
+                        const end = Math.min(totalPages - 1, reservationsPage + 1);
+                        
+                        for (let i = start; i <= end; i++) {
+                          if (i !== 1 && i !== totalPages) {
+                            pages.push(i);
+                          }
+                        }
+                        
+                        if (reservationsPage < totalPages - 2) {
+                          pages.push('...');
+                        }
+                        
+                        pages.push(totalPages);
+                      }
+                      
+                      return pages.map((page, idx) => {
+                        if (page === '...') {
+                          return <span key={`ellipsis-${idx}`} className="px-2 text-gray-500">...</span>;
+                        }
+                        const pageNum = page as number;
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => {
+                              setReservationsPage(pageNum);
+                              loadReservations(pageNum, reservationsSearch, reservationsStatus);
+                            }}
+                            disabled={reservationsLoading}
+                            className={`px-3 py-2 text-sm font-medium rounded-lg ${
+                              pageNum === reservationsPage
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      });
+                    })()}
+                  </div>
+                  <button
+                    onClick={() => {
+                      const totalPages = Math.ceil(reservationsTotal / 50);
+                      const nextPage = Math.min(totalPages, reservationsPage + 1);
+                      setReservationsPage(nextPage);
+                      loadReservations(nextPage, reservationsSearch, reservationsStatus);
+                    }}
+                    disabled={reservationsPage >= Math.ceil(reservationsTotal / 50) || reservationsLoading}
+                    className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

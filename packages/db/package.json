@@ -19,6 +19,8 @@
         "db:clean": "tsx src/clean.ts",
         "db:setup-production": "tsx src/setup-production.ts",
         "db:add-courts": "tsx src/add-courts.ts",
+        "db:audit-users": "tsx src/audit-users.ts",
+        "db:audit-reservations": "tsx src/audit-reservations.ts",
         "lint": "eslint . --max-warnings 0",
         "check-types": "tsc --noEmit",
         "build": "prisma generate"

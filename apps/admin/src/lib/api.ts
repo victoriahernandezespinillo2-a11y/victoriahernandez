@@ -351,19 +351,33 @@ export const adminApi = {
       return apiClient
         .request(`/api/admin/users${query ? `?${query}` : ''}`)
         .then((res: any) => {
-          const list = Array.isArray(res)
-            ? res
-            : Array.isArray(res?.users)
-              ? res.users
-              : Array.isArray(res?.data?.users)
-                ? res.data.users
-                : Array.isArray(res?.data)
-                  ? res.data
-                  : Array.isArray(res?.items)
-                    ? res.items
+          console.log('🔍 [getAll] Raw response from API:', res);
+          
+          // El apiClient.request ya extrae data.data, así que res debería ser { data: [...], pagination: {...} }
+          // Pero por si acaso, manejamos ambos casos
+          const responseData = res?.data || res;
+          console.log('🔍 [getAll] Response data:', responseData);
+          
+          // Extraer datos y paginación del API
+          const list = Array.isArray(responseData)
+            ? responseData
+            : Array.isArray(responseData?.users)
+              ? responseData.users
+              : Array.isArray(responseData?.data?.users)
+                ? responseData.data.users
+                : Array.isArray(responseData?.data)
+                  ? responseData.data
+                  : Array.isArray(responseData?.items)
+                    ? responseData.items
                     : [];
+          
+          // Extraer paginación si existe
+          const pagination = responseData?.pagination || res?.pagination || null;
+          console.log('🔍 [getAll] Extracted pagination:', pagination);
+          console.log('🔍 [getAll] Extracted list length:', list.length);
+          
           // Mapear a forma esperada por UI (firstName/lastName/status/lastLogin)
-          return list.map((u: any) => {
+          const mappedList = list.map((u: any) => {
             const name: string = u.name || '';
             const [firstName, ...rest] = name.split(' ');
             const lastName = rest.join(' ');
@@ -380,6 +394,21 @@ export const adminApi = {
               lastLogin: u.lastLoginAt || u.lastLogin || null,
             };
           });
+          
+          // Devolver tanto los datos como la paginación
+          return {
+            data: mappedList,
+            pagination: pagination
+          };
+        });
+    },
+    
+    getStats: () => {
+      return apiClient
+        .request('/api/admin/users/stats')
+        .then((res: any) => {
+          // El API devuelve { success: true, data: {...} }
+          return res?.data || res || {};
         });
     },
     

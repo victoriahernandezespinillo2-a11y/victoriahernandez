@@ -182,14 +182,63 @@ export function useAdminDashboard() {
 export function useAdminUsers() {
   const { data, loading, error, execute, reset, setData } = useApiState<User[]>([]);
   const [pagination, setPagination] = useState<{ page: number; limit: number; total: number; pages: number } | null>(null);
+  const [stats, setStats] = useState<{
+    total: number;
+    active: number;
+    inactive: number;
+    byRole: Record<string, number>;
+    withReservations: number;
+    withActiveMemberships: number;
+  } | null>(null);
 
   const getUsers = useCallback(async (params?: { page?: number; limit?: number; search?: string; role?: string; status?: string }) => {
-    // Mapear a lista simple usando users.getAll; si en el futuro se requiere meta, se ampliará aquí
-    const list = await adminApi.users.getAll(params);
-    setData(list as User[]);
-    setPagination({ page: params?.page || 1, limit: params?.limit || list.length, total: list.length, pages: 1 });
-    return list as User[];
+    // Obtener usuarios con paginación
+    const result = await adminApi.users.getAll(params);
+    console.log('🔍 [useAdminUsers] Result from getAll:', result);
+    
+    // Manejar respuesta que puede ser { data, pagination } o array directo (backward compatibility)
+    const usersList = Array.isArray(result) ? result : (result?.data || []);
+    const paginationData = result?.pagination || null;
+    console.log('🔍 [useAdminUsers] Users list length:', usersList.length);
+    console.log('🔍 [useAdminUsers] Pagination data:', paginationData);
+    
+    setData(usersList as User[]);
+    
+    // Usar paginación del servidor si está disponible, sino calcularla
+    if (paginationData) {
+      const paginationObj = {
+        page: paginationData.page || params?.page || 1,
+        limit: paginationData.limit || params?.limit || 20,
+        total: paginationData.total || usersList.length,
+        pages: paginationData.pages || 1
+      };
+      console.log('🔍 [useAdminUsers] Setting pagination:', paginationObj);
+      setPagination(paginationObj);
+    } else {
+      // Fallback para compatibilidad hacia atrás
+      const fallbackPagination = {
+        page: params?.page || 1,
+        limit: params?.limit || usersList.length,
+        total: usersList.length,
+        pages: 1
+      };
+      console.log('🔍 [useAdminUsers] Using fallback pagination:', fallbackPagination);
+      setPagination(fallbackPagination);
+    }
+    
+    return usersList as User[];
   }, [setData]);
+
+  const getStats = useCallback(async () => {
+    try {
+      const statsData = await adminApi.users.getStats();
+      setStats(statsData);
+      return statsData;
+    } catch (error) {
+      console.error('Error obteniendo estadísticas de usuarios:', error);
+      return null;
+    }
+  }, []);
 
   const createUser = useCallback(async (userData: {
     email: string;
@@ -241,11 +290,13 @@ export function useAdminUsers() {
     loading,
     error,
     getUsers,
+    getStats,
     createUser,
     getUser,
     updateUser,
     deleteUser,
     pagination,
+    stats,
     reset,
   };
 }

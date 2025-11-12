@@ -29,10 +29,10 @@ const GetAdminReservationsSchema = z.object({
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
   search: z.string().optional(),
-  sortBy: z.enum(['createdAt','startTime','endTime','status']).optional().default('createdAt'),
+  sortBy: z.enum(['createdAt','startTime','endTime','status','paidAt']).optional().default('createdAt'),
   sortOrder: z.enum(['asc','desc']).optional().default('desc'),
   // Campo de fecha a considerar para el filtrado temporal. Por defecto startTime para coherencia con los reportes
-  dateField: z.enum(['startTime','createdAt']).optional().default('startTime'),
+  dateField: z.enum(['startTime','createdAt','paidAt']).optional().default('startTime'),
 });
 
 export async function GET(request: NextRequest) {
