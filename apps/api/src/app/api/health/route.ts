@@ -18,7 +18,13 @@ export async function GET(request: NextRequest) {
       database: {
         status: 'unknown',
         responseTime: 0,
+        provider: null as string | null,
         error: null as any
+      },
+      auth: {
+        status: 'unknown',
+        nextAuthConfigured: !!process.env.NEXTAUTH_SECRET,
+        nextAuthUrl: process.env.NEXTAUTH_URL || null
       },
       memory: {
         used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
@@ -29,6 +35,16 @@ export async function GET(request: NextRequest) {
     };
 
     try {
+      // Detectar proveedor de base de datos
+      const dbUrl = process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL || '';
+      if (dbUrl.includes('supabase.co')) {
+        health.database.provider = 'Supabase';
+      } else if (dbUrl.includes('neon.tech')) {
+        health.database.provider = 'Neon';
+      } else if (dbUrl) {
+        health.database.provider = 'PostgreSQL';
+      }
+
       // Verificar conexión a base de datos
       const dbStartTime = Date.now();
       await db.$queryRaw`SELECT 1 as health_check`;
@@ -43,6 +59,15 @@ export async function GET(request: NextRequest) {
         health.database.status = 'slow';
       }
       
+      // Verificar que podemos acceder a usuarios (importante para autenticación)
+      try {
+        const userCount = await db.user.count();
+        health.auth.status = 'operational';
+      } catch (authError: any) {
+        health.auth.status = 'error';
+        health.status = 'degraded';
+      }
+      
     } catch (error: any) {
       health.status = 'unhealthy';
       health.database.status = 'error';
@@ -51,6 +76,7 @@ export async function GET(request: NextRequest) {
         code: error.code,
         meta: error.meta
       };
+      health.auth.status = 'error';
       
       console.error('❌ [HEALTH] Error de base de datos:', error);
     }

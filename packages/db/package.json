@@ -22,6 +22,7 @@
         "db:add-courts": "tsx src/add-courts.ts",
         "db:audit-users": "tsx src/audit-users.ts",
         "db:audit-reservations": "tsx src/audit-reservations.ts",
+        "db:diagnose": "tsx scripts/diagnose-db.ts",
         "lint": "eslint . --max-warnings 0",
         "check-types": "tsc --noEmit",
         "build": "node scripts/generate-safe.cjs || prisma generate"
