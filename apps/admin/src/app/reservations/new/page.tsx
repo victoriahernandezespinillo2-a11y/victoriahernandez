@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useAdminCourts, useAdminCenters } from '@/lib/hooks';
 import { adminApi } from '@/lib/api';
@@ -9,8 +10,9 @@ import { useToast } from '@/components/ToastProvider';
 import WeekCalendar from '@/components/WeekCalendar';
 import { MAX_OVERRIDE_PERCENT, validatePriceOverride } from '@/lib/constants';
 
-export default function AdminNewReservationPage() {
+function AdminNewReservationPageContent() {
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
   const { courts, getCourts } = useAdminCourts();
   const { centers, getCenters } = useAdminCenters();
   const [centerId, setCenterId] = useState('');
@@ -90,6 +92,60 @@ export default function AdminNewReservationPage() {
     getCenters({ page: 1, limit: 100 }).catch(() => {});
     getCourts({ includeStats: false, page: 1, limit: 500 }).catch(() => {});
   }, [getCenters, getCourts]);
+
+  // Pre-seleccionar usuario si viene en query params
+  useEffect(() => {
+    const userIdFromQuery = searchParams?.get('userId');
+    if (userIdFromQuery && !userId) {
+      const loadUserFromQuery = async () => {
+        try {
+          // Obtener el usuario directamente por ID
+          const userResponse: any = await adminApi.users.getById(userIdFromQuery);
+          const userData = userResponse?.data || userResponse;
+          
+          if (userData && userData.id) {
+            // Extraer nombre completo (puede venir como name o firstName/lastName)
+            const firstName = userData.firstName || '';
+            const lastName = userData.lastName || '';
+            const name = userData.name || '';
+            const fullName = firstName && lastName 
+              ? `${firstName} ${lastName}`.trim()
+              : name.trim();
+            const displayName = fullName || userData.email;
+            
+            // Pre-seleccionar el usuario
+            setUserId(userData.id);
+            setUserSearch(fullName ? `${fullName} - ${userData.email}` : userData.email);
+            
+            // Llenar campos de nuevo usuario con los datos
+            setNewUser({
+              name: displayName,
+              email: userData.email || '',
+              phone: userData.phone || ''
+            });
+            
+            showToast({ 
+              variant: 'success', 
+              message: `Usuario "${displayName}" pre-seleccionado para la reserva` 
+            });
+          } else {
+            showToast({ 
+              variant: 'warning', 
+              message: 'Usuario no encontrado. Puedes buscarlo manualmente.' 
+            });
+          }
+        } catch (error) {
+          console.error('Error al pre-seleccionar usuario desde query param:', error);
+          showToast({ 
+            variant: 'warning', 
+            message: 'No se pudo cargar el usuario automáticamente. Puedes buscarlo manualmente.' 
+          });
+        }
+      };
+      
+      loadUserFromQuery();
+    }
+  }, [searchParams, userId, showToast]);
 
   const filteredCourts = useMemo(() => {
     const list = Array.isArray(courts) ? courts : [];
@@ -313,22 +369,40 @@ export default function AdminNewReservationPage() {
 
   // Debounced user search
   useEffect(() => {
-    if (!userSearch || userId) { setUserResults([]); return; }
+    if (!userSearch || userId) { 
+      setUserResults([]); 
+      setSearchLoading(false);
+      return; 
+    }
+    
+    // Solo buscar si hay al menos 2 caracteres
+    if (userSearch.trim().length < 2) {
+      setUserResults([]);
+      setSearchLoading(false);
+      return;
+    }
+    
     if (searchTimer) clearTimeout(searchTimer);
     const t = setTimeout(async () => {
       try {
         setSearchLoading(true);
-        const res: any = await adminApi.users.getAll({ search: userSearch, limit: 8 });
-        setUserResults(Array.isArray(res) ? res : []);
-      } catch {
+        const res: any = await adminApi.users.getAll({ search: userSearch.trim(), limit: 15 });
+        // Corregir: res es un objeto con { data: [...], pagination: {...} }
+        setUserResults(Array.isArray(res?.data) ? res.data : []);
+      } catch (error) {
+        console.error('Error buscando usuarios:', error);
         setUserResults([]);
       } finally {
         setSearchLoading(false);
       }
-    }, 350);
+    }, 500);
     setSearchTimer(t);
+    
+    return () => {
+      if (searchTimer) clearTimeout(searchTimer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userSearch]);
+  }, [userSearch, userId]);
 
   const canProceedUser = () => !!(userId || (newUser.name && (newUser.email || newUser.phone)));
   const canProceedSchedule = () => !!(courtId && date && time && duration);
@@ -856,37 +930,104 @@ export default function AdminNewReservationPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="relative">
               <label className="block text-sm text-gray-700 mb-1">Buscar usuario (email/teléfono)</label>
-              <input value={userSearch} onChange={(e) => setUserSearch(e.target.value)} placeholder="Buscar..." className="w-full border rounded px-3 py-2" />
-              {userSearch && (
-                <div className="absolute z-10 mt-1 w-full bg-white border rounded shadow max-h-56 overflow-auto">
-                  {searchLoading && <div className="px-3 py-2 text-xs text-gray-500">Buscando...</div>}
-                  {!searchLoading && userResults.length === 0 && (
-                    <div className="px-3 py-2 text-xs text-gray-500">Sin resultados</div>
+              <div className="relative">
+                <input 
+                  value={userSearch} 
+                  onChange={(e) => setUserSearch(e.target.value)} 
+                  placeholder="Buscar por nombre, email o teléfono..." 
+                  className={`w-full border rounded px-3 py-2 pr-8 ${userId ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`}
+                  disabled={!!userId}
+                />
+                {userId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserId('');
+                      setUserSearch('');
+                      setNewUser({ name: '', email: '', phone: '' });
+                      showToast({ variant: 'info', message: 'Selección de usuario eliminada' });
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-600 transition-colors"
+                    title="Limpiar selección"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              {userSearch && !userId && (
+                <div className="absolute z-10 mt-1 w-full bg-white border rounded shadow-lg max-h-64 overflow-auto">
+                  {searchLoading && (
+                    <div className="px-3 py-3 text-xs text-gray-500 flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Buscando usuarios...
+                    </div>
                   )}
-                  {userResults.map((u) => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => {
-                        setUserId(u.id);
-                        setNewUser({ name: '' });
-                        setUserSearch(`${u.firstName || ''} ${u.lastName || ''} - ${u.email}`.trim());
-                        setUserResults([]);
-                        showToast({ variant: 'info', message: `Seleccionado: ${u.email || u.firstName}` });
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
-                    >
-                      <div className="font-medium">{u.firstName || u.name || u.email}</div>
-                      <div className="text-xs text-gray-500">{u.email} {u.phone ? `• ${u.phone}` : ''}</div>
-                    </button>
-                  ))}
+                  {!searchLoading && userResults.length === 0 && userSearch.length >= 2 && (
+                    <div className="px-3 py-3 text-xs text-gray-500">
+                      No se encontraron usuarios con "{userSearch}"
+                    </div>
+                  )}
+                  {!searchLoading && userSearch.length < 2 && (
+                    <div className="px-3 py-3 text-xs text-gray-500">
+                      Escribe al menos 2 caracteres para buscar
+                    </div>
+                  )}
+                  {!searchLoading && userResults.length > 0 && (
+                    <div className="py-1">
+                      {userResults.map((u) => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => {
+                            setUserId(u.id);
+                            const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim();
+                            const displayName = fullName || u.name || u.email;
+                            // Llenar automáticamente los campos de nuevo usuario con los datos del usuario seleccionado
+                            setNewUser({ 
+                              name: displayName,
+                              email: u.email || '',
+                              phone: u.phone || ''
+                            });
+                            setUserSearch(fullName ? `${fullName} - ${u.email}` : u.email);
+                            setUserResults([]);
+                            showToast({ variant: 'success', message: `Usuario seleccionado: ${displayName}` });
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors text-sm border-b border-gray-100 last:border-b-0"
+                        >
+                          <div className="font-medium text-gray-900">
+                            {u.firstName || u.name || u.email}
+                            {u.lastName && ` ${u.lastName}`}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {u.email}
+                            {u.phone && ` • ${u.phone}`}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
-              {userId && <p className="text-xs text-green-700 mt-1">Usuario seleccionado</p>}
+              {userId && (
+                <p className="text-xs text-green-700 mt-1 flex items-center gap-1">
+                  <span>✓</span>
+                  <span>Usuario seleccionado (haz clic en la X del campo para quitar la selección)</span>
+                </p>
+              )}
             </div>
-            <div onFocus={() => setUserId('')}>
+            <div>
               <label className="block text-sm text-gray-700 mb-1">Nombre (nuevo usuario)</label>
-              <input value={newUser.name} onChange={(e) => setNewUser((s) => ({ ...s, name: e.target.value }))} className="w-full border rounded px-3 py-2" />
+              <input 
+                value={newUser.name} 
+                onChange={(e) => setNewUser((s) => ({ ...s, name: e.target.value }))} 
+                className="w-full border rounded px-3 py-2" 
+                placeholder={userId ? "Nombre del usuario seleccionado" : "Ingresa el nombre"}
+              />
             </div>
             <div>
               <label className="block text-sm text-gray-700 mb-1">Email (opcional)</label>
@@ -897,7 +1038,11 @@ export default function AdminNewReservationPage() {
               <input value={newUser.phone || ''} onChange={(e) => setNewUser((s) => ({ ...s, phone: e.target.value }))} className="w-full border rounded px-3 py-2" />
             </div>
           </div>
-          <p className="text-xs text-gray-500 mt-1">Si seleccionas un usuario, los campos de “nuevo usuario” serán ignorados.</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {userId 
+              ? 'Los campos de "nuevo usuario" se han llenado automáticamente con los datos del usuario seleccionado. Puedes editarlos si es necesario.'
+              : 'Si seleccionas un usuario existente, los campos se llenarán automáticamente. Si no, completa los datos para crear un nuevo usuario.'}
+          </p>
         </div>
 
         {/* Paso 2: Cancha y horario */}
@@ -1444,4 +1589,11 @@ export default function AdminNewReservationPage() {
   );
 }
 
+export default function AdminNewReservationPage() {
+  return (
+    <Suspense fallback={<div className="p-6">Cargando...</div>}>
+      <AdminNewReservationPageContent />
+    </Suspense>
+  );
+}
 

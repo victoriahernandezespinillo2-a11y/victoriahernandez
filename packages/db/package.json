@@ -8,6 +8,7 @@
     },
     "scripts": {
         "db:generate": "prisma generate",
+        "db:generate:safe": "node scripts/generate-safe.js",
         "db:push": "prisma db push",
         "db:migrate": "prisma migrate dev",
         "db:studio": "prisma studio",
@@ -23,7 +24,7 @@
         "db:audit-reservations": "tsx src/audit-reservations.ts",
         "lint": "eslint . --max-warnings 0",
         "check-types": "tsc --noEmit",
-        "build": "prisma generate"
+        "build": "node scripts/generate-safe.cjs || prisma generate"
     },
     "prisma": {
         "schema": "prisma/schema.prisma"

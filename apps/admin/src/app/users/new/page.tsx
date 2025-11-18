@@ -32,12 +32,17 @@ export default function NewUserPage() {
     return selected.getTime() >= today.getTime();
   }, [dateOfBirth]);
 
+  // Validación condicional: para USER no se requiere contraseña
+  const isUserRole = role === 'USER';
+  const passwordValid = isUserRole 
+    ? true // No se valida contraseña para USER
+    : password.length >= 8 && password === confirmPassword;
+
   const canSubmit =
     firstName.trim().length >= 2 &&
     lastName.trim().length >= 2 &&
     emailRegex.test(email) &&
-    password.length >= 8 &&
-    password === confirmPassword &&
+    passwordValid &&
     gdprConsent &&
     !isDateInFuture;
 
@@ -51,7 +56,7 @@ export default function NewUserPage() {
         email, 
         role, 
         phone,
-        password,
+        password: isUserRole ? undefined : password, // No enviar contraseña para USER
         dateOfBirth: dateOfBirth || undefined,
         membershipType: membershipType || undefined,
         gdprConsent,
@@ -161,44 +166,68 @@ export default function NewUserPage() {
               <option value="ADMIN">Administrador</option>
             </select>
           </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                password.length > 0 && password.length < 8 
-                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                  : password.length >= 8 
-                    ? 'border-green-300 focus:border-green-500 focus:ring-green-500' 
-                    : 'border-gray-300'
-              }`}
-              placeholder="Mínimo 8 caracteres"
-            />
-            {password.length > 0 && password.length < 8 && (
-              <p className="mt-1 text-sm text-red-600">La contraseña debe tener al menos 8 caracteres</p>
-            )}
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Contraseña</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                confirmPassword.length > 0 && password !== confirmPassword 
-                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                  : confirmPassword.length > 0 && password === confirmPassword 
-                    ? 'border-green-300 focus:border-green-500 focus:ring-green-500' 
-                    : 'border-gray-300'
-              }`}
-              placeholder="Repite la contraseña"
-            />
-            {confirmPassword.length > 0 && password !== confirmPassword && (
-              <p className="mt-1 text-sm text-red-600">Las contraseñas no coinciden</p>
-            )}
-          </div>
+          {!isUserRole && (
+            <>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    password.length > 0 && password.length < 8 
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                      : password.length >= 8 
+                        ? 'border-green-300 focus:border-green-500 focus:ring-green-500' 
+                        : 'border-gray-300'
+                  }`}
+                  placeholder="Mínimo 8 caracteres"
+                />
+                {password.length > 0 && password.length < 8 && (
+                  <p className="mt-1 text-sm text-red-600">La contraseña debe tener al menos 8 caracteres</p>
+                )}
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Contraseña</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    confirmPassword.length > 0 && password !== confirmPassword 
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                      : confirmPassword.length > 0 && password === confirmPassword 
+                        ? 'border-green-300 focus:border-green-500 focus:ring-green-500' 
+                        : 'border-gray-300'
+                  }`}
+                  placeholder="Repite la contraseña"
+                />
+                {confirmPassword.length > 0 && password !== confirmPassword && (
+                  <p className="mt-1 text-sm text-red-600">Las contraseñas no coinciden</p>
+                )}
+              </div>
+            </>
+          )}
+          {isUserRole && (
+            <div className="md:col-span-2">
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-blue-800">Activación de cuenta por email</h3>
+                    <div className="mt-2 text-sm text-blue-700">
+                      <p>Para usuarios con rol "Usuario", no se establece contraseña aquí por razones de privacidad y seguridad.</p>
+                      <p className="mt-1">Se enviará automáticamente un enlace de activación al correo electrónico del usuario para que establezca su propia contraseña de forma segura.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 space-y-4">

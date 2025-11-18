@@ -25,14 +25,20 @@ const GetUsersQuerySchema = z.object({
 });
 
 const CreateUserSchema = z.object({
-  email: z.string().email('Email invÃ¡lido'),
-  password: z.string().min(8, 'La contraseÃ±a debe tener al menos 8 caracteres'),
+  email: z.string().email('Email inválido'),
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres').optional(),
   firstName: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
   lastName: z.string().min(2, 'El apellido debe tener al menos 2 caracteres'),
   phone: z.string().optional(),
   dateOfBirth: z
     .string()
-    .datetime({ message: 'Fecha de nacimiento invÃ¡lida' })
+    .refine((val) => {
+      if (!val) return true; // Opcional
+      // Aceptar formato YYYY-MM-DD (input date) o datetime ISO
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      const datetimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+      return dateRegex.test(val) || datetimeRegex.test(val);
+    }, { message: 'Fecha de nacimiento inválida. Use formato YYYY-MM-DD' })
     .optional()
     .nullable(),
   gdprConsent: z.boolean().default(false),
@@ -41,6 +47,20 @@ const CreateUserSchema = z.object({
   status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
   centerId: z.string().optional(),
   sendWelcomeEmail: z.boolean().optional().default(true)
+}).refine((data) => {
+  // Si el rol es USER, no se requiere contraseña (se enviará email de activación)
+  // Si el rol es STAFF o ADMIN, se requiere contraseña
+  if (data.role === 'USER') {
+    return true; // No se requiere contraseña para USER
+  }
+  // Para STAFF y ADMIN, validar que la contraseña existe y tiene al menos 8 caracteres
+  if (!data.password) {
+    return false; // Falta contraseña
+  }
+  return data.password.length >= 8;
+}, {
+  message: 'La contraseña es requerida y debe tener al menos 8 caracteres para roles STAFF y ADMIN',
+  path: ['password']
 });
 
 /**
@@ -60,11 +80,27 @@ export async function GET(request: NextRequest) {
       const where: any = {};
       
       if (params.search) {
-        where.OR = [
-          { name: { contains: params.search, mode: 'insensitive' } },
-          { email: { contains: params.search, mode: 'insensitive' } },
-          { phone: { contains: params.search, mode: 'insensitive' } }
+        const searchTerm = params.search.trim();
+        
+        // Normalizar teléfono: eliminar espacios, guiones, paréntesis y el prefijo +
+        const normalizedPhone = searchTerm.replace(/[\s\-\(\)\+]/g, '');
+        const isPhoneSearch = normalizedPhone.length > 0 && /^\d+$/.test(normalizedPhone);
+        
+        // Construir condiciones de búsqueda
+        const searchConditions: any[] = [
+          { name: { contains: searchTerm, mode: 'insensitive' } },
+          { email: { contains: searchTerm, mode: 'insensitive' } },
+          { phone: { contains: searchTerm, mode: 'insensitive' } }
         ];
+        
+        // Si el término parece un teléfono (solo números), buscar también la versión normalizada
+        if (isPhoneSearch && normalizedPhone.length >= 3) {
+          searchConditions.push({
+            phone: { contains: normalizedPhone, mode: 'insensitive' }
+          });
+        }
+        
+        where.OR = searchConditions;
       }
       
       if (params.role) {
@@ -255,11 +291,23 @@ export async function GET(request: NextRequest) {
         const skip = (params.page - 1) * params.limit;
         const where: any = {};
         if (params.search) {
-          where.OR = [
-            { name: { contains: params.search, mode: 'insensitive' } },
-            { email: { contains: params.search, mode: 'insensitive' } },
-            { phone: { contains: params.search, mode: 'insensitive' } },
+          const searchTerm = params.search.trim();
+          const normalizedPhone = searchTerm.replace(/[\s\-\(\)\+]/g, '');
+          const isPhoneSearch = normalizedPhone.length > 0 && /^\d+$/.test(normalizedPhone);
+          
+          const searchConditions: any[] = [
+            { name: { contains: searchTerm, mode: 'insensitive' } },
+            { email: { contains: searchTerm, mode: 'insensitive' } },
+            { phone: { contains: searchTerm, mode: 'insensitive' } }
           ];
+          
+          if (isPhoneSearch && normalizedPhone.length >= 3) {
+            searchConditions.push({
+              phone: { contains: normalizedPhone, mode: 'insensitive' }
+            });
+          }
+          
+          where.OR = searchConditions;
         }
         if (params.role) where.role = params.role;
         if (params.status) where.isActive = params.status === 'ACTIVE';
@@ -296,35 +344,47 @@ export async function POST(request: NextRequest) {
       const body = await req.json();
       const userData = CreateUserSchema.parse(body);
       
-      // Verificar que el email no estÃ© en uso
+      // Verificar que el email no esté en uso
       const existingUser = await db.user.findUnique({
         where: { email: userData.email }
       });
       
       if (existingUser) {
-        return ApiResponse.conflict('El email ya estÃ¡ registrado');
+        return ApiResponse.conflict('El email ya está registrado');
       }
       
-      // Hashear contraseÃ±a
-      const hashedPassword = await hashPassword(userData.password);
+      // Determinar si se requiere contraseña
+      const isUserRole = userData.role === 'USER';
+      const requiresPassword = !isUserRole; // STAFF y ADMIN requieren contraseña
+      
+      if (requiresPassword && !userData.password) {
+        return ApiResponse.badRequest('La contraseña es requerida para roles STAFF y ADMIN');
+      }
+      
+      // Hashear contraseña solo si se proporciona
+      const hashedPassword = userData.password ? await hashPassword(userData.password) : null;
       
       // Crear usuario
       const newUser = await db.user.create({
         data: {
           email: userData.email,
-          password: hashedPassword,
+          password: hashedPassword, // null para USER sin contraseña
           firstName: userData.firstName,
           lastName: userData.lastName,
           name: `${userData.firstName} ${userData.lastName}`.trim(),
           phone: userData.phone,
-          dateOfBirth: userData.dateOfBirth ? new Date(userData.dateOfBirth) : null,
+          dateOfBirth: userData.dateOfBirth 
+            ? new Date(userData.dateOfBirth.includes('T') 
+                ? userData.dateOfBirth 
+                : `${userData.dateOfBirth}T00:00:00`) 
+            : null,
           gdprConsent: userData.gdprConsent,
           membershipType: userData.membershipType ?? null,
           role: userData.role,
           isActive: userData.status === 'ACTIVE',
-          emailVerified: true,
-          emailVerifiedAt: new Date(),
-          // createdBy: adminUser?.id // si existe en el modelo
+          // Para USER sin contraseña, no verificar email hasta que establezca contraseña
+          emailVerified: !isUserRole || !!hashedPassword,
+          emailVerifiedAt: (!isUserRole || !!hashedPassword) ? new Date() : null,
         },
         select: {
           id: true,
@@ -345,10 +405,114 @@ export async function POST(request: NextRequest) {
         }
       });
       
-      // TODO: Enviar email de bienvenida si estÃ¡ habilitado
-      if (userData.sendWelcomeEmail) {
-        // AquÃ­ se integrarÃ­a con el servicio de notificaciones
-        console.log(`Enviando email de bienvenida a ${newUser.email}`);
+      // Si es usuario USER sin contraseña, generar token de activación
+      if (isUserRole && !hashedPassword) {
+        try {
+          // Generar token seguro criptográficamente
+          const crypto = await import('crypto');
+          const activationToken = crypto.randomBytes(32).toString('hex');
+          
+          // Calcular expiración (48 horas) - tiempo suficiente pero no excesivo
+          const expiresAt = new Date();
+          expiresAt.setHours(expiresAt.getHours() + 48);
+          
+          // Log de seguridad (sin exponer el token completo)
+          console.log(`[SECURITY] Token de activación generado para usuario ${newUser.id} (${newUser.email}), expira: ${expiresAt.toISOString()}`);
+          
+          // Crear token de activación (reutilizando PasswordResetToken)
+          await db.passwordResetToken.create({
+            data: {
+              token: activationToken,
+              userId: newUser.id,
+              expiresAt: expiresAt
+            }
+          });
+          
+          // Enviar email de activación
+          try {
+            const { NotificationService } = await import('@repo/notifications');
+            const notificationService = new NotificationService();
+            
+            // Construir URL de activación
+            const baseUrl = process.env.NEXT_PUBLIC_WEB_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+            const activationUrl = `${baseUrl}/auth/set-password?token=${activationToken}`;
+            
+            // Enviar email de activación
+            await notificationService.sendEmail({
+              to: newUser.email,
+              subject: 'Activa tu cuenta - Establece tu contraseña',
+              html: `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>Activa tu cuenta</title>
+                </head>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                    <h1 style="color: white; margin: 0;">¡Bienvenido a Polideportivo Victoria Hernández!</h1>
+                  </div>
+                  <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb;">
+                    <p style="font-size: 16px;">Hola <strong>${newUser.firstName || newUser.name || 'Usuario'}</strong>,</p>
+                    <p style="font-size: 16px;">Tu cuenta ha sido creada exitosamente. Para completar tu registro y comenzar a usar nuestros servicios, necesitas establecer tu contraseña.</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${activationUrl}" style="display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">Establecer Contraseña</a>
+                    </div>
+                    <p style="font-size: 14px; color: #6b7280;">O copia y pega este enlace en tu navegador:</p>
+                    <p style="font-size: 12px; color: #9ca3af; word-break: break-all;">${activationUrl}</p>
+                    <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                      <p style="margin: 0; font-size: 14px; color: #92400e;">
+                        <strong>⚠️ Importante:</strong> Este enlace expirará en 48 horas por razones de seguridad.
+                      </p>
+                    </div>
+                    <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">Si no solicitaste esta cuenta, puedes ignorar este correo.</p>
+                    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+                    <p style="font-size: 12px; color: #9ca3af; text-align: center;">© ${new Date().getFullYear()} Polideportivo Victoria Hernández. Todos los derechos reservados.</p>
+                  </div>
+                </body>
+                </html>
+              `
+            });
+            
+            console.log(`✅ Email de activación enviado a ${newUser.email}`);
+          } catch (emailError) {
+            console.error('❌ Error enviando email de activación:', emailError);
+            // No fallar la creación del usuario si falla el email
+            // El admin puede reenviar el enlace manualmente
+          }
+        } catch (tokenError) {
+          console.error('❌ Error generando token de activación:', tokenError);
+          // Si falla la generación del token, el usuario puede usar "Olvidé mi contraseña"
+        }
+      } else if (userData.sendWelcomeEmail) {
+        // Enviar email de bienvenida estándar para usuarios con contraseña
+        try {
+          const { NotificationService } = await import('@repo/notifications');
+          const notificationService = new NotificationService();
+          
+          await notificationService.sendEmail({
+            to: newUser.email,
+            subject: 'Bienvenido a Polideportivo Victoria Hernández',
+            html: `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              </head>
+              <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <p>Hola <strong>${newUser.firstName || newUser.name || 'Usuario'}</strong>,</p>
+                <p>Tu cuenta ha sido creada exitosamente. Ya puedes iniciar sesión con tu email y contraseña.</p>
+                <p>¡Bienvenido!</p>
+              </body>
+              </html>
+            `
+          });
+          console.log(`✅ Email de bienvenida enviado a ${newUser.email}`);
+        } catch (emailError) {
+          console.error('❌ Error enviando email de bienvenida:', emailError);
+        }
       }
       
       return ApiResponse.success(newUser);

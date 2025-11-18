@@ -151,6 +151,7 @@ export default function NewReservationPage() {
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number>(60);
   const [lightingSelected, setLightingSelected] = useState<boolean>(false);
+  const [courtSearchTerm, setCourtSearchTerm] = useState<string>('');
 
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [showTimeSlotsDesktop, setShowTimeSlotsDesktop] = useState(false);
@@ -321,30 +322,46 @@ export default function NewReservationPage() {
     return Array.from(unique);
   }, [courts]);
 
-  // Canchas filtradas por deporte y centro
+  // Canchas filtradas por deporte, centro y búsqueda
   const filteredCourts: any[] = useMemo(() => {
     let courtsArray: any[] = Array.isArray(courts) ? (courts as any[]) : [];
+    
     // Filtrar por centro si corresponde
     if (selectedCenter) {
       courtsArray = courtsArray.filter((c: any) => c.centerId === selectedCenter.id);
     }
-    if (!selectedSport) return courtsArray; // mostrar todas si no se eligió deporte
-    const normalize = (s: string) => (s || '').toUpperCase().trim();
-    const selected = normalize(selectedSport);
-    return courtsArray.filter((c: any) => {
-      const type = normalize((c as any).sportType);
-      const allowed: string[] = Array.isArray((c as any).allowedSports) ? (c as any).allowedSports.map((x: string) => normalize(x)) : [];
-      // 1) Coincidencia exacta por tipo de cancha
-      if (type === selected) return true;
-      // 1.b) Compatibilidad familia fútbol: si el usuario eligió FOOTBALL, aceptar FOOTBALL7 y FUTSAL
-      if (selected === 'FOOTBALL' && (type === 'FOOTBALL7' || type === 'FUTSAL')) return true;
-      // 2) Cancha multiuso que permite el deporte seleccionado
-      if (type === 'MULTIPURPOSE' && allowed.includes(selected)) return true;
-      // 3) Compatibilidad familia fútbol: si usuario elige FOOTBALL y la cancha es FOOTBALL7 o Futsal no asumimos; sólo si coincide exactamente
-      //    pero si el usuario elige FOOTBALL7 o FUTSAL y cancha es MULTIPURPOSE con allowedSports, ya se cubre arriba.
-      return false;
-    });
-  }, [courts, selectedSport, selectedCenter]);
+    
+    // Filtrar por deporte
+    if (selectedSport) {
+      const normalize = (s: string) => (s || '').toUpperCase().trim();
+      const selected = normalize(selectedSport);
+      
+      courtsArray = courtsArray.filter((c: any) => {
+        const type = normalize((c as any).sportType);
+        const allowed: string[] = Array.isArray((c as any).allowedSports) ? (c as any).allowedSports.map((x: string) => normalize(x)) : [];
+        const isMultiuse = Boolean((c as any).isMultiuse);
+        
+        // 1) Coincidencia exacta por tipo de cancha
+        if (type === selected) return true;
+        // 1.b) Compatibilidad familia fútbol: si el usuario eligió FOOTBALL, aceptar FOOTBALL7 y FUTSAL
+        if (selected === 'FOOTBALL' && (type === 'FOOTBALL7' || type === 'FUTSAL')) return true;
+        // 2) Cancha multiuso que permite el deporte seleccionado
+        if (isMultiuse && type === 'MULTIPURPOSE' && allowed.includes(selected)) return true;
+        return false;
+      });
+    }
+    
+    // Filtrar por término de búsqueda (nombre de cancha)
+    if (courtSearchTerm.trim()) {
+      const searchLower = courtSearchTerm.toLowerCase().trim();
+      courtsArray = courtsArray.filter((c: any) => {
+        const name = (c.name || '').toLowerCase();
+        return name.includes(searchLower);
+      });
+    }
+    
+    return courtsArray;
+  }, [courts, selectedSport, selectedCenter, courtSearchTerm]);
 
   const getSportIcon = (sport: string) => {
     switch (sport) {
@@ -968,7 +985,7 @@ export default function NewReservationPage() {
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-gray-900">
-                    Selecciona la Cancha de {selectedSport}
+                    Selecciona la Cancha de {getSportLabel(selectedSport)}
                   </h2>
                   <button
                     onClick={() => setStep(hasMultipleCenters ? 2 : 1)}
@@ -977,6 +994,37 @@ export default function NewReservationPage() {
                     Cambiar {hasMultipleCenters ? 'deporte' : 'deporte'}
                   </button>
                 </div>
+                
+                {/* Búsqueda de canchas */}
+                <div className="mb-6">
+                  <label htmlFor="courtSearch" className="block text-sm font-medium text-gray-700 mb-2">
+                    Buscar cancha por nombre
+                  </label>
+                  <input
+                    id="courtSearch"
+                    type="text"
+                    value={courtSearchTerm}
+                    onChange={(e) => setCourtSearchTerm(e.target.value)}
+                    placeholder="Escribe el nombre de la cancha..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  {courtSearchTerm && (
+                    <button
+                      onClick={() => setCourtSearchTerm('')}
+                      className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      Limpiar búsqueda
+                    </button>
+                  )}
+                </div>
+                
+                {filteredCourts.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    {courtSearchTerm 
+                      ? `No se encontraron canchas que coincidan con "${courtSearchTerm}"`
+                      : 'No hay canchas disponibles para este deporte'}
+                  </div>
+                ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {filteredCourts.map((court) => (
                 <div
@@ -1015,6 +1063,7 @@ export default function NewReservationPage() {
                 </div>
               ))}
             </div>
+                )}
                 {selectedCourt && (
                   <div className="mt-6 flex justify-between">
                     <button

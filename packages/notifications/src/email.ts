@@ -627,7 +627,7 @@ export class EmailService {
                           <ul style="margin: 0; padding-left: 16px; color: #78350f; font-size: 13px; line-height: 1.4;">
                             <li style="margin-bottom: 4px;">Llega 10 minutos antes de tu hora de reserva</li>
                             <li style="margin-bottom: 4px;">Presenta tu código QR al personal de acceso</li>
-                            <li>Puedes cancelar hasta 2 horas antes del inicio</li>
+                            <li>Puedes cancelar hasta {{cancellationDeadline}} antes del inicio</li>
                           </ul>
                         </div>
                         
@@ -668,7 +668,7 @@ export class EmailService {
           </body>
           </html>
         `,
-        variables: ['userName', 'centerName', 'courtName', 'date', 'startTime', 'endTime', 'duration', 'price', 'reservationCode', 'qrCodeCid', 'accessPassUrl', 'googleCalendarUrl'],
+        variables: ['userName', 'centerName', 'courtName', 'date', 'startTime', 'endTime', 'duration', 'price', 'reservationCode', 'qrCodeCid', 'accessPassUrl', 'googleCalendarUrl', 'cancellationDeadline'],
       },
       
       reservationReminder: {

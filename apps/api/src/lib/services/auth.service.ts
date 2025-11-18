@@ -376,6 +376,100 @@ export class AuthService {
   }
 
   /**
+   * Establecer contraseña inicial (activación de cuenta)
+   * Similar a resetPassword pero también activa la cuenta y verifica el email
+   */
+  async setInitialPassword(data: ResetPasswordData): Promise<void> {
+    const validatedData = ResetPasswordSchema.parse(data);
+
+    // Buscar token válido
+    const activationToken = await prisma.passwordResetToken.findFirst({
+      where: {
+        token: validatedData.token,
+        expiresAt: {
+          gt: new Date()
+        },
+        usedAt: null
+      },
+      include: {
+        user: true
+      }
+    });
+
+    if (!activationToken) {
+      throw new Error('Token de activación inválido o expirado');
+    }
+
+    const user = activationToken.user;
+
+    // Verificar que el usuario no tenga contraseña ya establecida (solo para activación inicial)
+    if (user.password) {
+      throw new Error('Esta cuenta ya tiene una contraseña establecida. Usa "Olvidé mi contraseña" si la necesitas restablecer.');
+    }
+
+    // Validar fortaleza de contraseña
+    if (validatedData.password.length < 8) {
+      throw new Error('La contraseña debe tener al menos 8 caracteres');
+    }
+
+    // Hash de la contraseña
+    const hashedPassword = await bcrypt.hash(validatedData.password, this.BCRYPT_ROUNDS);
+
+    // Actualizar usuario: establecer contraseña, activar cuenta y verificar email
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          isActive: true,
+          emailVerified: true,
+          emailVerifiedAt: new Date()
+        }
+      }),
+      prisma.passwordResetToken.update({
+        where: { id: activationToken.id },
+        data: { usedAt: new Date() }
+      }),
+      // Limpiar cualquier token de activación previo no usado
+      prisma.passwordResetToken.deleteMany({
+        where: {
+          userId: user.id,
+          usedAt: null,
+          id: { not: activationToken.id }
+        }
+      })
+    ]);
+
+    // Enviar notificación de activación exitosa
+    try {
+      const { NotificationService } = await import('@repo/notifications');
+      const notificationService = new NotificationService();
+      
+      await notificationService.sendEmail({
+        to: user.email,
+        subject: 'Cuenta activada exitosamente',
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <p>Hola <strong>${user.firstName || user.name || 'Usuario'}</strong>,</p>
+            <p>Tu cuenta ha sido activada exitosamente. Ya puedes iniciar sesión con tu email y la contraseña que acabas de establecer.</p>
+            <p>¡Bienvenido a Polideportivo Victoria Hernández!</p>
+          </body>
+          </html>
+        `
+      });
+    } catch (emailError) {
+      console.error('Error enviando email de confirmación de activación:', emailError);
+      // No fallar la activación si falla el email
+    }
+  }
+
+  /**
    * Cambiar contraseña (usuario autenticado)
    */
   async changePassword(userId: string, data: ChangePasswordData): Promise<void> {

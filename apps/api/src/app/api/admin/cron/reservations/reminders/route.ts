@@ -28,9 +28,9 @@ export async function GET(request: NextRequest) {
 
 async function executeReminders() {
   try {
-      const tasks: Array<{ label: '24h' | '2h'; start: Date; end: Date }> = [
-        (() => { const { start, end } = windowRange(24 * 60, 15); return { label: '24h' as const, start, end }; })(),
-        (() => { const { start, end } = windowRange(2 * 60, 15); return { label: '2h' as const, start, end }; })(),
+      // Solo un recordatorio: 5 minutos antes de la reserva
+      const tasks: Array<{ label: '5min'; start: Date; end: Date }> = [
+        (() => { const { start, end } = windowRange(5, 5); return { label: '5min' as const, start, end }; })(),
       ];
 
       let sent = 0;
@@ -46,14 +46,14 @@ async function executeReminders() {
 
         for (const r of reservations) {
           if (!r.user?.email && !r.user?.phone) continue;
-          // Evitar duplicados: filtrar por JSON path (reservationId y type)
+          // Evitar duplicados: verificar si ya se envió un recordatorio para esta reserva (sin importar el tipo)
           const already = await db.outboxEvent.findFirst({
             where: {
               eventType: 'RESERVATION_REMINDER_SENT',
-              AND: [
-                { eventData: { path: ['reservationId'], equals: r.id } as any },
-                { eventData: { path: ['type'], equals: task.label } as any },
-              ] as any,
+              eventData: {
+                path: ['reservationId'],
+                equals: r.id,
+              } as any,
             },
           });
           if (already) continue;

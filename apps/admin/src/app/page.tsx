@@ -351,7 +351,7 @@ export default function AdminHomePage() {
                 ) : (
                   <ul className="-mb-8">
                     {recentActivities.map((activity, activityIdx) => (
-                      <li key={activity.id}>
+                      <li key={`${activity.id}-${activityIdx}-${activity.timestamp || activityIdx}`}>
                         <div className="relative pb-8">
                           {activityIdx !== recentActivities.length - 1 ? (
                             <span

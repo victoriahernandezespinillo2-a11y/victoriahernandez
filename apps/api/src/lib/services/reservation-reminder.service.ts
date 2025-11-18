@@ -6,7 +6,7 @@ const REMINDER_EVENT_TYPE = 'PAYMENT_PENDING_REMINDER';
 
 export class ReservationReminderService {
   static resolveDelayMinutes() {
-    return Math.max(1, parseInt(process.env.PENDING_PAYMENT_REMINDER_DELAY_MINUTES || '2', 10));
+    return Math.max(1, parseInt(process.env.PENDING_PAYMENT_REMINDER_DELAY_MINUTES || '5', 10));
   }
 
   static async schedulePendingPaymentReminder(reservationId: string, baseDate: Date = new Date()) {

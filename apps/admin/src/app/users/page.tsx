@@ -10,6 +10,7 @@ import {
   EyeIcon,
   FunnelIcon,
   XCircleIcon,
+  CalendarDaysIcon,
 } from '@heroicons/react/24/outline';
 import { useAdminUsers } from '@/lib/hooks';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -406,22 +407,32 @@ export default function UsersPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
                       <button 
-                        className="text-blue-600 hover:text-blue-900"
+                        className="text-blue-600 hover:text-blue-900 transition-colors"
                         onClick={() => handleViewUser(user)}
                         title="Ver usuario"
                       >
                         <EyeIcon className="h-4 w-4" />
                       </button>
                       <button 
-                        className="text-green-600 hover:text-green-900"
+                        className="text-green-600 hover:text-green-900 transition-colors"
                         onClick={() => handleEditUser(user)}
                         title="Editar usuario"
                       >
                         <PencilIcon className="h-4 w-4" />
                       </button>
                       <button 
-                        className="text-red-600 hover:text-red-900"
+                        className="text-indigo-600 hover:text-indigo-900 transition-colors"
+                        onClick={() => {
+                          window.location.href = `/reservations/new?userId=${user.id}`;
+                        }}
+                        title="Crear reserva para este usuario"
+                      >
+                        <CalendarDaysIcon className="h-4 w-4" />
+                      </button>
+                      <button 
+                        className="text-red-600 hover:text-red-900 transition-colors"
                         onClick={() => handleDeleteUser(user)}
+                        title="Eliminar usuario"
                       >
                         <TrashIcon className="h-4 w-4" />
                       </button>

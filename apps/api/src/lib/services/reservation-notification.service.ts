@@ -35,7 +35,13 @@ export class ReservationNotificationService {
         court: {
           select: {
             name: true,
-            center: { select: { name: true, timezone: true } },
+            center: { 
+              select: { 
+                name: true, 
+                timezone: true,
+                settings: true,
+              } 
+            },
           },
         },
       },
@@ -47,6 +53,12 @@ export class ReservationNotificationService {
 
     const centerName = reservation.court?.center?.name || 'Polideportivo Victoria Hernández';
     const timezone = reservation.court?.center?.timezone || DEFAULT_TIMEZONE;
+    
+    // Obtener configuración de cancelación del centro
+    const centerSettings: any = reservation.court?.center?.settings || {};
+    const cancellationHours = centerSettings?.business?.cancellationHours || 
+                             centerSettings?.reservations?.cancellationHours || 
+                             24; // Fallback a 24 horas
 
     const dateLabel = this.capitalize(
       formatInTimeZone(reservation.startTime, timezone, "EEEE d 'de' MMMM yyyy", { locale: es })
@@ -67,6 +79,7 @@ export class ReservationNotificationService {
       startLabel,
       endLabel,
       amount,
+      cancellationHours,
     };
   }
 
@@ -188,6 +201,12 @@ export class ReservationNotificationService {
         Math.round((reservation.endTime.getTime() - reservation.startTime.getTime()) / 60000)
       );
 
+      // Formatear texto de cancelación (singular/plural)
+      const cancellationHours = context.cancellationHours || 24;
+      const cancellationText = cancellationHours === 1 
+        ? '1 hora' 
+        : `${cancellationHours} horas`;
+
       const variables: Record<string, string> = {
         userName: userName || '',
         courtName: courtName || '',
@@ -201,6 +220,7 @@ export class ReservationNotificationService {
         qrCodeCid: qrCid,
         accessPassUrl: passUrl,
         googleCalendarUrl: this.buildGoogleCalendarUrl(reservation, courtName) || passUrl,
+        cancellationDeadline: cancellationText,
       };
 
       return await notificationService.sendEmailTemplate('reservationConfirmation', userEmail, variables, {

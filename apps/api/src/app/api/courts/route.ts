@@ -100,6 +100,11 @@ export async function GET(request: NextRequest) {
         hasLighting: Boolean((court as any).hasLighting),
         lightingExtraPerHour: Number((court as any).lightingExtraPerHour ?? 0),
         isActive: court.isActive,
+        // Campos necesarios para filtrado correcto
+        isMultiuse: Boolean((court as any).isMultiuse ?? false),
+        allowedSports: Array.isArray((court as any).allowedSports) 
+          ? (court as any).allowedSports 
+          : [],
         amenities: [],
         images: [],
         center: court.center,

@@ -387,6 +387,7 @@ export const adminApi = {
               email: u.email,
               firstName: u.firstName || firstName || u.givenName || '',
               lastName: u.lastName || lastName || u.familyName || '',
+              phone: u.phone || '',
               role: u.role,
               membershipType: u.membershipType || null,
               status,
@@ -418,7 +419,7 @@ export const adminApi = {
       lastName: string;
       role: string;
       phone?: string;
-      password: string;
+      password?: string; // Opcional: no requerido para rol USER
       dateOfBirth?: string;
       gdprConsent: boolean;
       membershipType?: string;

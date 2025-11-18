@@ -54,7 +54,9 @@ export async function POST(request: NextRequest) {
         ctaLabel: 'Pagar ahora',
       });
 
-      await ReservationReminderService.schedulePendingPaymentReminder(reservation.id);
+      // No programar recordatorio adicional si ya se envió el correo manualmente
+      // El recordatorio automático solo se programa si no hay un envío manual reciente
+      // (esto evita duplicados)
 
       await db.outboxEvent.create({
         data: {
