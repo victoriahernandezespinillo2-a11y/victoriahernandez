@@ -26,13 +26,20 @@ function checkPrismaGenerated() {
 }
 
 async function generatePrisma() {
-  // Verificar si Prisma ya está generado
-  if (checkPrismaGenerated()) {
+  // En producción, siempre regenerar para asegurar que no hay cache de Data Proxy
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+  
+  // Verificar si Prisma ya está generado (solo en desarrollo)
+  if (!isProduction && checkPrismaGenerated()) {
     console.log('✅ Prisma Client ya está generado, omitiendo generación...');
     return true;
   }
 
-  console.log('🔄 Generando Prisma Client...');
+  if (isProduction) {
+    console.log('🔄 [PRODUCCIÓN] Forzando regeneración de Prisma Client para evitar cache de Data Proxy...');
+  } else {
+    console.log('🔄 Generando Prisma Client...');
+  }
   
   const dbPath = path.join(__dirname, '..');
   
