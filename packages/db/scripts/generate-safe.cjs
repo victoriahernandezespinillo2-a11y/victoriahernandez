@@ -37,26 +37,66 @@ async function generatePrisma() {
 
   if (isProduction) {
     console.log('🔄 [PRODUCCIÓN] Forzando regeneración de Prisma Client para evitar cache de Data Proxy...');
-    // Limpiar cualquier cache de Prisma Client en producción
+    // Limpiar CUALQUIER cache de Prisma Client en producción (más agresivo)
     try {
+      const rootDir = path.join(__dirname, '../../..');
+      const dbDir = path.join(__dirname, '..');
+      
+      // Buscar y eliminar TODOS los directorios .prisma y @prisma/client
       const prismaCachePaths = [
-        path.join(__dirname, '../../../node_modules/.prisma'),
-        path.join(__dirname, '../../../node_modules/@prisma/client'),
-        path.join(__dirname, '../node_modules/.prisma'),
-        path.join(__dirname, '../node_modules/@prisma/client'),
+        // En node_modules raíz
+        path.join(rootDir, 'node_modules/.prisma'),
+        path.join(rootDir, 'node_modules/@prisma/client'),
+        // En node_modules de packages/db
+        path.join(dbDir, 'node_modules/.prisma'),
+        path.join(dbDir, 'node_modules/@prisma/client'),
+        // En cualquier otro lugar posible
+        path.join(rootDir, 'node_modules/.pnpm/.prisma'),
+        path.join(rootDir, 'node_modules/.pnpm/@prisma+client'),
       ];
+      
+      console.log('🧹 Limpiando TODOS los caches de Prisma Client...');
       prismaCachePaths.forEach(cachePath => {
         if (fs.existsSync(cachePath)) {
-          console.log(`🧹 Limpiando cache de Prisma: ${cachePath}`);
+          console.log(`   Eliminando: ${cachePath}`);
           try {
             fs.rmSync(cachePath, { recursive: true, force: true });
+            console.log(`   ✅ Eliminado: ${cachePath}`);
           } catch (e) {
-            // Ignorar errores de limpieza
+            console.log(`   ⚠️  No se pudo eliminar ${cachePath}: ${e.message}`);
           }
         }
       });
+      
+      // También buscar en .pnpm store si existe
+      const pnpmStorePath = process.env.PNPM_HOME 
+        ? path.join(process.env.PNPM_HOME, 'store/v3/files')
+        : null;
+      
+      if (pnpmStorePath && fs.existsSync(pnpmStorePath)) {
+        console.log('🧹 Limpiando cache de pnpm store...');
+        // Buscar directorios que contengan prisma
+        try {
+          const storeDirs = fs.readdirSync(pnpmStorePath, { withFileTypes: true });
+          storeDirs.forEach(dir => {
+            if (dir.isDirectory() && dir.name.includes('prisma')) {
+              const fullPath = path.join(pnpmStorePath, dir.name);
+              try {
+                fs.rmSync(fullPath, { recursive: true, force: true });
+                console.log(`   ✅ Eliminado del store: ${dir.name}`);
+              } catch (e) {
+                // Ignorar errores
+              }
+            }
+          });
+        } catch (e) {
+          // Ignorar errores de lectura del store
+        }
+      }
+      
+      console.log('✅ Limpieza de cache completada');
     } catch (e) {
-      // Continuar aunque falle la limpieza
+      console.warn('⚠️  Error durante limpieza de cache (continuando):', e.message);
     }
   } else {
     console.log('🔄 Generando Prisma Client...');
