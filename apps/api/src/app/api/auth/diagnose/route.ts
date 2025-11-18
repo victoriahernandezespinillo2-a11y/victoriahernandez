@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
       auth: {
         nextAuthConfigured: !!process.env.NEXTAUTH_SECRET,
         nextAuthUrl: process.env.NEXTAUTH_URL || null,
-        canAccessUsers: false
+        canAccessUsers: false,
+        hasAdminUser: false
       },
       environment: {
         nodeEnv: process.env.NODE_ENV,
