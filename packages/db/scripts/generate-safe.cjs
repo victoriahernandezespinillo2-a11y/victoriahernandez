@@ -37,6 +37,27 @@ async function generatePrisma() {
 
   if (isProduction) {
     console.log('🔄 [PRODUCCIÓN] Forzando regeneración de Prisma Client para evitar cache de Data Proxy...');
+    // Limpiar cualquier cache de Prisma Client en producción
+    try {
+      const prismaCachePaths = [
+        path.join(__dirname, '../../../node_modules/.prisma'),
+        path.join(__dirname, '../../../node_modules/@prisma/client'),
+        path.join(__dirname, '../node_modules/.prisma'),
+        path.join(__dirname, '../node_modules/@prisma/client'),
+      ];
+      prismaCachePaths.forEach(cachePath => {
+        if (fs.existsSync(cachePath)) {
+          console.log(`🧹 Limpiando cache de Prisma: ${cachePath}`);
+          try {
+            fs.rmSync(cachePath, { recursive: true, force: true });
+          } catch (e) {
+            // Ignorar errores de limpieza
+          }
+        }
+      });
+    } catch (e) {
+      // Continuar aunque falle la limpieza
+    }
   } else {
     console.log('🔄 Generando Prisma Client...');
   }
@@ -45,10 +66,17 @@ async function generatePrisma() {
   
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
+      // Forzar regeneración eliminando cualquier cache primero
+      const env = { 
+        ...process.env, 
+        PRISMA_GENERATE_DATAPROXY: 'false',
+        PRISMA_CLI_QUERY_ENGINE_TYPE: 'library' // Forzar uso de engine library en lugar de binary
+      };
+      
       execSync('npx prisma generate', {
         stdio: 'inherit',
         cwd: dbPath,
-        env: { ...process.env, PRISMA_GENERATE_DATAPROXY: 'false' }
+        env: env
       });
       console.log('✅ Prisma Client generado exitosamente');
       return true;
