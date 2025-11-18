@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
       return ApiResponse.notFound('Usuario');
 
     } catch (error) {
-      console.error('Error en firebase-sync:', error);
+      console.error('❌ [FIREBASE-SYNC] Error completo:', error);
       
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(
@@ -183,7 +183,34 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      return ApiResponse.internalError('Error interno del servidor');
+      // Log detallado del error para diagnóstico
+      const errorDetails: any = {
+        message: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : 'Unknown',
+      };
+
+      // Si es un error de Prisma, agregar más detalles
+      if (error && typeof error === 'object' && 'code' in error) {
+        errorDetails.code = (error as any).code;
+        errorDetails.meta = (error as any).meta;
+        errorDetails.target = (error as any).target;
+      }
+
+      // Log de la URL de base de datos (sin exponer credenciales)
+      const dbUrl = process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL || 'NO_CONFIGURADA';
+      const dbUrlPreview = dbUrl.replace(/:[^:@]*@/, ':***@').substring(0, 100);
+      console.error('❌ [FIREBASE-SYNC] DATABASE_URL:', dbUrlPreview);
+      console.error('❌ [FIREBASE-SYNC] Error details:', JSON.stringify(errorDetails, null, 2));
+
+      return ApiResponse.error(
+        error instanceof Error ? error.message : 'Error interno del servidor',
+        500,
+        {
+          error: errorDetails,
+          databaseUrlConfigured: !!process.env.DATABASE_URL,
+          directDatabaseUrlConfigured: !!process.env.DIRECT_DATABASE_URL,
+        }
+      );
     }
   })(req);
 }

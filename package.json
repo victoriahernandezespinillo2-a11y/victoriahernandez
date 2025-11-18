@@ -7,7 +7,7 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "generate": "pnpm -w --filter @repo/db run db:generate",
+    "generate": "pnpm -w --filter @repo/db run db:generate:safe",
     "check-types": "turbo run check-types"
   },
   "devDependencies": {

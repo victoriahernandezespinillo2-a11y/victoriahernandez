@@ -8,7 +8,7 @@
     },
     "scripts": {
         "db:generate": "prisma generate",
-        "db:generate:safe": "node scripts/generate-safe.js",
+        "db:generate:safe": "node scripts/generate-safe.cjs",
         "db:push": "prisma db push",
         "db:migrate": "prisma migrate dev",
         "db:studio": "prisma studio",
@@ -31,7 +31,7 @@
         "schema": "prisma/schema.prisma"
     },
     "dependencies": {
-        "@prisma/client": "^6.14.0",
+        "@prisma/client": "6.15.0",
         "@supabase/supabase-js": "^2.54.0",
         "bcryptjs": "^2.4.3",
         "dotenv": "^17.2.1",

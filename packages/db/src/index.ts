@@ -89,19 +89,33 @@ const globalForPrisma = globalThis as unknown as {
 export const db = globalForPrisma.prisma ??
   (() => {
     try {
-      // En producción usamos siempre DATABASE_URL (pooler)
-      const databaseUrl = process.env.NODE_ENV === 'production'
-        ? process.env.DATABASE_URL
-        : (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL);
+      // Priorizar DIRECT_DATABASE_URL si está disponible (evita problemas con Data Proxy)
+      // En producción, usar DIRECT_DATABASE_URL si está disponible, sino DATABASE_URL
+      const databaseUrl = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL;
       
       if (!databaseUrl) {
         throw new Error('DATABASE_URL o DIRECT_DATABASE_URL debe estar definido en las variables de entorno');
+      }
+
+      // Verificar que la URL no sea del Data Proxy (prisma:// o prisma+postgres://)
+      // Si lo es, usar DIRECT_DATABASE_URL o forzar la URL directa
+      let finalUrl = databaseUrl;
+      if (databaseUrl.startsWith('prisma://') || databaseUrl.startsWith('prisma+postgres://')) {
+        console.warn('⚠️ [DB] Detectada URL de Prisma Data Proxy, intentando usar URL directa...');
+        if (process.env.DIRECT_DATABASE_URL) {
+          finalUrl = process.env.DIRECT_DATABASE_URL;
+          console.log('✅ [DB] Usando DIRECT_DATABASE_URL en lugar de Data Proxy');
+        } else {
+          // Intentar convertir la URL de Data Proxy a directa (no recomendado, pero como fallback)
+          console.error('❌ [DB] URL de Data Proxy detectada pero no hay DIRECT_DATABASE_URL configurada');
+          throw new Error('Prisma Data Proxy detectado pero DIRECT_DATABASE_URL no está configurada. Configure DIRECT_DATABASE_URL en las variables de entorno.');
+        }
       }
       
       const client = new PrismaClient({
         datasources: {
           db: {
-            url: databaseUrl,
+            url: finalUrl,
           },
         },
         log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
@@ -117,12 +131,30 @@ export const db = globalForPrisma.prisma ??
       
       client.$on('error', (e) => {
         console.error('[DB-ERROR]', e);
+        // Detectar error P6001 específicamente
+        if (e.message && e.message.includes('P6001')) {
+          console.error('❌ [DB] ERROR P6001: Prisma Client espera URL de Data Proxy pero se proporcionó URL directa.');
+          console.error('❌ [DB] SOLUCIÓN: Regenerar Prisma Client con: pnpm --filter @repo/db db:generate');
+          console.error('❌ [DB] O configurar DIRECT_DATABASE_URL en las variables de entorno de Vercel.');
+        }
       });
       
       if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = client;
       return client;
     } catch (e) {
-      console.error('[DB] PrismaClient init error:', (e as Error)?.message || e);
+      const error = e as Error;
+      console.error('[DB] PrismaClient init error:', error.message || e);
+      
+      // Detectar error P6001 durante la inicialización
+      if (error.message && error.message.includes('P6001')) {
+        console.error('❌ [DB] ERROR P6001 DETECTADO DURANTE INICIALIZACIÓN');
+        console.error('❌ [DB] Prisma Client fue generado con configuración de Data Proxy, pero la URL es directa.');
+        console.error('❌ [DB] SOLUCIÓN REQUERIDA:');
+        console.error('   1. En Vercel, agregar variable DIRECT_DATABASE_URL con la URL directa de PostgreSQL');
+        console.error('   2. Forzar redeploy para regenerar Prisma Client');
+        console.error('   3. O ejecutar localmente: pnpm --filter @repo/db db:generate');
+      }
+      
       throw e;
     }
   })();

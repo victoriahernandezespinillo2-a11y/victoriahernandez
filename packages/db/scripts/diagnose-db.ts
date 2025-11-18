@@ -7,6 +7,11 @@ import { PrismaClient } from '@prisma/client';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
+
+// Obtener __dirname equivalente para ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Cargar variables de entorno
 const envPath = path.join(__dirname, '../../.env');
