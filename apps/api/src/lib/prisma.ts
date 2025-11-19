@@ -1,9 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+// Re-exportar db de @repo/db para mantener compatibilidad
+// Esto asegura que todos usen la misma instancia de PrismaClient
+// con la configuración correcta de URL (sin Data Proxy)
+import { db } from '@repo/db';
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+export const prisma = db;

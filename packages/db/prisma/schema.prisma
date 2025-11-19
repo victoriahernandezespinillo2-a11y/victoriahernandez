@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  engineType = "library"
 }
 
 datasource db {
@@ -21,46 +22,46 @@ model Sport {
 }
 
 model User {
-  id                    String                 @id @default(cuid())
-  email                 String                 @unique
-  name                  String?
-  firstName             String?                @map("first_name")
-  lastName              String?                @map("last_name")
-  phone                 String?
-  password              String?
-  firebaseUid           String?                @unique @map("firebase_uid")
-  role                  UserRole               @default(USER)
-  dateOfBirth           DateTime?              @map("date_of_birth")
-  membershipType        String?                @map("membership_type")
-  membershipExpiresAt   DateTime?              @map("membership_expires_at")
-  creditsBalance        Decimal                @default(0) @map("credits_balance")
-  isActive              Boolean                @default(true) @map("is_active")
-  avatar                String?
-  lastLoginAt           DateTime?              @map("last_login_at")
-  emailVerified         Boolean                @default(false) @map("email_verified")
-  emailVerifiedAt       DateTime?              @map("email_verified_at")
-  gdprConsent           Boolean                @default(false) @map("gdpr_consent")
-  gdprConsentDate       DateTime?              @map("gdpr_consent_date")
-  createdAt             DateTime               @default(now()) @map("created_at")
-  updatedAt             DateTime               @updatedAt @map("updated_at")
-  referredBy            String?                @map("referred_by")
-  referralCode          String?                @unique @map("referral_code")
-  memberships           Membership[]
-  notifications         Notification[]
-  orders                Order[]
-  passwordResetTokens   PasswordResetToken[]
-  payments              Payment[]
-  posts                 Post[]
-  promotionApplications PromotionApplication[]
-  refreshTokens         RefreshToken[]
-  reservations          Reservation[]
-  tournamentUsers       TournamentUser[]
-  referrer              User?                  @relation("UserReferrals", fields: [referredBy], references: [id])
-  referrals             User[]                 @relation("UserReferrals")
-  waitingLists          WaitingList[]
-  walletLedger          WalletLedger[]
-  tariffEnrollments     TariffEnrollment[]     @relation("UserTariffEnrollments")
-  approvedTariffEnrollments TariffEnrollment[] @relation("AdminTariffApprovals")
+  id                           String                  @id @default(cuid())
+  email                        String                  @unique
+  name                         String?
+  firstName                    String?                 @map("first_name")
+  lastName                     String?                 @map("last_name")
+  phone                        String?
+  password                     String?
+  firebaseUid                  String?                 @unique @map("firebase_uid")
+  role                         UserRole                @default(USER)
+  dateOfBirth                  DateTime?               @map("date_of_birth")
+  membershipType               String?                 @map("membership_type")
+  membershipExpiresAt          DateTime?               @map("membership_expires_at")
+  creditsBalance               Decimal                 @default(0) @map("credits_balance")
+  isActive                     Boolean                 @default(true) @map("is_active")
+  avatar                       String?
+  lastLoginAt                  DateTime?               @map("last_login_at")
+  emailVerified                Boolean                 @default(false) @map("email_verified")
+  emailVerifiedAt              DateTime?               @map("email_verified_at")
+  gdprConsent                  Boolean                 @default(false) @map("gdpr_consent")
+  gdprConsentDate              DateTime?               @map("gdpr_consent_date")
+  createdAt                    DateTime                @default(now()) @map("created_at")
+  updatedAt                    DateTime                @updatedAt @map("updated_at")
+  referredBy                   String?                 @map("referred_by")
+  referralCode                 String?                 @unique @map("referral_code")
+  memberships                  Membership[]
+  notifications                Notification[]
+  orders                       Order[]
+  passwordResetTokens          PasswordResetToken[]
+  payments                     Payment[]
+  posts                        Post[]
+  promotionApplications        PromotionApplication[]
+  refreshTokens                RefreshToken[]
+  reservations                 Reservation[]
+  tournamentUsers              TournamentUser[]
+  referrer                     User?                   @relation("UserReferrals", fields: [referredBy], references: [id])
+  referrals                    User[]                  @relation("UserReferrals")
+  waitingLists                 WaitingList[]
+  walletLedger                 WalletLedger[]
+  tariffEnrollments            TariffEnrollment[]      @relation("UserTariffEnrollments")
+  approvedTariffEnrollments    TariffEnrollment[]      @relation("AdminTariffApprovals")
   tariffEnrollmentAuditChanges TariffEnrollmentAudit[] @relation("TariffAuditChanges")
 
   @@index([createdAt, role])
@@ -124,18 +125,18 @@ model Court {
 }
 
 model AgeBasedTariff {
-  id                     String                 @id @default(cuid())
+  id                     String             @id @default(cuid())
   segment                TariffSegment
-  minAge                 Int                    @map("min_age")
-  maxAge                 Int?                   @map("max_age")
-  discountPercent        Decimal                @map("discount_percent")
+  minAge                 Int                @map("min_age")
+  maxAge                 Int?               @map("max_age")
+  discountPercent        Decimal            @map("discount_percent")
   description            String?
-  requiresManualApproval Boolean               @default(true) @map("requires_manual_approval")
-  validFrom              DateTime               @map("valid_from")
-  validUntil             DateTime?              @map("valid_until")
-  isActive               Boolean               @default(true) @map("is_active")
-  createdAt              DateTime               @default(now()) @map("created_at")
-  updatedAt              DateTime               @updatedAt @map("updated_at")
+  requiresManualApproval Boolean            @default(true) @map("requires_manual_approval")
+  validFrom              DateTime           @map("valid_from")
+  validUntil             DateTime?          @map("valid_until")
+  isActive               Boolean            @default(true) @map("is_active")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
   enrollments            TariffEnrollment[]
   courts                 TariffCourt[]
 
@@ -144,21 +145,21 @@ model AgeBasedTariff {
 }
 
 model TariffEnrollment {
-  id          String                  @id @default(cuid())
-  userId      String                  @map("user_id")
-  tariffId    String                  @map("tariff_id")
-  status      TariffEnrollmentStatus  @default(PENDING)
-  requestedAt DateTime                @map("requested_at")
-  approvedAt  DateTime?               @map("approved_at")
-  approvedBy  String?                 @map("approved_by")
-  notes       String?
-  documentUrl String?                 @map("document_url")
-  createdAt   DateTime                @default(now()) @map("created_at")
-  updatedAt   DateTime                @updatedAt @map("updated_at")
-  tariff      AgeBasedTariff          @relation(fields: [tariffId], references: [id], onDelete: Restrict)
-  user        User                    @relation("UserTariffEnrollments", fields: [userId], references: [id], onDelete: Cascade)
-  approvedByUser User?                @relation("AdminTariffApprovals", fields: [approvedBy], references: [id])
-  audits      TariffEnrollmentAudit[]
+  id             String                  @id @default(cuid())
+  userId         String                  @map("user_id")
+  tariffId       String                  @map("tariff_id")
+  status         TariffEnrollmentStatus  @default(PENDING)
+  requestedAt    DateTime                @map("requested_at")
+  approvedAt     DateTime?               @map("approved_at")
+  approvedBy     String?                 @map("approved_by")
+  notes          String?
+  documentUrl    String?                 @map("document_url")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+  tariff         AgeBasedTariff          @relation(fields: [tariffId], references: [id], onDelete: Restrict)
+  user           User                    @relation("UserTariffEnrollments", fields: [userId], references: [id], onDelete: Cascade)
+  approvedByUser User?                   @relation("AdminTariffApprovals", fields: [approvedBy], references: [id])
+  audits         TariffEnrollmentAudit[]
 
   @@index([userId, status], map: "tariff_enrollments_user_id_status_idx")
   @@index([tariffId, status], map: "tariff_enrollments_tariff_id_status_idx")
@@ -182,11 +183,11 @@ model TariffEnrollmentAudit {
 }
 
 model TariffCourt {
-  tariffId  String           @map("tariff_id")
-  courtId   String           @map("court_id")
-  createdAt DateTime         @default(now()) @map("created_at")
-  tariff    AgeBasedTariff   @relation(fields: [tariffId], references: [id], onDelete: Cascade)
-  court     Court            @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  tariffId  String         @map("tariff_id")
+  courtId   String         @map("court_id")
+  createdAt DateTime       @default(now()) @map("created_at")
+  tariff    AgeBasedTariff @relation(fields: [tariffId], references: [id], onDelete: Cascade)
+  court     Court          @relation(fields: [courtId], references: [id], onDelete: Cascade)
 
   @@id([tariffId, courtId])
   @@index([courtId], map: "tariff_allowed_courts_court_id_idx")
