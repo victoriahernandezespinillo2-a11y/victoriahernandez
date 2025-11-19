@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "postinstall": "cd ../../packages/db && npm run db:generate:safe",
     "build": "next build",
     "clean": "rm -rf .next",
     "dev": "next dev --port 3002",
