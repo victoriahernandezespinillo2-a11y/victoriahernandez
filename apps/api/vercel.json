@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd ../../packages/db && npx prisma generate && cd ../../apps/api && next build",
   "functions": {
     "src/app/api/**/route.js": {
       "includeFiles": "node_modules/pdfkit/js/data/**"
