@@ -554,7 +554,8 @@ export function useAdminReservations() {
   const updateReservation = useCallback(async (id: string, updateData: Partial<{
     status: 'PENDING' | 'PAID' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
     startTime: string;
-    endTime: string;
+    duration?: number;
+    endTime?: string;
     notes: string;
   }>) => {
     const updatedReservation = await adminApi.reservations.update(id, updateData) as Reservation;

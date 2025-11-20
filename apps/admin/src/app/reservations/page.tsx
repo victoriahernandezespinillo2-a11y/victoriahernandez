@@ -13,12 +13,14 @@ import {
   CurrencyDollarIcon,
   CheckCircleIcon,
   XCircleIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 import { useAdminReservations } from '@/lib/hooks';
 import { adminApi } from '@/lib/api';
 import { useToast } from '@/components/ToastProvider';
 import { confirm } from '@/components/ConfirmDialog';
 import PaymentConfirmationModal from '@/components/PaymentConfirmationModal';
+import WeekCalendar from '@/components/WeekCalendar';
 
 interface Reservation {
   id: string;
@@ -93,11 +95,25 @@ export default function ReservationsPage() {
   const [resendState, setResendState] = useState<{ open: boolean; id?: string; type: 'CONFIRMATION'|'PAYMENT_LINK' }>({ open: false, type: 'CONFIRMATION' });
   const [payOnSiteState, setPayOnSiteState] = useState<{ open: boolean; id?: string; userName?: string; courtName?: string; totalAmount?: number; currentMethod?: string }>({ open: false });
   const [auditState, setAuditState] = useState<{ open: boolean; id?: string; loading: boolean; events: Array<{ id: string; type: string; summary: string; createdAt: string }> }>({ open: false, loading: false, events: [] });
+  const [editState, setEditState] = useState<{ open: boolean; reservation: Reservation | null; loading: boolean }>({ open: false, reservation: null, loading: false });
+  const [editForm, setEditForm] = useState<{ date: string; time: string; duration: number; notes: string; status?: string }>({ date: '', time: '', duration: 60, notes: '' });
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [weekStart, setWeekStart] = useState<string>('');
 
   // Resetear página cuando cambien los filtros
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, paymentFilter, paymentMethodFilter, overrideFilter, dateFilter, itemsPerPage]);
+
+  // Sincronizar selección del calendario visual con formulario
+  useEffect(() => {
+    if (editForm.date && editForm.time && showCalendar) {
+      // Disparar evento para sincronizar con WeekCalendar
+      window.dispatchEvent(new CustomEvent('admin-reservation-slot', {
+        detail: { type: 'SELECT_SLOT', dateISO: editForm.date, timeLabel: editForm.time }
+      }));
+    }
+  }, [editForm.date, editForm.time, showCalendar]);
 
   // Helpers de tiempo para gating de acciones (check-in)
   const toLocalDate = (ymd: string, hhmm: string) => {
@@ -191,6 +207,10 @@ export default function ReservationsPage() {
   // Normalización de método de pago a códigos canónicos backend
   const normalizeMethod = (raw: string | undefined | null): string => {
     const v = (raw || '').toString().trim().toUpperCase();
+    // Si está vacío, null, o es PENDING, devolver 'PENDING' (Por cobrar)
+    if (!v || v === 'PENDING' || v === 'NULL' || v === 'UNDEFINED') {
+      return 'PENDING';
+    }
     const map: Record<string, string> = {
       'CASH': 'CASH', 'EFECTIVO': 'CASH',
       'CARD': 'CARD', 'TPV': 'CARD', 'TARJETA': 'CARD', 'STRIPE': 'CARD',
@@ -265,12 +285,23 @@ export default function ReservationsPage() {
     // Reglas de negocio en UI (reforzadas por backend):
     const blockedStatuses = new Set(['PAID','COMPLETED','CANCELLED']);
     const amount = Number(r?.totalAmount || 0);
+    const paymentMethod = normalizeMethod((r as any)?.paymentMethod as string);
+    
+    // Permitir generar enlace si:
+    // 1. No está en estado bloqueado
+    // 2. Tiene importe > 0
+    // 3. Está pendiente de pago (paymentStatus) O método de pago es PENDING (Por cobrar)
     if (blockedStatuses.has(r?.status)) {
       showToast({ variant: 'warning', title: 'No permitido', message: 'La reserva no admite enlace de pago en su estado actual.' });
       return;
     }
     if (!(amount > 0)) {
       showToast({ variant: 'warning', title: 'Sin importe', message: 'La reserva no tiene importe a cobrar.' });
+      return;
+    }
+    // Permitir si paymentStatus es PENDING o paymentMethod es PENDING (Por cobrar)
+    if (r?.paymentStatus !== 'PENDING' && paymentMethod !== 'PENDING') {
+      showToast({ variant: 'warning', title: 'No permitido', message: 'La reserva no está pendiente de pago.' });
       return;
     }
     try {
@@ -638,7 +669,10 @@ export default function ReservationsPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
                       {/* Generar enlace de pago (LINK) */}
-                      {Number(reservation.totalAmount || 0) > 0 && reservation.paymentStatus === 'PENDING' && !['PAID','COMPLETED','CANCELLED'].includes(reservation.status as string) && (
+                      {/* Permitir generar enlace si: tiene importe, está pendiente de pago (paymentStatus) O método de pago es PENDING (Por cobrar), y no está pagada/completada/cancelada */}
+                      {Number(reservation.totalAmount || 0) > 0 && 
+                       (reservation.paymentStatus === 'PENDING' || normalizedMethodCode === 'PENDING') && 
+                       !['PAID','COMPLETED','CANCELLED'].includes(reservation.status as string) && (
                         <button
                           title="Generar enlace de pago"
                           className="text-blue-600 hover:text-blue-900"
@@ -647,7 +681,9 @@ export default function ReservationsPage() {
                           <EyeIcon className="h-4 w-4" />
                         </button>
                       )}
-                      {Number(reservation.totalAmount || 0) > 0 && reservation.paymentStatus !== 'PENDING' && (
+                      {Number(reservation.totalAmount || 0) > 0 && 
+                       reservation.paymentStatus !== 'PENDING' && 
+                       normalizedMethodCode !== 'PENDING' && (
                         <span className="text-blue-300 cursor-not-allowed" title="No disponible: la reserva ya tiene pago registrado o reembolsado">
                           <EyeIcon className="h-4 w-4" />
                         </span>
@@ -778,16 +814,41 @@ export default function ReservationsPage() {
                           €
                         </button>
                       )}
-                      {/* Editar: oculto en COMPLETED/CANCELLED, mostrar indicador inactivo */}
-                      {![ 'COMPLETED','CANCELLED' ].includes(reservation.status as string) ? (
-                        <button className="text-green-600 hover:text-green-900" title="Editar">
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
-                      ) : (
-                        <span className="text-green-300 cursor-not-allowed" title="No disponible en reservas completadas o canceladas">
-                          <PencilIcon className="h-4 w-4" />
-                        </span>
-                      )}
+                      {/* Editar: permitir incluso en PAID/COMPLETED para admin, pero con advertencia */}
+                      <button 
+                        className="text-green-600 hover:text-green-900" 
+                        title="Editar reserva"
+                        onClick={() => {
+                          const reservationDate = new Date(reservation.date as string);
+                          const startTimeStr = reservation.startTime as string;
+                          const startDate = new Date(startTimeStr);
+                          
+                          // Convertir a formato para inputs (datetime-local)
+                          const dateStr = reservationDate.toISOString().split('T')[0] || '';
+                          const timeStr = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`;
+                          
+                          setEditForm({
+                            date: dateStr,
+                            time: timeStr,
+                            duration: reservation.duration as number || 60,
+                            notes: (reservation.notes as string) || '',
+                            status: (reservation.status as string) || undefined
+                          });
+                          
+                          // Calcular el lunes de la semana que contiene la fecha
+                          const dayOfWeek = reservationDate.getDay() === 0 ? 7 : reservationDate.getDay();
+                          const daysToMonday = dayOfWeek - 1;
+                          const mondayDate = new Date(reservationDate);
+                          mondayDate.setDate(reservationDate.getDate() - daysToMonday);
+                          const weekStartStr = mondayDate.toISOString().split('T')[0] || '';
+                          
+                          setWeekStart(weekStartStr);
+                          setShowCalendar(false);
+                          setEditState({ open: true, reservation: reservation as unknown as Reservation, loading: false });
+                        }}
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
                       {/* Auditoría */}
                       <button
                         className="text-gray-600 hover:text-gray-900"
@@ -1124,6 +1185,285 @@ export default function ReservationsPage() {
             }
           }}
         />
+      )}
+
+      {/* Modal: Editar Reserva */}
+      {editState.open && editState.reservation && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Editar Reserva</h3>
+                <button
+                  onClick={() => {
+                    setEditState({ open: false, reservation: null, loading: false });
+                    setShowCalendar(false);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XCircleIcon className="h-6 w-6" />
+                </button>
+              </div>
+              
+              {/* Advertencia si está pagada o completada */}
+              {['PAID', 'COMPLETED'].includes(editState.reservation.status as string) && (
+                <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-start">
+                    <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600 mt-0.5 mr-3" />
+                    <div>
+                      <h4 className="text-sm font-medium text-yellow-800">Reserva {editState.reservation.status === 'PAID' ? 'Pagada' : 'Completada'}</h4>
+                      <p className="mt-1 text-sm text-yellow-700">
+                        {editState.reservation.status === 'PAID' 
+                          ? 'Si cambias la fecha u horario, el precio puede variar. Se recomienda verificar disponibilidad y ajustar el precio si es necesario.'
+                          : 'Cambiar la fecha/hora de una reserva completada es inusual. Úsalo solo si es necesario corregir un error.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {/* Información actual */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">Información actual</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Usuario:</span>
+                      <span className="ml-2 font-medium text-gray-900">{editState.reservation.userName}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Cancha:</span>
+                      <span className="ml-2 font-medium text-gray-900">{editState.reservation.courtName}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Estado actual:</span>
+                      <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${statusColors[editState.reservation.status as string]}`}>
+                        {statusLabels[editState.reservation.status as string]}
+                      </span>
+                      <span className="ml-2 text-xs text-gray-500">
+                        (se mantiene a menos que lo cambies abajo)
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Pago:</span>
+                      <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${paymentStatusColors[editState.reservation.paymentStatus as string]}`}>
+                        {paymentStatusLabels[editState.reservation.paymentStatus as string]}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Toggle para mostrar calendario visual */}
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-medium text-gray-700">Seleccionar día y hora</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCalendar(!showCalendar);
+                      if (!showCalendar && editForm.date) {
+                        // Calcular el lunes de la semana cuando se muestra el calendario
+                        const selectedDate = new Date(editForm.date + 'T00:00:00');
+                        const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
+                        const daysToMonday = dayOfWeek - 1;
+                        const mondayDate = new Date(selectedDate);
+                        mondayDate.setDate(selectedDate.getDate() - daysToMonday);
+                        setWeekStart(mondayDate.toISOString().split('T')[0] || '');
+                      }
+                    }}
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    {showCalendar ? '📅 Ocultar calendario' : '📅 Mostrar horarios disponibles'}
+                  </button>
+                </div>
+
+                {/* Calendario visual de horarios disponibles */}
+                {showCalendar && editState.reservation && (
+                  <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">
+                      Selecciona día y hora disponible (verde = libre, rojo = ocupado)
+                    </h4>
+                    {editState.reservation.courtId && weekStart ? (
+                      <WeekCalendar
+                        courtId={editState.reservation.courtId as string}
+                        weekStartISO={weekStart}
+                        slotMinutes={30}
+                        durationMinutes={editForm.duration}
+                        onSelect={(dateISO, timeHHMM) => {
+                          // Actualizar formulario con la selección del calendario
+                          setEditForm(prev => ({
+                            ...prev,
+                            date: dateISO,
+                            time: timeHHMM
+                          }));
+                          
+                          // Sincronizar weekStart si cambia de semana
+                          const selectedDate = new Date(dateISO + 'T00:00:00');
+                          const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
+                          const daysToMonday = dayOfWeek - 1;
+                          const mondayDate = new Date(selectedDate);
+                          mondayDate.setDate(selectedDate.getDate() - daysToMonday);
+                          const newWeekStart = mondayDate.toISOString().split('T')[0] || '';
+                          if (newWeekStart !== weekStart) {
+                            setWeekStart(newWeekStart);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="text-sm text-gray-500">Cargando horarios...</div>
+                    )}
+                  </div>
+                )}
+
+                {/* Campos editables (manuales) */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                    <input
+                      type="date"
+                      value={editForm.date}
+                      onChange={(e) => {
+                        setEditForm(prev => ({ ...prev, date: e.target.value }));
+                        // Actualizar weekStart cuando cambia la fecha manualmente
+                        if (e.target.value) {
+                          const selectedDate = new Date(e.target.value + 'T00:00:00');
+                          const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
+                          const daysToMonday = dayOfWeek - 1;
+                          const mondayDate = new Date(selectedDate);
+                          mondayDate.setDate(selectedDate.getDate() - daysToMonday);
+                          setWeekStart(mondayDate.toISOString().split('T')[0] || '');
+                        }
+                      }}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Hora de inicio</label>
+                    <input
+                      type="time"
+                      value={editForm.time}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, time: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Duración (minutos)</label>
+                    <input
+                      type="number"
+                      min="30"
+                      max="480"
+                      step="30"
+                      value={editForm.duration}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, duration: parseInt(e.target.value) || 60 }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Estado (opcional)</label>
+                    <select
+                      value={editForm.status || editState.reservation.status || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value || undefined }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Mantener estado actual ({statusLabels[editState.reservation?.status as string] || editState.reservation?.status})</option>
+                      <option value="PENDING">Pendiente</option>
+                      <option value="PAID">Pagada</option>
+                      <option value="IN_PROGRESS">En Uso</option>
+                      <option value="COMPLETED">Completada</option>
+                      <option value="CANCELLED">Cancelada</option>
+                      <option value="NO_SHOW">No se presentó</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Total actual</label>
+                  <input
+                    type="text"
+                    value={`€${(editState.reservation.totalAmount as number || 0).toFixed(2)}`}
+                    disabled
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-600 cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                  <textarea
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
+                    rows={3}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Notas adicionales sobre la reserva..."
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setEditState({ open: false, reservation: null, loading: false });
+                    setShowCalendar(false);
+                  }}
+                  className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!editState.reservation) return;
+                    
+                    try {
+                      setEditState(prev => ({ ...prev, loading: true }));
+                      
+                      // Convertir fecha y hora a ISO datetime string completo
+                      const dateTimeStr = `${editForm.date}T${editForm.time}:00`;
+                      const startTimeISO = new Date(dateTimeStr).toISOString();
+                      
+                      // Preparar datos de actualización: el backend calcula endTime desde startTime + duration
+                      const updateData: any = {
+                        startTime: startTimeISO,
+                        duration: editForm.duration,
+                      };
+                      
+                      // Solo incluir notas si hay cambios
+                      if (editForm.notes !== undefined) {
+                        updateData.notes = editForm.notes || null;
+                      }
+                      
+                      // Solo incluir status si el admin lo cambió explícitamente
+                      // Si no se envía, el backend mantiene el estado actual
+                      if (editForm.status && editForm.status !== editState.reservation.status) {
+                        updateData.status = editForm.status;
+                      }
+                      
+                      await updateReservation(editState.reservation.id, updateData);
+                      
+                      showToast({ 
+                        variant: 'success', 
+                        title: 'Reserva actualizada', 
+                        message: 'La reserva ha sido actualizada correctamente.' 
+                      });
+                      
+                      setEditState({ open: false, reservation: null, loading: false });
+                      setShowCalendar(false);
+                      await getReservations({ page: 1, limit: 200 });
+                    } catch (error: any) {
+                      console.error('Error actualizando reserva:', error);
+                      showToast({ 
+                        variant: 'error', 
+                        title: 'Error', 
+                        message: error?.message || 'No se pudo actualizar la reserva. Verifica que el horario esté disponible.' 
+                      });
+                      setEditState(prev => ({ ...prev, loading: false }));
+                    }
+                  }}
+                  disabled={editState.loading || !editForm.date || !editForm.time}
+                  className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {editState.loading ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -329,7 +329,7 @@ export class ReservationService {
    */
   private async checkAvailability(
     tx: any,
-    { courtId, startTime, endTime }: { courtId: string; startTime: Date; endTime: Date }
+    { courtId, startTime, endTime, excludeReservationId }: { courtId: string; startTime: Date; endTime: Date; excludeReservationId?: string }
   ): Promise<void> {
     // Verificar que la cancha existe y está activa
     const court = await tx.court.findUnique({
@@ -343,28 +343,32 @@ export class ReservationService {
     // Verificar que no hay conflictos con otras reservas
     // Excluir reservas PENDING que han expirado
     const now = new Date();
+    const whereClause: any = {
+      courtId,
+      // Excluir la reserva actual si se está editando
+      ...(excludeReservationId ? { id: { not: excludeReservationId } } : {}),
+      OR: [
+        {
+          // Reservas PAID o IN_PROGRESS (siempre bloquean)
+          status: { in: ['PAID', 'IN_PROGRESS'] },
+          startTime: { lt: endTime },
+          endTime: { gt: startTime },
+        },
+        {
+          // Reservas PENDING que NO han expirado
+          status: 'PENDING',
+          OR: [
+            { expiresAt: null }, // Reservas antiguas sin expiresAt
+            { expiresAt: { gt: now } }, // Reservas que aún no han expirado
+          ],
+          startTime: { lt: endTime },
+          endTime: { gt: startTime },
+        },
+      ],
+    };
+    
     const conflictingReservations = await tx.reservation.findMany({
-      where: {
-        courtId,
-        OR: [
-          {
-            // Reservas PAID o IN_PROGRESS (siempre bloquean)
-            status: { in: ['PAID', 'IN_PROGRESS'] },
-            startTime: { lt: endTime },
-            endTime: { gt: startTime },
-          },
-          {
-            // Reservas PENDING que NO han expirado
-            status: 'PENDING',
-            OR: [
-              { expiresAt: null }, // Reservas antiguas sin expiresAt
-              { expiresAt: { gt: now } }, // Reservas que aún no han expirado
-            ],
-            startTime: { lt: endTime },
-            endTime: { gt: startTime },
-          },
-        ],
-      },
+      where: whereClause,
     });
     
     if (conflictingReservations.length > 0) {
@@ -638,6 +642,7 @@ export class ReservationService {
             courtId: existingReservation.courtId,
             startTime: newStartTime,
             endTime: newEndTime,
+            excludeReservationId: id, // Excluir la reserva actual de la verificación
           });
         }
         

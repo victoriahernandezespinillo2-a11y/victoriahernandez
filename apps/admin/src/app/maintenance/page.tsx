@@ -825,12 +825,73 @@ export default function MaintenancePage() {
     
     try {
       setIsSubmitting(true);
-      // Mapear scheduledAt a scheduledDate para el backend
-      const { scheduledAt, ...restForm } = editForm;
-      const updateData = {
-        ...restForm,
-        scheduledDate: editForm.scheduledAt,
-      };
+      
+      // Convertir datetime-local a ISO datetime string completo
+      // El input datetime-local viene en formato YYYY-MM-DDTHH:mm que es válido para Date constructor
+      const scheduledAtISO = editForm.scheduledAt?.trim()
+        ? new Date(editForm.scheduledAt.trim()).toISOString()
+        : undefined;
+      
+      // Preparar datos de actualización, limpiando campos vacíos y validando formatos
+      const updateData: any = {};
+      
+      // Campos de texto con validación mínima
+      if (editForm.type?.trim()) updateData.type = editForm.type.trim();
+      if (editForm.activityType?.trim()) updateData.activityType = editForm.activityType.trim();
+      if (editForm.activityCategory?.trim() && editForm.activityCategory.trim().length >= 2) {
+        updateData.activityCategory = editForm.activityCategory.trim();
+      }
+      if (editForm.description?.trim() && editForm.description.trim().length >= 10) {
+        updateData.description = editForm.description.trim();
+      }
+      if (editForm.instructor?.trim() && editForm.instructor.trim().length >= 2) {
+        updateData.instructor = editForm.instructor.trim();
+      }
+      if (editForm.requirements?.trim()) {
+        updateData.requirements = editForm.requirements.trim();
+      }
+      if (editForm.notes?.trim()) {
+        updateData.notes = editForm.notes.trim();
+      }
+      
+      // Campo de fecha
+      if (scheduledAtISO) {
+        updateData.scheduledAt = scheduledAtISO;
+      }
+      
+      // Campos numéricos
+      if (editForm.estimatedDuration && !isNaN(Number(editForm.estimatedDuration))) {
+        const duration = parseInt(String(editForm.estimatedDuration));
+        if (duration >= 15 && duration <= 480) {
+          updateData.estimatedDuration = duration;
+        }
+      }
+      if (editForm.capacity && String(editForm.capacity).trim()) {
+        const cap = parseInt(String(editForm.capacity));
+        if (!isNaN(cap) && cap >= 1 && cap <= 1000) {
+          updateData.capacity = cap;
+        }
+      }
+      if (editForm.cost && String(editForm.cost).trim()) {
+        const cost = parseFloat(String(editForm.cost));
+        if (!isNaN(cost) && cost >= 0) {
+          updateData.cost = cost;
+        }
+      }
+      
+      // Campo CUID (assignedTo) - solo si es un CUID válido o está vacío
+      if (editForm.assignedTo?.trim()) {
+        const assigned = editForm.assignedTo.trim();
+        // Validar formato CUID básico (empieza con 'c' seguido de 24 caracteres alfanuméricos)
+        if (/^c[0-9a-z]{24}$/i.test(assigned)) {
+          updateData.assignedTo = assigned;
+        }
+      }
+      
+      // Campo booleano
+      if (editForm.isPublic !== undefined) {
+        updateData.isPublic = editForm.isPublic;
+      }
       
       await updateMaintenanceRecord(editingMaintenance.id, updateData);
       showToast({

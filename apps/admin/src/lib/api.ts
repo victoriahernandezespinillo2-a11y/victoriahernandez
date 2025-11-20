@@ -654,7 +654,8 @@ export const adminApi = {
     update: (id: string, data: Partial<{
       status: string;
       startTime: string;
-      endTime: string;
+      duration?: number;
+      endTime?: string;
       notes: string;
     }>) => 
       apiClient.request(`/api/admin/reservations/${id}`, {
