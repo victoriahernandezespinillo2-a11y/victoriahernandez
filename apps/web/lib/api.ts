@@ -73,7 +73,7 @@ let lastJwtTokenCache: { token: string; fetchedAt: number } | null = null;
 const getJwtTokenSafe = async (): Promise<string | null> => {
   try {
     if (typeof window === 'undefined') return null; // SSR/Edge: no usar
-    
+
     // Pequeña caché en memoria para evitar llamadas repetidas
     if (lastJwtTokenCache && Date.now() - lastJwtTokenCache.fetchedAt < 50_000) { // 50 segundos
       return lastJwtTokenCache.token;
@@ -106,7 +106,7 @@ const getJwtTokenSafe = async (): Promise<string | null> => {
       let bodyText = '';
       try {
         bodyText = await response.text();
-      } catch {}
+      } catch { }
       console.error('❌ [API] Error obteniendo JWT:', response.status, response.statusText, bodyText);
     }
     return null;
@@ -133,7 +133,7 @@ export async function apiRequest<T = any>(
   try {
     const providedHeaders = options.headers as Record<string, any> | undefined;
     authHeaderFromOptions = providedHeaders?.Authorization || providedHeaders?.authorization;
-  } catch {}
+  } catch { }
 
   let authToken: string | null = null;
   if (!authHeaderFromOptions) {
@@ -176,14 +176,14 @@ export async function apiRequest<T = any>(
         throw networkErr;
       }
     }
-    
+
     if (!response.ok) {
       let message = '';
       let code = '';
       let traceId = response.headers.get('x-request-id') || '';
       let details: any = undefined;
       let originalError: any = undefined;
-      
+
       try {
         const asJson = await response.json();
         message = asJson?.error || JSON.stringify(asJson);
@@ -200,7 +200,7 @@ export async function apiRequest<T = any>(
           originalError = { error: message, status: response.status };
         }
       }
-      
+
       // 🔒 CREAR ERROR ENRIQUECIDO CON INFORMACIÓN COMPLETA
       const err = new Error(message || `HTTP ${response.status}`) as any;
       err.code = code;
@@ -211,20 +211,20 @@ export async function apiRequest<T = any>(
       err.originalError = originalError; // Preservar error completo
       err.endpoint = endpoint;
       err.method = method;
-      
+
       throw err;
     }
 
     try {
       const data = await response.json();
       console.log('🔍 [API-REQUEST] Response data:', data);
-      
+
       // Si la respuesta tiene la estructura ApiResponse, devolver solo el campo data
       if (data && typeof data === 'object' && 'success' in data) {
         console.log('📦 [API-REQUEST] ApiResponse structure detected, returning data:', data.data);
         return data.data;
       }
-      
+
       // Si no tiene la estructura ApiResponse, devolver la respuesta completa
       console.log('📦 [API-REQUEST] Non-ApiResponse structure, returning full data');
       return data as T;
@@ -250,14 +250,14 @@ export async function apiRequest<T = any>(
         details: (error as any).originalError.details
       } : undefined
     };
-    
+
     // Evitar ruido de logs en conflictos esperados (reintentos controlados)
     const isRecoverableConflict = errorInfo.status === 409 && typeof errorInfo.endpoint === 'string'
       && errorInfo.endpoint.startsWith('/api/reservations');
     if (!isRecoverableConflict) {
       console.error(`🚨 [API-REQUEST] Error en ${endpoint}:`, errorInfo);
     }
-    
+
     // 🔒 PRESERVAR INFORMACIÓN DEL ERROR PARA EL ERROR HANDLER
     if (error instanceof Error) {
       // Enriquecer el error con información adicional
@@ -265,7 +265,7 @@ export async function apiRequest<T = any>(
       (error as any).apiMethod = method;
       (error as any).timestamp = new Date().toISOString();
     }
-    
+
     throw error;
   }
 }
@@ -299,14 +299,14 @@ export const api = {
       const query = searchParams.toString();
       return apiRequest(`/api/centers${query ? `?${query}` : ''}`);
     },
-    
-    getById: (id: string) => 
+
+    getById: (id: string) =>
       apiRequest(`/api/centers/${id}`),
-    
-    getCourts: (id: string) => 
+
+    getCourts: (id: string) =>
       apiRequest(`/api/centers/${id}/courts`),
-    
-    getStats: (id: string) => 
+
+    getStats: (id: string) =>
       apiRequest(`/api/centers/${id}/stats`),
   },
 
@@ -330,10 +330,10 @@ export const api = {
       const query = searchParams.toString();
       return apiRequest(`/api/courts${query ? `?${query}` : ''}`);
     },
-    
-    getById: (id: string) => 
+
+    getById: (id: string) =>
       apiRequest(`/api/courts/${id}`),
-    
+
     getAvailability: (id: string, params: { date: string; duration: number }) => {
       const query = new URLSearchParams({
         date: params.date,
@@ -341,18 +341,22 @@ export const api = {
       });
       return apiRequest(`/api/courts/${id}/availability?${query}`);
     },
-    
+
     // 🎨 NUEVO: Estado completo del calendario con colores
-    getCalendarStatus: async (id: string, params: { date: string; duration: number }): Promise<CalendarData> => {
+    getCalendarStatus: async (id: string, params: { date: string; duration: number; sport?: string }): Promise<CalendarData> => {
       const query = new URLSearchParams({
         date: params.date,
         duration: String(params.duration)
       });
+      // Agregar sport si está presente (necesario para lógica multi-cancha)
+      if (params.sport) {
+        query.append('sport', params.sport);
+      }
       const response = await apiRequest(`/api/courts/${id}/calendar-status?${query}`);
       return response as CalendarData;
     },
-    
-    getReservations: (id: string) => 
+
+    getReservations: (id: string) =>
       apiRequest(`/api/courts/${id}/reservations`),
   },
 
@@ -378,7 +382,7 @@ export const api = {
       const query = searchParams.toString();
       return apiRequest(`/api/reservations${query ? `?${query}` : ''}`);
     },
-    
+
     create: (data: {
       courtId: string;
       startTime: string; // ISO
@@ -387,36 +391,36 @@ export const api = {
       notes?: string;
       sport?: string;
       lightingSelected?: boolean;
-    }) => 
+    }) =>
       apiRequest('/api/reservations', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    
-    getById: (id: string) => 
+
+    getById: (id: string) =>
       apiRequest(`/api/reservations/${id}`),
-    
+
     update: (id: string, data: Partial<{
       startTime: string;
       endTime: string;
       notes: string;
-    }>) => 
+    }>) =>
       apiRequest(`/api/reservations/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       }),
-    
-    cancel: (id: string) => 
+
+    cancel: (id: string) =>
       apiRequest(`/api/reservations/${id}`, {
         method: 'DELETE',
       }),
-    
-    checkIn: (id: string) => 
+
+    checkIn: (id: string) =>
       apiRequest(`/api/reservations/${id}/check-in`, {
         method: 'POST',
       }),
-    
-    checkOut: (id: string) => 
+
+    checkOut: (id: string) =>
       apiRequest(`/api/reservations/${id}/check-out`, {
         method: 'POST',
       }),
@@ -424,24 +428,24 @@ export const api = {
 
   // Usuarios
   users: {
-    getProfile: () => 
+    getProfile: () =>
       apiRequest('/api/users/profile'),
-    
+
     updateProfile: (data: {
       firstName?: string;
       lastName?: string;
       phone?: string;
       preferences?: any;
-    }) => 
+    }) =>
       apiRequest('/api/users/profile', {
         method: 'PUT',
         body: JSON.stringify(data),
       }),
-    
-    getMemberships: () => 
+
+    getMemberships: () =>
       apiRequest('/api/users/memberships'),
-    
-    getReservations: () => 
+
+    getReservations: () =>
       apiRequest('/api/users/reservations'),
 
     getUserHistory: (userId: string, params?: {
@@ -462,8 +466,8 @@ export const api = {
       const query = searchParams.toString();
       return apiRequest(`/api/users/${userId}/reservations${query ? `?${query}` : ''}`);
     },
-    
-    getWaitingList: () => 
+
+    getWaitingList: () =>
       apiRequest('/api/users/waiting-list'),
   },
 
@@ -486,7 +490,7 @@ export const api = {
       const query = searchParams.toString();
       return apiRequest(`/api/waiting-list${query ? `?${query}` : ''}`);
     },
-    
+
     add: (data: {
       courtId: string;
       preferredDate: string;
@@ -499,16 +503,16 @@ export const api = {
       };
       maxWaitDays?: number;
       notes?: string;
-    }) => 
+    }) =>
       apiRequest('/api/waiting-list', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    
-    getById: (id: string) => 
+
+    getById: (id: string) =>
       apiRequest(`/api/waiting-list/${id}`),
-    
-    claim: (id: string) => 
+
+    claim: (id: string) =>
       apiRequest(`/api/waiting-list/${id}/claim`, {
         method: 'POST',
       }),
@@ -521,7 +525,7 @@ export const api = {
       startTime: string;  // ISO
       duration: number;   // minutos
       userId?: string;
-    }) => 
+    }) =>
       apiRequest('/api/pricing/calculate', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -549,21 +553,21 @@ export const api = {
       const query = searchParams.toString();
       return apiRequest(`/api/tournaments${query ? `?${query}` : ''}`);
     },
-    
-    getById: (id: string) => 
+
+    getById: (id: string) =>
       apiRequest(`/api/tournaments/${id}`),
 
-    join: (id: string) => 
+    join: (id: string) =>
       apiRequest(`/api/tournaments/${id}/join`, {
         method: 'POST',
       }),
 
-    leave: (id: string) => 
+    leave: (id: string) =>
       apiRequest(`/api/tournaments/${id}/leave`, {
         method: 'DELETE',
       }),
 
-    getMatches: (id: string) => 
+    getMatches: (id: string) =>
       apiRequest(`/api/tournaments/${id}/matches`),
   },
 
@@ -587,7 +591,7 @@ export const api = {
       return apiRequest(`/api/notifications${query ? `?${query}` : ''}`);
     },
 
-    markAsRead: (id: string) => 
+    markAsRead: (id: string) =>
       apiRequest(`/api/notifications/${id}`, {
         method: 'PUT',
       }),

@@ -46,6 +46,7 @@ interface Court {
   createdAt: string;
   isMultiuse?: boolean;
   allowedSports?: string[];
+  primarySport?: string;
 }
 
 interface Reservation {
@@ -431,6 +432,7 @@ export function useAdminCourts() {
       createdAt: c.createdAt,
       isMultiuse: Boolean(c.isMultiuse),
       allowedSports: Array.isArray(c.allowedSports) ? c.allowedSports : [],
+      primarySport: (c as any).primarySport || undefined,
     } as Court;
   };
 
@@ -510,7 +512,38 @@ export function useAdminCourts() {
     }
     if (payload.isMultiuse === false) {
       payload.allowedSports = [];
+      // Si se desactiva multiuso, también limpiar primarySport
+      payload.primarySport = null;
+    } else if (payload.isMultiuse) {
+      // Si la cancha ES multiuso, SIEMPRE incluir primarySport en el payload
+      // Esto asegura que se actualice o limpie correctamente, incluso si el usuario no lo toca
+      if ('primarySport' in updateData) {
+        const primarySportValue = updateData.primarySport;
+        if (primarySportValue === null || primarySportValue === undefined || primarySportValue === '') {
+          payload.primarySport = null;
+        } else if (typeof primarySportValue === 'string') {
+          payload.primarySport = primarySportValue.trim() || null;
+        } else {
+          payload.primarySport = primarySportValue;
+        }
+      } else {
+        // Si no está en updateData pero la cancha es multiuso, incluir null explícitamente
+        // para que el backend sepa que debe mantener el valor actual
+        // (aunque mejor no lo incluimos si no está en updateData para no sobrescribir)
+      }
     }
+    
+    console.log('🔍 [UPDATE-COURT-FRONTEND] Payload enviado:', {
+      id,
+      updateDataKeys: Object.keys(updateData),
+      primarySportInUpdateData: 'primarySport' in updateData,
+      primarySportValue: updateData.primarySport,
+      primarySportInPayload: 'primarySport' in payload,
+      primarySportInPayloadValue: payload.primarySport,
+      isMultiuse: payload.isMultiuse,
+      allowedSports: payload.allowedSports,
+      fullPayload: payload
+    });
     
     const updatedRaw = await adminApi.courts.update(id, payload);
     const updatedCourt = normalizeCourt(updatedRaw);
@@ -554,8 +587,7 @@ export function useAdminReservations() {
   const updateReservation = useCallback(async (id: string, updateData: Partial<{
     status: 'PENDING' | 'PAID' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
     startTime: string;
-    duration?: number;
-    endTime?: string;
+    endTime: string;
     notes: string;
   }>) => {
     const updatedReservation = await adminApi.reservations.update(id, updateData) as Reservation;

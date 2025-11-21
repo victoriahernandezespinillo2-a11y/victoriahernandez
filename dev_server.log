@@ -1,0 +1,89 @@
+﻿
+> polideportivo-platform@ dev C:\Users\Admin\Desktop\polideportivo oroquieta\polideportivo-platform
+> turbo run dev
+
+ÔÇó Packages in scope: @repo/auth, @repo/credit-system, @repo/db, @repo/eslint-config, @repo/notifications, @repo/payments, @repo/typescript-config, @repo/ui, admin, api, docs, web
+ÔÇó Running dev in 12 packages
+ÔÇó Remote caching disabled
+admin:dev: cache bypass, force executing 9e8d2673e60e13c4
+api:dev: cache bypass, force executing e381a59ffe4bbe0b
+@repo/credit-system:dev: cache bypass, force executing bae72f2e78a0f3c8
+docs:dev: cache bypass, force executing 068005ea95733c5a
+web:dev: cache bypass, force executing f1e6c1d6094d81d1
+api:dev: 
+api:dev: > api@0.1.0 dev C:\Users\Admin\Desktop\polideportivo oroquieta\polideportivo-platform\apps\api
+api:dev: > next dev --port 3002
+api:dev: 
+@repo/credit-system:dev: 
+@repo/credit-system:dev: > @repo/credit-system@1.0.0 dev C:\Users\Admin\Desktop\polideportivo oroquieta\polideportivo-platform\packages\credit-system
+@repo/credit-system:dev: > tsc --watch
+@repo/credit-system:dev: 
+admin:dev: 
+admin:dev: > admin@0.1.0 dev C:\Users\Admin\Desktop\polideportivo oroquieta\polideportivo-platform\apps\admin
+web:dev: 
+admin:dev: > next dev --port 3001
+web:dev: > web@0.1.0 dev C:\Users\Admin\Desktop\polideportivo oroquieta\polideportivo-platform\apps\web
+web:dev: > next dev
+admin:dev: 
+web:dev: 
+docs:dev: 
+docs:dev: > docs@0.1.0 dev C:\Users\Admin\Desktop\polideportivo oroquieta\polideportivo-platform\apps\docs
+docs:dev: > next dev --turbopack --port 3004
+docs:dev: 
+@repo/credit-system:dev: [2J[3J[H10:59:09 p.┬ám. - Starting compilation in watch mode...
+@repo/credit-system:dev: 
+docs:dev:  Ô¿» Failed to start server
+api:dev:  Ô¿» Failed to start server
+docs:dev: Error: listen EADDRINUSE: address already in use :::3004
+docs:dev:     at <unknown> (Error: listen EADDRINUSE: address already in use :::3004)
+docs:dev:     at new Promise (<anonymous>) {
+docs:dev:   code: 'EADDRINUSE',
+docs:dev:   errno: -4091,
+docs:dev:   syscall: 'listen',
+docs:dev:   address: '::',
+docs:dev:   port: 3004
+docs:dev: }
+admin:dev:  Ô¿» Failed to start server
+api:dev: Error: listen EADDRINUSE: address already in use :::3002
+api:dev:     at <unknown> (Error: listen EADDRINUSE: address already in use :::3002)
+api:dev:     at new Promise (<anonymous>) {
+api:dev:   code: 'EADDRINUSE',
+api:dev:   errno: -4091,
+api:dev:   syscall: 'listen',
+api:dev:   address: '::',
+api:dev:   port: 3002
+api:dev: }
+admin:dev: Error: listen EADDRINUSE: address already in use :::3001
+admin:dev:     at <unknown> (Error: listen EADDRINUSE: address already in use :::3001)
+admin:dev:     at new Promise (<anonymous>) {
+admin:dev:   code: 'EADDRINUSE',
+admin:dev:   errno: -4091,
+admin:dev:   syscall: 'listen',
+admin:dev:   address: '::',
+admin:dev:   port: 3001
+admin:dev: }
+docs:dev: [?25h
+api:dev: [?25h
+admin:dev: [?25h
+web:dev:  ÔÜá Port 3000 is in use by process 17060, using available port 3003 instead.
+web:dev:    Ôû▓ Next.js 15.4.7
+web:dev:    - Local:        http://localhost:3003
+web:dev:    - Network:      http://192.168.178.12:3003
+web:dev:    - Environments: .env.local
+web:dev:    - Experiments (use with caution):
+web:dev:      Ô£ô optimizeCss
+web:dev:      ┬À optimizePackageImports
+web:dev: 
+web:dev:  Ô£ô Starting...
+web:dev: ­ƒÜÇ [NEXT-CONFIG] === POLIDEPORTIVO REWRITES CONFIGURATION ===
+web:dev: ­ƒöº [NEXT-CONFIG] Backend API URL: http://localhost:3002
+web:dev: ­ƒöº [NEXT-CONFIG] Environment: development
+web:dev: ­ƒöº [NEXT-CONFIG] Timestamp: 2025-11-21T21:59:10.755Z
+web:dev: ­ƒöº [NEXT-CONFIG] Strategy: beforeFiles + negative regex
+web:dev:  Ô£ô Ready in 2.6s
+@repo/credit-system:dev: 
+@repo/credit-system:dev: 10:59:13 p.┬ám. - Found 0 errors. Watching for file changes.
+@repo/credit-system:dev: [2J[3J[H11:06:25 p.┬ám. - File change detected. Starting incremental compilation...
+@repo/credit-system:dev: 
+@repo/credit-system:dev: 
+@repo/credit-system:dev: 11:06:26 p.┬ám. - Found 0 errors. Watching for file changes.

@@ -38,6 +38,7 @@ interface MobileCourtSelectorProps {
   onCourtSelect: (court: Court) => void;
   onContinue?: () => void;
   selectedSport: string;
+  onSportChange?: (sport: string) => void;
 }
 
 export function MobileCourtSelector({
@@ -46,6 +47,7 @@ export function MobileCourtSelector({
   onCourtSelect,
   onContinue,
   selectedSport,
+  onSportChange,
 }: MobileCourtSelectorProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -55,6 +57,22 @@ export function MobileCourtSelector({
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
   // Funciones de utilidad - Iconos de deportes consistentes con la selección
+  const getSportLabel = (sport: string) => {
+    const labels: Record<string, string> = {
+      FOOTBALL: 'Fútbol',
+      FOOTBALL7: 'Fútbol 7',
+      FUTSAL: 'Fútbol Sala',
+      BASKETBALL: 'Baloncesto',
+      TENNIS: 'Tenis',
+      VOLLEYBALL: 'Voleibol',
+      PADDLE: 'Pádel',
+      SQUASH: 'Squash',
+      MULTIPURPOSE: 'Multiuso',
+    };
+    return labels[sport?.toUpperCase()] || sport;
+  };
+
+
   const getSportIcon = (sport: string) => {
     // Usar los mismos iconos emoji que en la selección de deportes
     const getSportEmoji = (sportType: string) => {
@@ -81,19 +99,19 @@ export function MobileCourtSelector({
     };
 
     const emoji = getSportEmoji(sport);
-    
+
     return (
       <div className="relative w-20 h-20 flex items-center justify-center">
         {/* Círculo de fondo con gradiente suave */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-white/5 rounded-full blur-sm"></div>
-        
+
         {/* Contenedor del emoji con efectos */}
         <div className="relative z-10 flex items-center justify-center">
           {/* Sombra del emoji */}
           <div className="absolute text-6xl opacity-20 transform translate-y-1 translate-x-1">
             {emoji}
           </div>
-          
+
           {/* Emoji principal */}
           <div className="text-6xl drop-shadow-lg transform hover:scale-105 transition-transform duration-200">
             {emoji}
@@ -155,7 +173,7 @@ export function MobileCourtSelector({
 
   const handleTouchEnd = () => {
     if (!touchStart || !touchEnd) return;
-    
+
     const distance = touchStart - touchEnd;
     const isLeftSwipe = distance > 50;
     const isRightSwipe = distance < -50;
@@ -190,7 +208,7 @@ export function MobileCourtSelector({
       newFavorites.add(courtId);
     }
     setFavorites(newFavorites);
-    
+
     // Haptic feedback
     if ('vibrate' in navigator) {
       navigator.vibrate(10);
@@ -239,11 +257,10 @@ export function MobileCourtSelector({
         {courts.map((court, index) => (
           <div
             key={court.id}
-            className={`bg-white rounded-2xl shadow-sm border-2 transition-all duration-200 overflow-hidden ${
-              selectedCourt?.id === court.id
+            className={`bg-white rounded-2xl shadow-sm border-2 transition-all duration-200 overflow-hidden ${selectedCourt?.id === court.id
                 ? 'border-blue-500 shadow-lg shadow-blue-100'
                 : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
-            }`}
+              }`}
           >
             {/* Header con imagen compacta */}
             <div className="relative h-32 bg-gradient-to-br from-blue-500 via-purple-600 to-indigo-700 overflow-hidden">
@@ -258,30 +275,27 @@ export function MobileCourtSelector({
                   {getSportIcon(court.sportType || selectedSport)}
                 </div>
               )}
-              
+
               {/* Overlay con botones */}
               <div className="absolute inset-0 bg-black bg-opacity-10">
                 <div className="absolute top-3 right-3 flex space-x-2">
                   <button
                     onClick={() => toggleFavorite(court.id)}
-                    className={`p-2 rounded-full transition-all duration-200 active:scale-95 shadow-md ${
-                      favorites.has(court.id)
+                    className={`p-2 rounded-full transition-all duration-200 active:scale-95 shadow-md ${favorites.has(court.id)
                         ? 'bg-red-500 text-white'
                         : 'bg-white bg-opacity-90 text-gray-700 hover:bg-opacity-100'
-                    }`}
+                      }`}
                   >
-                    <Heart className={`h-4 w-4 ${
-                      favorites.has(court.id) ? 'fill-current' : ''
-                    }`} />
+                    <Heart className={`h-4 w-4 ${favorites.has(court.id) ? 'fill-current' : ''
+                      }`} />
                   </button>
                 </div>
-                
+
                 {/* Disponibilidad */}
                 {court.availability && (
                   <div className="absolute top-3 left-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium border backdrop-blur-sm ${
-                      getAvailabilityColor(court.availability)
-                    }`}>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium border backdrop-blur-sm ${getAvailabilityColor(court.availability)
+                      }`}>
                       {getAvailabilityText(court.availability)}
                     </span>
                   </div>
@@ -353,7 +367,7 @@ export function MobileCourtSelector({
                       ))}
                     </div>
                   </div>
-                  
+
                   <div>
                     <h5 className="font-semibold text-gray-900 mb-2">Información adicional</h5>
                     <div className="space-y-1 text-sm text-gray-600">
@@ -379,14 +393,13 @@ export function MobileCourtSelector({
                   <Info className="h-4 w-4 mr-1" />
                   {showDetails === court.id ? 'Menos' : 'Detalles'}
                 </button>
-                
+
                 <button
                   onClick={() => onCourtSelect(court)}
-                  className={`flex-1 py-2.5 px-3 rounded-xl font-semibold text-sm transition-all duration-200 active:scale-98 ${
-                    selectedCourt?.id === court.id
+                  className={`flex-1 py-2.5 px-3 rounded-xl font-semibold text-sm transition-all duration-200 active:scale-98 ${selectedCourt?.id === court.id
                       ? 'bg-blue-600 text-white shadow-md'
                       : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
-                  }`}
+                    }`}
                 >
                   {selectedCourt?.id === court.id ? (
                     <div className="flex items-center justify-center">
@@ -403,12 +416,49 @@ export function MobileCourtSelector({
         ))}
       </div>
 
+      {/* Selector de deporte para canchas multiuso */}
+      {selectedCourt && (selectedCourt as any).isMultiuse && Array.isArray((selectedCourt as any).allowedSports) && ((selectedCourt as any).allowedSports as string[]).length > 0 && (
+        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <label className="block text-sm font-semibold text-gray-900 mb-3">
+            Selecciona el deporte para esta cancha multiuso:
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            {((selectedCourt as any).allowedSports as string[]).map((sport: string) => (
+              <button
+                key={sport}
+                onClick={() => onSportChange?.(sport)}
+                className={`p-3 rounded-lg border-2 transition-all duration-200 text-center ${selectedSport === sport
+                    ? 'border-blue-600 bg-blue-100 text-blue-900 font-semibold'
+                    : 'border-gray-200 hover:border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+              >
+                <div className="text-2xl mb-1">{getSportIcon(sport)}</div>
+                <div className="text-sm">{getSportLabel(sport)}</div>
+              </button>
+            ))}
+          </div>
+          {!selectedSport && (
+            <p className="mt-3 text-sm text-amber-600">
+              ⚠️ Por favor, selecciona un deporte antes de continuar.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Botón de continuar */}
       {selectedCourt && onContinue && (
         <div className="mt-6 pb-6">
           <button
-            onClick={onContinue}
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 rounded-xl font-semibold text-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 active:scale-98 flex items-center justify-center shadow-lg"
+            onClick={() => {
+              // Si la cancha es multiuso, verificar que se haya seleccionado un deporte
+              if ((selectedCourt as any).isMultiuse && !selectedSport) {
+                alert('Por favor, selecciona un deporte antes de continuar.');
+                return;
+              }
+              onContinue();
+            }}
+            disabled={(selectedCourt as any).isMultiuse && !selectedSport}
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 rounded-xl font-semibold text-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 active:scale-98 flex items-center justify-center shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Continuar a Fecha y Hora
             <ChevronRight className="h-5 w-5 ml-2" />

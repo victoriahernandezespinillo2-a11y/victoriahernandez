@@ -35,6 +35,7 @@ const UpdateCourtSchema = z.object({
   // Multiuso
   isMultiuse: z.boolean().optional(),
   allowedSports: z.array(z.string()).optional(),
+  primarySport: z.string().nullable().optional(),
   availability: z.object({
     monday: z.object({ open: z.string(), close: z.string(), closed: z.boolean() }).optional(),
     tuesday: z.object({ open: z.string(), close: z.string(), closed: z.boolean() }).optional(),
@@ -222,7 +223,23 @@ export async function PUT(request: NextRequest) {
       const courtId = pathname.split('/').pop() as string;
       const body = await req.json();
       
+      console.log('🔍 [UPDATE-COURT] Datos recibidos:', {
+        courtId,
+        body,
+        primarySport: body.primarySport,
+        primarySportType: typeof body.primarySport,
+        bodyKeys: Object.keys(body)
+      });
+      
       const courtData = UpdateCourtSchema.parse(body);
+      
+      console.log('🔍 [UPDATE-COURT] Datos parseados:', {
+        courtId,
+        primarySport: courtData.primarySport,
+        primarySportType: typeof courtData.primarySport,
+        isMultiuse: courtData.isMultiuse,
+        allowedSports: courtData.allowedSports
+      });
       
       // Verificar que la cancha existe
       const existingCourt = await db.court.findUnique({
@@ -286,10 +303,30 @@ export async function PUT(request: NextRequest) {
         } : {}),
         ...(typeof courtData.isMultiuse === 'boolean' ? { isMultiuse: courtData.isMultiuse } : {}),
         ...(Array.isArray(courtData.allowedSports) ? { allowedSports: courtData.allowedSports } : {}),
+        // primarySport: siempre incluir si está en courtData (incluso como null)
+        // Si courtData tiene la propiedad primarySport (incluso si es null), actualizarla
+        ...(('primarySport' in courtData) ? { 
+          primarySport: (courtData.primarySport && typeof courtData.primarySport === 'string' && courtData.primarySport.trim() !== '') 
+            ? courtData.primarySport.trim() 
+            : null 
+        } : {}),
       };
+      
+      console.log('🔍 [UPDATE-COURT] Datos a guardar en BD:', {
+        courtId,
+        updateData,
+        primarySportInUpdateData: 'primarySport' in updateData,
+        primarySportValue: updateData.primarySport
+      });
       
       
       // Actualizar cancha
+      console.log('💾 [UPDATE-COURT] Ejecutando actualización en BD:', {
+        courtId,
+        updateDataKeys: Object.keys(updateData),
+        primarySport: updateData.primarySport
+      });
+      
       const updatedCourt = await db.court.update({
         where: { id: courtId },
         data: updateData,
@@ -308,6 +345,11 @@ export async function PUT(request: NextRequest) {
         }
       });
       
+      console.log('✅ [UPDATE-COURT] Cancha actualizada:', {
+        courtId,
+        updatedCourtPrimarySport: (updatedCourt as any).primarySport,
+        updatedCourtPrimarySportType: typeof (updatedCourt as any).primarySport
+      });
       
       // Log de auditoría removido temporalmente - modelo no existe en schema
       

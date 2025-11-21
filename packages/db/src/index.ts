@@ -10,7 +10,13 @@ const __dirname = path.dirname(__filename);
 
 // Cargar variables de entorno de forma robusta (monorepo / Next .next)
 (() => {
+  // Priorizar .env.local primero (Next.js lo usa en desarrollo)
   const candidatePaths = [
+    path.resolve(process.cwd(), '.env.local'),
+    path.resolve(process.cwd(), '../../.env.local'),
+    path.resolve(process.cwd(), '../../../.env.local'),
+    path.resolve(__dirname, '../../.env.local'),
+    path.resolve(__dirname, '../../../.env.local'),
     path.resolve(process.cwd(), '.env'),
     path.resolve(process.cwd(), '../../.env'),
     path.resolve(process.cwd(), '../../../.env'),
@@ -77,7 +83,12 @@ if (process.env.DATABASE_URL && !/[?&]sslmode=/.test(process.env.DATABASE_URL)) 
 // Logs de debugging solo en desarrollo
 if (process.env.NODE_ENV !== 'production') {
   console.log('--- DEBUGGING DATABASE_URL (FIXED) ---');
-  console.log('DATABASE_URL en db/index.ts:', process.env.DATABASE_URL?.replace(/:[^:@]*@/, ':***@'));
+  console.log('DATABASE_URL:', process.env.DATABASE_URL?.replace(/:[^:@]*@/, ':***@') || 'undefined');
+  console.log('DIRECT_DATABASE_URL:', process.env.DIRECT_DATABASE_URL?.replace(/:[^:@]*@/, ':***@') || 'undefined');
+  // Verificar que DIRECT_DATABASE_URL esté definida
+  if (!process.env.DIRECT_DATABASE_URL && !process.env.DATABASE_URL) {
+    console.error('❌ ERROR: Ni DATABASE_URL ni DIRECT_DATABASE_URL están definidas');
+  }
   console.log('--- FIN DEBUGGING ---');
 }
 
@@ -90,11 +101,18 @@ export const db = globalForPrisma.prisma ??
   (() => {
     try {
       // En producción serverless (Vercel), SIEMPRE usar DATABASE_URL (pooler)
-      // En desarrollo, priorizar DIRECT_DATABASE_URL para conexiones directas
+      // En desarrollo, SIEMPRE priorizar DIRECT_DATABASE_URL para conexiones directas
       const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
-      const databaseUrl = isProduction
-        ? (process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL)
-        : (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL);
+      let databaseUrl: string | undefined;
+      if (isProduction) {
+        databaseUrl = process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL;
+      } else {
+        // En desarrollo: SIEMPRE usar DIRECT_DATABASE_URL si está disponible
+        databaseUrl = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL;
+        if (process.env.DIRECT_DATABASE_URL) {
+          console.log('✅ [DB] Usando DIRECT_DATABASE_URL para desarrollo');
+        }
+      }
 
       if (!databaseUrl) {
         throw new Error('DATABASE_URL o DIRECT_DATABASE_URL debe estar definido en las variables de entorno');
@@ -115,35 +133,93 @@ export const db = globalForPrisma.prisma ??
         }
       }
 
-      const client = new PrismaClient({
-        datasources: {
-          db: {
-            url: finalUrl,
+      // Asegurar que finalUrl es una URL directa de PostgreSQL, no Data Proxy
+      if (finalUrl.startsWith('prisma://') || finalUrl.startsWith('prisma+postgres://')) {
+        console.error('❌ [DB] ERROR: finalUrl sigue siendo Data Proxy después de procesamiento');
+        console.error(`❌ [DB] finalUrl: ${finalUrl.substring(0, 50)}...`);
+        throw new Error('URL de Data Proxy detectada después del procesamiento. Verifique DIRECT_DATABASE_URL.');
+      }
+
+      // Log final para debugging
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`🔗 [DB] URL final que se usará: ${finalUrl.replace(/:[^:@]*@/, ':***@').substring(0, 80)}...`);
+        console.log(`🔗 [DB] ¿Es Data Proxy?: ${finalUrl.startsWith('prisma://') || finalUrl.startsWith('prisma+postgres://')}`);
+        console.log(`🔗 [DB] Longitud de URL: ${finalUrl.length}`);
+        console.log(`🔗 [DB] Primeros 20 caracteres: ${finalUrl.substring(0, 20)}...`);
+      }
+
+      // IMPORTANTE: Eliminar CUALQUIER variable que pueda forzar Data Proxy ANTES de crear el cliente
+      const originalDatabaseUrl = process.env.DATABASE_URL;
+      const originalPrismaGenerateDataproxy = process.env.PRISMA_GENERATE_DATAPROXY;
+      const originalPrismaEngineType = process.env.PRISMA_CLI_QUERY_ENGINE_TYPE;
+      const originalPrismaClientEngineType = process.env.PRISMA_CLIENT_ENGINE_TYPE;
+      
+      try {
+        // ESTABLECER PRIMERO la URL directa en el entorno
+        process.env.DATABASE_URL = finalUrl;
+        // Eliminar CUALQUIER variable que pueda forzar Data Proxy
+        delete process.env.PRISMA_GENERATE_DATAPROXY;
+        delete process.env.PRISMA_CLI_QUERY_ENGINE_TYPE;
+        delete process.env.PRISMA_CLIENT_ENGINE_TYPE;
+        
+        const client = new PrismaClient({
+          datasources: {
+            db: {
+              url: finalUrl,
+            },
           },
-        },
-        log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-        errorFormat: 'pretty'
-      });
+          log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+          errorFormat: 'pretty'
+        });
 
-      // Configurar manejo de errores de conexión
-      client.$on('query', (e) => {
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`[DB-QUERY] ${e.query} - ${e.duration}ms`);
+        // Configurar manejo de errores de conexión
+        client.$on('query', (e) => {
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[DB-QUERY] ${e.query} - ${e.duration}ms`);
+          }
+        });
+
+        client.$on('error', (e) => {
+          console.error('[DB-ERROR]', e);
+          // Detectar error P6001 específicamente
+          if (e.message && e.message.includes('P6001')) {
+            console.error('❌ [DB] ERROR P6001: Prisma Client espera URL de Data Proxy pero se proporcionó URL directa.');
+            console.error('❌ [DB] SOLUCIÓN: Regenerar Prisma Client con: pnpm --filter @repo/db db:generate');
+            console.error('❌ [DB] O configurar DIRECT_DATABASE_URL en las variables de entorno de Vercel.');
+          }
+        });
+
+        // En desarrollo, cachear la instancia
+        if (process.env.NODE_ENV !== 'production') {
+          // Si ya existe una instancia anterior, intentar desconectarla (sin bloquear)
+          const oldPrisma = globalForPrisma.prisma as PrismaClient | undefined;
+          if (oldPrisma) {
+            // Desconectar en segundo plano sin esperar
+            oldPrisma.$disconnect().catch(() => {
+              // Ignorar errores al desconectar
+            });
+          }
+          globalForPrisma.prisma = client;
         }
-      });
-
-      client.$on('error', (e) => {
-        console.error('[DB-ERROR]', e);
-        // Detectar error P6001 específicamente
-        if (e.message && e.message.includes('P6001')) {
-          console.error('❌ [DB] ERROR P6001: Prisma Client espera URL de Data Proxy pero se proporcionó URL directa.');
-          console.error('❌ [DB] SOLUCIÓN: Regenerar Prisma Client con: pnpm --filter @repo/db db:generate');
-          console.error('❌ [DB] O configurar DIRECT_DATABASE_URL en las variables de entorno de Vercel.');
+        
+        return client;
+      } finally {
+        // Restaurar variables de entorno originales
+        if (originalDatabaseUrl !== undefined) {
+          process.env.DATABASE_URL = originalDatabaseUrl;
+        } else {
+          delete process.env.DATABASE_URL;
         }
-      });
-
-      if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = client;
-      return client;
+        if (originalPrismaGenerateDataproxy !== undefined) {
+          process.env.PRISMA_GENERATE_DATAPROXY = originalPrismaGenerateDataproxy;
+        }
+        if (originalPrismaEngineType !== undefined) {
+          process.env.PRISMA_CLI_QUERY_ENGINE_TYPE = originalPrismaEngineType;
+        }
+        if (originalPrismaClientEngineType !== undefined) {
+          process.env.PRISMA_CLIENT_ENGINE_TYPE = originalPrismaClientEngineType;
+        }
+      }
     } catch (e) {
       const error = e as Error;
       console.error('[DB] PrismaClient init error:', error.message || e);
@@ -162,7 +238,8 @@ export const db = globalForPrisma.prisma ??
     }
   })();
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db;
+// NO cachear aquí - ya se cachea dentro de la función
+// if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db;
 
 // Re-exportar tipos de Prisma para uso en otras partes de la aplicación
 export type {

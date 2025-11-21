@@ -55,9 +55,9 @@ export async function GET(request: NextRequest) {
     try {
       const { searchParams } = req.nextUrl;
       const params = GetCourtsQuerySchema.parse(Object.fromEntries(searchParams.entries()));
-      
+
       const skip = (params.page - 1) * params.limit;
-      
+
       // Construir filtros compatibles con el esquema actual
       const where: any = {};
 
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
           where.isActive = false;
         }
       }
-      
+
       // Construir ordenamiento (adaptado al esquema)
       let orderBy: any = {};
       switch (params.sortBy) {
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
         default:
           orderBy = { [params.sortBy!]: params.sortOrder };
       }
-      
+
       // Obtener canchas y total (adaptado al esquema) y mapear a la forma esperada por el frontend
       const [courts, total] = await Promise.all([
         db.court.findMany({
@@ -117,6 +117,7 @@ export async function GET(request: NextRequest) {
             lightingExtraPerHour: true,
             isMultiuse: true,
             allowedSports: true,
+            primarySport: true,
             createdAt: true,
             updatedAt: true,
             center: { select: { id: true, name: true } },
@@ -150,6 +151,7 @@ export async function GET(request: NextRequest) {
           // Campos opcionales: solo incluir si existen en el modelo
           isMultiuse: typeof (c as any).isMultiuse === 'boolean' ? (c as any).isMultiuse : false,
           allowedSports: Array.isArray((c as any).allowedSports) ? (c as any).allowedSports : [],
+          primarySport: (c as any).primarySport || null, // ✅ AÑADIDO: incluir primarySport
         };
       });
 
@@ -172,7 +174,7 @@ export async function GET(request: NextRequest) {
           sortOrder: params.sortOrder
         }
       };
-      
+
       return ApiResponse.success(result);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -183,7 +185,7 @@ export async function GET(request: NextRequest) {
           }))
         );
       }
-      
+
       console.error('Error obteniendo canchas:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
@@ -203,16 +205,16 @@ export async function POST(request: NextRequest) {
       if (courtData.isMultiuse && (!courtData.allowedSports || courtData.allowedSports.length === 0)) {
         return ApiResponse.badRequest('Debe especificar al menos un deporte permitido para una cancha multiuso');
       }
-      
+
       // Verificar que el centro existe
       const center = await db.center.findUnique({
         where: { id: courtData.centerId }
       });
-      
+
       if (!center) {
         return ApiResponse.notFound('Centro no encontrado');
       }
-      
+
       // Verificar duplicado con tolerancia (esquemas antiguos pueden fallar)
       try {
         const existingCourt = await db.court.findFirst({
@@ -229,7 +231,7 @@ export async function POST(request: NextRequest) {
         // Si el check de duplicado falla por columnas ausentes en el esquema, lo omitimos para no bloquear la creación
         console.warn('[ADMIN/COURTS] Duplicate check skipped due to schema mismatch:', e);
       }
-      
+
       // Crear cancha con tolerancia a esquemas antiguos (columnas nuevas pueden no existir)
       let created: any;
       try {
@@ -312,7 +314,7 @@ export async function POST(request: NextRequest) {
         isMultiuse: Boolean(courtData.isMultiuse),
         allowedSports: Array.isArray(courtData.allowedSports) ? courtData.allowedSports : [],
       };
-      
+
       return ApiResponse.success(mapped);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -323,7 +325,7 @@ export async function POST(request: NextRequest) {
           }))
         );
       }
-      
+
       console.error('Error creando cancha:', error);
       return ApiResponse.internalError('Error interno del servidor');
     }
@@ -335,12 +337,12 @@ async function getCourtOccupancyRate(courtId: string): Promise<number> {
   try {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
+
     // Calcular slots totales disponibles (asumiendo 12 horas de operación por día)
     const totalDays = 30;
     const hoursPerDay = 12;
     const totalSlots = totalDays * hoursPerDay;
-    
+
     // Obtener reservas confirmadas en los últimos 30 días
     const reservedSlots = await db.reservation.count({
       where: {
@@ -351,7 +353,7 @@ async function getCourtOccupancyRate(courtId: string): Promise<number> {
         status: { in: ['PAID', 'IN_PROGRESS', 'COMPLETED'] }
       }
     });
-    
+
     return totalSlots > 0 ? (reservedSlots / totalSlots) * 100 : 0;
   } catch (error) {
     console.error('Error calculando tasa de ocupación:', error);

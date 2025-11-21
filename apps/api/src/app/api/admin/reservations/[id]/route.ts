@@ -9,7 +9,6 @@ import { NextRequest } from 'next/server';
 import { withAdminReservationsMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { z } from 'zod';
-import { reservationService } from '@/lib/services/reservation.service';
 import { 
   UpdateReservationSchema, 
   validateAndMapReservationStatus 
@@ -60,17 +59,27 @@ export async function PUT(request: NextRequest) {
       
       const data = UpdateReservationSchema.parse(body);
 
-      // Usar el servicio de reservas que SÍ verifica disponibilidad
-      // El servicio verifica: cancha activa, conflictos con otras reservas, mantenimientos
-      const updated = await reservationService.updateReservation(id, {
-        ...data,
-        // El servicio espera startTime como ISO string si se proporciona
-        startTime: data.startTime ? data.startTime : undefined,
-        duration: data.duration,
-        status: data.status,
-        notes: data.notes,
-      });
+      // Preparar payload (endTime se deriva de startTime + duration)
+      const existing = await db.reservation.findUnique({ where: { id }, select: { startTime: true, endTime: true } });
+      if (!existing) return ApiResponse.notFound('Reserva');
 
+      const updateData: any = {};
+      // status y notas directos
+      if (data.status) updateData.status = data.status;
+      if (data.notes !== undefined) updateData.notes = data.notes;
+
+      // calcular start/end
+      const existingStart = new Date(existing.startTime as any);
+      const existingEnd = new Date(existing.endTime as any);
+      const newStart = data.startTime ? new Date(data.startTime) : existingStart;
+      const durationMinutes = data.duration ?? Math.max(30, Math.round((existingEnd.getTime() - existingStart.getTime()) / 60000));
+      const newEnd = new Date(newStart.getTime() + durationMinutes * 60000);
+      if (data.startTime || data.duration !== undefined) {
+        updateData.startTime = newStart;
+        updateData.endTime = newEnd;
+      }
+
+      const updated = await db.reservation.update({ where: { id }, data: updateData });
       return ApiResponse.success(updated);
     } catch (error) {
       if (error instanceof z.ZodError) {

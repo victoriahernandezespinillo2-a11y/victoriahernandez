@@ -19,7 +19,10 @@ export async function GET(request: NextRequest) {
       if (!courtId) return ApiResponse.badRequest('ID de cancha requerido');
       const params = QuerySchema.parse(Object.fromEntries(req.nextUrl.searchParams.entries()));
       const date = new Date(params.date + 'T00:00:00');
-      const availability = await reservationService.getCourtAvailability(courtId, date);
+
+      // 🔑 Obtener userId desde req.user (establecido por withAuth middleware)
+      const user = (req as any).user;
+      const availability = await reservationService.getCourtAvailability(courtId, date, user?.id);
       return ApiResponse.success(availability);
     } catch (error) {
       if (error instanceof z.ZodError) {

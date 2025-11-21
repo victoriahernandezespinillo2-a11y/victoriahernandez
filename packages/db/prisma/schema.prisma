@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
   engineType = "library"
 }
 
@@ -107,6 +107,7 @@ model Court {
   updatedAt            DateTime              @updatedAt @map("updated_at")
   isMultiuse           Boolean               @default(false) @map("is_multiuse")
   allowedSports        String[]              @default([]) @map("allowed_sports")
+  primarySport         String?               @map("primary_sport")
   /// Indica si la cancha dispone de iluminación artificial
   hasLighting          Boolean               @default(false) @map("has_lighting")
   /// Precio adicional por hora cuando el usuario elige iluminación en horario diurno

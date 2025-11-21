@@ -58,7 +58,7 @@ export class PricingService {
    */
   async calculatePrice(input: CalculatePriceInput): Promise<PriceCalculation> {
     const validatedInput = CalculatePriceSchema.parse(input);
-    
+
     // Obtener información de la cancha
     const court = await db.court.findUnique({
       where: { id: validatedInput.courtId },
@@ -66,7 +66,7 @@ export class PricingService {
         center: { select: { settings: true, timezone: true, dayStart: true, nightStart: true } },
         pricingRules: {
           where: { isActive: true },
-          orderBy: [ { name: 'asc' as any } ],
+          orderBy: [{ name: 'asc' as any }],
           select: {
             id: true,
             name: true,
@@ -78,11 +78,11 @@ export class PricingService {
         },
       },
     });
-    
+
     if (!court) {
       throw new Error('Cancha no encontrada');
     }
-    
+
     // Obtener información del usuario si se proporciona
     let user: (User & { memberships: any[] }) | null = null;
     let tariffEnrollment: Awaited<ReturnType<TariffService['hasApprovedEnrollment']>> | null = null;
@@ -108,12 +108,12 @@ export class PricingService {
         console.error('[TARIFF-DISCOUNT] Error obteniendo tarifa aprobada:', error);
       }
     }
-    
+
     // Calcular precio base por hora
     const durationInHours = validatedInput.duration / 60;
     const basePerHour = Number(court.basePricePerHour || 0);
     const basePrice = basePerHour * durationInHours;
-    
+
     // Encontrar reglas de precios aplicables
     const applicableRules = this.findApplicablePricingRules(
       (court.pricingRules as any[]).map(r => ({
@@ -130,20 +130,20 @@ export class PricingService {
       validatedInput.startTime,
       validatedInput.duration
     );
-    
+
     // Calcular multiplicador final
     let finalMultiplier = 1.0;
     let memberDiscount = 0;
     const appliedRules: string[] = [];
     const breakdown: { description: string; amount: number }[] = [];
-    
+
     // Aplicar reglas de precios
     for (const rule of applicableRules) {
       const { priceMultiplier, memberDiscount: ruleMemberDiscount } = this.getRuleAdjustment(rule as any);
 
       finalMultiplier *= priceMultiplier;
       appliedRules.push(rule.name);
-      
+
       if (priceMultiplier !== 1.0) {
         const ruleEffect = basePrice * (priceMultiplier - 1);
         breakdown.push({
@@ -151,13 +151,13 @@ export class PricingService {
           amount: ruleEffect,
         });
       }
-      
+
       // Aplicar descuento de miembro si corresponde
       if (user && this.hasMembership(user) && ruleMemberDiscount > memberDiscount) {
         memberDiscount = ruleMemberDiscount;
       }
     }
-    
+
     // Calcular precios
     const subtotal = basePrice * finalMultiplier;
     let tariffDiscountRate = 0;
@@ -202,13 +202,13 @@ export class PricingService {
         total += taxAmount;
       }
     }
-    
+
     // Agregar breakdown del precio base
     breakdown.unshift({
       description: `Precio base (${durationInHours}h × €${basePerHour})`,
       amount: basePrice,
     });
-    
+
     // Agregar descuento de tarifa regulada si aplica
     if (tariffDiscountAmount > 0) {
       breakdown.push({
@@ -216,7 +216,7 @@ export class PricingService {
         amount: -tariffDiscountAmount,
       });
     }
-    
+
     // Agregar descuento de miembro si aplica
     if (memberDiscountAmount > 0) {
       breakdown.push({
@@ -224,7 +224,7 @@ export class PricingService {
         amount: -memberDiscountAmount,
       });
     }
-    
+
     // ===== Iluminación opcional/obligatoria =====
     let lightingInfo: PriceCalculation['lighting'] = { selected: false, extra: 0, policy: 'UNAVAILABLE' };
     try {
@@ -242,16 +242,41 @@ export class PricingService {
 
         const { minutesInDay, startIsDay } = this.computeDayPortionMinutes(start, end, tz, dayStartMin, nightStartMin);
         const userSelected = !!validatedInput.lightingSelected;
+
+        // 🔍 DEBUG: Logging detallado para iluminación
+        console.log('🔍 [LIGHTING-DEBUG] Calculando iluminación:', {
+          courtId: court.id,
+          centerDayStart: dayStartStr,
+          centerNightStart: nightStartStr,
+          dayStartMin,
+          nightStartMin,
+          reservationStart: start.toISOString(),
+          reservationStartLocal: start.toLocaleString('es-ES', { timeZone: tz }),
+          reservationEnd: end.toISOString(),
+          reservationEndLocal: end.toLocaleString('es-ES', { timeZone: tz }),
+          timezone: tz,
+          startIsDay,
+          minutesInDay,
+          minutesInNight: validatedInput.duration - minutesInDay,
+          userSelected,
+          duration: validatedInput.duration,
+          lightingExtraPerHour: perHourExtra
+        });
+
         if (startIsDay) {
           // Política: en día es opcional
+          console.log('✅ [LIGHTING-DEBUG] Entrando en rama DIURNA (iluminación opcional)');
           const extra = userSelected ? (perHourExtra * (minutesInDay / 60)) : 0;
-          if (extra > 0) breakdown.push({ description: `Iluminación (${(minutesInDay/60).toFixed(2)}h × €${perHourExtra})`, amount: extra });
+          console.log('🔍 [LIGHTING-DEBUG] Cargo calculado:', { extra, userSelected, minutesInDay, perHourExtra });
+          if (extra > 0) breakdown.push({ description: `Iluminación (${(minutesInDay / 60).toFixed(2)}h × €${perHourExtra})`, amount: extra });
           total += extra;
           lightingInfo = { selected: userSelected, extra, policy: 'OPTIONAL_DAY' };
         } else {
           // Noche: obligatoria CON coste
+          console.log('🌙 [LIGHTING-DEBUG] Entrando en rama NOCTURNA (iluminación obligatoria)');
           const extra = perHourExtra * ((validatedInput.duration - minutesInDay) / 60);
-          if (extra > 0) breakdown.push({ description: `Iluminación nocturna (${((validatedInput.duration - minutesInDay)/60).toFixed(2)}h × €${perHourExtra})`, amount: extra });
+          console.log('🔍 [LIGHTING-DEBUG] Cargo nocturno calculado:', { extra, minutesInNight: validatedInput.duration - minutesInDay, perHourExtra });
+          if (extra > 0) breakdown.push({ description: `Iluminación nocturna (${((validatedInput.duration - minutesInDay) / 60).toFixed(2)}h × €${perHourExtra})`, amount: extra });
           total += extra;
           lightingInfo = { selected: true, extra, policy: 'INCLUDED_NIGHT' };
         }
@@ -277,7 +302,7 @@ export class PricingService {
       lighting: lightingInfo,
     };
   }
-  
+
   /**
    * Encontrar reglas de precios aplicables
    */
@@ -288,7 +313,7 @@ export class PricingService {
   ): PricingRule[] {
     const endTime = new Date(startTime.getTime() + duration * 60000);
     const dayOfWeek = startTime.getDay() === 0 ? 7 : startTime.getDay(); // Convertir domingo de 0 a 7
-    
+
     return rules.filter(rule => {
       const { daysOfWeek, seasonStart, seasonEnd, timeStart, timeEnd } = this.getRuleConditions(rule);
 
@@ -296,24 +321,24 @@ export class PricingService {
       if (daysOfWeek.length > 0 && !daysOfWeek.includes(dayOfWeek)) {
         return false;
       }
-      
+
       // Verificar temporada
       if (seasonStart && seasonEnd) {
         const currentDate = new Date(startTime);
         currentDate.setHours(0, 0, 0, 0);
-        
+
         if (currentDate < seasonStart || currentDate > seasonEnd) {
           return false;
         }
       }
-      
+
       // Verificar horario
       const ruleStartTime = this.parseTimeString(timeStart || '00:00');
       const ruleEndTime = this.parseTimeString(timeEnd || '23:59');
-      
+
       const reservationStartMinutes = startTime.getHours() * 60 + startTime.getMinutes();
       const reservationEndMinutes = endTime.getHours() * 60 + endTime.getMinutes();
-      
+
       // Verificar si hay solapamiento entre el horario de la regla y la reserva
       return (
         reservationStartMinutes < ruleEndTime &&
@@ -365,7 +390,7 @@ export class PricingService {
       memberDiscount: Number(adjustment.memberDiscount ?? 0),
     };
   }
-  
+
   /**
    * Convertir string de tiempo (HH:MM) a minutos desde medianoche
    */
@@ -414,14 +439,14 @@ export class PricingService {
     const secondPart = overlap(0, e.minutes, dayStartMin, nightStartMin);
     return { minutesInDay: firstPart + secondPart, startIsDay };
   }
-  
+
   /**
    * Verificar si el usuario tiene membresía activa
    */
   private hasMembership(user: User & { memberships: any[] }): boolean {
     return user.memberships.length > 0;
   }
-  
+
   /**
    * Crear nueva regla de precios
    */
@@ -433,8 +458,8 @@ export class PricingService {
       normalized.memberDiscount = Number((normalized.membershipDiscount / 100).toFixed(4));
     }
     // Si vienen timeSlots, crear una regla por cada slot; devolver la primera creada
-    const timeSlots: Array<{ start: string; end: string; multiplier?: number }>|undefined = (normalized as any).timeSlots;
-    
+    const timeSlots: Array<{ start: string; end: string; multiplier?: number }> | undefined = (normalized as any).timeSlots;
+
     // Si hay timeSlots, usar el primer slot para crear el basePayload
     if (Array.isArray(timeSlots) && timeSlots.length > 0) {
       const firstSlot = timeSlots[0];
@@ -446,7 +471,7 @@ export class PricingService {
         }
       }
     }
-    
+
     // Validar campos requeridos
     if (!normalized.courtId) {
       throw new Error('courtId es requerido');
@@ -460,7 +485,7 @@ export class PricingService {
     if (!normalized.timeEnd) {
       throw new Error('timeEnd es requerido');
     }
-    
+
     const basePayload = {
       courtId: normalized.courtId,
       name: normalized.name,
@@ -493,31 +518,31 @@ export class PricingService {
     }
 
     const validatedInput = CreatePricingRuleSchema.parse(basePayload);
-    
+
     // Verificar que la cancha existe
     const court = await db.court.findUnique({
       where: { id: validatedInput.courtId },
     });
-    
+
     if (!court) {
       throw new Error('Cancha no encontrada');
     }
-    
+
     // Validar que timeEnd > timeStart
     const startMinutes = this.parseTimeString(validatedInput.timeStart);
     const endMinutes = this.parseTimeString(validatedInput.timeEnd);
-    
+
     if (endMinutes <= startMinutes) {
       throw new Error('La hora de fin debe ser posterior a la hora de inicio');
     }
-    
+
     // Validar fechas de temporada
     if (validatedInput.seasonStart && validatedInput.seasonEnd) {
       if (validatedInput.seasonEnd <= validatedInput.seasonStart) {
         throw new Error('La fecha de fin de temporada debe ser posterior a la fecha de inicio');
       }
     }
-    
+
     const conditions = {
       timeStart: validatedInput.timeStart,
       timeEnd: validatedInput.timeEnd,
@@ -532,7 +557,7 @@ export class PricingService {
 
     // Algunos campos del modelo (type, validFrom, validUntil, priority) pueden existir según el esquema actual.
     // Para mantener compatibilidad entre esquemas, enviamos solo campos seguros y casteamos como any.
-    
+
     const createData = {
       courtId: validatedInput.courtId,
       name: validatedInput.name,
@@ -552,9 +577,9 @@ export class PricingService {
       conditions: conditions,
       adjustment: adjustment,
     };
-    
+
     console.log('Creating pricing rule with data:', JSON.stringify(createData, null, 2));
-    
+
     try {
       return await (db.pricingRule as any).create({
         data: createData,
@@ -565,7 +590,7 @@ export class PricingService {
       throw new Error(`Error creando regla de precios en base de datos: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
   }
-  
+
   /**
    * Obtener reglas de precios por cancha
    */
@@ -578,7 +603,7 @@ export class PricingService {
       ],
     });
   }
-  
+
   /**
    * Actualizar regla de precios
    */
@@ -603,27 +628,27 @@ export class PricingService {
     const existingRule = await db.pricingRule.findUnique({
       where: { id },
     });
-    
+
     if (!existingRule) {
       throw new Error('Regla de precios no encontrada');
     }
-    
+
     // Validar datos si se proporcionan
     if (input.timeStart && input.timeEnd) {
       const startMinutes = this.parseTimeString(input.timeStart);
       const endMinutes = this.parseTimeString(input.timeEnd);
-      
+
       if (endMinutes <= startMinutes) {
         throw new Error('La hora de fin debe ser posterior a la hora de inicio');
       }
     }
-    
+
     if (input.seasonStart && input.seasonEnd) {
       if (input.seasonEnd <= input.seasonStart) {
         throw new Error('La fecha de fin de temporada debe ser posterior a la fecha de inicio');
       }
     }
-    
+
     // Preparar actualización sobre conditions/adjustment si vienen campos del schema extendido
     const data: any = { ...dataIn };
     if (
@@ -676,7 +701,7 @@ export class PricingService {
       data,
     });
   }
-  
+
   /**
    * Eliminar regla de precios
    */
@@ -684,11 +709,11 @@ export class PricingService {
     const existingRule = await db.pricingRule.findUnique({
       where: { id },
     });
-    
+
     if (!existingRule) {
       throw new Error('Regla de precios no encontrada');
     }
-    
+
     await db.pricingRule.delete({
       where: { id },
     });
@@ -770,7 +795,7 @@ export class PricingService {
     if (discount > 0) breakdown.push({ description: `Descuento de miembro (${memberDiscount * 100}%)`, amount: -discount });
     return { basePrice, multiplier: finalMultiplier, memberDiscount, subtotal, discount, total, appliedRules, breakdown };
   }
-  
+
   /**
    * Obtener precios para múltiples horarios (útil para mostrar calendario de precios)
    */
@@ -780,7 +805,7 @@ export class PricingService {
     userId?: string
   ): Promise<Array<{ startTime: Date; duration: number; price: PriceCalculation }>> {
     const results = [];
-    
+
     for (const slot of slots) {
       try {
         const price = await this.calculatePrice({
@@ -789,7 +814,7 @@ export class PricingService {
           duration: slot.duration,
           userId,
         });
-        
+
         results.push({
           startTime: slot.startTime,
           duration: slot.duration,
@@ -800,10 +825,10 @@ export class PricingService {
         console.warn(`Error calculando precio para slot ${slot.startTime}: ${error}`);
       }
     }
-    
+
     return results;
   }
-  
+
   /**
    * Obtener estadísticas de precios
    */
@@ -828,7 +853,7 @@ export class PricingService {
         totalPrice: true,
       },
     });
-    
+
     if (reservations.length === 0) {
       return {
         averagePrice: 0,
@@ -839,13 +864,13 @@ export class PricingService {
         priceDistribution: [],
       };
     }
-    
+
     const prices: number[] = reservations.map((r: any) => Number(r.totalPrice));
     const totalRevenue = prices.reduce((sum: number, price: number) => sum + price, 0);
     const averagePrice = totalRevenue / prices.length;
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
-    
+
     // Crear distribución de precios en rangos
     const ranges = [
       { min: 0, max: 20, label: '€0-20' },
@@ -854,12 +879,12 @@ export class PricingService {
       { min: 60, max: 80, label: '€60-80' },
       { min: 80, max: Infinity, label: '€80+' },
     ];
-    
+
     const priceDistribution = ranges.map(range => ({
       range: range.label,
       count: prices.filter((price: number) => price >= range.min && price < range.max).length,
     }));
-    
+
     return {
       averagePrice,
       minPrice,
@@ -893,7 +918,7 @@ export class PricingService {
     const { centerId, courtIds: inputCourtIds, startDate, endDate, occupancyRate, scenarios } = input;
 
     // Obtener canchas involucradas y normalizar Decimal a número
-    let courts: Array<{ id: string; basePricePerHour: number | null }>; 
+    let courts: Array<{ id: string; basePricePerHour: number | null }>;
     if (inputCourtIds && inputCourtIds.length > 0) {
       const raw = await db.court.findMany({
         where: { id: { in: inputCourtIds } },

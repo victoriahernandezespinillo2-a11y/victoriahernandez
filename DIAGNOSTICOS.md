@@ -226,3 +226,4 @@ Si después de seguir esta guía el problema persiste:
 Si todos los items están ✅, el sistema debería funcionar correctamente.
 
 
+

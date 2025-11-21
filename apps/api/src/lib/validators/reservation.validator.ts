@@ -101,6 +101,7 @@ export const CreateReservationSchema = z.object({
   paymentMethod: UserPaymentMethodSchema.optional(),
   notes: z.string().optional(),
   lightingSelected: z.boolean().optional(),
+  sport: z.string().optional().nullable(),
 });
 
 export const UpdateReservationSchema = z.object({

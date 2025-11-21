@@ -35,6 +35,8 @@ export const CreateReservationSchema = z.object({
   notes: z.string().optional(),
   // Nueva bandera: selección de iluminación por el usuario
   lightingSelected: z.boolean().optional(),
+  // Campo sport para canchas multiuso
+  sport: z.string().optional(),
 });
 
 export const UpdateReservationSchema = z.object({
@@ -64,7 +66,7 @@ export class ReservationService {
   async createReservation(input: CreateReservationInput): Promise<Reservation> {
     console.log('🏗️ [RESERVATION-SERVICE] Iniciando createReservation:', input);
     const validatedInput = CreateReservationSchema.parse(input);
-    
+
     const startTime = new Date(validatedInput.startTime);
     const endTime = new Date(startTime.getTime() + validatedInput.duration * 60000);
 
@@ -119,7 +121,7 @@ export class ReservationService {
         userId: validatedInput.userId,
         lightingSelected: validatedInput.lightingSelected,
       });
-      
+
       console.log('💰 [RESERVATION-PRICE] Precio calculado:', {
         courtId: validatedInput.courtId,
         duration: validatedInput.duration,
@@ -143,7 +145,7 @@ export class ReservationService {
         // 0) Advisory lock a nivel de BD para blindaje multi-instancia (clave derivada de cancha+franja)
         // Usar SHA-256 en lugar de MD5 para mayor seguridad criptográfica
         const advisoryKey = `reservation:${validatedInput.courtId}:${startTime.toISOString()}:${endTime.toISOString()}`;
-        
+
         // Generar hash SHA-256 y extraer dos enteros de 32 bits
         const hash = createHash('sha256').update(advisoryKey).digest('hex');
         const MAX_INT32 = 2147483647; // rango int4 PG (-2^31..2^31-1)
@@ -154,7 +156,7 @@ export class ReservationService {
         };
         const lockKey1 = toInt32(hash.substring(0, 8));
         const lockKey2 = toInt32(hash.substring(8, 16));
-        
+
         console.log('[ADVISORY_LOCK] Intentando adquirir lock:', {
           advisoryKey,
           lockKey1,
@@ -162,13 +164,13 @@ export class ReservationService {
           hash: hash.substring(0, 16),
           timestamp: new Date().toISOString()
         });
-        
+
         const lockRows = await (tx as any).$queryRaw<{ locked: boolean }[]>`
           SELECT pg_try_advisory_xact_lock(${lockKey1}::int4, ${lockKey2}::int4) as locked
         `;
-        
+
         const locked = Array.isArray(lockRows) && lockRows[0] && (lockRows[0] as any).locked === true;
-        
+
         if (!locked) {
           // Falla rápido si otra transacción ya está procesando la misma cancha y franja
           console.warn('[ADVISORY_LOCK] Lock no adquirido - conflicto de concurrencia:', {
@@ -179,7 +181,7 @@ export class ReservationService {
           });
           throw new Error('El horario está siendo procesado por otro usuario. Intenta nuevamente en unos segundos.');
         }
-        
+
         console.log('[ADVISORY_LOCK] Lock adquirido exitosamente:', {
           advisoryKey,
           lockKey1,
@@ -192,6 +194,8 @@ export class ReservationService {
           courtId: validatedInput.courtId,
           startTime: startTime,
           endTime: endTime,
+          sport: validatedInput.sport,
+          userId: validatedInput.userId, // ✅ PASO 2: Pasar userId para admin override
         });
 
         // 1b) Verificar conflicto para el mismo usuario en ventana de tiempo
@@ -206,7 +210,7 @@ export class ReservationService {
         // 2) Crear reserva principal con timeout automático
         const now = new Date();
         const timeoutMinutes = parseInt(process.env.PENDING_RESERVATION_TIMEOUT_MINUTES || '5', 10);
- 
+
         // Lógica de expiración diferenciada por método de pago
         const isNonExpirableMethod = (method?: string | null) =>
           !!method &&
@@ -220,11 +224,11 @@ export class ReservationService {
           if (!paymentMethod) {
             return new Date(startTime.getTime());
           }
-          
+
           if (isNonExpirableMethod(paymentMethod)) {
             return null;
           }
-          
+
           if (paymentMethod === 'ONSITE') {
             // Pago en sede: 1 hora antes de la reserva
             return new Date(startTime.getTime() - 60 * 60 * 1000);
@@ -232,15 +236,15 @@ export class ReservationService {
           // Otros métodos: timeout configurable (por defecto 5 minutos)
           return new Date(now.getTime() + timeoutMinutes * 60 * 1000);
         };
-        
+
         const expiresAt = getExpirationTime(validatedInput.paymentMethod, startTime);
-        
+
         console.log('💾 [RESERVATION-CREATE] Guardando reserva con precio:', {
           totalPrice: computedPrice.total,
           totalPriceType: typeof computedPrice.total,
           computedPriceObject: computedPrice
         });
-        
+
         const created = await tx.reservation.create({
           data: {
             courtId: validatedInput.courtId,
@@ -257,9 +261,10 @@ export class ReservationService {
             // Para reservas de usuarios, se especifica al momento de crear la reserva
             paymentMethod: validatedInput.paymentMethod || null,
             notes: validatedInput.notes,
+            sport: validatedInput.sport || null,
           },
         });
-        
+
         console.log('✅ [RESERVATION-CREATED] Reserva guardada:', {
           id: created.id,
           totalPrice: created.totalPrice,
@@ -329,49 +334,155 @@ export class ReservationService {
    */
   private async checkAvailability(
     tx: any,
-    { courtId, startTime, endTime, excludeReservationId }: { courtId: string; startTime: Date; endTime: Date; excludeReservationId?: string }
+    { courtId, startTime, endTime, sport, userId }: { courtId: string; startTime: Date; endTime: Date; sport?: string | null; userId?: string }
   ): Promise<void> {
     // Verificar que la cancha existe y está activa
     const court = await tx.court.findUnique({
       where: { id: courtId },
     });
-    
+
     if (!court || !court.isActive) {
       throw new Error('Cancha no disponible');
     }
-    
+
     // Verificar que no hay conflictos con otras reservas
     // Excluir reservas PENDING que han expirado
     const now = new Date();
-    const whereClause: any = {
-      courtId,
-      // Excluir la reserva actual si se está editando
-      ...(excludeReservationId ? { id: { not: excludeReservationId } } : {}),
-      OR: [
-        {
-          // Reservas PAID o IN_PROGRESS (siempre bloquean)
-          status: { in: ['PAID', 'IN_PROGRESS'] },
-          startTime: { lt: endTime },
-          endTime: { gt: startTime },
-        },
-        {
-          // Reservas PENDING que NO han expirado
-          status: 'PENDING',
-          OR: [
-            { expiresAt: null }, // Reservas antiguas sin expiresAt
-            { expiresAt: { gt: now } }, // Reservas que aún no han expirado
-          ],
-          startTime: { lt: endTime },
-          endTime: { gt: startTime },
-        },
-      ],
-    };
-    
     const conflictingReservations = await tx.reservation.findMany({
-      where: whereClause,
+      where: {
+        courtId,
+        OR: [
+          {
+            // Reservas PAID o IN_PROGRESS (siempre bloquean)
+            status: { in: ['PAID', 'IN_PROGRESS'] },
+            startTime: { lt: endTime },
+            endTime: { gt: startTime },
+          },
+          {
+            // Reservas PENDING que NO han expirado
+            status: 'PENDING',
+            OR: [
+              { expiresAt: null }, // Reservas antiguas sin expiresAt
+              { expiresAt: { gt: now } }, // Reservas que aún no han expirado
+            ],
+            startTime: { lt: endTime },
+            endTime: { gt: startTime },
+          },
+        ],
+      },
     });
-    
-    if (conflictingReservations.length > 0) {
+
+    // Si la cancha es multiuso, aplicar lógica de compatibilidad
+    if (court.isMultiuse && court.primarySport && conflictingReservations.length > 0) {
+      const normalize = (s: string | null | undefined) => (s || '').toUpperCase().trim();
+      const primarySport = normalize(court.primarySport);
+      const newSport = normalize(sport);
+      const allowedSports = Array.isArray(court.allowedSports) ? court.allowedSports.map((s: string) => normalize(s)) : [];
+
+      console.log('🔍 [MULTIUSE-CHECK] Verificando compatibilidad:', {
+        courtId,
+        courtName: court.name,
+        primarySport,
+        newSport,
+        allowedSports,
+        conflictingCount: conflictingReservations.length,
+        conflictingSports: conflictingReservations.map((r: any) => normalize(r.sport))
+      });
+
+      // Filtrar conflictos según las reglas de multiuso
+      const blockingReservations = conflictingReservations.filter((reservation: any) => {
+        const reservationSport = normalize(reservation.sport);
+
+        console.log('  🔍 [MULTIUSE-DEBUG] Evaluando reserva:', {
+          reservationId: reservation.id,
+          reservationSport: reservation.sport,
+          reservationSportNormalized: reservationSport,
+          newSport,
+          newSportNormalized: normalize(newSport || ''),
+          primarySport,
+          isPrimaryReservation: reservationSport === primarySport,
+          isNewPrimary: newSport === primarySport,
+          isNewSecondary: newSport !== primarySport && allowedSports.includes(newSport || '')
+        });
+
+        // Si no hay deporte especificado en la nueva reserva, bloquear todo (comportamiento por defecto)
+        if (!newSport || newSport === '') {
+          console.log('    ❌ [MULTIUSE-DEBUG] Bloqueando: nueva reserva sin deporte especificado');
+          return true;
+        }
+
+        // Regla 1: Si la nueva reserva es del deporte principal, bloquea todas las demás
+        if (newSport === primarySport) {
+          console.log('    ❌ [MULTIUSE-DEBUG] Bloqueando: nueva reserva es deporte PRINCIPAL');
+          return true; // Bloquear todas las reservas existentes
+        }
+
+        // Regla 2: Si la nueva reserva es de un deporte secundario:
+        // - Bloquea SOLO reservas del deporte principal
+        // - Permite TODAS las demás reservas de deportes secundarios (mismo u otro)
+        // Esto permite: volleyball + basketball, 2x volleyball, 2x basketball, etc.
+        if (newSport !== primarySport && allowedSports.includes(newSport)) {
+          // Si la reserva existente es del deporte principal, bloquear
+          if (reservationSport === primarySport) {
+            console.log('    ❌ [MULTIUSE-DEBUG] Bloqueando: reserva existente es deporte PRINCIPAL');
+            return true;
+          }
+          // Permitir todas las reservas de deportes secundarios (mismo u otro)
+          console.log('    ✅ [MULTIUSE-DEBUG] PERMITIENDO: ambas son deportes secundarios');
+          return false;
+        }
+
+        // Si la reserva existente es del deporte principal, siempre bloquea
+        if (reservationSport === primarySport) {
+          console.log('    ❌ [MULTIUSE-DEBUG] Bloqueando: reserva existente es deporte PRINCIPAL');
+          return true;
+        }
+
+        // Si la nueva reserva no está en allowedSports, bloquear todo por seguridad
+        console.log('    ❌ [MULTIUSE-DEBUG] Bloqueando: nueva reserva no está en allowedSports');
+        return true;
+      });
+
+      if (blockingReservations.length > 0) {
+        console.log('🚨 [MULTIUSE-CONFLICT] Conflictos encontrados en cancha multiuso:', {
+          courtId,
+          courtName: court.name,
+          primarySport,
+          newSport,
+          allowedSports,
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+          blockingReservations: blockingReservations.map((r: any) => ({
+            id: r.id,
+            status: r.status,
+            sport: r.sport,
+            normalizedSport: normalize(r.sport),
+            startTime: r.startTime,
+            endTime: r.endTime,
+            expiresAt: r.expiresAt
+          })),
+          allConflictingReservations: conflictingReservations.map((r: any) => ({
+            id: r.id,
+            sport: r.sport,
+            normalizedSport: normalize(r.sport),
+            blocked: blockingReservations.some((br: any) => br.id === r.id)
+          })),
+          timestamp: new Date().toISOString()
+        });
+        throw new Error('Horario no disponible');
+      } else {
+        console.log('✅ [MULTIUSE-OK] No hay conflictos bloqueantes, permitiendo reserva:', {
+          courtId,
+          newSport,
+          conflictingReservations: conflictingReservations.map((r: any) => ({
+            id: r.id,
+            sport: r.sport,
+            normalizedSport: normalize(r.sport)
+          }))
+        });
+      }
+    } else if (conflictingReservations.length > 0) {
+      // Para canchas no multiuso, bloquear todos los conflictos
       console.log('🚨 [CONFLICT-DEBUG] Conflictos encontrados:', {
         courtId,
         startTime: startTime.toISOString(),
@@ -387,8 +498,9 @@ export class ReservationService {
       });
       throw new Error('Horario no disponible');
     }
-    
+
     // Verificar mantenimiento programado (solo los que se solapan con el horario solicitado)
+    // ✅ PASO 2: Verificar mantenimiento con admin override
     const maintenanceSchedules = await tx.maintenanceSchedule.findMany({
       where: {
         courtId,
@@ -406,10 +518,35 @@ export class ReservationService {
           }
         ],
       },
-      select: { id: true, scheduledAt: true, estimatedDuration: true },
+      select: { id: true, scheduledAt: true, estimatedDuration: true, type: true },
     });
-    
+
     if (maintenanceSchedules.length > 0) {
+      // ✅ Obtener rol del usuario
+      let userRole = 'USER';
+      if (userId) {
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: { role: true, email: true }
+        });
+        userRole = user?.role || 'USER';
+
+        if (userRole === 'ADMIN') {
+          // ✅ ADMIN: Permitir reserva con logging
+          console.log('🔧 [ADMIN-OVERRIDE] Admin reservando en mantenimiento:', {
+            userId,
+            userEmail: user?.email,
+            courtId,
+            startTime: startTime.toISOString(),
+            maintenanceCount: maintenanceSchedules.length,
+            maintenanceTypes: maintenanceSchedules.map((m: any) => m.type)
+          });
+          // No lanzar error - permitir
+          return; // ✅ Salir sin error
+        }
+      }
+
+      // ❌ USER: Rechazar (SIN CAMBIOS del comportamiento actual)
       throw new Error('Cancha en mantenimiento durante el horario solicitado');
     }
   }
@@ -424,10 +561,10 @@ export class ReservationService {
     // 🔒 VALIDACIÓN MEJORADA: Solo verificar conflictos en el mismo día
     const startOfDay = new Date(startTime);
     startOfDay.setHours(0, 0, 0, 0);
-    
+
     const endOfDay = new Date(startTime);
     endOfDay.setHours(23, 59, 59, 999);
-    
+
     const conflicts = await tx.reservation.findMany({
       where: {
         userId,
@@ -444,14 +581,14 @@ export class ReservationService {
           { startTime: { gte: startTime }, endTime: { lte: endTime } }
         ],
       },
-      select: { 
-        id: true, 
-        startTime: true, 
+      select: {
+        id: true,
+        startTime: true,
         endTime: true,
-        status: true 
+        status: true
       },
     });
-    
+
     if (conflicts.length > 0) {
       // 🔍 LOGGING DETALLADO PARA DEBUGGING
       console.log(`🚨 [USER-CONFLICT] Usuario ${userId} tiene ${conflicts.length} conflicto(s):`, {
@@ -464,7 +601,7 @@ export class ReservationService {
         })),
         timestamp: new Date().toISOString()
       });
-      
+
       throw new Error('El usuario ya tiene una reserva en ese horario');
     }
   }
@@ -483,31 +620,31 @@ export class ReservationService {
     const startDate = new Date(parentReservation.startTime);
     const endDateTime = new Date(endDate);
     const duration = parentReservation.endTime.getTime() - parentReservation.startTime.getTime();
-    
+
     let currentDate = new Date(startDate);
     const recurringReservations = [];
-    
+
     // Calcular incremento según frecuencia
     const increment = frequency === 'weekly' ? 7 : frequency === 'biweekly' ? 14 : 30;
-    
+
     while (currentDate <= endDateTime) {
       // Avanzar a la siguiente fecha según frecuencia
       currentDate.setDate(currentDate.getDate() + increment);
-      
+
       if (currentDate > endDateTime) break;
-      
+
       // Verificar si el día de la semana coincide
       const dayOfWeek = currentDate.getDay() === 0 ? 7 : currentDate.getDay(); // Convertir domingo de 0 a 7
-      
+
       if (daysOfWeek.includes(dayOfWeek)) {
         const reservationStart = new Date(currentDate);
         const reservationEnd = new Date(currentDate.getTime() + duration);
-        
+
         // Verificar si no está en excepciones
-        const isException = exceptions.some(exception => 
+        const isException = exceptions.some(exception =>
           new Date(exception).toDateString() === reservationStart.toDateString()
         );
-        
+
         if (!isException) {
           if (exceedsMaxAdvance(reservationStart, referenceDate, maxAdvanceDays)) {
             console.info('[RECURRING-RESERVATION] Fecha omitida por exceder maxAdvanceDays', {
@@ -523,8 +660,9 @@ export class ReservationService {
               courtId: parentReservation.courtId,
               startTime: reservationStart,
               endTime: reservationEnd,
+              sport: parentReservation.sport,
             });
-            
+
             // Crear reserva recurrente
             const recurringReservation = await tx.reservation.create({
               data: {
@@ -540,7 +678,7 @@ export class ReservationService {
                 notes: parentReservation.notes,
               },
             });
-            
+
             recurringReservations.push(recurringReservation);
           } catch (error) {
             // Si hay conflicto, simplemente omitir esta fecha
@@ -618,34 +756,34 @@ export class ReservationService {
    */
   async updateReservation(id: string, input: UpdateReservationInput): Promise<Reservation> {
     const validatedInput = UpdateReservationSchema.parse(input);
-    
+
     try {
       return await db.$transaction(async (tx: any) => {
         const existingReservation = await tx.reservation.findUnique({
           where: { id },
         });
-        
+
         if (!existingReservation) {
           throw new Error('Reserva no encontrada');
         }
-        
+
         // Si se cambia la hora, verificar disponibilidad
         if (validatedInput.startTime || validatedInput.duration) {
-          const newStartTime = validatedInput.startTime 
-            ? new Date(validatedInput.startTime) 
+          const newStartTime = validatedInput.startTime
+            ? new Date(validatedInput.startTime)
             : existingReservation.startTime;
-          const newDuration = validatedInput.duration || 
+          const newDuration = validatedInput.duration ||
             (existingReservation.endTime.getTime() - existingReservation.startTime.getTime()) / 60000;
           const newEndTime = new Date(newStartTime.getTime() + newDuration * 60000);
-          
+
           await this.checkAvailability(tx, {
             courtId: existingReservation.courtId,
             startTime: newStartTime,
             endTime: newEndTime,
-            excludeReservationId: id, // Excluir la reserva actual de la verificación
+            sport: existingReservation.sport,
           });
         }
-        
+
         const updatedReservation = await tx.reservation.update({
           where: { id },
           data: {
@@ -653,13 +791,13 @@ export class ReservationService {
             ...(validatedInput.startTime && { startTime: new Date(validatedInput.startTime) }),
             ...(validatedInput.duration && {
               endTime: new Date(
-                (validatedInput.startTime ? new Date(validatedInput.startTime) : existingReservation.startTime).getTime() + 
+                (validatedInput.startTime ? new Date(validatedInput.startTime) : existingReservation.startTime).getTime() +
                 validatedInput.duration * 60000
               ),
             }),
           },
         });
-        
+
         // Crear evento para procesamiento asíncrono
         await tx.outboxEvent.create({
           data: {
@@ -670,7 +808,7 @@ export class ReservationService {
             },
           },
         });
-        
+
         return updatedReservation;
       });
     } catch (error: any) {
@@ -694,15 +832,15 @@ export class ReservationService {
           court: true,
         },
       });
-      
+
       if (!reservation) {
         throw new Error('Reserva no encontrada');
       }
-      
+
       if (reservation.status === 'CANCELLED') {
         throw new Error('La reserva ya está cancelada');
       }
-      
+
       const updatedReservation = await tx.reservation.update({
         where: { id },
         data: {
@@ -710,7 +848,7 @@ export class ReservationService {
           notes: reason ? `${reservation.notes || ''} - Cancelada: ${reason}` : reservation.notes,
         },
       });
-      
+
       // Crear evento para procesamiento asíncrono (reembolsos, notificaciones, lista de espera)
       await tx.outboxEvent.create({
         data: {
@@ -725,7 +863,7 @@ export class ReservationService {
           },
         },
       });
-      
+
       return updatedReservation;
     });
   }
@@ -761,13 +899,25 @@ export class ReservationService {
    */
   async getCourtAvailability(
     courtId: string,
-    date: Date
-  ): Promise<{ available: boolean; slots: Array<{ start: Date; end: Date; available: boolean }> }> {
+    date: Date,
+    userId?: string
+  ): Promise<{ available: boolean; slots: Array<{ start: Date; end: Date; available: boolean; maintenance?: boolean; adminOverrideable?: boolean }> }> {
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
-    
+
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
+
+    // 🔑 Obtener rol del usuario si está autenticado
+    let userRole: 'ADMIN' | 'STAFF' | 'USER' | null = null;
+    if (userId) {
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
+      });
+      userRole = user?.role as 'ADMIN' | 'STAFF' | 'USER' | null;
+      console.log('⚙️ [AVAILABILITY-ROLE] Usuario detectado:', { userId, role: userRole });
+    }
 
     // Obtener configuración de horarios desde el centro
     const courtRef = await db.court.findUnique({
@@ -795,7 +945,7 @@ export class ReservationService {
       // 🚀 ENTERPRISE: Horarios por día usando servicio de compatibilidad
       const weekday = date.getDay(); // 0: domingo ... 6: sábado
       const daySlots = ScheduleCompatibilityService.getDaySchedule(settings, weekday);
-      
+
       if (daySlots.length === 0) {
         // Centro cerrado
         dayRanges = [];
@@ -821,13 +971,13 @@ export class ReservationService {
         }
       }
     }
-    
+
     // Obtener reservas del día
     const reservations = await this.getReservationsByCourt(courtId, {
       startDate: startOfDay,
       endDate: endOfDay,
     });
-    
+
     // Obtener mantenimientos relevantes del día (solo los que se solapan con este día específico)
     const maintenanceSchedules = await db.maintenanceSchedule.findMany({
       where: {
@@ -837,7 +987,7 @@ export class ReservationService {
           // Mantenimientos programados que empiezan en este día
           { scheduledAt: { gte: startOfDay, lte: endOfDay } },
           // Mantenimientos en progreso que terminan en este día
-          { 
+          {
             AND: [
               { startedAt: { not: null } },
               { startedAt: { lte: endOfDay } },
@@ -845,7 +995,7 @@ export class ReservationService {
             ]
           },
           // Mantenimientos completados que terminaron en este día
-          { 
+          {
             AND: [
               { completedAt: { not: null } },
               { completedAt: { gte: startOfDay, lte: endOfDay } }
@@ -855,9 +1005,9 @@ export class ReservationService {
       },
       select: { scheduledAt: true, startedAt: true, completedAt: true, estimatedDuration: true },
     });
-    
+
     // Si el día está cerrado o no hay rangos configurados -> sin disponibilidad
-    const slots: Array<{ start: Date; end: Date; available: boolean }> = [];
+    const slots: Array<{ start: Date; end: Date; available: boolean; maintenance?: boolean; adminOverrideable?: boolean }> = [];
     if (dayRanges.length === 0) {
       return { available: false, slots };
     }
@@ -889,7 +1039,7 @@ export class ReservationService {
           );
 
           // Verificar conflictos de mantenimiento
-          const isInMaintenance = maintenanceSchedules.some((m: any) => {
+          let isInMaintenance = maintenanceSchedules.some((m: any) => {
             const maintStart = m.startedAt ?? m.scheduledAt ?? startOfDay;
             // Usar estimatedDuration de la base de datos, con fallback a 2 horas (120 minutos)
             const durationMinutes = m.estimatedDuration || 120;
@@ -897,10 +1047,18 @@ export class ReservationService {
             return slotStart < maintEnd && slotEnd > maintStart;
           });
 
+          // 🔑 Determinar si el admin puede overridear este slot
+          const canAdminOverride = isInMaintenance && userRole === 'ADMIN';
+
+          // Si es admin y hay mantenimiento, el slot ESTÁ disponible para admin
+          const finalAvailability = canAdminOverride ? true : (!isReserved && !isInMaintenance);
+
           slots.push({
             start: slotStart,
             end: slotEnd,
-            available: !isReserved && !isInMaintenance,
+            available: finalAvailability,
+            maintenance: isInMaintenance,
+            adminOverrideable: canAdminOverride || undefined// Solo incluir si es true
           });
 
           // avanzar al siguiente slot
@@ -908,9 +1066,9 @@ export class ReservationService {
         }
       }
     }
-    
+
     const hasAvailableSlots = slots.some(slot => slot.available);
-    
+
     return {
       available: hasAvailableSlots,
       slots,
@@ -919,3 +1077,4 @@ export class ReservationService {
 }
 
 export const reservationService = new ReservationService();
+

@@ -11,7 +11,7 @@ interface WeekCalendarProps {
   onSelect: (dateISO: string, timeHHMM: string) => void;
 }
 
-type DaySlots = { dateISO: string; slots: Array<{ label: string; available: boolean }> };
+type DaySlots = { dateISO: string; slots: Array<{ label: string; available: boolean; maintenance?: boolean; adminOverrideable?: boolean }> };
 
 export default function WeekCalendar({ courtId, weekStartISO, slotMinutes = 60, durationMinutes, onSelect }: WeekCalendarProps) {
   // Añadimos soporte de selección externa (opcional)
@@ -57,6 +57,8 @@ export default function WeekCalendar({ courtId, weekStartISO, slotMinutes = 60, 
             const slots = (avail?.slots || []).map((s: any) => ({
               label: new Date(s.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
               available: !!s.available,
+              maintenance: !!s.maintenance,
+              adminOverrideable: !!s.adminOverrideable
             }));
             results.push({ dateISO: iso, slots });
           } catch {
@@ -106,6 +108,7 @@ export default function WeekCalendar({ courtId, weekStartISO, slotMinutes = 60, 
               {data.map((d) => {
                 const slot = d.slots.find((s) => s.label === label);
                 const available = !!slot?.available;
+                const adminOverrideable = !!slot?.adminOverrideable;
                 return (
                   <td key={d.dateISO + label} className="p-1">
                     <button
@@ -116,12 +119,14 @@ export default function WeekCalendar({ courtId, weekStartISO, slotMinutes = 60, 
                         // Si está seleccionado externamente, destacar con azul
                         selectedDateISO === d.dateISO && selectedTime === label
                           ? 'bg-blue-200 text-blue-900 border-blue-400 ring-2 ring-blue-300'
-                          : available 
-                            ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200' 
-                            : 'bg-red-100 text-red-600 border-red-200 cursor-not-allowed'
-                      }`}
+                          : adminOverrideable
+                            ? 'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200'
+                            : available
+                              ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200'
+                              : 'bg-red-100 text-red-600 border-red-200 cursor-not-allowed'
+                        }`}
                     >
-                      {available ? 'Libre' : 'Ocupado'}
+                      {adminOverrideable ? '⚙️ Maint' : (available ? 'Libre' : 'Ocupado')}
                     </button>
                   </td>
                 );

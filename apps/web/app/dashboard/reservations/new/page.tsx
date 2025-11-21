@@ -104,7 +104,7 @@ interface TimeSlot {
   time: string;
   startTime: string;
   endTime: string;
-  status: 'AVAILABLE' | 'BOOKED' | 'MAINTENANCE' | 'USER_BOOKED' | 'PAST' | 'UNAVAILABLE';
+  status: 'AVAILABLE' | 'BOOKED' | 'MAINTENANCE' | 'MAINTENANCE_OVERRIDE' | 'USER_BOOKED' | 'PAST' | 'UNAVAILABLE';
   available: boolean;
   price: number;
   message?: string;
@@ -124,7 +124,7 @@ export default function NewReservationPage() {
   const { pricing, calculatePrice, reset: resetPricing } = usePricing();
   const isMobile = useIsMobile();
   const { firebaseUser, loading: authLoading } = useFirebaseAuth();
-  
+
   // Estado para forzar vista móvil/escritorio
   const [forceMobileView, setForceMobileView] = useState(false);
   const shouldUseMobileView = isMobile || forceMobileView;
@@ -162,49 +162,49 @@ export default function NewReservationPage() {
   // Helper function to determine if a time slot is during day or night
   const isDayTime = (timeString: string): boolean => {
     console.log('🔍 [DEBUG] isDayTime called with:', { timeString, selectedCenter });
-    
+
     if (!selectedCenter?.dayStart || !selectedCenter?.nightStart) {
       console.log('⚠️ [DEBUG] No dayStart/nightStart, defaulting to day time');
       return true;
     }
-    
+
     const [hours, minutes] = timeString.split(':').map(Number);
     const slotMinutes = (hours || 0) * 60 + (minutes || 0);
-    
-    const dayStartMinutes = selectedCenter.dayStart.split(':').reduce((acc: number, part: string, i: number) => 
+
+    const dayStartMinutes = selectedCenter.dayStart.split(':').reduce((acc: number, part: string, i: number) =>
       acc + (i === 0 ? parseInt(part) * 60 : parseInt(part)), 0);
-    const nightStartMinutes = selectedCenter.nightStart.split(':').reduce((acc: number, part: string, i: number) => 
+    const nightStartMinutes = selectedCenter.nightStart.split(':').reduce((acc: number, part: string, i: number) =>
       acc + (i === 0 ? parseInt(part) * 60 : parseInt(part)), 0);
-    
+
     const isDay = slotMinutes >= dayStartMinutes && slotMinutes < nightStartMinutes;
-    console.log('🔍 [DEBUG] Day calculation:', { 
-      slotMinutes, 
-      dayStartMinutes, 
-      nightStartMinutes, 
-      isDay 
+    console.log('🔍 [DEBUG] Day calculation:', {
+      slotMinutes,
+      dayStartMinutes,
+      nightStartMinutes,
+      isDay
     });
-    
+
     return isDay;
   };
 
   // Calculate total price
   const totalPrice = useMemo(() => {
     if (!selectedCourt || !selectedDuration) return 0;
-    
+
     const basePrice = (selectedCourt.pricePerHour * selectedDuration) / 60;
-    
+
     // Add lighting cost if selected and it's day time
     let lightingCost = 0;
     if (lightingSelected && selectedSlot && isDayTime(selectedSlot.startTime)) {
       const lightingExtraPerHour = selectedCourt.lightingExtraPerHour || 0;
       lightingCost = (lightingExtraPerHour * selectedDuration) / 60;
     }
-    
+
     return basePrice + lightingCost;
   }, [selectedCourt, selectedDuration, lightingSelected, selectedSlot]);
 
   // Función para cargar timeSlots desde la API
-  const loadTimeSlots = async (courtId: string, date: string, duration: number) => {
+  const loadTimeSlots = async (courtId: string, date: string, duration: number, sport?: string) => {
     if (!courtId || !date) return;
     const clampedDate = clampDate(date);
     if (clampedDate !== date) {
@@ -217,17 +217,19 @@ export default function NewReservationPage() {
       console.log('🔴 [FRONTEND-DEBUG] Llamando a getCalendarStatus con los siguientes datos:', {
         courtId,
         date: clampedDate,
-        duration
+        duration,
+        sport
       });
       const calendarData = await api.courts.getCalendarStatus(courtId, {
         date: clampedDate,
-        duration
+        duration,
+        sport
       });
-      
+
       // Convertir CalendarSlots a TimeSlots
       const convertedTimeSlots: TimeSlot[] = calendarData.slots.map((slot: any) => {
         const calculatedPrice = selectedCourt?.pricePerHour ? (selectedCourt.pricePerHour * duration) / 60 : 0;
-        
+
         // 🔍 LOG PARA DEBUGGING DEL PRECIO
         console.log('💰 [PRICE-DEBUG] Slot:', {
           startTime: slot.startTime,
@@ -238,7 +240,7 @@ export default function NewReservationPage() {
           duration: duration, // ← NUEVO: mostrar el parámetro duration
           pricePerHour: selectedCourt?.pricePerHour
         });
-        
+
         return {
           time: slot.time,
           startTime: slot.startTime,
@@ -253,7 +255,7 @@ export default function NewReservationPage() {
           })()
         };
       });
-      
+
       setTimeSlots(convertedTimeSlots);
     } catch (error) {
       console.error('Error cargando timeSlots:', error);
@@ -266,10 +268,10 @@ export default function NewReservationPage() {
   // Cargar timeSlots cuando cambie la cancha, fecha o duración
   useEffect(() => {
     if (selectedCourt && selectedDate && !authLoading && firebaseUser) {
-      loadTimeSlots(selectedCourt.id, selectedDate, duration);
+      loadTimeSlots(selectedCourt.id, selectedDate, duration, selectedSport);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCourt, selectedDate, duration, authLoading, firebaseUser]);
+  }, [selectedCourt, selectedDate, duration, selectedSport, authLoading, firebaseUser]);
 
   // Cargar centros activos y preparar flujo dinámico
   useEffect(() => {
@@ -311,7 +313,7 @@ export default function NewReservationPage() {
   // Cargar canchas cuando se selecciona centro
   useEffect(() => {
     if (!selectedCenter) return;
-    getCourts({ isActive: true, centerId: selectedCenter.id } as any).catch(() => {});
+    getCourts({ isActive: true, centerId: selectedCenter.id } as any).catch(() => { });
   }, [selectedCenter, getCourts]);
 
   // Deportes disponibles a partir de las canchas (ya normalizadas a CourtDTO[] por el hook)
@@ -325,32 +327,51 @@ export default function NewReservationPage() {
   // Canchas filtradas por deporte, centro y búsqueda
   const filteredCourts: any[] = useMemo(() => {
     let courtsArray: any[] = Array.isArray(courts) ? (courts as any[]) : [];
-    
+
     // Filtrar por centro si corresponde
     if (selectedCenter) {
       courtsArray = courtsArray.filter((c: any) => c.centerId === selectedCenter.id);
     }
-    
+
     // Filtrar por deporte
     if (selectedSport) {
       const normalize = (s: string) => (s || '').toUpperCase().trim();
       const selected = normalize(selectedSport);
-      
+
+      // Función auxiliar para verificar si un deporte es compatible con el seleccionado
+      const isSportCompatible = (sport: string, selected: string): boolean => {
+        const normalizedSport = normalize(sport);
+        // Coincidencia exacta
+        if (normalizedSport === selected) return true;
+        // Compatibilidad familia fútbol: FOOTBALL incluye FOOTBALL7 y FUTSAL
+        if (selected === 'FOOTBALL' && (normalizedSport === 'FOOTBALL7' || normalizedSport === 'FUTSAL')) return true;
+        if (normalizedSport === 'FOOTBALL' && (selected === 'FOOTBALL7' || selected === 'FUTSAL')) return true;
+        return false;
+      };
+
       courtsArray = courtsArray.filter((c: any) => {
         const type = normalize((c as any).sportType);
         const allowed: string[] = Array.isArray((c as any).allowedSports) ? (c as any).allowedSports.map((x: string) => normalize(x)) : [];
         const isMultiuse = Boolean((c as any).isMultiuse);
-        
+
         // 1) Coincidencia exacta por tipo de cancha
-        if (type === selected) return true;
-        // 1.b) Compatibilidad familia fútbol: si el usuario eligió FOOTBALL, aceptar FOOTBALL7 y FUTSAL
-        if (selected === 'FOOTBALL' && (type === 'FOOTBALL7' || type === 'FUTSAL')) return true;
-        // 2) Cancha multiuso que permite el deporte seleccionado
-        if (isMultiuse && type === 'MULTIPURPOSE' && allowed.includes(selected)) return true;
+        if (isSportCompatible(type, selected)) return true;
+
+        // 2) Cancha multiuso que permite el deporte seleccionado (o compatible)
+        if (isMultiuse) {
+          // Verificar si alguno de los deportes permitidos es compatible con el seleccionado
+          // Comparar directamente los valores normalizados
+          if (allowed.includes(selected)) return true;
+          // También verificar compatibilidad (ej: FOOTBALL vs FUTSAL)
+          if (allowed.some((sport: string) => isSportCompatible(sport, selected))) {
+            return true;
+          }
+        }
+
         return false;
       });
     }
-    
+
     // Filtrar por término de búsqueda (nombre de cancha)
     if (courtSearchTerm.trim()) {
       const searchLower = courtSearchTerm.toLowerCase().trim();
@@ -359,9 +380,9 @@ export default function NewReservationPage() {
         return name.includes(searchLower);
       });
     }
-    
+
     return courtsArray;
-  }, [courts, selectedSport, selectedCenter, courtSearchTerm]);
+  }, [courts, selectedSport, selectedCenter, courtSearchTerm, selectedCourt]);
 
   const getSportIcon = (sport: string) => {
     switch (sport) {
@@ -410,23 +431,23 @@ export default function NewReservationPage() {
         return sport;
     }
   };
-  
+
   const baseCost = pricing?.total ?? (selectedCourt ? (selectedCourt.pricePerHour * (shouldUseMobileView ? selectedDuration : duration) / 60) : 0);
-  
+
   // Add lighting cost if selected (day time) or if it's night time (automatic)
   // Support both desktop (selectedCalendarSlot) and mobile (selectedSlot)
   const currentSlot = selectedCalendarSlot || selectedSlot;
   const isCurrentlyDayTime = currentSlot ? isDayTime(currentSlot.startTime) : true;
   const lightingCost = (lightingSelected && isCurrentlyDayTime) || (!isCurrentlyDayTime)
-    ? (selectedCourt?.lightingExtraPerHour || 0) * (shouldUseMobileView ? selectedDuration : duration) / 60 
+    ? (selectedCourt?.lightingExtraPerHour || 0) * (shouldUseMobileView ? selectedDuration : duration) / 60
     : 0;
-  
+
   const totalCost = baseCost + lightingCost;
 
   // Obtener fecha mínima (hoy)
   const today = new Date();
   const minDate = today.toISOString().split('T')[0];
-  
+
   // Obtener fecha máxima (30 días desde hoy)
   const maxDate = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -452,7 +473,7 @@ export default function NewReservationPage() {
         // Es formato "HH:MM", combinarlo con la fecha seleccionada
         startTime = new Date(`${selectedDate}T${selectedCalendarSlot.startTime}:00`).toISOString();
       }
-      
+
       console.log('🎯 [DEBUG] Datos a enviar:', {
         courtId: selectedCourt.id,
         startTime,
@@ -464,7 +485,7 @@ export default function NewReservationPage() {
         courtSportType: (selectedCourt as any)?.sportType,
         isMultiuse: (selectedCourt as any)?.isMultiuse
       });
-      
+
       console.log('🔍 [DEBUG] Enviando datos al backend:', {
         courtId: selectedCourt.id,
         startTime: startTime,
@@ -496,7 +517,7 @@ export default function NewReservationPage() {
       if (!isConflict) {
         console.error('Error creating reservation:', error);
       }
-      
+
       // Manejo específico de errores de conflicto de horario
       const msg = `${error?.message || ''} ${(error?.originalError?.error || '')}`.toLowerCase();
       if (error.status === 409 && (msg.includes('horario no disponible'))) {
@@ -521,7 +542,7 @@ export default function NewReservationPage() {
           endpoint: '/api/reservations',
           timestamp: new Date().toISOString()
         });
-        
+
         // Mostrar mensaje específico al usuario
         alert(userMessage);
       }
@@ -559,7 +580,7 @@ export default function NewReservationPage() {
       setShowConflictModal(false);
       setError(null);
       if (selectedCourt?.id && selectedDate) {
-        await loadTimeSlots(selectedCourt.id, selectedDate, selectedDuration);
+        await loadTimeSlots(selectedCourt.id, selectedDate, selectedDuration, selectedSport);
       }
       await handleSubmit(true);
     } catch (e) {
@@ -594,7 +615,7 @@ export default function NewReservationPage() {
 
       // Refrescar slots para liberar visualmente
       if (selectedCourt?.id && selectedDate) {
-        await loadTimeSlots(selectedCourt.id, selectedDate, selectedDuration);
+        await loadTimeSlots(selectedCourt.id, selectedDate, selectedDuration, selectedSport);
       }
     } catch (e) {
       console.error('Error al liberar slot USER_BOOKED:', e);
@@ -643,7 +664,7 @@ export default function NewReservationPage() {
   const handleCalendarSlotSelection = (slot: CalendarSlot) => {
     setSelectedCalendarSlot(slot);
     setShowCalendarModal(false);
-    
+
     // Extraer la hora del slot seleccionado de forma robusta (HH:MM o ISO)
     const timeString = /^\d{2}:\d{2}$/.test(slot.startTime)
       ? slot.startTime
@@ -699,8 +720,8 @@ export default function NewReservationPage() {
         }
         if (!startISO) return;
         const payload: Record<string, any> = {
-          courtId: selectedCourt.id, 
-          startTime: startISO, 
+          courtId: selectedCourt.id,
+          startTime: startISO,
           duration,
         };
         const userId = (session?.user as any)?.id;
@@ -769,16 +790,15 @@ export default function NewReservationPage() {
           <ArrowLeft className="h-4 w-4 mr-1" />
           Volver a Reservas
         </Link>
-        
+
         {/* Selector de vista */}
         <div className="flex items-center space-x-2">
           <button
             onClick={() => setForceMobileView(!forceMobileView)}
-            className={`p-2 rounded-lg transition-colors ${
-              shouldUseMobileView 
-                ? 'bg-blue-100 text-blue-600' 
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+            className={`p-2 rounded-lg transition-colors ${shouldUseMobileView
+              ? 'bg-blue-100 text-blue-600'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
             title={shouldUseMobileView ? 'Cambiar a vista escritorio' : 'Cambiar a vista móvil'}
           >
             {shouldUseMobileView ? <Monitor className="h-5 w-5" /> : <Smartphone className="h-5 w-5" />}
@@ -800,88 +820,82 @@ export default function NewReservationPage() {
           <div className="flex items-center justify-center space-x-4 mobile-fade-in-up">
             {(hasMultipleCenters
               ? [
-                  { number: 1, title: 'Centro', completed: step > 1 },
-                  { number: 2, title: 'Deporte', completed: step > 2 },
-                  { number: 3, title: 'Cancha', completed: step > 3 },
-                  { number: 4, title: 'Fecha y Hora', completed: false }
-                ]
+                { number: 1, title: 'Centro', completed: step > 1 },
+                { number: 2, title: 'Deporte', completed: step > 2 },
+                { number: 3, title: 'Cancha', completed: step > 3 },
+                { number: 4, title: 'Fecha y Hora', completed: false }
+              ]
               : [
-                  { number: 1, title: 'Deporte', completed: step > 1 },
-                  { number: 2, title: 'Cancha', completed: step > 2 },
-                  { number: 3, title: 'Fecha y Hora', completed: false }
-                ]).map((stepItem, index) => (
-              <div key={stepItem.number} className="flex flex-col items-center relative">
-                <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 mb-2 ${
-                  stepItem.completed
+                { number: 1, title: 'Deporte', completed: step > 1 },
+                { number: 2, title: 'Cancha', completed: step > 2 },
+                { number: 3, title: 'Fecha y Hora', completed: false }
+              ]).map((stepItem, index) => (
+                <div key={stepItem.number} className="flex flex-col items-center relative">
+                  <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 mb-2 ${stepItem.completed
                     ? 'bg-green-600 border-green-600 text-white'
                     : step === stepItem.number
-                    ? 'bg-blue-600 border-blue-600 text-white'
-                    : 'border-gray-300 text-gray-500'
-                }`}>
-                  {stepItem.completed ? (
-                    <Check className="h-5 w-5" />
-                  ) : (
-                    stepItem.number
-                  )}
-                </div>
-                <span className={`text-xs font-medium text-center ${
-                  stepItem.completed || step === stepItem.number
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'border-gray-300 text-gray-500'
+                    }`}>
+                    {stepItem.completed ? (
+                      <Check className="h-5 w-5" />
+                    ) : (
+                      stepItem.number
+                    )}
+                  </div>
+                  <span className={`text-xs font-medium text-center ${stepItem.completed || step === stepItem.number
                     ? 'text-gray-900'
                     : 'text-gray-500'
-                }`}>
-                  {stepItem.title}
-                </span>
-                {index < 2 && (
-                  <div className={`absolute top-5 left-full w-8 h-0.5 ${
-                    stepItem.completed ? 'bg-green-600' : 'bg-gray-300'
-                  }`}></div>
-                )}
-              </div>
-            ))}
+                    }`}>
+                    {stepItem.title}
+                  </span>
+                  {index < 2 && (
+                    <div className={`absolute top-5 left-full w-8 h-0.5 ${stepItem.completed ? 'bg-green-600' : 'bg-gray-300'
+                      }`}></div>
+                  )}
+                </div>
+              ))}
           </div>
         ) : (
           // Vista escritorio original
           <div className="flex items-center justify-between">
             {(hasMultipleCenters
               ? [
-                  { number: 1, title: 'Centro', completed: step > 1 },
-                  { number: 2, title: 'Deporte', completed: step > 2 },
-                  { number: 3, title: 'Cancha', completed: step > 3 },
-                  { number: 4, title: 'Fecha y Hora', completed: false }
-                ]
+                { number: 1, title: 'Centro', completed: step > 1 },
+                { number: 2, title: 'Deporte', completed: step > 2 },
+                { number: 3, title: 'Cancha', completed: step > 3 },
+                { number: 4, title: 'Fecha y Hora', completed: false }
+              ]
               : [
-                  { number: 1, title: 'Deporte', completed: step > 1 },
-                  { number: 2, title: 'Cancha', completed: step > 2 },
-                  { number: 3, title: 'Fecha y Hora', completed: false }
-                ]).map((stepItem, index) => (
-              <div key={stepItem.number} className="flex items-center">
-                <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-                  stepItem.completed
+                { number: 1, title: 'Deporte', completed: step > 1 },
+                { number: 2, title: 'Cancha', completed: step > 2 },
+                { number: 3, title: 'Fecha y Hora', completed: false }
+              ]).map((stepItem, index) => (
+                <div key={stepItem.number} className="flex items-center">
+                  <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${stepItem.completed
                     ? 'bg-green-600 border-green-600 text-white'
                     : step === stepItem.number
-                    ? 'bg-blue-600 border-blue-600 text-white'
-                    : 'border-gray-300 text-gray-500'
-                }`}>
-                  {stepItem.completed ? (
-                    <Check className="h-4 w-4" />
-                  ) : (
-                    stepItem.number
-                  )}
-                </div>
-                <span className={`ml-2 text-sm font-medium ${
-                  stepItem.completed || step === stepItem.number
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'border-gray-300 text-gray-500'
+                    }`}>
+                    {stepItem.completed ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      stepItem.number
+                    )}
+                  </div>
+                  <span className={`ml-2 text-sm font-medium ${stepItem.completed || step === stepItem.number
                     ? 'text-gray-900'
                     : 'text-gray-500'
-                }`}>
-                  {stepItem.title}
-                </span>
-                {index < 2 && (
-                  <div className={`w-16 h-0.5 mx-4 ${
-                    stepItem.completed ? 'bg-green-600' : 'bg-gray-300'
-                  }`}></div>
-                )}
-              </div>
-            ))}
+                    }`}>
+                    {stepItem.title}
+                  </span>
+                  {index < 2 && (
+                    <div className={`w-16 h-0.5 mx-4 ${stepItem.completed ? 'bg-green-600' : 'bg-gray-300'
+                      }`}></div>
+                  )}
+                </div>
+              ))}
           </div>
         )}
       </div>
@@ -891,9 +905,8 @@ export default function NewReservationPage() {
         {/* Step 1 (opcional): Select Center */}
         {hasMultipleCenters && step === 1 && (
           <div className={shouldUseMobileView ? "p-4 mobile-fade-in-up" : "p-6"}>
-            <h2 className={`font-semibold text-gray-900 mb-4 ${
-              shouldUseMobileView ? "text-xl text-center" : "text-lg"
-            }`}>
+            <h2 className={`font-semibold text-gray-900 mb-4 ${shouldUseMobileView ? "text-xl text-center" : "text-lg"
+              }`}>
               Selecciona el Centro
             </h2>
             <div className={shouldUseMobileView ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 md:grid-cols-2 gap-4"}>
@@ -916,14 +929,13 @@ export default function NewReservationPage() {
         {/* Step: Select Sport (paso 1 u 2 según centros) */}
         {step === (hasMultipleCenters ? 2 : 1) && (
           <div className={shouldUseMobileView ? "p-4 mobile-fade-in-up" : "p-6"}>
-            <h2 className={`font-semibold text-gray-900 mb-4 ${
-              shouldUseMobileView ? "text-xl text-center" : "text-lg"
-            }`}>
+            <h2 className={`font-semibold text-gray-900 mb-4 ${shouldUseMobileView ? "text-xl text-center" : "text-lg"
+              }`}>
               Selecciona el Deporte
             </h2>
-            
-            <div className={shouldUseMobileView 
-              ? "grid grid-cols-2 gap-3 mobile-stagger-children" 
+
+            <div className={shouldUseMobileView
+              ? "grid grid-cols-2 gap-3 mobile-stagger-children"
               : "grid grid-cols-2 md:grid-cols-4 gap-4"
             }>
               {sports.map((sport) => (
@@ -933,11 +945,10 @@ export default function NewReservationPage() {
                     setSelectedSport(sport);
                     setSelectedCourt(null);
                   }}
-                  className={`p-4 rounded-lg border-2 transition-all duration-200 ${
-                    selectedSport === sport
-                      ? 'border-blue-600 bg-blue-50 text-blue-900 scale-105'
-                      : 'border-gray-200 hover:border-gray-300 text-gray-700 hover:shadow-md'
-                  } ${shouldUseMobileView ? 'active:scale-95 mobile-card-hover' : ''}`}
+                  className={`p-4 rounded-lg border-2 transition-all duration-200 ${selectedSport === sport
+                    ? 'border-blue-600 bg-blue-50 text-blue-900 scale-105'
+                    : 'border-gray-200 hover:border-gray-300 text-gray-700 hover:shadow-md'
+                    } ${shouldUseMobileView ? 'active:scale-95 mobile-card-hover' : ''}`}
                 >
                   <div className="text-center">
                     <div className={shouldUseMobileView ? "text-3xl mb-2" : "text-2xl mb-2"}>
@@ -948,16 +959,14 @@ export default function NewReservationPage() {
                 </button>
               ))}
             </div>
-            
+
             {selectedSport && (
-              <div className={`mt-6 flex ${
-                shouldUseMobileView ? "justify-center" : "justify-end"
-              }`}>
+              <div className={`mt-6 flex ${shouldUseMobileView ? "justify-center" : "justify-end"
+                }`}>
                 <button
                   onClick={() => setStep(hasMultipleCenters ? 3 : 2)}
-                  className={`bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                    shouldUseMobileView ? "px-8 py-3 text-lg font-medium" : "px-4 py-2"
-                  }`}
+                  className={`bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${shouldUseMobileView ? "px-8 py-3 text-lg font-medium" : "px-4 py-2"
+                    }`}
                 >
                   Continuar
                 </button>
@@ -977,8 +986,16 @@ export default function NewReservationPage() {
                 onCourtSelect={(court) => {
                   setSelectedCourt(court);
                 }}
-                onContinue={() => setStep(hasMultipleCenters ? 4 : 3)}
+                onContinue={() => {
+                  // Si la cancha es multiuso, verificar que se haya seleccionado un deporte
+                  if (selectedCourt && (selectedCourt as any).isMultiuse && !selectedSport) {
+                    alert('Por favor, selecciona un deporte antes de continuar.');
+                    return;
+                  }
+                  setStep(hasMultipleCenters ? 4 : 3);
+                }}
                 selectedSport={selectedSport}
+                onSportChange={(sport) => setSelectedSport(sport)}
               />
             ) : (
               // Vista escritorio original
@@ -994,7 +1011,7 @@ export default function NewReservationPage() {
                     Cambiar {hasMultipleCenters ? 'deporte' : 'deporte'}
                   </button>
                 </div>
-                
+
                 {/* Búsqueda de canchas */}
                 <div className="mb-6">
                   <label htmlFor="courtSearch" className="block text-sm font-medium text-gray-700 mb-2">
@@ -1017,52 +1034,91 @@ export default function NewReservationPage() {
                     </button>
                   )}
                 </div>
-                
+
                 {filteredCourts.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
-                    {courtSearchTerm 
+                    {courtSearchTerm
                       ? `No se encontraron canchas que coincidan con "${courtSearchTerm}"`
                       : 'No hay canchas disponibles para este deporte'}
                   </div>
                 ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {filteredCourts.map((court) => (
-                <div
-                  key={court.id}
-                  onClick={() => setSelectedCourt(court)}
-                  className={`p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-                    selectedCourt?.id === court.id
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <div className="text-xl mb-2">{getSportIcon(court.sportType)}</div>
-                      <h3 className="font-medium text-gray-900">{court.name}</h3>
-                      <p className="text-sm text-gray-500 flex items-center mt-1">
-                        <Users className="h-4 w-4 mr-1" />
-                        Hasta {court.capacity} personas
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-gray-900">
-                        {formatCurrency(court.pricePerHour)}
-                      </div>
-                      <div className="text-sm text-gray-500">por hora</div>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    {court.amenities.map((amenity: string, index: number) => (
-                      <div key={index} className="text-sm text-gray-600 flex items-center">
-                        <div className="w-1.5 h-1.5 bg-green-400 rounded-full mr-2"></div>
-                        {amenity}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {filteredCourts.map((court) => (
+                      <div
+                        key={court.id}
+                        onClick={() => {
+                          setSelectedCourt(court);
+                        }}
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-colors ${selectedCourt?.id === court.id
+                          ? 'border-blue-600 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <div className="text-xl mb-2">{getSportIcon(court.sportType)}</div>
+                            <h3 className="font-medium text-gray-900">{court.name}</h3>
+                            <p className="text-sm text-gray-500 flex items-center mt-1">
+                              <Users className="h-4 w-4 mr-1" />
+                              Hasta {court.capacity} personas
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-semibold text-gray-900">
+                              {formatCurrency(court.pricePerHour)}
+                            </div>
+                            <div className="text-sm text-gray-500">por hora</div>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          {court.amenities.map((amenity: string, index: number) => (
+                            <div key={index} className="text-sm text-gray-600 flex items-center">
+                              <div className="w-1.5 h-1.5 bg-green-400 rounded-full mr-2"></div>
+                              {amenity}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
-                </div>
-              ))}
-            </div>
+                )}
+                {/* Selector de deporte para canchas multiuso */}
+                {selectedCourt && (selectedCourt as any).isMultiuse && Array.isArray((selectedCourt as any).allowedSports) && ((selectedCourt as any).allowedSports as string[]).length > 0 && (
+                  <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <label className="block text-sm font-medium text-gray-900 mb-3">
+                      Selecciona el deporte para esta cancha multiuso:
+                    </label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {((selectedCourt as any).allowedSports as string[]).map((sport: string) => {
+                        const normalize = (s: string) => (s || '').toUpperCase().trim();
+                        const sportNormalized = normalize(sport);
+                        const selectedNormalized = selectedSport ? normalize(selectedSport) : '';
+                        const isSelected = selectedNormalized === sportNormalized;
+
+                        return (
+                          <button
+                            key={sport}
+                            onClick={() => {
+                              // NO resetear la cancha seleccionada al cambiar el deporte
+                              setSelectedSport(sport);
+                            }}
+                            className={`p-3 rounded-lg border-2 transition-all duration-200 text-center ${isSelected
+                              ? 'border-blue-600 bg-blue-100 text-blue-900 font-semibold'
+                              : 'border-gray-200 hover:border-gray-300 text-gray-700 hover:bg-gray-50'
+                              }`}
+                          >
+                            <div className="text-2xl mb-1">{getSportIcon(sport)}</div>
+                            <div className="text-sm">{getSportLabel(sport)}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {!selectedSport && (
+                      <p className="mt-3 text-sm text-amber-600">
+                        ⚠️ Por favor, selecciona un deporte antes de continuar.
+                      </p>
+                    )}
+                  </div>
                 )}
                 {selectedCourt && (
                   <div className="mt-6 flex justify-between">
@@ -1073,8 +1129,16 @@ export default function NewReservationPage() {
                       Anterior
                     </button>
                     <button
-                      onClick={() => setStep(hasMultipleCenters ? 4 : 3)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      onClick={() => {
+                        // Si la cancha es multiuso, verificar que se haya seleccionado un deporte
+                        if ((selectedCourt as any).isMultiuse && !selectedSport) {
+                          alert('Por favor, selecciona un deporte antes de continuar.');
+                          return;
+                        }
+                        setStep(hasMultipleCenters ? 4 : 3);
+                      }}
+                      disabled={(selectedCourt as any).isMultiuse && !selectedSport}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Continuar
                     </button>
@@ -1102,11 +1166,11 @@ export default function NewReservationPage() {
                   setSelectedDuration(newDuration);
                   setSelectedSlot(null); // Resetear slot seleccionado
                   setLightingSelected(false); // Resetear selección de iluminación
-                  
+
                   // 🔄 Recargar slots con la nueva duración
                   if (selectedCourt && selectedDate) {
                     console.log('🔄 [DURATION-CHANGE-DESKTOP] Llamando loadTimeSlots con duración:', newDuration);
-                    await loadTimeSlots(selectedCourt.id, clampDate(selectedDate), newDuration);
+                    await loadTimeSlots(selectedCourt.id, clampDate(selectedDate), newDuration, selectedSport);
                   }
                 }}
                 timeSlots={timeSlots}
@@ -1142,58 +1206,58 @@ export default function NewReservationPage() {
                 minDate={minSelectableDate}
                 maxDate={maxSelectableDate}
                 onContinue={async () => {
-                   // En móvil, crear la reserva directamente con el slot seleccionado
-                   if (selectedSlot && selectedCourt && selectedDate && !loadingReservation) {
-                     try {
-                       setLoadingReservation(true);
-                       
-                       // Crear fecha ISO para startTime
-                       const startDateTime = new Date(`${selectedDate}T${selectedSlot.startTime}`);
-                       
-                       console.log('🔍 [DEBUG-MOBILE] Enviando datos al backend:', {
-                         courtId: selectedCourt.id,
-                         startTime: startDateTime.toISOString(),
-                         duration: selectedDuration,
-                         lightingSelected,
-                         notes,
-                         sport: selectedSport || (selectedCourt as any)?.sportType || undefined,
-                       });
+                  // En móvil, crear la reserva directamente con el slot seleccionado
+                  if (selectedSlot && selectedCourt && selectedDate && !loadingReservation) {
+                    try {
+                      setLoadingReservation(true);
 
-                       const reservationResponse: any = await api.reservations.create({
-                         courtId: selectedCourt.id,
-                         startTime: startDateTime.toISOString(),
-                         duration: selectedDuration,
-                         lightingSelected: lightingSelected,
-                         paymentMethod: 'redsys' as 'redsys',
-                         notes: notes,
-                         sport: selectedSport || (selectedCourt as any)?.sportType || undefined,
-                       });
-                       
-                       const reservationId = reservationResponse?.reservation?.id || reservationResponse?.id;
-                       if (reservationId) {
-                         setCreatedReservationId(reservationId);
-                         setShowPaymentModal(true);
-                       } else {
-                         console.error('No se obtuvo reservationId válido de la API:', reservationResponse);
-                         alert('No se pudo crear la reserva. Intenta nuevamente.');
-                       }
-                     } catch (error: any) {
-                       console.error('Error creating reservation:', error);
-                       
-                       // Manejo específico de errores de conflicto de horario
-                       if (error.status === 409 && error.message?.includes('Horario no disponible')) {
-                         // Mostrar modal de conflicto con opciones
-                         setError('conflict');
-                         setShowConflictModal(true);
-                       } else {
-                         // Error genérico
-                         setError(error.message || 'Error al crear la reserva. Intenta nuevamente.');
-                       }
-                     } finally {
-                       setLoadingReservation(false);
-                     }
-                   }
-                 }}
+                      // Crear fecha ISO para startTime
+                      const startDateTime = new Date(`${selectedDate}T${selectedSlot.startTime}`);
+
+                      console.log('🔍 [DEBUG-MOBILE] Enviando datos al backend:', {
+                        courtId: selectedCourt.id,
+                        startTime: startDateTime.toISOString(),
+                        duration: selectedDuration,
+                        lightingSelected,
+                        notes,
+                        sport: selectedSport || (selectedCourt as any)?.sportType || undefined,
+                      });
+
+                      const reservationResponse: any = await api.reservations.create({
+                        courtId: selectedCourt.id,
+                        startTime: startDateTime.toISOString(),
+                        duration: selectedDuration,
+                        lightingSelected: lightingSelected,
+                        paymentMethod: 'redsys' as 'redsys',
+                        notes: notes,
+                        sport: selectedSport || (selectedCourt as any)?.sportType || undefined,
+                      });
+
+                      const reservationId = reservationResponse?.reservation?.id || reservationResponse?.id;
+                      if (reservationId) {
+                        setCreatedReservationId(reservationId);
+                        setShowPaymentModal(true);
+                      } else {
+                        console.error('No se obtuvo reservationId válido de la API:', reservationResponse);
+                        alert('No se pudo crear la reserva. Intenta nuevamente.');
+                      }
+                    } catch (error: any) {
+                      console.error('Error creating reservation:', error);
+
+                      // Manejo específico de errores de conflicto de horario
+                      if (error.status === 409 && error.message?.includes('Horario no disponible')) {
+                        // Mostrar modal de conflicto con opciones
+                        setError('conflict');
+                        setShowConflictModal(true);
+                      } else {
+                        // Error genérico
+                        setError(error.message || 'Error al crear la reserva. Intenta nuevamente.');
+                      }
+                    } finally {
+                      setLoadingReservation(false);
+                    }
+                  }
+                }}
               />
             ) : (
               // Vista escritorio original
@@ -1209,281 +1273,287 @@ export default function NewReservationPage() {
                     Cambiar cancha
                   </button>
                 </div>
-            
-            {/* 🎨 FLUJO MEJORADO: CALENDARIO + HORARIOS */}
-            <div className="mb-6">
-              <div className={`transition-all duration-500 ease-in-out ${showTimeSlotsDesktop ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'flex justify-center'}`}>
-                {/* CALENDARIO */}
-                <div className={`transition-all duration-500 ease-in-out ${showTimeSlotsDesktop ? 'lg:col-span-1' : 'w-full max-w-2xl'}`}>
-                  <DesktopCalendar
-                    selectedDate={selectedDate}
-                    onDateChange={async (date) => {
-                      setSelectedDate(date);
-                      setSelectedTime('');
-                      setSelectedCalendarSlot(null);
-                      setSelectedSlot(null); // Resetear slot seleccionado
-                      setSelectedSlotIndex(null); // Resetear index seleccionado
-                      setLightingSelected(false); // Resetear selección de iluminación
-                      setShowTimeSlotsDesktop(true);
-                      
-                      // Cargar horarios automáticamente
-                      if (selectedCourt?.id) {
-                        await loadTimeSlots(selectedCourt.id, date, duration);
-                      }
-                    }}
-                    duration={duration}
-                    onDurationChange={async (newDuration) => {
-                      console.log('🔄 [DURATION-CHANGE] Cambiando duración de', duration, 'a', newDuration);
-                      setDuration(newDuration);
-                      setSelectedTime('');
-                      setSelectedCalendarSlot(null);
-                      setSelectedSlot(null); // Resetear slot seleccionado
-                      setSelectedSlotIndex(null); // Resetear index seleccionado
-                      setLightingSelected(false); // Resetear selección de iluminación
-                      
-                      // 🔄 Recargar slots con la nueva duración
-                      if (selectedCourt && selectedDate) {
-                        console.log('🔄 [DURATION-CHANGE] Llamando loadTimeSlots con duración:', newDuration);
-                        await loadTimeSlots(selectedCourt.id, clampDate(selectedDate), newDuration);
-                      }
-                    }}
-                    courtName={selectedCourt?.name}
-                    minDate={minSelectableDate}
-                    maxDate={maxSelectableDate}
+
+                {/* 🎨 FLUJO MEJORADO: CALENDARIO + HORARIOS */}
+                <div className="mb-6">
+                  <div className={`transition-all duration-500 ease-in-out ${showTimeSlotsDesktop ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'flex justify-center'}`}>
+                    {/* CALENDARIO */}
+                    <div className={`transition-all duration-500 ease-in-out ${showTimeSlotsDesktop ? 'lg:col-span-1' : 'w-full max-w-2xl'}`}>
+                      <DesktopCalendar
+                        selectedDate={selectedDate}
+                        onDateChange={async (date) => {
+                          setSelectedDate(date);
+                          setSelectedTime('');
+                          setSelectedCalendarSlot(null);
+                          setSelectedSlot(null); // Resetear slot seleccionado
+                          setSelectedSlotIndex(null); // Resetear index seleccionado
+                          setLightingSelected(false); // Resetear selección de iluminación
+                          setShowTimeSlotsDesktop(true);
+
+                          // Cargar horarios automáticamente
+                          if (selectedCourt?.id) {
+                            await loadTimeSlots(selectedCourt.id, date, duration, selectedSport);
+                          }
+                        }}
+                        duration={duration}
+                        onDurationChange={async (newDuration) => {
+                          console.log('🔄 [DURATION-CHANGE] Cambiando duración de', duration, 'a', newDuration);
+                          setDuration(newDuration);
+                          setSelectedTime('');
+                          setSelectedCalendarSlot(null);
+                          setSelectedSlot(null); // Resetear slot seleccionado
+                          setSelectedSlotIndex(null); // Resetear index seleccionado
+                          setLightingSelected(false); // Resetear selección de iluminación
+
+                          // 🔄 Recargar slots con la nueva duración
+                          if (selectedCourt && selectedDate) {
+                            console.log('🔄 [DURATION-CHANGE] Llamando loadTimeSlots con duración:', newDuration);
+                            await loadTimeSlots(selectedCourt.id, clampDate(selectedDate), newDuration, selectedSport);
+                          }
+                        }}
+                        courtName={selectedCourt?.name}
+                        minDate={minSelectableDate}
+                        maxDate={maxSelectableDate}
+                      />
+                    </div>
+
+                    {/* HORARIOS DISPONIBLES */}
+                    {showTimeSlotsDesktop && selectedDate && (
+                      <div className="lg:col-span-1">
+                        <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              Horarios Disponibles
+                            </h3>
+                            <button
+                              onClick={() => setShowTimeSlotsDesktop(false)}
+                              className="text-gray-500 hover:text-gray-700 transition-colors"
+                            >
+                              <X className="h-5 w-5" />
+                            </button>
+                          </div>
+
+                          <div className="mb-4">
+                            <p className="text-sm text-gray-600">
+                              {toDisplayDate(selectedDate)}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Duración: {duration === 60 ? '1 hora' : duration === 90 ? '1.5 horas' : duration === 120 ? '2 horas' : '3 horas'}
+                            </p>
+                          </div>
+
+                          {/* ✅ HORARIO SELECCIONADO - ARRIBA */}
+                          {selectedCalendarSlot && (
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center">
+                                  <div className="text-green-600 text-lg mr-2">✅</div>
+                                  <div>
+                                    <p className="font-semibold text-green-900 text-sm">
+                                      {formatTime(selectedCalendarSlot.startTime)} - {formatTime(selectedCalendarSlot.endTime)}
+                                    </p>
+                                    <p className="text-xs text-green-700">
+                                      {duration === 60 ? '1 hora' : duration === 90 ? '1.5 horas' : duration === 120 ? '2 horas' : '3 horas'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold text-green-900 text-lg">€{selectedCalendarSlot.price}</p>
+                                </div>
+                              </div>
+
+                              {/* Opción de iluminación para horarios de día (Desktop) */}
+                              {selectedCalendarSlot && isDayTime(selectedCalendarSlot.startTime) && selectedCourt?.lightingExtraPerHour !== undefined && selectedCourt.lightingExtraPerHour > 0 && (
+                                <div className="mt-4 p-3 border border-yellow-200 rounded-lg bg-yellow-50">
+                                  <div className="flex items-center space-x-3">
+                                    <Lightbulb className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+                                    <div className="flex-1">
+                                      <label htmlFor="lighting-checkbox-desktop" className="flex items-center space-x-2 cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          id="lighting-checkbox-desktop"
+                                          checked={lightingSelected}
+                                          onChange={(e) => setLightingSelected(e.target.checked)}
+                                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                        />
+                                        <span className="text-sm font-medium text-yellow-800">
+                                          Iluminación adicional (+€{(selectedCourt.lightingExtraPerHour * duration / 60).toFixed(2)})
+                                        </span>
+                                      </label>
+                                      <p className="text-xs text-yellow-700 mt-1 ml-6">
+                                        <strong>Horario de día:</strong> La iluminación es opcional. Si la seleccionas, se aplicará un cargo adicional de €{selectedCourt.lightingExtraPerHour}/hora.
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Mensaje para horarios de noche (Desktop) */}
+                              {selectedCalendarSlot && !isDayTime(selectedCalendarSlot.startTime) && (
+                                <div className="mt-4 p-3 border border-blue-200 rounded-lg bg-blue-50">
+                                  <div className="flex items-center space-x-3">
+                                    <Lightbulb className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                                    <p className="text-sm font-medium text-blue-800">
+                                      <strong>Horario nocturno:</strong> Iluminación obligatoria (+€{((selectedCourt?.lightingExtraPerHour || 0) * duration / 60).toFixed(2)}).
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                              <button
+                                onClick={() => handleSubmit(false)}
+                                disabled={isLoading}
+                                className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isLoading ? 'Creando Reserva...' : 'Continuar con la Reserva'}
+                              </button>
+                            </div>
+                          )}
+
+                          {loadingTimeSlots ? (
+                            <div className="flex items-center justify-center py-8">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                              <span className="ml-2 text-gray-600">Cargando horarios...</span>
+                            </div>
+                          ) : timeSlots.length > 0 ? (
+                            <div className="grid grid-cols-3 gap-2 max-h-96 overflow-y-auto">
+                              {timeSlots.map((slot, index) => {
+                                const isSelected = selectedSlotIndex === index;
+                                return (
+                                  <button
+                                    key={index}
+                                    onClick={() => {
+                                      if (slot.status === 'AVAILABLE') {
+                                        setSelectedSlotIndex(index);
+                                        setSelectedSlot(slot);
+                                        setSelectedTime(slot.time);
+                                        setSelectedCalendarSlot({
+                                          time: slot.time,
+                                          startTime: slot.startTime,
+                                          endTime: slot.endTime,
+                                          status: slot.status,
+                                          price: slot.price,
+                                          available: slot.available,
+                                          color: 'green',
+                                          message: 'Disponible',
+                                          conflicts: []
+                                        });
+                                      } else if (slot.status === 'USER_BOOKED') {
+                                        // Mostrar opciones: Pagar, Liberar, Cancelar
+                                        setSlotForActions(slot);
+                                        setShowUserBookedActions(true);
+                                      }
+                                    }}
+                                    disabled={!(slot.status === 'AVAILABLE' || slot.status === 'USER_BOOKED')}
+                                    className={`
+                                p-2 rounded-md text-center transition-all duration-200 font-medium text-xs
+                                ${isSelected
+                                        ? 'bg-blue-600 text-white border-2 border-blue-700 shadow-md'
+                                        : slot.status === 'AVAILABLE'
+                                          ? 'bg-green-100 text-green-900 hover:bg-green-200 border-2 border-green-400'
+                                          : slot.status === 'BOOKED'
+                                            ? 'bg-red-100 text-red-900 border-2 border-red-400 cursor-not-allowed'
+                                            : slot.status === 'USER_BOOKED'
+                                              ? 'bg-purple-100 text-purple-900 border-2 border-purple-400 hover:bg-purple-200'
+                                              : slot.status === 'MAINTENANCE_OVERRIDE'
+                                                ? 'bg-amber-100 text-amber-900 border-2 border-amber-500 hover:bg-amber-200 cursor-pointer'
+                                                : slot.status === 'MAINTENANCE'
+                                                  ? 'bg-gray-200 text-gray-600 border-2 border-gray-400 cursor-not-allowed'
+                                                  : 'bg-gray-100 text-gray-500 border-2 border-gray-300 cursor-not-allowed'
+                                      }
+                              `}
+                                    style={{
+                                      backgroundColor: isSelected
+                                        ? '#2563eb'
+                                        : slot.status === 'AVAILABLE'
+                                          ? '#dcfce7'
+                                          : slot.status === 'BOOKED'
+                                            ? '#fecaca'
+                                            : slot.status === 'USER_BOOKED'
+                                              ? '#e9d5ff'
+                                              : slot.status === 'MAINTENANCE_OVERRIDE'
+                                                ? '#fef3c7'
+                                                : slot.status === 'MAINTENANCE'
+                                                  ? '#e5e7eb'
+                                                  : '#f3f4f6'
+                                    }}
+                                  >
+                                    <div className="font-bold text-sm mb-1">
+                                      {slot.time || slot.startTime || 'N/A'}
+                                      {isSelected ? ' ✓' : ''}
+                                    </div>
+                                    <div className="text-xs mb-1">
+                                      {isSelected
+                                        ? 'SELECCIONADO'
+                                        : slot.status === 'AVAILABLE'
+                                          ? 'Disponible'
+                                          : slot.status === 'BOOKED'
+                                            ? 'Ocupado'
+                                            : slot.status === 'USER_BOOKED'
+                                              ? 'Mi reserva'
+                                              : slot.status === 'MAINTENANCE_OVERRIDE'
+                                                ? (slot as any)?.message || '⚙️ Mantenimiento - Disponible Admin'
+                                                : slot.status === 'MAINTENANCE'
+                                                  ? (slot as any)?.message || ((slot as any)?.activityType === 'TRAINING'
+                                                    ? 'Entrenamiento'
+                                                    : (slot as any)?.activityType === 'CLASS'
+                                                      ? 'Clase'
+                                                      : (slot as any)?.activityType === 'WARMUP'
+                                                        ? 'Calentamiento'
+                                                        : (slot as any)?.activityType === 'EVENT'
+                                                          ? 'Evento'
+                                                          : (slot as any)?.activityType === 'MEETING'
+                                                            ? 'Reunión'
+                                                            : 'Mantenimiento')
+                                                  : 'No disponible'}
+                                    </div>
+                                    {slot.available && (
+                                      <div className="text-xs font-semibold">
+                                        €{slot.price}
+                                      </div>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-gray-500">
+                              <AlertCircle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                              <p>No hay horarios disponibles para esta fecha</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+
+                {/* 📝 NOTAS */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Notas (Opcional)
+                  </label>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Agrega cualquier información adicional sobre tu reserva..."
                   />
                 </div>
 
-                {/* HORARIOS DISPONIBLES */}
-                {showTimeSlotsDesktop && selectedDate && (
-                  <div className="lg:col-span-1">
-                    <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          Horarios Disponibles
-                        </h3>
-                        <button
-                          onClick={() => setShowTimeSlotsDesktop(false)}
-                          className="text-gray-500 hover:text-gray-700 transition-colors"
-                        >
-                          <X className="h-5 w-5" />
-                        </button>
-                      </div>
 
-                      <div className="mb-4">
-                        <p className="text-sm text-gray-600">
-                          {toDisplayDate(selectedDate)}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Duración: {duration === 60 ? '1 hora' : duration === 90 ? '1.5 horas' : duration === 120 ? '2 horas' : '3 horas'}
-                        </p>
-                      </div>
-
-                      {/* ✅ HORARIO SELECCIONADO - ARRIBA */}
-                      {selectedCalendarSlot && (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center">
-                              <div className="text-green-600 text-lg mr-2">✅</div>
-                              <div>
-                                <p className="font-semibold text-green-900 text-sm">
-                                  {formatTime(selectedCalendarSlot.startTime)} - {formatTime(selectedCalendarSlot.endTime)}
-                                </p>
-                                <p className="text-xs text-green-700">
-                                  {duration === 60 ? '1 hora' : duration === 90 ? '1.5 horas' : duration === 120 ? '2 horas' : '3 horas'}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-bold text-green-900 text-lg">€{selectedCalendarSlot.price}</p>
-                            </div>
-                          </div>
-
-                          {/* Opción de iluminación para horarios de día (Desktop) */}
-                          {selectedCalendarSlot && isDayTime(selectedCalendarSlot.startTime) && selectedCourt?.lightingExtraPerHour !== undefined && selectedCourt.lightingExtraPerHour > 0 && (
-                            <div className="mt-4 p-3 border border-yellow-200 rounded-lg bg-yellow-50">
-                              <div className="flex items-center space-x-3">
-                                <Lightbulb className="h-5 w-5 text-yellow-600 flex-shrink-0" />
-                                <div className="flex-1">
-                                  <label htmlFor="lighting-checkbox-desktop" className="flex items-center space-x-2 cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      id="lighting-checkbox-desktop"
-                                      checked={lightingSelected}
-                                      onChange={(e) => setLightingSelected(e.target.checked)}
-                                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                    />
-                                    <span className="text-sm font-medium text-yellow-800">
-                                      Iluminación adicional (+€{(selectedCourt.lightingExtraPerHour * duration / 60).toFixed(2)})
-                                    </span>
-                                  </label>
-                                  <p className="text-xs text-yellow-700 mt-1 ml-6">
-                                    <strong>Horario de día:</strong> La iluminación es opcional. Si la seleccionas, se aplicará un cargo adicional de €{selectedCourt.lightingExtraPerHour}/hora.
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Mensaje para horarios de noche (Desktop) */}
-                          {selectedCalendarSlot && !isDayTime(selectedCalendarSlot.startTime) && (
-                            <div className="mt-4 p-3 border border-blue-200 rounded-lg bg-blue-50">
-                              <div className="flex items-center space-x-3">
-                                <Lightbulb className="h-5 w-5 text-blue-600 flex-shrink-0" />
-                                <p className="text-sm font-medium text-blue-800">
-                                  <strong>Horario nocturno:</strong> Iluminación obligatoria (+€{((selectedCourt?.lightingExtraPerHour || 0) * duration / 60).toFixed(2)}).
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                          <button
-                            onClick={() => handleSubmit(false)}
-                            disabled={isLoading}
-                            className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isLoading ? 'Creando Reserva...' : 'Continuar con la Reserva'}
-                          </button>
-                        </div>
-                      )}
-
-                      {loadingTimeSlots ? (
-                        <div className="flex items-center justify-center py-8">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                          <span className="ml-2 text-gray-600">Cargando horarios...</span>
-                        </div>
-                      ) : timeSlots.length > 0 ? (
-                        <div className="grid grid-cols-3 gap-2 max-h-96 overflow-y-auto">
-                          {timeSlots.map((slot, index) => {
-                            const isSelected = selectedSlotIndex === index;
-                            return (
-                            <button
-                              key={index}
-                              onClick={() => {
-                                if (slot.status === 'AVAILABLE') {
-                                  setSelectedSlotIndex(index);
-                                  setSelectedSlot(slot);
-                                  setSelectedTime(slot.time);
-                                  setSelectedCalendarSlot({
-                                    time: slot.time,
-                                    startTime: slot.startTime,
-                                    endTime: slot.endTime,
-                                    status: slot.status,
-                                    price: slot.price,
-                                    available: slot.available,
-                                    color: 'green',
-                                    message: 'Disponible',
-                                    conflicts: []
-                                  });
-                                } else if (slot.status === 'USER_BOOKED') {
-                                  // Mostrar opciones: Pagar, Liberar, Cancelar
-                                  setSlotForActions(slot);
-                                  setShowUserBookedActions(true);
-                                }
-                              }}
-                              disabled={!(slot.status === 'AVAILABLE' || slot.status === 'USER_BOOKED')}
-                              className={`
-                                p-2 rounded-md text-center transition-all duration-200 font-medium text-xs
-                                ${isSelected
-                                  ? 'bg-blue-600 text-white border-2 border-blue-700 shadow-md'
-                                  : slot.status === 'AVAILABLE'
-                                    ? 'bg-green-100 text-green-900 hover:bg-green-200 border-2 border-green-400'
-                                    : slot.status === 'BOOKED'
-                                      ? 'bg-red-100 text-red-900 border-2 border-red-400 cursor-not-allowed'
-                                      : slot.status === 'USER_BOOKED'
-                                        ? 'bg-purple-100 text-purple-900 border-2 border-purple-400 hover:bg-purple-200'
-                                        : slot.status === 'MAINTENANCE'
-                                          ? 'bg-yellow-100 text-yellow-900 border-2 border-yellow-400 cursor-not-allowed'
-                                          : 'bg-gray-100 text-gray-500 border-2 border-gray-300 cursor-not-allowed'
-                                }
-                              `}
-                              style={{
-                                backgroundColor: isSelected 
-                                  ? '#2563eb' 
-                                  : slot.status === 'AVAILABLE' 
-                                    ? '#dcfce7'
-                                    : slot.status === 'BOOKED'
-                                      ? '#fecaca'
-                                      : slot.status === 'USER_BOOKED'
-                                        ? '#e9d5ff'
-                                        : slot.status === 'MAINTENANCE'
-                                          ? '#fef3c7'
-                                          : '#f3f4f6'
-                              }}
-                            >
-                              <div className="font-bold text-sm mb-1">
-                                {slot.time || slot.startTime || 'N/A'}
-                                {isSelected ? ' ✓' : ''}
-                              </div>
-                              <div className="text-xs mb-1">
-                                {isSelected
-                                  ? 'SELECCIONADO'
-                                  : slot.status === 'AVAILABLE'
-                                    ? 'Disponible'
-                                    : slot.status === 'BOOKED'
-                                      ? 'Ocupado'
-                                      : slot.status === 'USER_BOOKED'
-                                        ? 'Mi reserva'
-                                        : slot.status === 'MAINTENANCE'
-                                          ? (slot as any)?.message || ((slot as any)?.activityType === 'TRAINING'
-                                            ? 'Entrenamiento'
-                                            : (slot as any)?.activityType === 'CLASS'
-                                              ? 'Clase'
-                                              : (slot as any)?.activityType === 'WARMUP'
-                                                ? 'Calentamiento'
-                                                : (slot as any)?.activityType === 'EVENT'
-                                                  ? 'Evento'
-                                                  : (slot as any)?.activityType === 'MEETING'
-                                                    ? 'Reunión'
-                                                    : 'Mantenimiento')
-                                          : 'No disponible'}
-                              </div>
-                              {slot.available && (
-                                <div className="text-xs font-semibold">
-                                  €{slot.price}
-                                </div>
-                              )}
-                            </button>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-gray-500">
-                          <AlertCircle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                          <p>No hay horarios disponibles para esta fecha</p>
-                        </div>
-                      )}
-                    </div>
+                {/* 🚀 NAVEGACIÓN */}
+                {selectedDate && (
+                  <div className="flex justify-start">
+                    <button
+                      onClick={() => setStep(2)}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      Anterior
+                    </button>
                   </div>
                 )}
-              </div>
-            </div>
-
-
-            {/* 📝 NOTAS */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Notas (Opcional)
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Agrega cualquier información adicional sobre tu reserva..."
-              />
-            </div>
-
-
-            {/* 🚀 NAVEGACIÓN */}
-            {selectedDate && (
-              <div className="flex justify-start">
-                <button
-                  onClick={() => setStep(2)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  Anterior
-                </button>
-              </div>
-            )}
               </div>
             )}
           </div>
@@ -1526,12 +1596,12 @@ export default function NewReservationPage() {
           pricingDetails={
             pricing
               ? {
-                  basePrice: pricing.basePrice ?? pricing.subtotal ?? totalCost ?? 0,
-                  discount: pricing.discount ?? 0,
-                  total: pricing.total ?? totalCost ?? 0,
-                  breakdown: Array.isArray(pricing.breakdown) ? pricing.breakdown : [],
-                  appliedRules: Array.isArray(pricing.appliedRules) ? pricing.appliedRules : [],
-                }
+                basePrice: pricing.basePrice ?? pricing.subtotal ?? totalCost ?? 0,
+                discount: pricing.discount ?? 0,
+                total: pricing.total ?? totalCost ?? 0,
+                breakdown: Array.isArray(pricing.breakdown) ? pricing.breakdown : [],
+                appliedRules: Array.isArray(pricing.appliedRules) ? pricing.appliedRules : [],
+              }
               : undefined
           }
         />
@@ -1548,12 +1618,12 @@ export default function NewReservationPage() {
           pricingDetails={
             pricing
               ? {
-                  basePrice: pricing.basePrice ?? pricing.subtotal ?? totalCost ?? 0,
-                  discount: pricing.discount ?? 0,
-                  total: pricing.total ?? totalCost ?? 0,
-                  breakdown: Array.isArray(pricing.breakdown) ? pricing.breakdown : [],
-                  appliedRules: Array.isArray(pricing.appliedRules) ? pricing.appliedRules : [],
-                }
+                basePrice: pricing.basePrice ?? pricing.subtotal ?? totalCost ?? 0,
+                discount: pricing.discount ?? 0,
+                total: pricing.total ?? totalCost ?? 0,
+                breakdown: Array.isArray(pricing.breakdown) ? pricing.breakdown : [],
+                appliedRules: Array.isArray(pricing.appliedRules) ? pricing.appliedRules : [],
+              }
               : undefined
           }
           onSuccess={() => router.push('/dashboard/reservations')}
@@ -1571,14 +1641,14 @@ export default function NewReservationPage() {
                   {conflictKind === 'user_owned' ? '📅 Ya tienes una reserva en ese horario' : 'Horario No Disponible'}
                 </h3>
               </div>
-              
+
               <div className="mb-6">
                 <p className="text-gray-600 mb-4">
                   {conflictKind === 'user_owned'
                     ? 'Ese horario ya pertenece a otra de tus reservas. Puedes ir a Mis Reservas o elegir otro horario.'
                     : 'El horario seleccionado ya está reservado o en proceso de pago. Tienes las siguientes opciones:'}
                 </p>
-                
+
                 <div className="space-y-3">
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <h4 className="font-medium text-blue-900 mb-1">Opción 1: Seleccionar otro horario</h4>
@@ -1586,7 +1656,7 @@ export default function NewReservationPage() {
                       Elige un horario diferente disponible.
                     </p>
                   </div>
-                  
+
                   {conflictKind !== 'user_owned' && (
                     <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                       <h4 className="font-medium text-green-900 mb-1">Opción 2: Liberar reserva anterior</h4>
@@ -1597,7 +1667,7 @@ export default function NewReservationPage() {
                   )}
                 </div>
               </div>
-              
+
               <div className="flex space-x-3">
                 <button
                   onClick={() => {
@@ -1612,7 +1682,7 @@ export default function NewReservationPage() {
                 >
                   Ver Horarios Actualizados
                 </button>
-                
+
                 {conflictKind !== 'user_owned' && (
                   <button
                     onClick={releaseConflictsAndRetry}
@@ -1621,7 +1691,7 @@ export default function NewReservationPage() {
                     Liberar Reserva Anterior
                   </button>
                 )}
-                
+
                 <button
                   onClick={goToPayForSelected}
                   className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors"
@@ -1629,7 +1699,7 @@ export default function NewReservationPage() {
                   {conflictKind === 'user_owned' ? 'Ver Mis Reservas' : 'Ir a Pagar'}
                 </button>
               </div>
-              
+
               <button
                 onClick={() => {
                   setShowConflictModal(false);

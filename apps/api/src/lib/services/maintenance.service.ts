@@ -617,20 +617,13 @@ export class MaintenanceService {
     const updatedMaintenance = await db.maintenanceSchedule.update({
       where: { id },
       data: {
-        ...(validatedData.type !== undefined && { type: validatedData.type }),
-        ...(validatedData.activityType !== undefined && { activityType: validatedData.activityType }),
-        ...(validatedData.activityCategory !== undefined && { activityCategory: validatedData.activityCategory }),
-        ...(validatedData.description !== undefined && { description: validatedData.description }),
-        ...(validatedData.scheduledAt !== undefined && { scheduledAt: new Date(validatedData.scheduledAt) }),
-        ...(validatedData.status !== undefined && { status: validatedData.status }),
-        ...(validatedData.assignedTo !== undefined && { assignedTo: validatedData.assignedTo ?? null }),
-        ...(validatedData.instructor !== undefined && { instructor: validatedData.instructor ?? null }),
-        ...(validatedData.capacity !== undefined && { capacity: validatedData.capacity ?? null }),
-        ...(validatedData.requirements !== undefined && { requirements: validatedData.requirements ?? null }),
-        ...(validatedData.isPublic !== undefined && { isPublic: validatedData.isPublic }),
-        ...(validatedData.cost !== undefined && { cost: validatedData.cost ? (validatedData.cost as any) : null }),
-        ...(validatedData.estimatedDuration !== undefined && { estimatedDuration: validatedData.estimatedDuration ?? null }),
-        ...(validatedData.notes !== undefined && { notes: validatedData.notes ?? null }),
+        type: validatedData.type,
+        description: validatedData.description,
+        scheduledAt: validatedData.scheduledAt ? new Date(validatedData.scheduledAt) : undefined,
+        status: validatedData.status,
+        assignedTo: validatedData.assignedTo ?? undefined,
+        cost: (validatedData.cost as any) ?? undefined,
+        notes: validatedData.notes,
       },
       include: {
         court: {

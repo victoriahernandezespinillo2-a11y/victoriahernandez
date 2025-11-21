@@ -22,21 +22,21 @@ function AdminNewReservationPageContent() {
   const [duration, setDuration] = useState(60);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [slots, setSlots] = useState<Array<{ start: string; end: string; available: boolean }>>([]);
+  const [slots, setSlots] = useState<Array<{ start: string; end: string; available: boolean; maintenance?: boolean; adminOverrideable?: boolean }>>([]);
   const [userSearch, setUserSearch] = useState('');
   const [userId, setUserId] = useState('');
   const [userResults, setUserResults] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchTimer, setSearchTimer] = useState<any>(null);
   const [newUser, setNewUser] = useState<{ name: string; email?: string; phone?: string }>({ name: '' });
-  const [paymentMethod, setPaymentMethod] = useState<'CASH'|'TPV'|'TRANSFER'|'CREDITS'|'COURTESY'|'LINK'|'PENDING'>('CASH');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TPV' | 'TRANSFER' | 'CREDITS' | 'COURTESY' | 'LINK' | 'PENDING'>('CASH');
   const [paymentDetails, setPaymentDetails] = useState<{ amount?: string; reason?: string; authCode?: string; reference?: string }>(() => ({}));
   const [price, setPrice] = useState<{ base?: number; final?: number; breakdown?: { description: string; amount: number }[] }>({});
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceError, setPriceError] = useState<string | null>(null);
-  const { showToast} = useToast();
+  const { showToast } = useToast();
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<1|2|3>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [suggestions, setSuggestions] = useState<Array<{ dateISO: string; startISO: string; label: string; price?: number }>>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [overrideEnabled, setOverrideEnabled] = useState(false);
@@ -89,8 +89,8 @@ function AdminNewReservationPageContent() {
   }, []);
 
   useEffect(() => {
-    getCenters({ page: 1, limit: 100 }).catch(() => {});
-    getCourts({ includeStats: false, page: 1, limit: 500 }).catch(() => {});
+    getCenters({ page: 1, limit: 100 }).catch(() => { });
+    getCourts({ includeStats: false, page: 1, limit: 500 }).catch(() => { });
   }, [getCenters, getCourts]);
 
   // Pre-seleccionar usuario si viene en query params
@@ -102,47 +102,47 @@ function AdminNewReservationPageContent() {
           // Obtener el usuario directamente por ID
           const userResponse: any = await adminApi.users.getById(userIdFromQuery);
           const userData = userResponse?.data || userResponse;
-          
+
           if (userData && userData.id) {
             // Extraer nombre completo (puede venir como name o firstName/lastName)
             const firstName = userData.firstName || '';
             const lastName = userData.lastName || '';
             const name = userData.name || '';
-            const fullName = firstName && lastName 
+            const fullName = firstName && lastName
               ? `${firstName} ${lastName}`.trim()
               : name.trim();
             const displayName = fullName || userData.email;
-            
+
             // Pre-seleccionar el usuario
             setUserId(userData.id);
             setUserSearch(fullName ? `${fullName} - ${userData.email}` : userData.email);
-            
+
             // Llenar campos de nuevo usuario con los datos
             setNewUser({
               name: displayName,
               email: userData.email || '',
               phone: userData.phone || ''
             });
-            
-            showToast({ 
-              variant: 'success', 
-              message: `Usuario "${displayName}" pre-seleccionado para la reserva` 
+
+            showToast({
+              variant: 'success',
+              message: `Usuario "${displayName}" pre-seleccionado para la reserva`
             });
           } else {
-            showToast({ 
-              variant: 'warning', 
-              message: 'Usuario no encontrado. Puedes buscarlo manualmente.' 
+            showToast({
+              variant: 'warning',
+              message: 'Usuario no encontrado. Puedes buscarlo manualmente.'
             });
           }
         } catch (error) {
           console.error('Error al pre-seleccionar usuario desde query param:', error);
-          showToast({ 
-            variant: 'warning', 
-            message: 'No se pudo cargar el usuario automáticamente. Puedes buscarlo manualmente.' 
+          showToast({
+            variant: 'warning',
+            message: 'No se pudo cargar el usuario automáticamente. Puedes buscarlo manualmente.'
           });
         }
       };
-      
+
       loadUserFromQuery();
     }
   }, [searchParams, userId, showToast]);
@@ -158,7 +158,13 @@ function AdminNewReservationPageContent() {
       try {
         if (!courtId || !date) { setSlots([]); return; }
         const avail = await adminApi.courts.getAvailability(courtId, date) as any;
-        const mapped = (avail?.slots || []).map((s: any) => ({ start: new Date(s.start).toISOString(), end: new Date(s.end).toISOString(), available: s.available }));
+        const mapped = (avail?.slots || []).map((s: any) => ({
+          start: new Date(s.start).toISOString(),
+          end: new Date(s.end).toISOString(),
+          available: s.available,
+          maintenance: s.maintenance,
+          adminOverrideable: s.adminOverrideable
+        }));
         setSlots(mapped);
       } catch {
         setSlots([]);
@@ -171,32 +177,32 @@ function AdminNewReservationPageContent() {
   // Cuando el usuario cambia la fecha, el calendario semanal debe mostrar la semana que contiene esa fecha
   useEffect(() => {
     if (!date) return;
-    
+
     try {
       // Parsear la fecha seleccionada
       const selectedDate = new Date(date + 'T00:00:00');
-      
+
       // Validar que la fecha sea válida
       if (isNaN(selectedDate.getTime())) {
         console.warn('[WEEK_SYNC] Fecha inválida:', date);
         return;
       }
-      
+
       // Calcular el lunes de la semana que contiene la fecha seleccionada
       // getDay() retorna 0 (domingo) a 6 (sábado)
       // Convertimos domingo (0) a 7 para facilitar el cálculo
       const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
-      
+
       // Calcular cuántos días retroceder para llegar al lunes (día 1)
       const daysToMonday = dayOfWeek - 1;
-      
+
       // Crear nueva fecha para el lunes de esa semana
       const mondayDate = new Date(selectedDate);
       mondayDate.setDate(selectedDate.getDate() - daysToMonday);
-      
+
       // Convertir a formato ISO (YYYY-MM-DD)
       const newWeekStart = mondayDate.toISOString().split('T')[0] || '';
-      
+
       // Solo actualizar si el weekStart cambió (evitar re-renders innecesarios)
       if (newWeekStart !== weekStart) {
         console.log('[WEEK_SYNC] Sincronizando calendario semanal:', {
@@ -227,7 +233,7 @@ function AdminNewReservationPageContent() {
         else if (period === 'am' && hour === 12) hour = 0;
         normalizedTime = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
       }
-      
+
       // Disparar evento para sincronizar con WeekCalendar
       window.dispatchEvent(new CustomEvent('admin-reservation-slot', {
         detail: { type: 'SELECT_SLOT', dateISO: date, timeLabel: normalizedTime }
@@ -240,11 +246,11 @@ function AdminNewReservationPageContent() {
     const calc = async () => {
       try {
         // Validación de campos requeridos
-        if (!courtId || !date || !time) { 
+        if (!courtId || !date || !time) {
           console.log('[PRICE_CALC] Campos faltantes:', { courtId: !!courtId, date: !!date, time: !!time });
           setPrice({});
           setPriceError(null);
-          return; 
+          return;
         }
 
         // Iniciar carga
@@ -253,21 +259,21 @@ function AdminNewReservationPageContent() {
 
         // Normalizar formato de hora (soportar tanto 12h como 24h)
         let normalizedTime = time.trim();
-        
+
         // Detectar y convertir formato 12 horas (10:30 a.m. / 10:30 p.m.)
         const time12hMatch = normalizedTime.match(/^(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)/i);
         if (time12hMatch && time12hMatch[1] && time12hMatch[2] && time12hMatch[3]) {
           let hour = parseInt(time12hMatch[1], 10);
           const minute = parseInt(time12hMatch[2], 10);
           const period = time12hMatch[3].toLowerCase().replace(/\./g, '');
-          
+
           // Convertir a formato 24 horas
           if (period === 'pm' && hour !== 12) {
             hour += 12;
           } else if (period === 'am' && hour === 12) {
             hour = 0;
           }
-          
+
           normalizedTime = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
           console.log('[PRICE_CALC] Hora convertida de 12h a 24h:', { original: time, normalized: normalizedTime });
         }
@@ -320,18 +326,18 @@ function AdminNewReservationPageContent() {
         });
 
         // Llamar a la API de pricing
-        const result: any = await adminApi.pricing.calculate({ 
-          courtId, 
-          startTime: start.toISOString(), 
-          duration, 
-          userId: userId || undefined 
+        const result: any = await adminApi.pricing.calculate({
+          courtId,
+          startTime: start.toISOString(),
+          duration,
+          userId: userId || undefined
         });
 
         console.log('[PRICE_CALC] Respuesta de API:', result);
 
         // Extraer datos de pricing (puede venir en diferentes formatos)
         const p = result?.pricing || result;
-        
+
         if (!p || (p.finalPrice === undefined && p.total === undefined && p.totalPrice === undefined)) {
           const errorMsg = 'No se pudo calcular el precio. Verifique la configuración de precios.';
           console.warn('[PRICE_CALC] Respuesta sin precio válido:', result);
@@ -346,10 +352,10 @@ function AdminNewReservationPageContent() {
         const basePrice = p.basePrice ?? p.base ?? finalPrice;
         const breakdown = p.breakdown || [];
 
-        setPrice({ 
-          base: basePrice, 
-          final: finalPrice, 
-          breakdown 
+        setPrice({
+          base: basePrice,
+          final: finalPrice,
+          breakdown
         });
 
         setPriceError(null);
@@ -369,19 +375,19 @@ function AdminNewReservationPageContent() {
 
   // Debounced user search
   useEffect(() => {
-    if (!userSearch || userId) { 
-      setUserResults([]); 
+    if (!userSearch || userId) {
+      setUserResults([]);
       setSearchLoading(false);
-      return; 
+      return;
     }
-    
+
     // Solo buscar si hay al menos 2 caracteres
     if (userSearch.trim().length < 2) {
       setUserResults([]);
       setSearchLoading(false);
       return;
     }
-    
+
     if (searchTimer) clearTimeout(searchTimer);
     const t = setTimeout(async () => {
       try {
@@ -397,7 +403,7 @@ function AdminNewReservationPageContent() {
       }
     }, 500);
     setSearchTimer(t);
-    
+
     return () => {
       if (searchTimer) clearTimeout(searchTimer);
     };
@@ -773,7 +779,7 @@ function AdminNewReservationPageContent() {
           throw new Error(`${body?.error}`);
         }
         if (res.status === 409) {
-          generateSuggestions().catch(() => {});
+          generateSuggestions().catch(() => { });
           throw new Error(body?.error || 'Conflicto de disponibilidad. Te sugerimos horarios alternativos.');
         }
         throw new Error(body?.error || `HTTP ${res.status}`);
@@ -828,7 +834,7 @@ function AdminNewReservationPageContent() {
       console.debug('[ADMIN_RESERVATIONS] Respuesta creación reserva (override)', { body, payload, status: res.status });
       if (!res.ok) {
         if (res.status === 409) {
-          generateSuggestions().catch(() => {});
+          generateSuggestions().catch(() => { });
           throw new Error(body?.error || 'Conflicto de disponibilidad. Te sugerimos horarios alternativos.');
         }
         if (Array.isArray(body?.details) && body.details.length > 0) {
@@ -889,8 +895,8 @@ function AdminNewReservationPageContent() {
     const availableStarts = slotsList.filter(s => s.available).map(s => new Date(s.start));
     // Ordenar por cercanía a la hora deseada (misma fecha)
     const sorted = availableStarts.sort((a, b) => {
-      const ma = a.getHours()*60 + a.getMinutes();
-      const mb = b.getHours()*60 + b.getMinutes();
+      const ma = a.getHours() * 60 + a.getMinutes();
+      const mb = b.getHours() * 60 + b.getMinutes();
       return Math.abs(ma - desiredMinutes) - Math.abs(mb - desiredMinutes);
     }).slice(0, 8);
     const out: Array<{ dateISO: string; startISO: string; label: string; price?: number }> = [];
@@ -903,7 +909,7 @@ function AdminNewReservationPageContent() {
         const p: any = await adminApi.pricing.calculate({ courtId, startTime: startISO.toISOString(), duration, userId: userId || undefined });
         const pc = p?.pricing || p;
         priceNum = Number(pc?.total || pc?.finalPrice || pc?.totalPrice || 0);
-      } catch {}
+      } catch { }
       out.push({ dateISO, startISO: startISO.toISOString(), label, price: priceNum });
     }
     setSuggestions(out);
@@ -916,25 +922,25 @@ function AdminNewReservationPageContent() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-black">Nueva Reserva (Manual)</h1>
       <div className="flex items-center gap-3 text-xs">
-        <span className={`px-2 py-1 rounded ${step>=1?'bg-blue-600 text-white':'bg-gray-200 text-gray-700'}`}>1 Usuario</span>
-        <span className={`px-2 py-1 rounded ${step>=2?'bg-blue-600 text-white':'bg-gray-200 text-gray-700'}`}>2 Cancha</span>
-        <span className={`px-2 py-1 rounded ${step>=3?'bg-blue-600 text-white':'bg-gray-200 text-gray-700'}`}>3 Pago</span>
+        <span className={`px-2 py-1 rounded ${step >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}>1 Usuario</span>
+        <span className={`px-2 py-1 rounded ${step >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}>2 Cancha</span>
+        <span className={`px-2 py-1 rounded ${step >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}>3 Pago</span>
       </div>
       {error && (
         <div className="bg-red-50 text-red-700 border border-red-200 p-3 rounded">{error}</div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-         {/* Paso 1: Usuario */}
+        {/* Paso 1: Usuario */}
         <div className="md:col-span-2">
           <h2 className="text-lg font-semibold mb-2 text-black">1) Usuario</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="relative">
               <label className="block text-sm text-gray-700 mb-1">Buscar usuario (email/teléfono)</label>
               <div className="relative">
-                <input 
-                  value={userSearch} 
-                  onChange={(e) => setUserSearch(e.target.value)} 
-                  placeholder="Buscar por nombre, email o teléfono..." 
+                <input
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Buscar por nombre, email o teléfono..."
                   className={`w-full border rounded px-3 py-2 pr-8 ${userId ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`}
                   disabled={!!userId}
                 />
@@ -988,7 +994,7 @@ function AdminNewReservationPageContent() {
                             const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim();
                             const displayName = fullName || u.name || u.email;
                             // Llenar automáticamente los campos de nuevo usuario con los datos del usuario seleccionado
-                            setNewUser({ 
+                            setNewUser({
                               name: displayName,
                               email: u.email || '',
                               phone: u.phone || ''
@@ -1022,10 +1028,10 @@ function AdminNewReservationPageContent() {
             </div>
             <div>
               <label className="block text-sm text-gray-700 mb-1">Nombre (nuevo usuario)</label>
-              <input 
-                value={newUser.name} 
-                onChange={(e) => setNewUser((s) => ({ ...s, name: e.target.value }))} 
-                className="w-full border rounded px-3 py-2" 
+              <input
+                value={newUser.name}
+                onChange={(e) => setNewUser((s) => ({ ...s, name: e.target.value }))}
+                className="w-full border rounded px-3 py-2"
                 placeholder={userId ? "Nombre del usuario seleccionado" : "Ingresa el nombre"}
               />
             </div>
@@ -1039,7 +1045,7 @@ function AdminNewReservationPageContent() {
             </div>
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            {userId 
+            {userId
               ? 'Los campos de "nuevo usuario" se han llenado automáticamente con los datos del usuario seleccionado. Puedes editarlos si es necesario.'
               : 'Si seleccionas un usuario existente, los campos se llenarán automáticamente. Si no, completa los datos para crear un nuevo usuario.'}
           </p>
@@ -1081,7 +1087,7 @@ function AdminNewReservationPageContent() {
             ) : (
               <div className="grid grid-cols-2 gap-1">
                 {slots.map((s, idx) => {
-                  const label = new Date(s.start).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+                  const label = new Date(s.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
                   const selected = time && label === time;
                   return (
                     <button
@@ -1089,15 +1095,17 @@ function AdminNewReservationPageContent() {
                       key={idx}
                       disabled={!s.available}
                       onClick={() => setTime(label)}
-                      className={`px-2 py-1 rounded border text-left ${
-                        !s.available
+                      className={`px-2 py-1 rounded border text-left flex items-center justify-between ${!s.available
                           ? 'bg-red-100 text-red-700 border-red-200 cursor-not-allowed'
-                          : selected
-                          ? 'bg-blue-600 text-white border-blue-700'
-                          : 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200'
-                      }`}
+                          : s.adminOverrideable
+                            ? (selected ? 'bg-amber-600 text-white border-amber-700' : 'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200')
+                            : selected
+                              ? 'bg-blue-600 text-white border-blue-700'
+                              : 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200'
+                        }`}
                     >
-                      {label}
+                      <span>{label}</span>
+                      {s.adminOverrideable && <span title="Mantenimiento (Admin Override)">⚙️</span>}
                     </button>
                   );
                 })}
@@ -1151,7 +1159,7 @@ function AdminNewReservationPageContent() {
         {/* Resumen de precio */}
         <div className="md:col-span-2 bg-white border rounded p-4">
           <h3 className="font-semibold mb-2 text-black">Resumen de precio</h3>
-          
+
           {/* Estado de carga */}
           {priceLoading && (
             <div className="flex items-center gap-2 text-sm text-blue-600">
@@ -1162,14 +1170,14 @@ function AdminNewReservationPageContent() {
               Calculando precio...
             </div>
           )}
-          
+
           {/* Error en el cálculo */}
           {!priceLoading && priceError && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
               <strong>Error:</strong> {priceError}
             </div>
           )}
-          
+
           {/* Precio calculado exitosamente */}
           {!priceLoading && !priceError && price?.final !== undefined ? (
             <div>
@@ -1328,7 +1336,7 @@ function AdminNewReservationPageContent() {
                   onClick={() => {
                     setDate(s.dateISO);
                     const d = new Date(s.startISO);
-                    const label = d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+                    const label = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
                     setTime(label);
                     setSuggestions([]);
                     setError(null);
@@ -1523,17 +1531,16 @@ function AdminNewReservationPageContent() {
               <button
                 onClick={handleSendLinkEmail}
                 disabled={isSendingLinkEmail || linkEmailStatus === 'sent'}
-                className={`w-full px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
-                  linkEmailStatus === 'sent'
+                className={`w-full px-4 py-2 rounded-lg font-medium transition-colors text-sm ${linkEmailStatus === 'sent'
                     ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                     : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed'
-                }`}
+                  }`}
               >
                 {isSendingLinkEmail
                   ? 'Enviando correo...'
                   : linkEmailStatus === 'sent'
-                  ? 'Enlace enviado por correo'
-                  : 'Enviar por correo'}
+                    ? 'Enlace enviado por correo'
+                    : 'Enviar por correo'}
               </button>
               {linkEmailStatus === 'error' && (
                 <p className="text-xs text-red-600">No se pudo enviar el correo. Inténtalo nuevamente.</p>

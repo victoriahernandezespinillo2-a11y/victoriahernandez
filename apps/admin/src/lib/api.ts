@@ -606,11 +606,26 @@ export const adminApi = {
       isActive: boolean;
       isMultiuse: boolean;
       allowedSports: string[];
-    }>) => 
-      apiClient.request(`/api/admin/courts/${id}`, {
+      primarySport?: string | null;
+    }>) => {
+      const body = JSON.stringify(data);
+      console.log('🔍 [API-COURTS-UPDATE] Datos a enviar:', {
+        id,
+        data,
+        body,
+        primarySport: data.primarySport,
+        primarySportType: typeof data.primarySport,
+        dataKeys: Object.keys(data),
+        hasPrimarySport: 'primarySport' in data
+      });
+      return apiClient.request(`/api/admin/courts/${id}`, {
         method: 'PUT',
-        body: JSON.stringify(data),
-      }),
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
     
     delete: (id: string) => 
       apiClient.request(`/api/admin/courts/${id}`, {
@@ -654,8 +669,7 @@ export const adminApi = {
     update: (id: string, data: Partial<{
       status: string;
       startTime: string;
-      duration?: number;
-      endTime?: string;
+      endTime: string;
       notes: string;
     }>) => 
       apiClient.request(`/api/admin/reservations/${id}`, {

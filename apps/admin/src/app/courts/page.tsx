@@ -35,6 +35,7 @@ interface Court {
   createdAt: string;
   isMultiuse?: boolean;
   allowedSports?: string[];
+  primarySport?: string;
 }
 
 
@@ -83,7 +84,7 @@ export default function CourtsPage() {
   const [centerFilter, setCenterFilter] = useState<string>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Estado para el modal de confirmación de eliminación
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [courtToDelete, setCourtToDelete] = useState<{ id: string; name: string } | null>(null);
@@ -121,8 +122,8 @@ export default function CourtsPage() {
     if (didLoadRef.current) return;
     didLoadRef.current = true;
     console.log('[CourtsPage] useEffect running for initial data load.');
-    getCourts({}).catch(() => {});
-    getCenters({}).catch(() => {});
+    getCourts({}).catch(() => { });
+    getCenters({}).catch(() => { });
   }, [getCourts, getCenters]);
 
   // Mostrar estado de carga
@@ -161,15 +162,15 @@ export default function CourtsPage() {
 
   // Filtrar canchas
   const filteredCourts = safeCourts.filter((court: any) => {
-    const matchesSearch = 
+    const matchesSearch =
       court.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       court.centerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       court.description.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesType = typeFilter === 'ALL' || court.type === typeFilter;
     const matchesStatus = statusFilter === 'ALL' || court.status === statusFilter;
     const matchesCenter = centerFilter === 'ALL' || court.centerName === centerFilter;
-    
+
     return matchesSearch && matchesType && matchesStatus && matchesCenter;
   }) || [];
 
@@ -185,7 +186,7 @@ export default function CourtsPage() {
 
   const confirmDeleteCourt = async () => {
     if (!courtToDelete) return;
-    
+
     try {
       await deleteCourt(courtToDelete.id);
       toast.success(`Cancha "${courtToDelete.name}" eliminada exitosamente`);
@@ -209,7 +210,7 @@ export default function CourtsPage() {
 
   const handleEditCourt = (court: Court) => {
     setEditingCourt(court);
-    
+
     // 🔍 DEBUG: Log de datos recibidos
     console.log('🔍 [DEBUG] Datos de la cancha recibidos:', {
       name: court.name,
@@ -217,7 +218,7 @@ export default function CourtsPage() {
       lightingExtraPerHour: court.lightingExtraPerHour,
       court: court
     });
-    
+
     // Poblar el estado del formulario de edición con los datos de la cancha seleccionada
     const formData = {
       name: court.name,
@@ -226,18 +227,19 @@ export default function CourtsPage() {
       status: court.status,
       isMultiuse: court.isMultiuse ?? false,
       allowedSports: (court.allowedSports ?? []) as any,
+      primarySport: (court as any).primarySport || null,
       lighting: court.lighting as any,
       lightingExtraPerHour: court.lightingExtraPerHour ?? undefined,
       // Se pueden añadir aquí todos los demás campos editables
     };
-    
+
     // 🔍 DEBUG: Log de datos del formulario
     console.log('🔍 [DEBUG] Datos del formulario:', {
       lighting: formData.lighting,
       lightingExtraPerHour: formData.lightingExtraPerHour,
       formData: formData
     });
-    
+
     setEditForm(formData);
     setShowEdit(true);
   };
@@ -247,7 +249,28 @@ export default function CourtsPage() {
 
     try {
       setIsLoading(true);
-      await updateCourt(editingCourt.id, editForm);
+
+      // Preparar datos asegurando que primarySport siempre se incluya si la cancha es multiuso
+      const dataToSend = { ...editForm };
+      if ((editForm as any).isMultiuse) {
+        // Si es multiuso, siempre incluir primarySport explícitamente
+        // Esto asegura que el valor seleccionado se envíe correctamente al backend
+        dataToSend.primarySport = (editForm as any).primarySport || null;
+      } else {
+        // Si no es multiuso, limpiar primarySport
+        dataToSend.primarySport = undefined;
+      }
+
+      console.log('🔍 [HANDLE-UPDATE] Datos a enviar:', {
+        courtId: editingCourt.id,
+        isMultiuse: (dataToSend as any).isMultiuse,
+        primarySport: (dataToSend as any).primarySport,
+        primarySportType: typeof (dataToSend as any).primarySport,
+        allowedSports: (dataToSend as any).allowedSports,
+        fullData: dataToSend
+      });
+
+      await updateCourt(editingCourt.id, dataToSend);
       toast.success(`Cancha "${editForm.name || editingCourt.name}" actualizada exitosamente.`);
       setShowEdit(false);
       setEditingCourt(null);
@@ -439,7 +462,7 @@ export default function CourtsPage() {
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Deportes permitidos</label>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    {['FOOTBALL7','PADDLE','TENNIS','FUTSAL','BASKETBALL','VOLLEYBALL'].map((code) => (
+                    {['FOOTBALL7', 'PADDLE', 'TENNIS', 'FUTSAL', 'BASKETBALL', 'VOLLEYBALL'].map((code) => (
                       <label key={code} className="inline-flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -532,9 +555,9 @@ export default function CourtsPage() {
                   value={editForm.hourlyRate ?? ''}
                   onChange={(e) => {
                     const value = e.target.value;
-                    setEditForm({ 
-                      ...editForm, 
-                      hourlyRate: value === '' ? undefined : Number(value) 
+                    setEditForm({
+                      ...editForm,
+                      hourlyRate: value === '' ? undefined : Number(value)
                     });
                   }}
                   placeholder="0.00"
@@ -574,17 +597,17 @@ export default function CourtsPage() {
                       value={editForm.lightingExtraPerHour ?? ''}
                       onChange={(e) => {
                         const value = e.target.value;
-                        console.log('🔍 [DEBUG] Input onChange:', { 
-                          oldValue: editForm.lightingExtraPerHour, 
-                          newValue: value 
+                        console.log('🔍 [DEBUG] Input onChange:', {
+                          oldValue: editForm.lightingExtraPerHour,
+                          newValue: value
                         });
-                        setEditForm({ 
-                          ...editForm, 
-                          lightingExtraPerHour: value === '' ? undefined : Number(value) 
+                        setEditForm({
+                          ...editForm,
+                          lightingExtraPerHour: value === '' ? undefined : Number(value)
                         });
                       }}
                       onFocus={() => {
-                        console.log('🔍 [DEBUG] Input onFocus:', { 
+                        console.log('🔍 [DEBUG] Input onFocus:', {
                           currentValue: editForm.lightingExtraPerHour,
                           editForm: editForm
                         });
@@ -608,31 +631,65 @@ export default function CourtsPage() {
                 </label>
               </div>
               {Boolean((editForm as any).isMultiuse) && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Deportes permitidos</label>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    {['FOOTBALL7','PADDLE','TENNIS','FUTSAL','BASKETBALL','VOLLEYBALL'].map((code) => (
-                      <label key={code} className="inline-flex items-center gap-2 text-gray-700">
-                        <input
-                          type="checkbox"
-                          checked={Array.isArray((editForm as any).allowedSports) ? ((editForm as any).allowedSports as string[]).includes(code) : false}
-                          onChange={(e) => {
-                            const current = new Set<string>(Array.isArray((editForm as any).allowedSports) ? (((editForm as any).allowedSports) as string[]) : []);
-                            if (e.target.checked) current.add(code); else current.delete(code);
-                            setEditForm({ ...editForm, allowedSports: Array.from(current) as any });
-                          }}
-                          className="text-blue-600 focus:ring-blue-500"
-                        />
-                        {typeLabels[code] || code}
-                      </label>
-                    ))}
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Deportes permitidos</label>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {['FOOTBALL7', 'PADDLE', 'TENNIS', 'FUTSAL', 'BASKETBALL', 'VOLLEYBALL'].map((code) => (
+                        <label key={code} className="inline-flex items-center gap-2 text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={Array.isArray((editForm as any).allowedSports) ? ((editForm as any).allowedSports as string[]).includes(code) : false}
+                            onChange={(e) => {
+                              const current = new Set<string>(Array.isArray((editForm as any).allowedSports) ? (((editForm as any).allowedSports) as string[]) : []);
+                              if (e.target.checked) current.add(code); else current.delete(code);
+                              setEditForm({ ...editForm, allowedSports: Array.from(current) as any });
+                            }}
+                            className="text-blue-600 focus:ring-blue-500"
+                          />
+                          {typeLabels[code] || code}
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                  {Array.isArray((editForm as any).allowedSports) && ((editForm as any).allowedSports as string[]).length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Deporte principal</label>
+                      <select
+                        value={(editForm as any).primarySport || ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          // Siempre establecer el valor, incluso si está vacío (se enviará como null)
+                          setEditForm({
+                            ...editForm,
+                            primarySport: value === '' ? undefined : value
+                          });
+                          console.log('🔍 [EDIT-FORM] primarySport cambiado:', {
+                            value,
+                            result: value === '' ? null : value,
+                            editFormPrimarySport: (editForm as any).primarySport
+                          });
+                        }}
+                        className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Seleccionar deporte principal</option>
+                        {Array.isArray((editForm as any).allowedSports) && ((editForm as any).allowedSports as string[]).map((code: string) => (
+                          <option key={code} value={code}>
+                            {typeLabels[code] || code}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        El deporte principal bloquea todos los demás deportes cuando está reservado.
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
             <div className="p-4 border-t flex justify-end gap-2">
-              <button 
-                onClick={() => setShowEdit(false)} 
+              <button
+                onClick={() => setShowEdit(false)}
                 className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 Cancelar
@@ -655,28 +712,26 @@ export default function CourtsPage() {
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b flex items-center justify-between">
               <h3 className="text-xl font-bold text-gray-900">Detalles de la Cancha</h3>
-              <button 
-                onClick={() => setShowView(false)} 
+              <button
+                onClick={() => setShowView(false)}
                 className="text-gray-500 hover:text-gray-700 text-2xl"
               >
                 ✕
               </button>
             </div>
-            
+
             <div className="p-6 space-y-6">
               {/* Header con nombre y badges */}
               <div className="flex items-start justify-between">
                 <div>
                   <h4 className="text-2xl font-bold text-gray-900 mb-2">{viewingCourt.name}</h4>
                   <div className="flex flex-wrap gap-2">
-                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
-                      typeColors[viewingCourt.type]
-                    }`}>
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${typeColors[viewingCourt.type]
+                      }`}>
                       {typeLabels[viewingCourt.type]}
                     </span>
-                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
-                      statusColors[viewingCourt.status]
-                    }`}>
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${statusColors[viewingCourt.status]
+                      }`}>
                       {statusLabels[viewingCourt.status]}
                     </span>
                   </div>
@@ -821,7 +876,7 @@ export default function CourtsPage() {
               />
             </div>
           </div>
-          
+
           {/* Type Filter */}
           <div>
             <select
@@ -839,7 +894,7 @@ export default function CourtsPage() {
               <option value="MULTIPURPOSE">Multiusos</option>
             </select>
           </div>
-          
+
           {/* Status Filter */}
           <div>
             <select
@@ -854,7 +909,7 @@ export default function CourtsPage() {
               <option value="INACTIVE">Inactiva</option>
             </select>
           </div>
-          
+
           {/* Center Filter */}
           <div>
             <select
@@ -883,33 +938,31 @@ export default function CourtsPage() {
                     {court.name}
                   </h3>
                   <div className="flex flex-wrap gap-2 mb-2">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      typeColors[court.type]
-                    }`}>
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${typeColors[court.type]
+                      }`}>
                       {typeLabels[court.type]}
                     </span>
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      statusColors[court.status]
-                    }`}>
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[court.status]
+                      }`}>
                       {statusLabels[court.status]}
                     </span>
                   </div>
                 </div>
                 <div className="flex space-x-1">
-                  <button 
+                  <button
                     className="text-blue-600 hover:text-blue-900 p-1"
                     onClick={() => handleViewCourt(court)}
                     title="Ver detalles de la cancha"
                   >
                     <EyeIcon className="h-4 w-4" />
                   </button>
-                  <button 
+                  <button
                     className="text-green-600 hover:text-green-900 p-1"
                     onClick={() => handleEditCourt(court)}
                   >
                     <PencilIcon className="h-4 w-4" />
                   </button>
-                  <button 
+                  <button
                     className="text-red-600 hover:text-red-900 p-1"
                     onClick={() => handleDeleteCourt(court)}
                   >
@@ -1034,11 +1087,10 @@ export default function CourtsPage() {
                   <button
                     key={page}
                     onClick={() => setCurrentPage(page)}
-                    className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                      page === currentPage
-                        ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                        : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                    }`}
+                    className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${page === currentPage
+                      ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                      : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                      }`}
                   >
                     {page}
                   </button>
