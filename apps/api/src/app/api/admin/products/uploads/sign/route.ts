@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import crypto from 'crypto'
+import * as crypto from 'crypto'
 import { withAdminMiddleware, ApiResponse } from '@/lib/middleware'
 
 export const runtime = 'nodejs'
