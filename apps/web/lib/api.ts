@@ -525,8 +525,6 @@ export const api = {
       startTime: string;  // ISO
       duration: number;   // minutos
       userId?: string;
-      sport?: string;     // Deporte seleccionado para canchas multiuso
-      lightingSelected?: boolean; // Si el usuario seleccionó iluminación
     }) =>
       apiRequest('/api/pricing/calculate', {
         method: 'POST',

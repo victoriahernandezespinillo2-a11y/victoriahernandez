@@ -27,7 +27,7 @@ export default function PaymentSuccessPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const reservationId = searchParams.get('reservationId');
-  
+
   const [reservation, setReservation] = useState<ReservationDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,51 +43,35 @@ export default function PaymentSuccessPage() {
       try {
         const response = await api.reservations.getById(reservationId);
         console.log('API Response:', response); // Debug log
-        
+
         // La respuesta puede venir como { reservation: {...} } o directamente como {...}
         const reservationData = response?.reservation || response;
-        
+
         if (reservationData) {
           // Validar que tenemos los campos necesarios
           if (!reservationData.id || !reservationData.startTime) {
             throw new Error('Datos de reserva incompletos');
           }
-          
-          // Validar que totalPrice existe y es válido
-          if (!reservationData.totalPrice && reservationData.totalPrice !== 0) {
-            console.warn('⚠️ [SUCCESS-PAGE] totalPrice no encontrado en la respuesta, intentando calcular desde pricing...');
-            // Si no hay totalPrice, intentar obtenerlo del pricing si está disponible
-            if (response?.pricing?.total) {
-              reservationData.totalPrice = response.pricing.total;
-            }
-          }
-          
-          // Calcular duración en minutos y luego convertir a horas (redondeando correctamente)
-          const startTime = new Date(reservationData.startTime);
-          const endTime = new Date(reservationData.endTime);
-          const durationInMinutes = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
-          const durationInHours = durationInMinutes / 60; // Mantener decimales para mostrar correctamente (ej: 1.5 horas)
-          
+
           setReservation({
             id: reservationData.id,
             courtName: reservationData.court?.name || 'Cancha no especificada',
-            // El campo 'sport' está directamente en la reserva, no en court.sport
-            sportName: reservationData.sport || reservationData.court?.sportType || 'Deporte no especificado',
-            date: startTime.toLocaleDateString('es-ES', {
+            sportName: reservationData.court?.sport || 'Deporte no especificado',
+            date: new Date(reservationData.startTime).toLocaleDateString('es-ES', {
               weekday: 'long',
               year: 'numeric',
               month: 'long',
               day: 'numeric'
             }),
-            startTime: startTime.toLocaleTimeString('es-ES', {
+            startTime: new Date(reservationData.startTime).toLocaleTimeString('es-ES', {
               hour: '2-digit',
               minute: '2-digit'
             }),
-            endTime: endTime.toLocaleTimeString('es-ES', {
+            endTime: new Date(reservationData.endTime).toLocaleTimeString('es-ES', {
               hour: '2-digit',
               minute: '2-digit'
             }),
-            duration: durationInHours, // Usar horas con decimales (ej: 1.5)
+            duration: Math.round((new Date(reservationData.endTime).getTime() - new Date(reservationData.startTime).getTime()) / (1000 * 60 * 60)),
             totalPrice: Number(reservationData.totalPrice || 0),
             paymentMethod: reservationData.paymentMethod || 'Tarjeta',
             status: reservationData.status || 'PAID',
@@ -122,26 +106,25 @@ export default function PaymentSuccessPage() {
   // Determinar el tipo de mensaje según el método de pago
   const isOnSitePayment = reservation?.paymentMethod === 'ONSITE';
   const isPaid = reservation?.status === 'PAID';
-  
+
   // Calcular el monto final pagado (considerando descuentos)
   const getFinalAmountPaid = () => {
     if (!reservation) return 0;
-    
+
     // Si hay descuento promocional, restarlo del precio original
     if (reservation.promoDiscount && reservation.promoDiscount > 0) {
       return reservation.totalPrice - reservation.promoDiscount;
     }
-    
-    // Si se pagó con créditos, usar el totalPrice (que ya está en euros)
-    // Los créditos usados son solo para mostrar información, no para calcular el monto
-    if (reservation.paymentMethod === 'CREDITS') {
-      return reservation.totalPrice; // totalPrice ya está en euros
+
+    // Si se pagó con créditos, usar el monto de créditos usados
+    if (reservation.paymentMethod === 'CREDITS' && reservation.creditsUsed) {
+      return reservation.creditsUsed;
     }
-    
+
     // En otros casos, usar el precio total
     return reservation.totalPrice;
   };
-  
+
   const finalAmountPaid = getFinalAmountPaid();
   const hasPromoDiscount = reservation?.promoDiscount && reservation.promoDiscount > 0;
 
@@ -178,16 +161,15 @@ export default function PaymentSuccessPage() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Success Header */}
         <div className="text-center mb-8">
-          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${
-            isOnSitePayment ? 'bg-orange-100' : 'bg-green-100'
-          }`}>
+          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${isOnSitePayment ? 'bg-orange-100' : 'bg-green-100'
+            }`}>
             <CheckCircle className={`h-10 w-10 ${isOnSitePayment ? 'text-orange-600' : 'text-green-600'}`} />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             {isOnSitePayment ? '¡Reserva Creada!' : '¡Pago Exitoso!'}
           </h1>
           <p className="text-lg text-gray-600">
-            {isOnSitePayment 
+            {isOnSitePayment
               ? 'Tu reserva ha sido creada. Debes pagar en el centro deportivo antes de usar la cancha.'
               : 'Tu reserva ha sido confirmada y el pago procesado correctamente'
             }
@@ -203,23 +185,20 @@ export default function PaymentSuccessPage() {
 
         {/* Reservation Details Card */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden mb-8">
-          <div className={`px-6 py-4 border-b ${
-            isOnSitePayment 
-              ? 'bg-orange-50 border-orange-100' 
+          <div className={`px-6 py-4 border-b ${isOnSitePayment
+              ? 'bg-orange-50 border-orange-100'
               : 'bg-green-50 border-green-100'
-          }`}>
-            <h2 className={`text-xl font-semibold ${
-              isOnSitePayment ? 'text-orange-800' : 'text-green-800'
             }`}>
+            <h2 className={`text-xl font-semibold ${isOnSitePayment ? 'text-orange-800' : 'text-green-800'
+              }`}>
               Detalles de tu Reserva
             </h2>
-            <p className={`text-sm mt-1 ${
-              isOnSitePayment ? 'text-orange-600' : 'text-green-600'
-            }`}>
+            <p className={`text-sm mt-1 ${isOnSitePayment ? 'text-orange-600' : 'text-green-600'
+              }`}>
               ID: {reservation.id}
             </p>
           </div>
-          
+
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Court and Sport */}
@@ -257,7 +236,7 @@ export default function PaymentSuccessPage() {
                       {reservation.startTime} - {reservation.endTime}
                     </p>
                     <p className="text-sm text-gray-500">
-                      Duración: {reservation.duration > 0 ? reservation.duration.toFixed(1).replace(/\.0$/, '') : '1'} hora{reservation.duration !== 1 ? 's' : ''}
+                      Duración: {reservation.duration} hora{reservation.duration !== 1 ? 's' : ''}
                     </p>
                   </div>
                 </div>
@@ -272,7 +251,11 @@ export default function PaymentSuccessPage() {
                       Método de Pago
                     </p>
                     <p className="text-sm text-gray-500">
-                      {reservation.paymentMethod}
+                      {reservation.paymentMethod === 'CREDITS' ? 'Créditos' :
+                        reservation.paymentMethod === 'ONSITE' ? 'Pago en sitio' :
+                          reservation.paymentMethod === 'CARD' ? 'Tarjeta' :
+                            reservation.paymentMethod === 'REDSYS' ? 'Tarjeta (Redsys)' :
+                              reservation.paymentMethod}
                     </p>
                   </div>
                 </div>
@@ -287,7 +270,7 @@ export default function PaymentSuccessPage() {
                       </span>
                     </div>
                   )}
-                  
+
                   {/* Descuento aplicado */}
                   {hasPromoDiscount && (
                     <div className="flex justify-between items-center text-sm">
@@ -299,19 +282,18 @@ export default function PaymentSuccessPage() {
                       </span>
                     </div>
                   )}
-                  
+
                   {/* Total final */}
                   <div className="flex justify-between items-center border-t border-gray-200 pt-2">
                     <span className="text-sm font-medium text-gray-900">
                       {isOnSitePayment ? 'Total a Pagar' : 'Total Pagado'}
                     </span>
-                    <span className={`text-lg font-bold ${
-                      isOnSitePayment ? 'text-orange-600' : 'text-green-600'
-                    }`}>
+                    <span className={`text-lg font-bold ${isOnSitePayment ? 'text-orange-600' : 'text-green-600'
+                      }`}>
                       {formatCurrency(finalAmountPaid)}
                     </span>
                   </div>
-                  
+
                   {/* Información adicional para pagos con créditos */}
                   {reservation.paymentMethod === 'CREDITS' && reservation.creditsUsed && reservation.creditsUsed > 0 && (
                     <div className="text-xs text-gray-500 mt-1">
@@ -321,14 +303,13 @@ export default function PaymentSuccessPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                    isOnSitePayment 
-                      ? 'bg-orange-100 text-orange-800' 
+                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${isOnSitePayment
+                      ? 'bg-orange-100 text-orange-800'
                       : 'bg-green-100 text-green-800'
-                  }`}>
+                    }`}>
                     {isOnSitePayment ? '⏳ Pendiente de Pago' : '✓ Pagado'}
                   </div>
-                  
+
                   {/* Badge de promoción aplicada */}
                   {hasPromoDiscount && (
                     <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
@@ -371,14 +352,14 @@ export default function PaymentSuccessPage() {
             Ver Mis Reservas
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
-          
+
           <Link
             href="/dashboard/reservations/new"
             className="inline-flex items-center justify-center px-6 py-3 bg-white text-blue-600 border border-blue-600 rounded-md hover:bg-blue-50 transition-colors font-medium"
           >
             Nueva Reserva
           </Link>
-          
+
           <button
             onClick={() => window.print()}
             className="inline-flex items-center justify-center px-6 py-3 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors font-medium"

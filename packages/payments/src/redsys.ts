@@ -1,4 +1,4 @@
-import * as crypto from 'crypto';
+import crypto from 'crypto';
 import { z } from 'zod';
 import { db } from '@repo/db';
 

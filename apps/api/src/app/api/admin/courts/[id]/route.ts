@@ -36,8 +36,6 @@ const UpdateCourtSchema = z.object({
   isMultiuse: z.boolean().optional(),
   allowedSports: z.array(z.string()).optional(),
   primarySport: z.string().nullable().optional(),
-  // Precios por deporte para canchas multiuso
-  sportPricing: z.record(z.string(), z.number().min(0)).optional(), // { "FOOTBALL7": 15, "TENNIS": 20 }
   availability: z.object({
     monday: z.object({ open: z.string(), close: z.string(), closed: z.boolean() }).optional(),
     tuesday: z.object({ open: z.string(), close: z.string(), closed: z.boolean() }).optional(),
@@ -100,17 +98,6 @@ export async function GET(request: NextRequest) {
               startTime: 'desc'
             },
             take: 20
-          },
-          // Precios por deporte para canchas multiuso
-          sportPricing: {
-            select: {
-              id: true,
-              sport: true,
-              pricePerHour: true,
-            },
-            orderBy: {
-              sport: 'asc',
-            },
           },
           // maintenances relation no existe en el esquema actual
           _count: {
@@ -197,17 +184,8 @@ export async function GET(request: NextRequest) {
         take: 5
       });
       
-      // Construir objeto de precios por deporte para la respuesta
-      const sportPricingMap: Record<string, number> = {};
-      if (Array.isArray((court as any).sportPricing)) {
-        (court as any).sportPricing.forEach((sp: any) => {
-          sportPricingMap[sp.sport] = Number(sp.pricePerHour);
-        });
-      }
-
       const courtDetails = {
         ...court,
-        sportPricing: sportPricingMap,
         stats: {
           totalReservations: court._count.reservations,
           totalMaintenances: 0,
@@ -372,66 +350,10 @@ export async function PUT(request: NextRequest) {
         updatedCourtPrimarySport: (updatedCourt as any).primarySport,
         updatedCourtPrimarySportType: typeof (updatedCourt as any).primarySport
       });
-
-      // Guardar precios por deporte si se proporcionaron
-      if (courtData.sportPricing && Object.keys(courtData.sportPricing).length > 0) {
-        try {
-          const sportPricingEntries = Object.entries(courtData.sportPricing).map(([sport, pricePerHour]) => ({
-            courtId: courtId,
-            sport,
-            pricePerHour: pricePerHour as number,
-          }));
-
-          // Eliminar precios existentes para esta cancha
-          await (db.courtSportPricing as any).deleteMany({
-            where: { courtId: courtId },
-          });
-
-          // Crear nuevos precios por deporte
-          if (sportPricingEntries.length > 0) {
-            await (db.courtSportPricing as any).createMany({
-              data: sportPricingEntries,
-              skipDuplicates: true,
-            });
-          }
-
-          console.log('✅ [UPDATE-COURT] Precios por deporte actualizados:', {
-            courtId,
-            sportPricingCount: sportPricingEntries.length,
-          });
-        } catch (sportPricingError) {
-          // Si falla, solo loguear el error pero no fallar la actualización de la cancha
-          console.error('[ADMIN/COURTS] Error guardando precios por deporte:', sportPricingError);
-        }
-      }
-
-      // Cargar precios por deporte actualizados para la respuesta
-      const sportPricing = await (db.courtSportPricing as any).findMany({
-        where: { courtId: courtId },
-        select: {
-          id: true,
-          sport: true,
-          pricePerHour: true,
-        },
-        orderBy: {
-          sport: 'asc',
-        },
-      });
-
-      // Construir objeto de precios por deporte para la respuesta
-      const sportPricingMap: Record<string, number> = {};
-      if (Array.isArray(sportPricing)) {
-        sportPricing.forEach((sp: any) => {
-          sportPricingMap[sp.sport] = Number(sp.pricePerHour);
-        });
-      }
       
       // Log de auditoría removido temporalmente - modelo no existe en schema
       
-      return ApiResponse.success({
-        ...updatedCourt,
-        sportPricing: sportPricingMap,
-      });
+      return ApiResponse.success(updatedCourt);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(

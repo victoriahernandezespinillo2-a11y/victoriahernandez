@@ -265,12 +265,15 @@ export default function TariffsPage() {
 
     setIsSearchingEnrollmentUsers(true);
     try {
-      const res: any = await adminApi.users.getAll({
+      const users = await adminApi.users.getAll({
         search: term.trim(),
         limit: 5,
       });
-      // Corregir: res es un objeto con { data: [...], pagination: {...} }
-      const items = Array.isArray(res?.data) ? res.data : [];
+      const items = Array.isArray(users)
+        ? users
+        : Array.isArray((users as any)?.items)
+          ? (users as any).items
+          : [];
       setFoundEnrollmentUsers(items);
     } catch (error) {
       console.error('Error buscando usuarios para tarifa regulada:', error);

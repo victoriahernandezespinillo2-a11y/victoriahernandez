@@ -11,8 +11,6 @@ export const CalculatePriceSchema = z.object({
   userId: z.string().min(1).optional(),
   // Selección de iluminación por parte del usuario (opcional)
   lightingSelected: z.boolean().optional(),
-  // Deporte seleccionado para canchas multiuso (opcional)
-  sport: z.string().optional(),
 });
 
 export const CreatePricingRuleSchema = z.object({
@@ -78,17 +76,6 @@ export class PricingService {
             adjustment: true,
           },
         },
-        // Incluir precios por deporte si la cancha es multiuso y se proporciona un deporte
-        sportPricing: validatedInput.sport
-          ? {
-              where: { sport: validatedInput.sport },
-              select: {
-                id: true,
-                sport: true,
-                pricePerHour: true,
-              },
-            }
-          : false,
       },
     });
 
@@ -123,30 +110,8 @@ export class PricingService {
     }
 
     // Calcular precio base por hora
-    // Si es cancha multiuso y se proporciona un deporte, usar precio específico por deporte
-    // Si no, usar el precio base general (basePricePerHour)
     const durationInHours = validatedInput.duration / 60;
-    let basePerHour: number;
-    
-    if (court.isMultiuse && validatedInput.sport && Array.isArray(court.sportPricing) && court.sportPricing.length > 0) {
-      // Usar precio específico por deporte
-      const sportPricing = court.sportPricing[0];
-      if (sportPricing) {
-        basePerHour = Number(sportPricing.pricePerHour || 0);
-        console.log(`💰 [PRICING] Usando precio específico por deporte: ${validatedInput.sport} = ${basePerHour}€/hora`);
-      } else {
-        // Fallback a precio base si sportPricing[0] es undefined
-        basePerHour = Number(court.basePricePerHour || 0);
-        console.log(`⚠️ [PRICING] sportPricing[0] es undefined, usando precio base: ${basePerHour}€/hora`);
-      }
-    } else {
-      // Usar precio base general
-      basePerHour = Number(court.basePricePerHour || 0);
-      if (court.isMultiuse && validatedInput.sport) {
-        console.log(`⚠️ [PRICING] No se encontró precio específico para deporte ${validatedInput.sport}, usando precio base: ${basePerHour}€/hora`);
-      }
-    }
-    
+    const basePerHour = Number(court.basePricePerHour || 0);
     const basePrice = basePerHour * durationInHours;
 
     // Encontrar reglas de precios aplicables

@@ -17,7 +17,6 @@ function AdminNewReservationPageContent() {
   const { centers, getCenters } = useAdminCenters();
   const [centerId, setCenterId] = useState('');
   const [courtId, setCourtId] = useState('');
-  const [selectedSport, setSelectedSport] = useState<string>('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [duration, setDuration] = useState(60);
@@ -152,19 +151,6 @@ function AdminNewReservationPageContent() {
     const list = Array.isArray(courts) ? courts : [];
     return centerId ? list.filter((c: any) => c.centerId === centerId) : list;
   }, [courts, centerId]);
-
-  // Resetear selectedSport cuando cambia la cancha seleccionada o si la cancha ya no es multiuso
-  useEffect(() => {
-    if (!courtId) {
-      setSelectedSport('');
-      return;
-    }
-    const court = filteredCourts.find((c: any) => c.id === courtId);
-    // Si la cancha no es multiuso o no tiene allowedSports, resetear el deporte
-    if (court && (!(court as any).isMultiuse || !Array.isArray((court as any).allowedSports) || ((court as any).allowedSports as string[]).length === 0)) {
-      setSelectedSport('');
-    }
-  }, [courtId, filteredCourts]);
 
   // Cargar slots de disponibilidad al seleccionar cancha/fecha
   useEffect(() => {
@@ -339,15 +325,12 @@ function AdminNewReservationPageContent() {
           userId: userId || 'sin usuario'
         });
 
-        // Llamar a la API de pricing (incluir deporte si la cancha es multiuso)
-        const selectedCourt = filteredCourts.find((c: any) => c.id === courtId);
+        // Llamar a la API de pricing
         const result: any = await adminApi.pricing.calculate({
           courtId,
           startTime: start.toISOString(),
           duration,
-          userId: userId || undefined,
-          sport: selectedCourt && (selectedCourt as any).isMultiuse && selectedSport ? selectedSport : undefined,
-          lightingSelected: false, // El admin no maneja iluminación adicional por ahora
+          userId: userId || undefined
         });
 
         console.log('[PRICE_CALC] Respuesta de API:', result);
@@ -388,7 +371,7 @@ function AdminNewReservationPageContent() {
       }
     };
     calc();
-  }, [courtId, date, time, duration, userId, selectedSport, filteredCourts]);
+  }, [courtId, date, time, duration, userId]);
 
   // Debounced user search
   useEffect(() => {
@@ -428,64 +411,7 @@ function AdminNewReservationPageContent() {
   }, [userSearch, userId]);
 
   const canProceedUser = () => !!(userId || (newUser.name && (newUser.email || newUser.phone)));
-  // Funciones auxiliares para iconos y etiquetas de deportes
-  const getSportIcon = (sport: string) => {
-    switch (sport?.toUpperCase()) {
-      case 'FOOTBALL':
-      case 'FOOTBALL7':
-      case 'FUTSAL':
-        return '⚽';
-      case 'BASKETBALL':
-        return '🏀';
-      case 'TENNIS':
-        return '🎾';
-      case 'VOLLEYBALL':
-        return '🏐';
-      case 'PADDLE':
-        return '🏓';
-      case 'SQUASH':
-        return '🎾';
-      case 'MULTIPURPOSE':
-        return '🏟️';
-      default:
-        return '🏅';
-    }
-  };
-
-  const getSportLabel = (sport: string) => {
-    switch (sport?.toUpperCase()) {
-      case 'FOOTBALL':
-        return 'Fútbol';
-      case 'FOOTBALL7':
-        return 'Fútbol 7';
-      case 'FUTSAL':
-        return 'Futsal';
-      case 'BASKETBALL':
-        return 'Básquet';
-      case 'TENNIS':
-        return 'Tenis';
-      case 'VOLLEYBALL':
-        return 'Vóleibol';
-      case 'PADDLE':
-        return 'Pádel';
-      case 'SQUASH':
-        return 'Squash';
-      case 'MULTIPURPOSE':
-        return 'Multiuso';
-      default:
-        return sport || 'Desconocido';
-    }
-  };
-
-  const canProceedSchedule = () => {
-    if (!courtId || !date || !time || !duration) return false;
-    // Si la cancha es multiuso, verificar que se haya seleccionado un deporte
-    const court = selectedCourt;
-    if (court && (court as any).isMultiuse && Array.isArray((court as any).allowedSports) && ((court as any).allowedSports as string[]).length > 0) {
-      return !!selectedSport;
-    }
-    return true;
-  };
+  const canProceedSchedule = () => !!(courtId && date && time && duration);
   const canProceedPayment = () => {
     const trimmedReason = (paymentDetails.reason || '').trim();
 
@@ -817,16 +743,7 @@ function AdminNewReservationPageContent() {
     try {
       setError(null);
       if (!canProceedUser()) { setStep(1); setError('Selecciona un usuario o ingresa los datos mínimos'); return; }
-      if (!canProceedSchedule()) {
-        setStep(2);
-        const court = selectedCourt;
-        if (court && (court as any).isMultiuse && Array.isArray((court as any).allowedSports) && ((court as any).allowedSports as string[]).length > 0 && !selectedSport) {
-          setError('Selecciona cancha, fecha, hora y deporte (la cancha es multiuso)');
-        } else {
-          setError('Selecciona cancha, fecha y hora');
-        }
-        return;
-      }
+      if (!canProceedSchedule()) { setStep(2); setError('Selecciona cancha, fecha y hora'); return; }
       if (!canProceedPayment()) { setStep(3); setError('Completa los datos del método de pago y/o override'); return; }
 
       if (overrideEnabled) { setConfirmOverrideOpen(true); return; }
@@ -846,7 +763,6 @@ function AdminNewReservationPageContent() {
           startTime: start.toISOString(),
           duration,
           notes,
-          sport: selectedSport || (selectedCourt as any)?.sportType || undefined,
           payment: buildPaymentPayload(),
           sendNotifications: true,
         }),
@@ -1150,55 +1066,13 @@ function AdminNewReservationPageContent() {
         </div>
         <div>
           <label className="block text-sm text-gray-700 mb-1">Cancha</label>
-          <select value={courtId} onChange={(e) => {
-            setCourtId(e.target.value);
-            // Resetear deporte seleccionado al cambiar de cancha
-            setSelectedSport('');
-          }} className="w-full border rounded px-3 py-2">
+          <select value={courtId} onChange={(e) => setCourtId(e.target.value)} className="w-full border rounded px-3 py-2">
             <option value="">Selecciona</option>
             {filteredCourts.map((c: any) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         </div>
-        {/* Selector de deporte para canchas multiuso */}
-        {selectedCourt && (selectedCourt as any).isMultiuse && Array.isArray((selectedCourt as any).allowedSports) && ((selectedCourt as any).allowedSports as string[]).length > 0 && (
-          <div className="md:col-span-2">
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <label className="block text-sm font-medium text-gray-900 mb-3">
-                Selecciona el deporte para esta cancha multiuso:
-              </label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {((selectedCourt as any).allowedSports as string[]).map((sport: string) => {
-                  const normalize = (s: string) => (s || '').toUpperCase().trim();
-                  const sportNormalized = normalize(sport);
-                  const selectedNormalized = selectedSport ? normalize(selectedSport) : '';
-                  const isSelected = selectedNormalized === sportNormalized;
-
-                  return (
-                    <button
-                      key={sport}
-                      type="button"
-                      onClick={() => setSelectedSport(sport)}
-                      className={`p-3 rounded-lg border-2 transition-all duration-200 text-center ${isSelected
-                        ? 'border-blue-600 bg-blue-100 text-blue-900 font-semibold'
-                        : 'border-gray-200 hover:border-gray-300 text-gray-700 hover:bg-gray-50'
-                        }`}
-                    >
-                      <div className="text-2xl mb-1">{getSportIcon(sport)}</div>
-                      <div className="text-sm">{getSportLabel(sport)}</div>
-                    </button>
-                  );
-                })}
-              </div>
-              {!selectedSport && (
-                <p className="mt-3 text-sm text-amber-600">
-                  ⚠️ Por favor, selecciona un deporte antes de continuar.
-                </p>
-              )}
-            </div>
-          </div>
-        )}
         <div>
           <label className="block text-sm text-gray-700 mb-1">Fecha</label>
           <input type="date" min={minDate} value={date} onChange={(e) => setDate(e.target.value)} className="w-full border rounded px-3 py-2" />

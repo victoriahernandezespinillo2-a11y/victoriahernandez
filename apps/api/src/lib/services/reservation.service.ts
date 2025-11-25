@@ -114,14 +114,12 @@ export class ReservationService {
     let reservation!: Reservation;
     try {
       // Calcular precio fuera de la transacción (solo lecturas)
-      // Incluir deporte seleccionado si la cancha es multiuso
       const computedPrice = await this.pricingService.calculatePrice({
         courtId: validatedInput.courtId,
         startTime: startTime,
         duration: validatedInput.duration,
         userId: validatedInput.userId,
         lightingSelected: validatedInput.lightingSelected,
-        sport: validatedInput.sport, // Deporte seleccionado para canchas multiuso
       });
 
       console.log('💰 [RESERVATION-PRICE] Precio calculado:', {

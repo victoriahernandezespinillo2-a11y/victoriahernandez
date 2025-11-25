@@ -157,18 +157,13 @@ export class ReservationPaymentService {
         
         if (existingPayment) {
           console.log('🔄 [CREDITS-PAYMENT] Pago ya procesado, devolviendo resultado existente');
-          // Obtener balance directamente desde la BD dentro de la transacción para evitar query adicional
-          const user = await tx.user.findUnique({
-            where: { id: userId },
-            select: { creditsBalance: true }
-          });
           const result: ReservationPaymentResult = {
             success: true,
             reservationId,
             paymentMethod: 'CREDITS',
             amount,
             creditsUsed: Number(existingPayment.creditAmount),
-            balanceAfter: Number(user?.creditsBalance || 0)
+            balanceAfter: await this.creditSystemService.getBalance(userId)
           };
           return result;
         }
@@ -323,7 +318,7 @@ export class ReservationPaymentService {
         };
         console.log('✅ [CREDITS-PAYMENT] Transacción completada exitosamente:', result);
         return result;
-      }, { timeout: 40000 }); // 40 segundos de timeout para operaciones de pago (aumentado por transacciones anidadas)
+      });
 
       // Obtener el resultado de la transacción
       const result = await transactionResult;
@@ -638,7 +633,7 @@ export class ReservationPaymentService {
           paymentMethod: 'FREE' as const,
           amount: 0
         };
-      }, { timeout: 40000 }); // 40 segundos de timeout para operaciones de pago (aumentado por transacciones anidadas)
+      });
 
       console.log('🎉 [FREE-PAYMENT] Pago gratis procesado exitosamente');
       return result;
@@ -760,7 +755,7 @@ export class ReservationPaymentService {
           success: true,
           creditsRefunded: refundAmount
         };
-      }, { timeout: 30000 }); // 30 segundos de timeout para operaciones de reembolso (aumentado por timeout del pool)
+      });
 
     } catch (error) {
       console.error('Error procesando reembolso:', error);
@@ -921,7 +916,7 @@ export class ReservationPaymentService {
             creditsAwarded,
             newBalance: Number(updatedUser.creditsBalance)
           });
-        }, { timeout: 30000 }); // 30 segundos de timeout para operaciones de bonus (aumentado por timeout del pool)
+        });
 
         // Solo aplicar la primera promoción que coincida
         break;

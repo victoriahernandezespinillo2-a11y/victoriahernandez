@@ -118,7 +118,6 @@ model Court {
   reservations         Reservation[]
   waitingLists         WaitingList[]
   tariffCourts         TariffCourt[]
-  sportPricing         CourtSportPricing[]
 
   @@index([sportType, isActive])
   @@index([maintenanceStatus, isActive])
@@ -419,22 +418,6 @@ model PricingRule {
   court           Court?    @relation(fields: [courtId], references: [id], onDelete: Cascade)
 
   @@map("pricing_rules")
-}
-
-/// Precios por deporte para canchas multiuso
-/// Permite que cada deporte tenga un precio específico independiente del precio base
-model CourtSportPricing {
-  id              String   @id @default(cuid())
-  courtId         String   @map("court_id")
-  sport           String   /// Código del deporte (FOOTBALL7, TENNIS, BASKETBALL, etc.)
-  pricePerHour    Decimal  @map("price_per_hour") /// Precio por hora para este deporte específico
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-  court           Court    @relation(fields: [courtId], references: [id], onDelete: Cascade)
-
-  @@unique([courtId, sport]) /// Un precio único por deporte por cancha
-  @@index([courtId])
-  @@map("court_sport_pricing")
 }
 
 /// Registros de eventos salientes (notificaciones, pagos, etc.)

@@ -15,7 +15,6 @@ import {
 import { useAdminCourts, useAdminCenters } from '@/lib/hooks';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
-import { adminApi } from '@/lib/api';
 
 interface Court {
   id: string;
@@ -37,7 +36,6 @@ interface Court {
   isMultiuse?: boolean;
   allowedSports?: string[];
   primarySport?: string;
-  sportPricing?: Record<string, number>;
 }
 
 
@@ -210,62 +208,40 @@ export default function CourtsPage() {
     setShowView(true);
   };
 
-  const handleEditCourt = async (court: Court) => {
+  const handleEditCourt = (court: Court) => {
     setEditingCourt(court);
-    setIsLoading(true);
 
-    try {
-      // Cargar datos completos de la cancha desde el API individual para obtener sportPricing
-      const courtDetails = await adminApi.courts.getById(court.id) as any;
+    // 🔍 DEBUG: Log de datos recibidos
+    console.log('🔍 [DEBUG] Datos de la cancha recibidos:', {
+      name: court.name,
+      lighting: court.lighting,
+      lightingExtraPerHour: court.lightingExtraPerHour,
+      court: court
+    });
 
-      // 🔍 DEBUG: Log de datos recibidos
-      console.log('🔍 [DEBUG] Datos de la cancha recibidos:', {
-        name: courtDetails.name,
-        lighting: courtDetails.lighting,
-        lightingExtraPerHour: courtDetails.lightingExtraPerHour,
-        sportPricing: courtDetails.sportPricing,
-        courtDetails: courtDetails
-      });
+    // Poblar el estado del formulario de edición con los datos de la cancha seleccionada
+    const formData = {
+      name: court.name,
+      type: court.type, // ✅ Agregar el deporte
+      hourlyRate: court.hourlyRate,
+      status: court.status,
+      isMultiuse: court.isMultiuse ?? false,
+      allowedSports: (court.allowedSports ?? []) as any,
+      primarySport: (court as any).primarySport || null,
+      lighting: court.lighting as any,
+      lightingExtraPerHour: court.lightingExtraPerHour ?? undefined,
+      // Se pueden añadir aquí todos los demás campos editables
+    };
 
-      // Poblar el estado del formulario de edición con los datos de la cancha seleccionada
-      // Construir objeto de precios por deporte desde la respuesta del API
-      const sportPricingMap: Record<string, number> = {};
-      if (courtDetails.sportPricing && typeof courtDetails.sportPricing === 'object') {
-        Object.entries(courtDetails.sportPricing).forEach(([sport, price]) => {
-          sportPricingMap[sport] = Number(price);
-        });
-      }
+    // 🔍 DEBUG: Log de datos del formulario
+    console.log('🔍 [DEBUG] Datos del formulario:', {
+      lighting: formData.lighting,
+      lightingExtraPerHour: formData.lightingExtraPerHour,
+      formData: formData
+    });
 
-      const formData = {
-        name: courtDetails.name || court.name,
-        type: courtDetails.type || court.type, // ✅ Agregar el deporte
-        hourlyRate: courtDetails.hourlyRate || court.hourlyRate,
-        status: courtDetails.status || court.status,
-        isMultiuse: courtDetails.isMultiuse ?? court.isMultiuse ?? false,
-        allowedSports: (courtDetails.allowedSports ?? court.allowedSports ?? []) as any,
-        primarySport: (courtDetails.primarySport || courtDetails.primarySport === null ? courtDetails.primarySport : (court as any).primarySport) || null,
-        lighting: courtDetails.lighting ?? court.lighting as any,
-        lightingExtraPerHour: courtDetails.lightingExtraPerHour ?? court.lightingExtraPerHour ?? undefined,
-        sportPricing: sportPricingMap, // Precios por deporte
-        // Se pueden añadir aquí todos los demás campos editables
-      };
-
-      // 🔍 DEBUG: Log de datos del formulario
-      console.log('🔍 [DEBUG] Datos del formulario:', {
-        lighting: formData.lighting,
-        lightingExtraPerHour: formData.lightingExtraPerHour,
-        sportPricing: formData.sportPricing,
-        formData: formData
-      });
-
-      setEditForm(formData);
-      setShowEdit(true);
-    } catch (error) {
-      console.error('Error cargando detalles de la cancha:', error);
-      toast.error('Error al cargar los detalles de la cancha. Por favor, inténtalo de nuevo.');
-    } finally {
-      setIsLoading(false);
-    }
+    setEditForm(formData);
+    setShowEdit(true);
   };
 
   const handleUpdateCourt = async () => {
@@ -285,18 +261,12 @@ export default function CourtsPage() {
         dataToSend.primarySport = undefined;
       }
 
-      // Incluir precios por deporte si la cancha es multiuso
-      if ((dataToSend as any).isMultiuse && (editForm as any).sportPricing) {
-        (dataToSend as any).sportPricing = (editForm as any).sportPricing;
-      }
-
       console.log('🔍 [HANDLE-UPDATE] Datos a enviar:', {
         courtId: editingCourt.id,
         isMultiuse: (dataToSend as any).isMultiuse,
         primarySport: (dataToSend as any).primarySport,
         primarySportType: typeof (dataToSend as any).primarySport,
         allowedSports: (dataToSend as any).allowedSports,
-        sportPricing: (dataToSend as any).sportPricing,
         fullData: dataToSend
       });
 
@@ -672,23 +642,8 @@ export default function CourtsPage() {
                             checked={Array.isArray((editForm as any).allowedSports) ? ((editForm as any).allowedSports as string[]).includes(code) : false}
                             onChange={(e) => {
                               const current = new Set<string>(Array.isArray((editForm as any).allowedSports) ? (((editForm as any).allowedSports) as string[]) : []);
-                              const currentSportPricing = (editForm as any).sportPricing || {};
-                              if (e.target.checked) {
-                                current.add(code);
-                                // Si no existe precio para este deporte, inicializar con el precio base
-                                if (!currentSportPricing[code] && (editForm as any).hourlyRate) {
-                                  currentSportPricing[code] = (editForm as any).hourlyRate;
-                                }
-                              } else {
-                                current.delete(code);
-                                // Eliminar precio cuando se desmarca el deporte
-                                delete currentSportPricing[code];
-                              }
-                              setEditForm({ 
-                                ...editForm, 
-                                allowedSports: Array.from(current) as any,
-                                sportPricing: { ...currentSportPricing },
-                              });
+                              if (e.target.checked) current.add(code); else current.delete(code);
+                              setEditForm({ ...editForm, allowedSports: Array.from(current) as any });
                             }}
                             className="text-blue-600 focus:ring-blue-500"
                           />
@@ -726,53 +681,6 @@ export default function CourtsPage() {
                       </select>
                       <p className="mt-1 text-xs text-gray-500">
                         El deporte principal bloquea todos los demás deportes cuando está reservado.
-                      </p>
-                    </div>
-                  )}
-                  {/* Precios por deporte */}
-                  {Array.isArray((editForm as any).allowedSports) && ((editForm as any).allowedSports as string[]).length > 0 && (
-                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <label className="block text-sm font-medium text-gray-900 mb-3">
-                        Precios por deporte (€/hora)
-                      </label>
-                      <div className="space-y-3">
-                        {((editForm as any).allowedSports as string[]).map((sportCode: string) => {
-                          const sportPricing = (editForm as any).sportPricing || {};
-                          const currentPrice = sportPricing[sportCode] ?? (editForm as any).hourlyRate ?? 0;
-
-                          return (
-                            <div key={sportCode} className="flex items-center gap-3">
-                              <label className="flex-1 text-sm font-medium text-gray-700 min-w-[150px]">
-                                {typeLabels[sportCode] || sportCode}:
-                              </label>
-                              <div className="flex-1 flex items-center gap-2">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
-                                  value={currentPrice || ''}
-                                  onChange={(e) => {
-                                    const value = e.target.value === '' ? 0 : Number(e.target.value);
-                                    const currentSportPricing = (editForm as any).sportPricing || {};
-                                    setEditForm({
-                                      ...editForm,
-                                      sportPricing: {
-                                        ...currentSportPricing,
-                                        [sportCode]: value,
-                                      },
-                                    });
-                                  }}
-                                  className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                  placeholder="0.00"
-                                />
-                                <span className="text-sm text-gray-500">€/hora</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <p className="mt-3 text-xs text-gray-600">
-                        💡 Define el precio por hora para cada deporte permitido en esta cancha multiuso.
                       </p>
                     </div>
                   )}

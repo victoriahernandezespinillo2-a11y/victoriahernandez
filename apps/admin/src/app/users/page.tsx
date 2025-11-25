@@ -50,33 +50,33 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  
+
   // Sincronizar currentPage con pagination.page cuando cambie la paginación (solo si es diferente)
   useEffect(() => {
     if (pagination && pagination.page && pagination.page !== currentPage && !isInitialLoad) {
       setCurrentPage(pagination.page);
     }
   }, [pagination?.page, isInitialLoad]);
-  
+
   // Cargar usuarios y estadísticas al montar el componente
   useEffect(() => {
     const loadData = async () => {
       setIsInitialLoad(true);
       await Promise.all([
-        getUsers({ page: 1, limit: 20 }).catch(() => {}),
-        getStats().catch(() => {})
+        getUsers({ page: 1, limit: 20 }).catch(() => { }),
+        getStats().catch(() => { })
       ]);
       setIsInitialLoad(false);
     };
     loadData();
   }, [getUsers, getStats]);
-  
+
   // Recargar usuarios cuando cambian los filtros o búsqueda (pero no en la carga inicial)
   useEffect(() => {
     if (isInitialLoad) return; // No ejecutar en la carga inicial
-    
+
     const timeoutId = setTimeout(() => {
       setIsLoading(true);
       getUsers({
@@ -89,10 +89,10 @@ export default function UsersPage() {
         setIsLoading(false);
       });
     }, searchTerm ? 500 : 0); // Debounce para búsqueda
-    
+
     return () => clearTimeout(timeoutId);
   }, [searchTerm, roleFilter, statusFilter, currentPage, getUsers, isInitialLoad]);
-  
+
   // Estado para el modal de confirmación de eliminación
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<{ id: string; email: string; name: string } | null>(null);
@@ -168,19 +168,19 @@ export default function UsersPage() {
 
   const confirmDeleteUser = async () => {
     if (!userToDelete) return;
-    
+
     try {
       const result = await deleteUser(userToDelete.id);
-      
+
       // Mostrar información de éxito
       toast.success(`Usuario "${userToDelete.name}" eliminado exitosamente`);
-      
+
       setDeleteConfirmOpen(false);
       setUserToDelete(null);
     } catch (error) {
       console.error('Error al eliminar usuario:', error);
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      
+
       if (errorMessage.includes('reservas o membresías activas')) {
         toast.error('No se puede eliminar: El usuario tiene reservas o membresías activas. Cancela primero todas las reservas activas y desactiva las membresías.');
       } else {
@@ -299,7 +299,7 @@ export default function UsersPage() {
               />
             </div>
           </div>
-          
+
           {/* Role Filter */}
           <div>
             <select
@@ -316,7 +316,7 @@ export default function UsersPage() {
               <option value="ADMIN">Administrador</option>
             </select>
           </div>
-          
+
           {/* Status Filter */}
           <div>
             <select
@@ -385,16 +385,14 @@ export default function UsersPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      roleColors[user.role]
-                    }`}>
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${roleColors[user.role]
+                      }`}>
                       {user.role}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      statusColors[user.status]
-                    }`}>
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[user.status]
+                      }`}>
                       {user.status}
                     </span>
                   </td>
@@ -406,21 +404,21 @@ export default function UsersPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <button 
+                      <button
                         className="text-blue-600 hover:text-blue-900 transition-colors"
                         onClick={() => handleViewUser(user)}
                         title="Ver usuario"
                       >
                         <EyeIcon className="h-4 w-4" />
                       </button>
-                      <button 
+                      <button
                         className="text-green-600 hover:text-green-900 transition-colors"
                         onClick={() => handleEditUser(user)}
                         title="Editar usuario"
                       >
                         <PencilIcon className="h-4 w-4" />
                       </button>
-                      <button 
+                      <button
                         className="text-indigo-600 hover:text-indigo-900 transition-colors"
                         onClick={() => {
                           window.location.href = `/reservations/new?userId=${user.id}`;
@@ -429,7 +427,7 @@ export default function UsersPage() {
                       >
                         <CalendarDaysIcon className="h-4 w-4" />
                       </button>
-                      <button 
+                      <button
                         className="text-red-600 hover:text-red-900 transition-colors"
                         onClick={() => handleDeleteUser(user)}
                         title="Eliminar usuario"
@@ -485,11 +483,10 @@ export default function UsersPage() {
                         setCurrentPage(page);
                       }}
                       disabled={isLoading}
-                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                        page === currentPage
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${page === currentPage
                           ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
                           : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       {page}
                     </button>
@@ -515,50 +512,48 @@ export default function UsersPage() {
                   <XCircleIcon className="h-6 w-6" />
                 </button>
               </div>
-              
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Nombre completo</label>
                   <p className="mt-1 text-sm text-gray-900">{selectedUser.firstName} {selectedUser.lastName}</p>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Email</label>
                   <p className="mt-1 text-sm text-gray-900">{selectedUser.email}</p>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Rol</label>
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                    roleColors[selectedUser.role]
-                  }`}>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${roleColors[selectedUser.role]
+                    }`}>
                     {selectedUser.role}
                   </span>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Estado</label>
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                    statusColors[selectedUser.status]
-                  }`}>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[selectedUser.status]
+                    }`}>
                     {selectedUser.status}
                   </span>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Membresía</label>
                   <p className="mt-1 text-sm text-gray-900">
                     {(selectedUser as any).membershipType || 'Sin membresía'}
                   </p>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Fecha de registro</label>
                   <p className="mt-1 text-sm text-gray-900">
                     {new Date(selectedUser.createdAt).toLocaleDateString()}
                   </p>
                 </div>
-                
+
                 {(selectedUser as any).lastLogin && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Último acceso</label>
@@ -568,7 +563,7 @@ export default function UsersPage() {
                   </div>
                 )}
               </div>
-              
+
               <div className="mt-6 flex justify-end">
                 <button
                   onClick={closeModals}
@@ -596,7 +591,7 @@ export default function UsersPage() {
                   <XCircleIcon className="h-6 w-6" />
                 </button>
               </div>
-              
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Nombre</label>
@@ -606,7 +601,7 @@ export default function UsersPage() {
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Apellido</label>
                   <input
@@ -615,7 +610,16 @@ export default function UsersPage() {
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-                
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Fecha de Nacimiento</label>
+                  <input
+                    type="date"
+                    defaultValue={(selectedUser as any).dateOfBirth ? new Date((selectedUser as any).dateOfBirth).toISOString().split('T')[0] : ''}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Email</label>
                   <input
@@ -624,7 +628,7 @@ export default function UsersPage() {
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Rol</label>
                   <select
@@ -636,7 +640,7 @@ export default function UsersPage() {
                     <option value="ADMIN">Administrador</option>
                   </select>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Estado</label>
                   <select
@@ -649,7 +653,7 @@ export default function UsersPage() {
                   </select>
                 </div>
               </div>
-              
+
               <div className="mt-6 flex justify-end space-x-3">
                 <button
                   onClick={closeModals}
