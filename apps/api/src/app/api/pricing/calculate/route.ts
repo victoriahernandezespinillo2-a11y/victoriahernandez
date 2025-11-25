@@ -13,6 +13,8 @@ const CalculatePriceSchema = z.object({
   isRecurring: z.boolean().optional().default(false),
   recurringFrequency: z.enum(['weekly', 'biweekly', 'monthly']).optional(),
   recurringCount: z.number().min(1).max(52).optional(),
+  sport: z.string().optional(), // Deporte para canchas multiuso
+  lightingSelected: z.boolean().optional().default(false), // Iluminación adicional seleccionada
 });
 
 /**
@@ -35,6 +37,8 @@ export async function POST(request: NextRequest) {
       startTime: new Date(validatedData.startTime),
       duration: validatedData.duration,
       userId,
+      sport: validatedData.sport,
+      lightingSelected: validatedData.lightingSelected,
     });
     
     // Calcular precio para reservas recurrentes si aplica
@@ -64,6 +68,8 @@ export async function POST(request: NextRequest) {
           startTime: currentDate,
           duration: validatedData.duration,
           userId,
+          sport: validatedData.sport,
+          lightingSelected: validatedData.lightingSelected,
         });
         
         recurringPrices.push({

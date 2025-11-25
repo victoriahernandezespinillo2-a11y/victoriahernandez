@@ -169,18 +169,23 @@ export default function MobileNewReservationPage() {
         }
         
         if (startISO) {
-          await calculatePrice({ 
+          const payload: Record<string, any> = {
             courtId: selectedCourt.id, 
             startTime: startISO, 
-            duration 
-          });
+            duration,
+          };
+          // Incluir deporte seleccionado si la cancha es multiuso
+          if ((selectedCourt as any)?.isMultiuse && selectedSport) {
+            payload.sport = selectedSport;
+          }
+          await calculatePrice(payload);
         }
       } catch {
         // noop
       }
     };
     run();
-  }, [selectedCourt, selectedCalendarSlot, selectedDate, duration, calculatePrice]);
+  }, [selectedCourt, selectedCalendarSlot, selectedDate, duration, selectedSport, calculatePrice]);
 
   // Calcular precio total usando el resultado del backend
   const totalCost = useMemo(() => {
@@ -436,9 +441,30 @@ export default function MobileNewReservationPage() {
                     </div>
                     <div className="text-right">
                       <div className="font-bold text-xl text-gray-900">
-                        {formatCurrency(court.pricePerHour)}
+                        {(() => {
+                          // Si es multiuso y hay un deporte seleccionado, mostrar precio específico del deporte
+                          if ((court as any).isMultiuse && selectedSport && (court as any).sportPricing) {
+                            const sportPrice = (court as any).sportPricing[selectedSport];
+                            if (sportPrice !== undefined && sportPrice !== null) {
+                              return formatCurrency(sportPrice);
+                            }
+                          }
+                          // Si no, mostrar precio base
+                          return formatCurrency(court.pricePerHour);
+                        })()}
                       </div>
-                      <div className="text-sm text-gray-500">por hora</div>
+                      <div className="text-sm text-gray-500">
+                        {(() => {
+                          // Si es multiuso y hay deporte seleccionado con precio específico, mostrar el deporte
+                          if ((court as any).isMultiuse && selectedSport && (court as any).sportPricing) {
+                            const sportPrice = (court as any).sportPricing[selectedSport];
+                            if (sportPrice !== undefined && sportPrice !== null) {
+                              return `por hora (${getSportLabel(selectedSport)})`;
+                            }
+                          }
+                          return 'por hora';
+                        })()}
+                      </div>
                     </div>
                   </div>
                   

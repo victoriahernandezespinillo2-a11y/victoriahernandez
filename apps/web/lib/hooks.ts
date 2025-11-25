@@ -110,6 +110,13 @@ export function useCourts() {
     const allowedSports: string[] = Array.isArray((c as any).allowedSports)
       ? (c as any).allowedSports
       : [];
+    // Normalizar sportPricing (puede venir como objeto o undefined)
+    const sportPricing: Record<string, number> = {};
+    if ((c as any).sportPricing && typeof (c as any).sportPricing === 'object') {
+      Object.entries((c as any).sportPricing).forEach(([sport, price]) => {
+        sportPricing[sport] = toNumber(price);
+      });
+    }
     return {
       id: c.id,
       name: c.name,
@@ -123,6 +130,7 @@ export function useCourts() {
       lighting: Boolean((c as any).lighting ?? (c as any).hasLighting),
       lightingExtraPerHour: toNumber((c as any).lightingExtraPerHour),
       covered: Boolean((c as any).covered),
+      sportPricing, // Precios por deporte para canchas multiuso
       createdAt: c.createdAt,
     };
   };
@@ -496,7 +504,7 @@ type PricingState = {
 } | null;
 
 export function usePricing() {
-  const { data, loading, error, execute, reset } = useApiState<PricingState>(null);
+  const { data, loading, error, execute, reset, setData } = useApiState<PricingState>(null);
 
   const calculatePrice = useCallback((pricingData: any) => {
     return execute(async () => {
@@ -510,6 +518,15 @@ export function usePricing() {
     });
   }, [execute]);
 
+  const setPricing = useCallback((pricing: any) => {
+    const normalized: PricingState = {
+      pricing: pricing ?? null,
+      recurringPricing: null,
+      raw: pricing,
+    };
+    setData(normalized);
+  }, [setData]);
+
   const resetPricing = useCallback(() => {
     reset();
   }, [reset]);
@@ -521,6 +538,7 @@ export function usePricing() {
     loading,
     error,
     calculatePrice,
+    setPricing,
     reset: resetPricing,
   };
 }

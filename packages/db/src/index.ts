@@ -45,7 +45,10 @@ const __dirname = path.dirname(__filename);
         // Forzar Pooler 6543 solo si está indicado explícitamente
         if (url.port === '' || url.port === '5432') url.port = '6543';
         if (!params.has('pgbouncer')) params.set('pgbouncer', 'true');
-        if (!params.has('connection_limit')) params.set('connection_limit', '1');
+        // Aumentar connection_limit para evitar timeouts con requests concurrentes
+        if (!params.has('connection_limit')) {
+          params.set('connection_limit', process.env.NODE_ENV === 'production' ? '1' : '10');
+        }
       } else {
         // No usar pooler: quitar flags y normalizar a 5432 si fuese necesario
         params.delete('pgbouncer');
@@ -56,14 +59,75 @@ const __dirname = path.dirname(__filename);
       if (!params.has('sslmode')) params.set('sslmode', 'require');
       process.env.DATABASE_URL = url.toString();
 
-      // Si no hay DIRECT_DATABASE_URL, derivarla a 5432 con TLS (sin pooler)
+      // Si no hay DIRECT_DATABASE_URL, derivarla
+      // NOTA: En desarrollo local, es mejor usar pooler (6543) porque Supabase bloquea 5432 desde redes locales
       if (!process.env.DIRECT_DATABASE_URL) {
         const direct = new URL(process.env.DATABASE_URL);
-        direct.port = '5432';
-        direct.searchParams.delete('pgbouncer');
-        direct.searchParams.delete('connection_limit');
+        // Si DATABASE_URL ya usa pooler (6543), mantenerlo
+        // Si usa conexión directa (5432), convertir a pooler para desarrollo local
+        if (direct.port === '5432' || direct.port === '') {
+          // Convertir a pooler para evitar bloqueos de red
+          direct.port = '6543';
+          // En Supabase, el pooler (puerto 6543) usa el mismo usuario "postgres"
+          // Asegurar que el usuario sea "postgres" (no "postgres.xxx")
+          if (direct.username.startsWith('postgres.') && direct.username !== 'postgres') {
+            direct.username = 'postgres';
+          }
+          direct.searchParams.set('pgbouncer', 'true');
+          // Aumentar connection_limit para evitar timeouts con requests concurrentes
+          // En desarrollo, usar más conexiones ya que no hay límites estrictos de Supabase
+          direct.searchParams.set('connection_limit', process.env.NODE_ENV === 'production' ? '1' : '10');
+        } else if (direct.port === '6543') {
+          // Ya usa pooler, asegurar usuario "postgres"
+          if (direct.username.startsWith('postgres.') && direct.username !== 'postgres') {
+            direct.username = 'postgres';
+          }
+          if (!direct.searchParams.has('pgbouncer')) {
+            direct.searchParams.set('pgbouncer', 'true');
+          }
+          if (!direct.searchParams.has('connection_limit')) {
+            // Aumentar connection_limit para evitar timeouts con requests concurrentes
+            direct.searchParams.set('connection_limit', process.env.NODE_ENV === 'production' ? '1' : '10');
+          }
+        }
         direct.searchParams.set('sslmode', 'require');
         process.env.DIRECT_DATABASE_URL = direct.toString();
+      } else {
+        // Si DIRECT_DATABASE_URL ya existe, verificar y corregir si es necesario
+        try {
+          const directUrl = new URL(process.env.DIRECT_DATABASE_URL);
+          // Si está usando puerto 5432 (conexión directa), convertir a pooler para evitar bloqueos
+          if (directUrl.port === '5432') {
+            console.log('⚠️ [DB] DIRECT_DATABASE_URL usa puerto 5432, convirtiendo a pooler (6543) para evitar bloqueos de red');
+            directUrl.port = '6543';
+            // En Supabase, el pooler (puerto 6543) usa el mismo usuario "postgres"
+            // No necesita el formato "postgres.xxx"
+            if (directUrl.username.startsWith('postgres.')) {
+              directUrl.username = 'postgres';
+            }
+            directUrl.searchParams.set('pgbouncer', 'true');
+            // Aumentar connection_limit para desarrollo (pooler puede manejar más conexiones)
+            directUrl.searchParams.set('connection_limit', process.env.NODE_ENV === 'production' ? '1' : '10');
+            process.env.DIRECT_DATABASE_URL = directUrl.toString();
+            console.log('✅ [DB] DIRECT_DATABASE_URL convertida a pooler (puerto 6543) con usuario "postgres"');
+          } else if (directUrl.port === '6543') {
+            // Ya está usando pooler, asegurar usuario "postgres" (no "postgres.xxx")
+            if (directUrl.username.startsWith('postgres.') && directUrl.username !== 'postgres') {
+              directUrl.username = 'postgres';
+              console.log('⚠️ [DB] Corregido usuario en DIRECT_DATABASE_URL: cambiado a "postgres" para pooler');
+            }
+            if (!directUrl.searchParams.has('pgbouncer')) {
+              directUrl.searchParams.set('pgbouncer', 'true');
+            }
+            if (!directUrl.searchParams.has('connection_limit')) {
+              // Aumentar connection_limit para desarrollo (pooler puede manejar más conexiones)
+              directUrl.searchParams.set('connection_limit', process.env.NODE_ENV === 'production' ? '1' : '10');
+            }
+            process.env.DIRECT_DATABASE_URL = directUrl.toString();
+          }
+        } catch {
+          // Ignorar si no se puede parsear
+        }
       }
     } else if (process.env.DATABASE_URL && !/[?&]sslmode=/.test(process.env.DATABASE_URL)) {
       const sep = process.env.DATABASE_URL.includes('?') ? '&' : '?';
@@ -101,15 +165,36 @@ export const db = globalForPrisma.prisma ??
   (() => {
     try {
       // En producción serverless (Vercel), SIEMPRE usar DATABASE_URL (pooler)
-      // En desarrollo, SIEMPRE priorizar DIRECT_DATABASE_URL para conexiones directas
+      // En desarrollo, verificar si DATABASE_URL usa puerto 5432 (bloqueado), si es así usar DIRECT_DATABASE_URL (pooler)
       const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
       let databaseUrl: string | undefined;
       if (isProduction) {
         databaseUrl = process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL;
       } else {
-        // En desarrollo: SIEMPRE usar DIRECT_DATABASE_URL si está disponible
-        databaseUrl = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL;
-        if (process.env.DIRECT_DATABASE_URL) {
+        // En desarrollo: verificar si DATABASE_URL tiene puerto 5432 (bloqueado desde redes locales)
+        // Si es así, usar DIRECT_DATABASE_URL que debe tener pooler (6543)
+        let shouldUseDirectUrl = false;
+        try {
+          if (process.env.DATABASE_URL) {
+            const url = new URL(process.env.DATABASE_URL);
+            // Si DATABASE_URL tiene puerto 5432 explícito, usar DIRECT_DATABASE_URL (pooler)
+            if (url.port === '5432') {
+              shouldUseDirectUrl = true;
+              console.log('⚠️ [DB] DATABASE_URL usa puerto 5432 (bloqueado), usando DIRECT_DATABASE_URL (pooler)');
+            }
+          }
+        } catch {
+          // Si no se puede parsear, continuar con DATABASE_URL
+        }
+        
+        if (shouldUseDirectUrl && process.env.DIRECT_DATABASE_URL) {
+          databaseUrl = process.env.DIRECT_DATABASE_URL;
+          console.log('✅ [DB] Usando DIRECT_DATABASE_URL (pooler) para desarrollo');
+        } else if (process.env.DATABASE_URL) {
+          databaseUrl = process.env.DATABASE_URL;
+          console.log('✅ [DB] Usando DATABASE_URL para desarrollo');
+        } else if (process.env.DIRECT_DATABASE_URL) {
+          databaseUrl = process.env.DIRECT_DATABASE_URL;
           console.log('✅ [DB] Usando DIRECT_DATABASE_URL para desarrollo');
         }
       }
@@ -162,6 +247,9 @@ export const db = globalForPrisma.prisma ??
         delete process.env.PRISMA_CLI_QUERY_ENGINE_TYPE;
         delete process.env.PRISMA_CLIENT_ENGINE_TYPE;
         
+        // Configurar timeout más largo para obtener conexiones del pool
+        // Esto ayuda cuando connection_limit es bajo y hay requests concurrentes
+        // Nota: __internal es una propiedad interna de Prisma no documentada públicamente
         const client = new PrismaClient({
           datasources: {
             db: {
@@ -169,7 +257,15 @@ export const db = globalForPrisma.prisma ??
             },
           },
           log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-          errorFormat: 'pretty'
+          errorFormat: 'pretty',
+          // @ts-ignore - __internal es una propiedad interna de Prisma no documentada públicamente
+          // Necesaria para configurar timeouts del pool de conexiones
+          __internal: {
+            engine: {
+              connectTimeout: 30000, // 30 segundos (default es 10, aumentado para pool timeout)
+              poolTimeout: 30000, // 30 segundos para timeout del pool (aumentado de default 10)
+            }
+          }
         });
 
         // Configurar manejo de errores de conexión

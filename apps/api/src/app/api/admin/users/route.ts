@@ -87,8 +87,11 @@ export async function GET(request: NextRequest) {
         const isPhoneSearch = normalizedPhone.length > 0 && /^\d+$/.test(normalizedPhone);
         
         // Construir condiciones de búsqueda
+        // Buscar en name, firstName, lastName, email y phone
         const searchConditions: any[] = [
           { name: { contains: searchTerm, mode: 'insensitive' } },
+          { firstName: { contains: searchTerm, mode: 'insensitive' } },
+          { lastName: { contains: searchTerm, mode: 'insensitive' } },
           { email: { contains: searchTerm, mode: 'insensitive' } },
           { phone: { contains: searchTerm, mode: 'insensitive' } }
         ];
@@ -143,6 +146,8 @@ export async function GET(request: NextRequest) {
               id: true,
               email: true,
               name: true,
+              firstName: true,
+              lastName: true,
               phone: true,
               role: true,
               isActive: true,
@@ -297,6 +302,8 @@ export async function GET(request: NextRequest) {
           
           const searchConditions: any[] = [
             { name: { contains: searchTerm, mode: 'insensitive' } },
+            { firstName: { contains: searchTerm, mode: 'insensitive' } },
+            { lastName: { contains: searchTerm, mode: 'insensitive' } },
             { email: { contains: searchTerm, mode: 'insensitive' } },
             { phone: { contains: searchTerm, mode: 'insensitive' } }
           ];
@@ -314,7 +321,7 @@ export async function GET(request: NextRequest) {
         const orderBy: any = {}; orderBy[params.sortBy] = params.sortOrder;
         const [users, total] = await Promise.all([
           db.user.findMany({ where, skip, take: params.limit, orderBy, select: {
-            id: true, email: true, name: true, phone: true, role: true, isActive: true,
+            id: true, email: true, name: true, firstName: true, lastName: true, phone: true, role: true, isActive: true,
             emailVerified: true, emailVerifiedAt: true, createdAt: true, updatedAt: true, lastLoginAt: true,
           } }),
           db.user.count({ where })

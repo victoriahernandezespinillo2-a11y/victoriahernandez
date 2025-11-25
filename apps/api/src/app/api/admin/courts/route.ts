@@ -43,6 +43,8 @@ const CreateCourtSchema = z.object({
   // Multiuso
   isMultiuse: z.boolean().optional().default(false),
   allowedSports: z.array(z.string()).optional().default([]),
+  // Precios por deporte para canchas multiuso
+  sportPricing: z.record(z.string(), z.number().min(0)).optional(), // { "FOOTBALL7": 15, "TENNIS": 20 }
 });
 
 /**
@@ -291,6 +293,33 @@ export async function POST(request: NextRequest) {
             center: { select: { id: true, name: true } },
           }
         });
+      }
+
+      // Guardar precios por deporte si se proporcionaron
+      if (courtData.isMultiuse && courtData.sportPricing && Object.keys(courtData.sportPricing).length > 0) {
+        try {
+          const sportPricingEntries = Object.entries(courtData.sportPricing).map(([sport, pricePerHour]) => ({
+            courtId: created.id,
+            sport,
+            pricePerHour: pricePerHour as number,
+          }));
+
+          // Eliminar precios existentes para esta cancha (si hay)
+          await (db.courtSportPricing as any).deleteMany({
+            where: { courtId: created.id },
+          });
+
+          // Crear nuevos precios por deporte
+          if (sportPricingEntries.length > 0) {
+            await (db.courtSportPricing as any).createMany({
+              data: sportPricingEntries,
+              skipDuplicates: true,
+            });
+          }
+        } catch (sportPricingError) {
+          // Si falla, solo loguear el error pero no fallar la creación de la cancha
+          console.error('[ADMIN/COURTS] Error guardando precios por deporte:', sportPricingError);
+        }
       }
 
       const mapped = {

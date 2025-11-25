@@ -871,7 +871,7 @@ export const adminApi = {
 
   // Gestión de precios (pricing)
   pricing: {
-    calculate: (data: { courtId: string; startTime: string; duration: number; userId?: string }) =>
+    calculate: (data: { courtId: string; startTime: string; duration: number; userId?: string; sport?: string; lightingSelected?: boolean }) =>
       apiClient.request('/api/pricing/calculate', {
         method: 'POST',
         body: JSON.stringify(data),

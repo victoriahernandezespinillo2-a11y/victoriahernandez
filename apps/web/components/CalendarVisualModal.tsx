@@ -117,12 +117,42 @@ export default function CalendarVisualModal({
       setError(null);
       
       try {
-        console.log('🔴 [FRONTEND-DEBUG] Llamando a getCalendarStatus con los siguientes datos:', { courtId, date, duration });
-        const data = await api.courts.getCalendarStatus(courtId, { date, duration });
+        console.log('🔴 [FRONTEND-DEBUG] Llamando a getCalendarStatus con los siguientes datos:', { 
+          courtId, 
+          date, 
+          duration,
+          sport: selectedSport,
+          isMultiuse: selectedCourt?.isMultiuse 
+        });
+        const data = await api.courts.getCalendarStatus(courtId, { 
+          date, 
+          duration,
+          sport: selectedCourt?.isMultiuse ? selectedSport : undefined // Pasar deporte si es multiuso
+        });
         
         // --- LOG DE DIAGNÓSTICO FORENSE ---
         if (data && data.slots && data.slots.length > 0) {
           console.log('🔴 [FRONTEND-FORENSICS] Primer slot RECIBIDO de la API:', JSON.parse(JSON.stringify(data.slots[0])));
+        }
+        
+        // Calcular precios correctos para cada slot basado en el deporte seleccionado
+        if (data && data.slots && selectedCourt) {
+          let pricePerHour = selectedCourt.pricePerHour || 0;
+          
+          // Si es multiuso y hay deporte seleccionado, usar precio específico del deporte
+          if (selectedCourt.isMultiuse && selectedSport && selectedCourt.sportPricing) {
+            const sportPrice = selectedCourt.sportPricing[selectedSport];
+            if (sportPrice !== undefined && sportPrice !== null && sportPrice > 0) {
+              pricePerHour = sportPrice;
+              console.log(`💰 [CALENDAR-MODAL] Usando precio específico para ${selectedSport}: ${sportPrice}€/hora`);
+            }
+          }
+          
+          // Actualizar precios en los slots
+          data.slots = data.slots.map((slot: any) => ({
+            ...slot,
+            price: pricePerHour > 0 ? (pricePerHour * duration) / 60 : 0
+          }));
         }
         
         setCalendarData(data);
@@ -135,7 +165,7 @@ export default function CalendarVisualModal({
     };
 
     loadCalendarData();
-  }, [courtId, date, duration, isOpen, authLoading, firebaseUser, refreshTrigger]);
+  }, [courtId, date, duration, selectedSport, selectedCourt, isOpen, authLoading, firebaseUser, refreshTrigger]);
 
   // 🎨 FUNCIÓN PARA OBTENER ESTILOS DEL SLOT MÓVIL-OPTIMIZADO
   const getSlotStyles = (slot: CalendarSlot) => {
@@ -673,9 +703,26 @@ export default function CalendarVisualModal({
                        </label>
                        <div className="text-sm">
                          <span className="text-gray-600 mr-3">Estimado:</span>
-                         <span className="mr-2">Base {(Number(selectedCourt?.pricePerHour || 0) * (duration/60)).toLocaleString('es-CO')}</span>
-                         <span className="mr-2">+ Iluminación {(lightingSelected ? (Number((selectedCourt as any)?.lightingExtraPerHour || 0) * (duration/60)) : 0).toLocaleString('es-CO')}</span>
-                         <span className="font-semibold">= {((Number(selectedCourt?.pricePerHour || 0) + (lightingSelected ? Number((selectedCourt as any)?.lightingExtraPerHour || 0) : 0)) * (duration/60)).toLocaleString('es-CO')}</span>
+                         {(() => {
+                           // Calcular precio base según deporte seleccionado si es multiuso
+                           let basePricePerHour = Number(selectedCourt?.pricePerHour || 0);
+                           if (selectedCourt?.isMultiuse && selectedSport && selectedCourt.sportPricing) {
+                             const sportPrice = selectedCourt.sportPricing[selectedSport];
+                             if (sportPrice !== undefined && sportPrice !== null && sportPrice > 0) {
+                               basePricePerHour = sportPrice;
+                             }
+                           }
+                           const basePrice = basePricePerHour * (duration/60);
+                           const lightingPrice = lightingSelected ? (Number((selectedCourt as any)?.lightingExtraPerHour || 0) * (duration/60)) : 0;
+                           const totalPrice = basePrice + lightingPrice;
+                           return (
+                             <>
+                               <span className="mr-2">Base {basePrice.toLocaleString('es-CO')}</span>
+                               <span className="mr-2">+ Iluminación {lightingPrice.toLocaleString('es-CO')}</span>
+                               <span className="font-semibold">= {totalPrice.toLocaleString('es-CO')}</span>
+                             </>
+                           );
+                         })()}
                        </div>
                      </div>
                      {/* Mensaje para horario nocturno */}

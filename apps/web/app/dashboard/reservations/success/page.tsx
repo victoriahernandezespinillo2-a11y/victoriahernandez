@@ -53,25 +53,41 @@ export default function PaymentSuccessPage() {
             throw new Error('Datos de reserva incompletos');
           }
           
+          // Validar que totalPrice existe y es válido
+          if (!reservationData.totalPrice && reservationData.totalPrice !== 0) {
+            console.warn('⚠️ [SUCCESS-PAGE] totalPrice no encontrado en la respuesta, intentando calcular desde pricing...');
+            // Si no hay totalPrice, intentar obtenerlo del pricing si está disponible
+            if (response?.pricing?.total) {
+              reservationData.totalPrice = response.pricing.total;
+            }
+          }
+          
+          // Calcular duración en minutos y luego convertir a horas (redondeando correctamente)
+          const startTime = new Date(reservationData.startTime);
+          const endTime = new Date(reservationData.endTime);
+          const durationInMinutes = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+          const durationInHours = durationInMinutes / 60; // Mantener decimales para mostrar correctamente (ej: 1.5 horas)
+          
           setReservation({
             id: reservationData.id,
             courtName: reservationData.court?.name || 'Cancha no especificada',
-            sportName: reservationData.court?.sport || 'Deporte no especificado',
-            date: new Date(reservationData.startTime).toLocaleDateString('es-ES', {
+            // El campo 'sport' está directamente en la reserva, no en court.sport
+            sportName: reservationData.sport || reservationData.court?.sportType || 'Deporte no especificado',
+            date: startTime.toLocaleDateString('es-ES', {
               weekday: 'long',
               year: 'numeric',
               month: 'long',
               day: 'numeric'
             }),
-            startTime: new Date(reservationData.startTime).toLocaleTimeString('es-ES', {
+            startTime: startTime.toLocaleTimeString('es-ES', {
               hour: '2-digit',
               minute: '2-digit'
             }),
-            endTime: new Date(reservationData.endTime).toLocaleTimeString('es-ES', {
+            endTime: endTime.toLocaleTimeString('es-ES', {
               hour: '2-digit',
               minute: '2-digit'
             }),
-            duration: Math.round((new Date(reservationData.endTime).getTime() - new Date(reservationData.startTime).getTime()) / (1000 * 60 * 60)),
+            duration: durationInHours, // Usar horas con decimales (ej: 1.5)
             totalPrice: Number(reservationData.totalPrice || 0),
             paymentMethod: reservationData.paymentMethod || 'Tarjeta',
             status: reservationData.status || 'PAID',
@@ -116,9 +132,10 @@ export default function PaymentSuccessPage() {
       return reservation.totalPrice - reservation.promoDiscount;
     }
     
-    // Si se pagó con créditos, usar el monto de créditos usados
-    if (reservation.paymentMethod === 'CREDITS' && reservation.creditsUsed) {
-      return reservation.creditsUsed;
+    // Si se pagó con créditos, usar el totalPrice (que ya está en euros)
+    // Los créditos usados son solo para mostrar información, no para calcular el monto
+    if (reservation.paymentMethod === 'CREDITS') {
+      return reservation.totalPrice; // totalPrice ya está en euros
     }
     
     // En otros casos, usar el precio total
@@ -240,7 +257,7 @@ export default function PaymentSuccessPage() {
                       {reservation.startTime} - {reservation.endTime}
                     </p>
                     <p className="text-sm text-gray-500">
-                      Duración: {reservation.duration} hora{reservation.duration !== 1 ? 's' : ''}
+                      Duración: {reservation.duration > 0 ? reservation.duration.toFixed(1).replace(/\.0$/, '') : '1'} hora{reservation.duration !== 1 ? 's' : ''}
                     </p>
                   </div>
                 </div>
@@ -296,7 +313,7 @@ export default function PaymentSuccessPage() {
                   </div>
                   
                   {/* Información adicional para pagos con créditos */}
-                  {reservation.paymentMethod === 'CREDITS' && reservation.creditsUsed && (
+                  {reservation.paymentMethod === 'CREDITS' && reservation.creditsUsed && reservation.creditsUsed > 0 && (
                     <div className="text-xs text-gray-500 mt-1">
                       Pagado con {reservation.creditsUsed} crédito{reservation.creditsUsed !== 1 ? 's' : ''}
                     </div>

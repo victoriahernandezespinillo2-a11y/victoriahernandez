@@ -4,6 +4,7 @@ import { reservationService } from '../../../lib/services/reservation.service';
 import { ReservationReminderService } from '../../../lib/services/reservation-reminder.service';
 import { reservationNotificationService } from '../../../lib/services/reservation-notification.service';
 import AuthService from '../../../lib/services/auth.service';
+import { PricingService } from '../../../lib/services/pricing.service';
 import { z } from 'zod';
 import { db } from '@repo/db';
 import { withReservationMiddleware, ApiResponse } from '@/lib/middleware';
@@ -334,10 +335,37 @@ export async function POST(request: NextRequest) {
             },
           }
         });
-      });
+      }, { timeout: 40000 }); // 40 segundos de timeout para operaciones de pago (aumentado por transacciones anidadas)
     }
 
-    return ApiResponse.success({ reservation }, 201);
+    // Calcular pricing para devolverlo en la respuesta (incluye precio por deporte e iluminación si aplica)
+    let pricing = null;
+    try {
+      const pricingService = new PricingService();
+      // El schema espera startTime como Date, no como string ISO
+      // Nota: reservation no tiene duration, usar validatedData.duration que viene del request
+      pricing = await pricingService.calculatePrice({
+        courtId: reservation.courtId,
+        startTime: reservation.startTime, // Ya es un Date, no convertir a ISO
+        duration: validatedData.duration, // Usar validatedData.duration ya que reservation no tiene este campo
+        userId: finalUserId,
+        sport: validatedData.sport, // Incluir deporte si fue seleccionado
+        lightingSelected: validatedData.lightingSelected, // Incluir iluminación si fue seleccionada
+      });
+      console.log('💰 [RESERVATION-RESPONSE] Pricing calculado para respuesta:', {
+        total: pricing.total,
+        basePrice: pricing.basePrice,
+        subtotal: pricing.subtotal,
+        sport: validatedData.sport,
+        lightingSelected: validatedData.lightingSelected,
+        lighting: pricing.lighting
+      });
+    } catch (error) {
+      console.error('⚠️ [RESERVATION-RESPONSE] Error calculando pricing para respuesta:', error);
+      // No fallar la creación de la reserva si falla el cálculo de pricing
+    }
+
+    return ApiResponse.success({ reservation, pricing }, 201);
   } catch (error) {
     console.error('ðŸš¨ [RESERVATION-DEBUG] Error detallado:', {
       error: error instanceof Error ? error.message : error,

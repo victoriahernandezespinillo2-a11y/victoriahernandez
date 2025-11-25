@@ -98,6 +98,11 @@ interface Court {
   amenities: string[];
   image?: string;
   lightingExtraPerHour?: number;
+  isMultiuse?: boolean;
+  allowedSports?: string[];
+  sportPricing?: Record<string, number>;
+  sportType?: string;
+  centerId?: string;
 }
 
 interface TimeSlot {
@@ -121,7 +126,7 @@ export default function NewReservationPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const { courts, getCourts } = useCourts();
-  const { pricing, calculatePrice, reset: resetPricing } = usePricing();
+  const { pricing, calculatePrice, setPricing, reset: resetPricing } = usePricing();
   const isMobile = useIsMobile();
   const { firebaseUser, loading: authLoading } = useFirebaseAuth();
 
@@ -146,6 +151,7 @@ export default function NewReservationPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [createdReservationId, setCreatedReservationId] = useState<string | null>(null);
+  const [createdReservationPricing, setCreatedReservationPricing] = useState<any | null>(null);
   const [selectedCalendarSlot, setSelectedCalendarSlot] = useState<CalendarSlot | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
@@ -187,11 +193,26 @@ export default function NewReservationPage() {
     return isDay;
   };
 
-  // Calculate total price
+  // Calculate total price - usar pricing del backend si está disponible, si no calcular localmente
   const totalPrice = useMemo(() => {
+    // Si tenemos pricing del backend (que ya incluye deporte), usarlo primero
+    if (pricing?.total !== undefined && pricing.total > 0) {
+      return pricing.total;
+    }
+
     if (!selectedCourt || !selectedDuration) return 0;
 
-    const basePrice = (selectedCourt.pricePerHour * selectedDuration) / 60;
+    // Calcular precio base: si es multiuso y hay deporte seleccionado, usar precio específico del deporte
+    let basePricePerHour = selectedCourt.pricePerHour || 0;
+    if (selectedCourt.isMultiuse && selectedSport && (selectedCourt as any).sportPricing) {
+      const sportPrice = (selectedCourt as any).sportPricing[selectedSport];
+      if (sportPrice !== undefined && sportPrice !== null && sportPrice > 0) {
+        basePricePerHour = sportPrice;
+        console.log(`💰 [TOTAL-PRICE] Usando precio específico para ${selectedSport}: ${sportPrice}€/hora`);
+      }
+    }
+
+    const basePrice = (basePricePerHour * selectedDuration) / 60;
 
     // Add lighting cost if selected and it's day time
     let lightingCost = 0;
@@ -201,7 +222,7 @@ export default function NewReservationPage() {
     }
 
     return basePrice + lightingCost;
-  }, [selectedCourt, selectedDuration, lightingSelected, selectedSlot]);
+  }, [selectedCourt, selectedDuration, selectedSport, lightingSelected, selectedSlot, pricing]);
 
   // Función para cargar timeSlots desde la API
   const loadTimeSlots = async (courtId: string, date: string, duration: number, sport?: string) => {
@@ -228,7 +249,19 @@ export default function NewReservationPage() {
 
       // Convertir CalendarSlots a TimeSlots
       const convertedTimeSlots: TimeSlot[] = calendarData.slots.map((slot: any) => {
-        const calculatedPrice = selectedCourt?.pricePerHour ? (selectedCourt.pricePerHour * duration) / 60 : 0;
+        // Calcular precio base: si es multiuso y hay deporte seleccionado, usar precio específico del deporte
+        let pricePerHour = selectedCourt?.pricePerHour || 0;
+        if (selectedCourt && (selectedCourt as any).isMultiuse && sport && (selectedCourt as any).sportPricing) {
+          const sportPrice = (selectedCourt as any).sportPricing[sport];
+          if (sportPrice !== undefined && sportPrice !== null && sportPrice > 0) {
+            pricePerHour = sportPrice;
+            console.log(`💰 [PRICE-SLOT] Usando precio específico para ${sport}: ${sportPrice}€/hora`);
+          } else {
+            console.log(`⚠️ [PRICE-SLOT] No hay precio específico para ${sport}, usando precio base: ${pricePerHour}€/hora`);
+          }
+        }
+        
+        const calculatedPrice = pricePerHour > 0 ? (pricePerHour * duration) / 60 : 0;
 
         // 🔍 LOG PARA DEBUGGING DEL PRECIO
         console.log('💰 [PRICE-DEBUG] Slot:', {
@@ -237,8 +270,11 @@ export default function NewReservationPage() {
           originalPrice: slot.price,
           calculatedPrice: calculatedPrice,
           selectedDuration: selectedDuration,
-          duration: duration, // ← NUEVO: mostrar el parámetro duration
-          pricePerHour: selectedCourt?.pricePerHour
+          duration: duration,
+          pricePerHour: pricePerHour,
+          sport: sport,
+          sportPricing: (selectedCourt as any)?.sportPricing,
+          isMultiuse: (selectedCourt as any)?.isMultiuse
         });
 
         return {
@@ -247,7 +283,7 @@ export default function NewReservationPage() {
           endTime: slot.endTime,
           status: slot.status,
           available: slot.available,
-          price: calculatedPrice, // Usar el precio calculado correctamente
+          price: calculatedPrice, // Usar el precio calculado correctamente según deporte
           message: slot.message,
           activityType: (() => {
             const m = Array.isArray(slot.conflicts) ? slot.conflicts.find((c: any) => c?.type === 'maintenance') : null;
@@ -272,6 +308,33 @@ export default function NewReservationPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCourt, selectedDate, duration, selectedSport, authLoading, firebaseUser]);
+
+  // Recalcular precios de slots cuando cambia el deporte seleccionado (sin recargar slots)
+  useEffect(() => {
+    if (!selectedCourt || !selectedSport || timeSlots.length === 0) return;
+    
+    // Calcular precio base según deporte seleccionado
+    let pricePerHour = selectedCourt.pricePerHour || 0;
+    if (selectedCourt.isMultiuse && selectedSport && (selectedCourt as any).sportPricing) {
+      const sportPrice = (selectedCourt as any).sportPricing[selectedSport];
+      if (sportPrice !== undefined && sportPrice !== null && sportPrice > 0) {
+        pricePerHour = sportPrice;
+      }
+    }
+    
+    // Actualizar precios en los slots existentes
+    setTimeSlots(prevSlots => {
+      if (prevSlots.length === 0) return prevSlots;
+      
+      const updatedSlots = prevSlots.map((slot) => ({
+        ...slot,
+        price: pricePerHour > 0 ? (pricePerHour * duration) / 60 : 0
+      }));
+      
+      console.log(`💰 [SPORT-CHANGE] Precios actualizados para deporte ${selectedSport}: ${pricePerHour}€/hora`);
+      return updatedSlots;
+    });
+  }, [selectedSport, selectedCourt, duration]);
 
   // Cargar centros activos y preparar flujo dinámico
   useEffect(() => {
@@ -432,7 +495,18 @@ export default function NewReservationPage() {
     }
   };
 
-  const baseCost = pricing?.total ?? (selectedCourt ? (selectedCourt.pricePerHour * (shouldUseMobileView ? selectedDuration : duration) / 60) : 0);
+  // Calcular precio base: usar pricing del backend si está disponible, si no calcular localmente
+  // Si es multiuso y hay deporte seleccionado, usar precio específico del deporte
+  let basePricePerHour = selectedCourt?.pricePerHour || 0;
+  if (selectedCourt?.isMultiuse && selectedSport && (selectedCourt as any).sportPricing) {
+    const sportPrice = (selectedCourt as any).sportPricing[selectedSport];
+    if (sportPrice !== undefined && sportPrice !== null && sportPrice > 0) {
+      basePricePerHour = sportPrice;
+      console.log(`💰 [BASE-COST] Usando precio específico para ${selectedSport}: ${sportPrice}€/hora`);
+    }
+  }
+  
+  const baseCost = pricing?.basePrice ?? pricing?.total ?? (selectedCourt ? (basePricePerHour * (shouldUseMobileView ? selectedDuration : duration) / 60) : 0);
 
   // Add lighting cost if selected (day time) or if it's night time (automatic)
   // Support both desktop (selectedCalendarSlot) and mobile (selectedSlot)
@@ -442,7 +516,9 @@ export default function NewReservationPage() {
     ? (selectedCourt?.lightingExtraPerHour || 0) * (shouldUseMobileView ? selectedDuration : duration) / 60
     : 0;
 
-  const totalCost = baseCost + lightingCost;
+  // Si tenemos pricing del backend, usar el total que ya incluye todo
+  // Si no, calcular sumando baseCost + lightingCost
+  const totalCost = pricing?.total ?? (baseCost + lightingCost);
 
   // Obtener fecha mínima (hoy)
   const today = new Date();
@@ -504,7 +580,78 @@ export default function NewReservationPage() {
         notes,
         sport: selectedSport || (selectedCourt as any)?.sportType || undefined,
       } as any);
+      
       const reservationId = res?.reservation?.id || res?.id;
+      
+      // Si el backend devuelve pricing, guardarlo directamente para el modal
+      if (res?.pricing) {
+        console.log('💰 [RESERVATION-CREATE] Pricing recibido del backend:', {
+          total: res.pricing.total,
+          basePrice: res.pricing.basePrice,
+          subtotal: res.pricing.subtotal,
+          lighting: res.pricing.lighting,
+          breakdown: res.pricing.breakdown
+        });
+        // Guardar pricing en estado local para usar directamente en el modal
+        setCreatedReservationPricing(res.pricing);
+        // También actualizar el hook para mantener consistencia
+        setPricing(res.pricing);
+      } else {
+        console.warn('⚠️ [RESERVATION-CREATE] No se recibió pricing del backend, usando cálculo local');
+        // Si no viene pricing del backend (por error de BD), calcularlo localmente
+        // RECALCULAR desde cero sin usar pricing del hook para evitar valores incorrectos
+        
+        // Recalcular precio base usando precio del deporte
+        let localBasePricePerHour = selectedCourt?.pricePerHour || 0;
+        if (selectedCourt?.isMultiuse && selectedSport && (selectedCourt as any).sportPricing) {
+          const sportPrice = (selectedCourt as any).sportPricing[selectedSport];
+          if (sportPrice !== undefined && sportPrice !== null && sportPrice > 0) {
+            localBasePricePerHour = sportPrice;
+            console.log(`💰 [RESERVATION-CREATE] Usando precio específico para ${selectedSport}: ${sportPrice}€/hora`);
+          }
+        }
+        
+        // Calcular costo base local (sin depender de pricing del hook)
+        const localBaseCost = localBasePricePerHour * (duration / 60);
+        
+        // Calcular costo de iluminación local
+        const currentSlot = selectedCalendarSlot || selectedSlot;
+        const isCurrentlyDayTime = currentSlot ? isDayTime(currentSlot.startTime) : true;
+        const localLightingCost = (lightingSelected && isCurrentlyDayTime) || (!isCurrentlyDayTime)
+          ? (selectedCourt?.lightingExtraPerHour || 0) * (duration / 60)
+          : 0;
+        
+        // Calcular total local
+        const localTotal = localBaseCost + localLightingCost;
+        
+        const localPricing = {
+          basePrice: localBaseCost,
+          subtotal: localBaseCost,
+          total: localTotal,
+          discount: 0,
+          breakdown: [
+            {
+              description: `Precio base (${duration/60}h × €${localBasePricePerHour})`,
+              amount: localBaseCost
+            },
+            ...(localLightingCost > 0 ? [{
+              description: `Iluminación (${duration/60}h × €${selectedCourt?.lightingExtraPerHour || 0})`,
+              amount: localLightingCost
+            }] : [])
+          ],
+          appliedRules: []
+        };
+        console.log('💰 [RESERVATION-CREATE] Pricing calculado localmente:', {
+          basePricePerHour: localBasePricePerHour,
+          baseCost: localBaseCost,
+          lightingCost: localLightingCost,
+          total: localTotal,
+          sport: selectedSport
+        });
+        setCreatedReservationPricing(localPricing);
+        setPricing(localPricing);
+      }
+      
       if (reservationId) {
         setCreatedReservationId(reservationId);
         setShowPaymentModal(true);
@@ -728,6 +875,10 @@ export default function NewReservationPage() {
         if (userId) {
           payload.userId = userId;
         }
+        // Incluir deporte seleccionado si la cancha es multiuso
+        if ((selectedCourt as any)?.isMultiuse && selectedSport) {
+          payload.sport = selectedSport;
+        }
         await calculatePrice(payload);
       } catch {
         // noop
@@ -735,7 +886,7 @@ export default function NewReservationPage() {
     };
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCalendarSlot, session?.user?.id]);
+  }, [selectedCalendarSlot, selectedCourt, selectedSport, selectedDate, duration, session?.user?.id, calculatePrice]);
 
   const todayYMD = useMemo(() => formatYMD(new Date()), []);
 
@@ -1065,9 +1216,48 @@ export default function NewReservationPage() {
                           </div>
                           <div className="text-right">
                             <div className="font-semibold text-gray-900">
-                              {formatCurrency(court.pricePerHour)}
+                              {(() => {
+                                // Si esta cancha está seleccionada, es multiuso y hay un deporte seleccionado, mostrar precio específico del deporte
+                                const isSelectedCourt = selectedCourt?.id === court.id;
+                                const courtData = court as any;
+                                
+                                // Debug: solo loguear para cancha seleccionada
+                                if (isSelectedCourt && courtData.isMultiuse && selectedSport) {
+                                  console.log('💰 [PRICE-DISPLAY] Verificando precio por deporte:', {
+                                    courtId: court.id,
+                                    courtName: court.name,
+                                    isMultiuse: courtData.isMultiuse,
+                                    selectedSport,
+                                    sportPricing: courtData.sportPricing,
+                                    sportPrice: courtData.sportPricing?.[selectedSport],
+                                    pricePerHour: court.pricePerHour
+                                  });
+                                }
+                                
+                                if (isSelectedCourt && courtData.isMultiuse && selectedSport && courtData.sportPricing) {
+                                  const sportPrice = courtData.sportPricing[selectedSport];
+                                  if (sportPrice !== undefined && sportPrice !== null && sportPrice > 0) {
+                                    return formatCurrency(sportPrice);
+                                  }
+                                }
+                                // Si no, mostrar precio base
+                                return formatCurrency(court.pricePerHour);
+                              })()}
                             </div>
-                            <div className="text-sm text-gray-500">por hora</div>
+                            <div className="text-sm text-gray-500">
+                              {(() => {
+                                // Si esta cancha está seleccionada, es multiuso y hay deporte seleccionado con precio específico, mostrar el deporte
+                                const isSelectedCourt = selectedCourt?.id === court.id;
+                                const courtData = court as any;
+                                if (isSelectedCourt && courtData.isMultiuse && selectedSport && courtData.sportPricing) {
+                                  const sportPrice = courtData.sportPricing[selectedSport];
+                                  if (sportPrice !== undefined && sportPrice !== null && sportPrice > 0) {
+                                    return `por hora (${getSportLabel(selectedSport)})`;
+                                  }
+                                }
+                                return 'por hora';
+                              })()}
+                            </div>
                           </div>
                         </div>
                         <div className="space-y-1">
@@ -1118,6 +1308,39 @@ export default function NewReservationPage() {
                         ⚠️ Por favor, selecciona un deporte antes de continuar.
                       </p>
                     )}
+                    {selectedSport && (selectedCourt as any).sportPricing && (() => {
+                      const sportPrice = (selectedCourt as any).sportPricing[selectedSport];
+                      if (sportPrice !== undefined && sportPrice !== null && sportPrice > 0) {
+                        return (
+                          <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-700">
+                                Precio para {getSportLabel(selectedSport)}:
+                              </span>
+                              <span className="text-lg font-bold text-green-700">
+                                {formatCurrency(sportPrice)} / hora
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      // Si no hay precio específico, mostrar precio base
+                      return (
+                        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700">
+                              Precio base para {getSportLabel(selectedSport)}:
+                            </span>
+                            <span className="text-lg font-bold text-amber-700">
+                              {formatCurrency((selectedCourt as any).pricePerHour || 0)} / hora
+                            </span>
+                          </div>
+                          <p className="text-xs text-amber-600 mt-1">
+                            💡 No hay precio específico configurado para este deporte, usando precio base.
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
                 {selectedCourt && (
@@ -1234,6 +1457,75 @@ export default function NewReservationPage() {
                       });
 
                       const reservationId = reservationResponse?.reservation?.id || reservationResponse?.id;
+                      
+                      // Si el backend devuelve pricing, guardarlo directamente para el modal
+                      if (reservationResponse?.pricing) {
+                        console.log('💰 [RESERVATION-CREATE] Pricing recibido del backend:', {
+                          total: reservationResponse.pricing.total,
+                          basePrice: reservationResponse.pricing.basePrice,
+                          subtotal: reservationResponse.pricing.subtotal,
+                          lighting: reservationResponse.pricing.lighting,
+                          breakdown: reservationResponse.pricing.breakdown
+                        });
+                        // Guardar pricing en estado local para usar directamente en el modal
+                        setCreatedReservationPricing(reservationResponse.pricing);
+                        // También actualizar el hook para mantener consistencia
+                        setPricing(reservationResponse.pricing);
+                      } else {
+                        console.warn('⚠️ [RESERVATION-CREATE] No se recibió pricing del backend, usando cálculo local');
+                        // Si no viene pricing del backend (por error de BD), calcularlo localmente
+                        // RECALCULAR desde cero sin usar pricing del hook para evitar valores incorrectos
+                        
+                        // Recalcular precio base usando precio del deporte
+                        let localBasePricePerHour = selectedCourt?.pricePerHour || 0;
+                        if (selectedCourt?.isMultiuse && selectedSport && (selectedCourt as any).sportPricing) {
+                          const sportPrice = (selectedCourt as any).sportPricing[selectedSport];
+                          if (sportPrice !== undefined && sportPrice !== null && sportPrice > 0) {
+                            localBasePricePerHour = sportPrice;
+                            console.log(`💰 [RESERVATION-CREATE] Usando precio específico para ${selectedSport}: ${sportPrice}€/hora`);
+                          }
+                        }
+                        
+                        // Calcular costo base local (sin depender de pricing del hook)
+                        const localBaseCost = localBasePricePerHour * (selectedDuration / 60);
+                        
+                        // Calcular costo de iluminación local
+                        const isCurrentlyDayTime = selectedSlot ? isDayTime(selectedSlot.startTime) : true;
+                        const localLightingCost = (lightingSelected && isCurrentlyDayTime) || (!isCurrentlyDayTime)
+                          ? (selectedCourt?.lightingExtraPerHour || 0) * (selectedDuration / 60)
+                          : 0;
+                        
+                        // Calcular total local
+                        const localTotal = localBaseCost + localLightingCost;
+                        
+                        const localPricing = {
+                          basePrice: localBaseCost,
+                          subtotal: localBaseCost,
+                          total: localTotal,
+                          discount: 0,
+                          breakdown: [
+                            {
+                              description: `Precio base (${selectedDuration/60}h × €${localBasePricePerHour})`,
+                              amount: localBaseCost
+                            },
+                            ...(localLightingCost > 0 ? [{
+                              description: `Iluminación (${selectedDuration/60}h × €${selectedCourt?.lightingExtraPerHour || 0})`,
+                              amount: localLightingCost
+                            }] : [])
+                          ],
+                          appliedRules: []
+                        };
+                        console.log('💰 [RESERVATION-CREATE] Pricing calculado localmente:', {
+                          basePricePerHour: localBasePricePerHour,
+                          baseCost: localBaseCost,
+                          lightingCost: localLightingCost,
+                          total: localTotal,
+                          sport: selectedSport
+                        });
+                        setCreatedReservationPricing(localPricing);
+                        setPricing(localPricing);
+                      }
+                      
                       if (reservationId) {
                         setCreatedReservationId(reservationId);
                         setShowPaymentModal(true);
@@ -1585,22 +1877,29 @@ export default function NewReservationPage() {
       {shouldUseMobileView ? (
         <MobilePaymentModal
           isOpen={showPaymentModal}
-          onClose={() => setShowPaymentModal(false)}
+          onClose={() => {
+            setShowPaymentModal(false);
+            // No limpiar createdReservationPricing aquí para mantener datos si se vuelve a abrir
+          }}
           reservationId={createdReservationId || ''}
-          amount={Number((pricing?.total ?? totalCost) || 0)}
+          amount={Number((createdReservationPricing?.total ?? pricing?.total ?? totalCost) || 0)}
           currency="EUR"
           courtName={selectedCourt?.name || ''}
           dateLabel={selectedDate ? formatDate(selectedDate) : ''}
           timeLabel={selectedSlot ? `${selectedSlot.startTime} - ${selectedSlot.endTime}` : selectedTime}
           onSuccess={() => router.push('/dashboard/reservations')}
           pricingDetails={
-            pricing
+            (createdReservationPricing || pricing)
               ? {
-                basePrice: pricing.basePrice ?? pricing.subtotal ?? totalCost ?? 0,
-                discount: pricing.discount ?? 0,
-                total: pricing.total ?? totalCost ?? 0,
-                breakdown: Array.isArray(pricing.breakdown) ? pricing.breakdown : [],
-                appliedRules: Array.isArray(pricing.appliedRules) ? pricing.appliedRules : [],
+                basePrice: (createdReservationPricing?.basePrice ?? pricing?.basePrice) ?? 0,
+                discount: (createdReservationPricing?.discount ?? pricing?.discount) ?? 0,
+                total: (createdReservationPricing?.total ?? pricing?.total) ?? 0,
+                breakdown: Array.isArray(createdReservationPricing?.breakdown ?? pricing?.breakdown) 
+                  ? (createdReservationPricing?.breakdown ?? pricing?.breakdown) 
+                  : [],
+                appliedRules: Array.isArray(createdReservationPricing?.appliedRules ?? pricing?.appliedRules) 
+                  ? (createdReservationPricing?.appliedRules ?? pricing?.appliedRules) 
+                  : [],
               }
               : undefined
           }
@@ -1608,21 +1907,28 @@ export default function NewReservationPage() {
       ) : (
         <PaymentModal
           isOpen={showPaymentModal}
-          onClose={() => setShowPaymentModal(false)}
+          onClose={() => {
+            setShowPaymentModal(false);
+            // No limpiar createdReservationPricing aquí para mantener datos si se vuelve a abrir
+          }}
           reservationId={createdReservationId || ''}
-          amount={Number((pricing?.total ?? totalCost) || 0)}
+          amount={Number((createdReservationPricing?.total ?? pricing?.total ?? totalCost) || 0)}
           currency="EUR"
           courtName={selectedCourt?.name || ''}
           dateLabel={selectedDate ? formatDate(selectedDate) : ''}
           timeLabel={selectedCalendarSlot ? `${selectedCalendarSlot.startTime} - ${selectedCalendarSlot.endTime}` : selectedTime}
           pricingDetails={
-            pricing
+            (createdReservationPricing || pricing)
               ? {
-                basePrice: pricing.basePrice ?? pricing.subtotal ?? totalCost ?? 0,
-                discount: pricing.discount ?? 0,
-                total: pricing.total ?? totalCost ?? 0,
-                breakdown: Array.isArray(pricing.breakdown) ? pricing.breakdown : [],
-                appliedRules: Array.isArray(pricing.appliedRules) ? pricing.appliedRules : [],
+                basePrice: (createdReservationPricing?.basePrice ?? pricing?.basePrice) ?? 0,
+                discount: (createdReservationPricing?.discount ?? pricing?.discount) ?? 0,
+                total: (createdReservationPricing?.total ?? pricing?.total) ?? 0,
+                breakdown: Array.isArray(createdReservationPricing?.breakdown ?? pricing?.breakdown) 
+                  ? (createdReservationPricing?.breakdown ?? pricing?.breakdown) 
+                  : [],
+                appliedRules: Array.isArray(createdReservationPricing?.appliedRules ?? pricing?.appliedRules) 
+                  ? (createdReservationPricing?.appliedRules ?? pricing?.appliedRules) 
+                  : [],
               }
               : undefined
           }
