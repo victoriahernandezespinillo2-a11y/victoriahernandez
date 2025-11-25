@@ -98,6 +98,11 @@ interface Court {
   amenities: string[];
   image?: string;
   lightingExtraPerHour?: number;
+  isMultiuse?: boolean;
+  allowedSports?: string[];
+  sportPricing?: Record<string, number>;
+  sportType?: string;
+  centerId?: string;
 }
 
 interface TimeSlot {
@@ -191,7 +196,8 @@ export default function NewReservationPage() {
   const totalPrice = useMemo(() => {
     if (!selectedCourt || !selectedDuration) return 0;
 
-    const basePrice = (selectedCourt.pricePerHour * selectedDuration) / 60;
+    const courtPrice = getCourtPrice(selectedCourt, selectedSport);
+    const basePrice = (courtPrice * selectedDuration) / 60;
 
     // Add lighting cost if selected and it's day time
     let lightingCost = 0;
@@ -228,7 +234,8 @@ export default function NewReservationPage() {
 
       // Convertir CalendarSlots a TimeSlots
       const convertedTimeSlots: TimeSlot[] = calendarData.slots.map((slot: any) => {
-        const calculatedPrice = selectedCourt?.pricePerHour ? (selectedCourt.pricePerHour * duration) / 60 : 0;
+        const courtPrice = getCourtPrice(selectedCourt, selectedSport);
+        const calculatedPrice = courtPrice ? (courtPrice * duration) / 60 : 0;
 
         // 🔍 LOG PARA DEBUGGING DEL PRECIO
         console.log('💰 [PRICE-DEBUG] Slot:', {
@@ -432,7 +439,7 @@ export default function NewReservationPage() {
     }
   };
 
-  const baseCost = pricing?.total ?? (selectedCourt ? (selectedCourt.pricePerHour * (shouldUseMobileView ? selectedDuration : duration) / 60) : 0);
+  const baseCost = pricing?.total ?? (selectedCourt ? (getCourtPrice(selectedCourt, selectedSport) * (shouldUseMobileView ? selectedDuration : duration) / 60) : 0);
 
   // Add lighting cost if selected (day time) or if it's night time (automatic)
   // Support both desktop (selectedCalendarSlot) and mobile (selectedSlot)
@@ -646,6 +653,19 @@ export default function NewReservationPage() {
       currency: 'EUR',
       minimumFractionDigits: 2
     }).format(amount);
+  };
+
+  // Helper para obtener el precio correcto basado en el deporte seleccionado
+  const getCourtPrice = (court: Court | null, selectedSport: string): number => {
+    if (!court) return 0;
+    
+    // Si la cancha es multiuso y hay un deporte seleccionado, usar precio específico
+    if (court.isMultiuse && selectedSport && court.sportPricing?.[selectedSport]) {
+      return court.sportPricing[selectedSport];
+    }
+    
+    // Usar precio base
+    return court.pricePerHour;
   };
 
   const formatDate = (dateString: string) => toDisplayDate(dateString);
@@ -1065,9 +1085,22 @@ export default function NewReservationPage() {
                           </div>
                           <div className="text-right">
                             <div className="font-semibold text-gray-900">
-                              {formatCurrency(court.pricePerHour)}
+                              {court.isMultiuse && selectedSport ? (
+                                <div>
+                                  <div>{formatCurrency(getCourtPrice(court, selectedSport))}</div>
+                                  {court.sportPricing?.[selectedSport] && court.sportPricing[selectedSport] !== court.pricePerHour && (
+                                    <div className="text-xs text-gray-400 line-through">
+                                      {formatCurrency(court.pricePerHour)}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                formatCurrency(court.pricePerHour)
+                              )}
                             </div>
-                            <div className="text-sm text-gray-500">por hora</div>
+                            <div className="text-sm text-gray-500">
+                              {court.isMultiuse && selectedSport ? `${selectedSport} - por hora` : 'por hora'}
+                            </div>
                           </div>
                         </div>
                         <div className="space-y-1">

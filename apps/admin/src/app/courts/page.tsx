@@ -36,6 +36,7 @@ interface Court {
   isMultiuse?: boolean;
   allowedSports?: string[];
   primarySport?: string;
+  sportPricing?: Record<string, number>;
 }
 
 
@@ -114,6 +115,7 @@ export default function CourtsPage() {
     hourlyRate: 20000,
     isMultiuse: false,
     allowedSports: [] as string[],
+    sportPricing: {} as Record<string, number>,
   });
 
   // Cargar datos al montar el componente (guard reentrada StrictMode)
@@ -230,6 +232,7 @@ export default function CourtsPage() {
       primarySport: (court as any).primarySport || null,
       lighting: court.lighting as any,
       lightingExtraPerHour: court.lightingExtraPerHour ?? undefined,
+      sportPricing: court.sportPricing || {},
       // Se pueden añadir aquí todos los demás campos editables
     };
 
@@ -477,6 +480,43 @@ export default function CourtsPage() {
                       </label>
                     ))}
                   </div>
+                  
+                  {/* Precios por deporte para creación */}
+                  {(((form as any).allowedSports || []) as string[]).length > 0 && (
+                    <div>
+                      <label className="block text-sm text-gray-700 mb-2">Precios por deporte (€/hora)</label>
+                      <div className="space-y-2">
+                        {(((form as any).allowedSports || []) as string[]).map((sport: string) => (
+                          <div key={sport} className="flex items-center gap-3">
+                            <label className="w-24 text-sm text-gray-600">
+                              {typeLabels[sport] || sport}:
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={((form as any).sportPricing?.[sport] || form.hourlyRate || 0)}
+                              onChange={(e) => {
+                                const price = parseFloat(e.target.value) || 0;
+                                setForm({
+                                  ...form,
+                                  sportPricing: {
+                                    ...((form as any).sportPricing || {}),
+                                    [sport]: price
+                                  }
+                                });
+                              }}
+                              className="flex-1 border rounded px-2 py-1 text-sm"
+                              placeholder="Precio por hora"
+                            />
+                          </div>
+                        ))}
+                        <p className="text-xs text-gray-500">
+                          Si no se especifica, se usará el precio base (€{form.hourlyRate}/hora)
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -501,6 +541,7 @@ export default function CourtsPage() {
                     hourlyRate: hourlyRate as any,
                     isMultiuse: (form as any).isMultiuse || false,
                     allowedSports: (form as any).isMultiuse ? (((form as any).allowedSports || []) as string[]) : [],
+                    sportPricing: (form as any).isMultiuse ? ((form as any).sportPricing || {}) : {},
                   });
                   setShowCreate(false);
                 }}
@@ -684,6 +725,43 @@ export default function CourtsPage() {
                       </p>
                     </div>
                   )}
+                  
+                  {/* Precios por deporte */}
+                  {Array.isArray((editForm as any).allowedSports) && ((editForm as any).allowedSports as string[]).length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Precios por deporte (€/hora)</label>
+                      <div className="space-y-3">
+                        {((editForm as any).allowedSports as string[]).map((sport: string) => (
+                          <div key={sport} className="flex items-center gap-3">
+                            <label className="w-32 text-sm text-gray-600 font-medium">
+                              {typeLabels[sport] || sport}:
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={((editForm as any).sportPricing?.[sport] || editForm.hourlyRate || 0)}
+                              onChange={(e) => {
+                                const price = parseFloat(e.target.value) || 0;
+                                setEditForm({
+                                  ...editForm,
+                                  sportPricing: {
+                                    ...((editForm as any).sportPricing || {}),
+                                    [sport]: price
+                                  }
+                                });
+                              }}
+                              className="flex-1 border border-gray-300 rounded px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Precio por hora"
+                            />
+                          </div>
+                        ))}
+                        <p className="text-xs text-gray-500 mt-2">
+                          Si no se especifica un precio, se usará el precio base de la cancha (€{editForm.hourlyRate || 0}/hora)
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -818,6 +896,28 @@ export default function CourtsPage() {
                       </span>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Precios por deporte (si es multiuso) */}
+              {viewingCourt.isMultiuse && viewingCourt.sportPricing && Object.keys(viewingCourt.sportPricing).length > 0 && (
+                <div>
+                  <h5 className="text-lg font-semibold text-gray-900 mb-3">Precios por Deporte</h5>
+                  <div className="space-y-2">
+                    {Object.entries(viewingCourt.sportPricing).map(([sport, price]) => (
+                      <div key={sport} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <span className="font-medium text-gray-700">
+                          {typeLabels[sport] || sport}
+                        </span>
+                        <span className="text-lg font-semibold text-blue-600">
+                          €{Number(price).toFixed(2)}/hora
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Precio base: €{Number(viewingCourt.hourlyRate).toFixed(2)}/hora
+                  </p>
                 </div>
               )}
 
