@@ -192,6 +192,19 @@ export default function NewReservationPage() {
     return isDay;
   };
 
+  // Helper para obtener el precio correcto basado en el deporte seleccionado
+  const getCourtPrice = (court: Court | null, selectedSport: string): number => {
+    if (!court) return 0;
+    
+    // Si la cancha es multiuso y hay un deporte seleccionado, usar precio específico
+    if (court.isMultiuse && selectedSport && court.sportPricing?.[selectedSport]) {
+      return court.sportPricing[selectedSport];
+    }
+    
+    // Usar precio base
+    return court.pricePerHour;
+  };
+
   // Calculate total price
   const totalPrice = useMemo(() => {
     if (!selectedCourt || !selectedDuration) return 0;
@@ -653,19 +666,6 @@ export default function NewReservationPage() {
       currency: 'EUR',
       minimumFractionDigits: 2
     }).format(amount);
-  };
-
-  // Helper para obtener el precio correcto basado en el deporte seleccionado
-  const getCourtPrice = (court: Court | null, selectedSport: string): number => {
-    if (!court) return 0;
-    
-    // Si la cancha es multiuso y hay un deporte seleccionado, usar precio específico
-    if (court.isMultiuse && selectedSport && court.sportPricing?.[selectedSport]) {
-      return court.sportPricing[selectedSport];
-    }
-    
-    // Usar precio base
-    return court.pricePerHour;
   };
 
   const formatDate = (dateString: string) => toDisplayDate(dateString);
