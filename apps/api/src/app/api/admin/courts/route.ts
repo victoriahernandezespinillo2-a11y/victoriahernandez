@@ -43,6 +43,8 @@ const CreateCourtSchema = z.object({
   // Multiuso
   isMultiuse: z.boolean().optional().default(false),
   allowedSports: z.array(z.string()).optional().default([]),
+  // Precios por deporte para canchas multiuso
+  sportPricing: z.record(z.string(), z.number().min(0)).optional(),
 });
 
 /**
@@ -121,6 +123,13 @@ export async function GET(request: NextRequest) {
             createdAt: true,
             updatedAt: true,
             center: { select: { id: true, name: true } },
+            // Incluir precios por deporte para canchas multiuso
+            sportPricing: {
+              select: {
+                sport: true,
+                pricePerHour: true,
+              },
+            },
             _count: { select: { reservations: true } },
           }
         }),
@@ -131,6 +140,15 @@ export async function GET(request: NextRequest) {
         const hourlyRate = Number((c as any).basePricePerHour) || 0;
         const inMaintenance = c.maintenanceStatus && c.maintenanceStatus !== 'operational';
         const status = inMaintenance ? 'MAINTENANCE' : (c.isActive ? 'AVAILABLE' : 'INACTIVE');
+        
+        // Convertir sportPricing array a objeto para fácil acceso
+        const sportPricingMap: Record<string, number> = {};
+        if (Array.isArray(c.sportPricing)) {
+          c.sportPricing.forEach((sp: any) => {
+            sportPricingMap[sp.sport] = Number(sp.pricePerHour);
+          });
+        }
+        
         return {
           id: c.id,
           name: c.name,
@@ -151,7 +169,9 @@ export async function GET(request: NextRequest) {
           // Campos opcionales: solo incluir si existen en el modelo
           isMultiuse: typeof (c as any).isMultiuse === 'boolean' ? (c as any).isMultiuse : false,
           allowedSports: Array.isArray((c as any).allowedSports) ? (c as any).allowedSports : [],
-          primarySport: (c as any).primarySport || null, // ✅ AÑADIDO: incluir primarySport
+          primarySport: (c as any).primarySport || null,
+          // Precios por deporte para canchas multiuso
+          sportPricing: sportPricingMap,
         };
       });
 
@@ -293,6 +313,26 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      // Crear precios por deporte si es cancha multiuso y se proporcionaron precios
+      if (courtData.isMultiuse && courtData.sportPricing && Object.keys(courtData.sportPricing).length > 0) {
+        try {
+          const sportPricingData = Object.entries(courtData.sportPricing).map(([sport, price]) => ({
+            courtId: created.id,
+            sport,
+            pricePerHour: price,
+          }));
+
+          await db.courtSportPricing.createMany({
+            data: sportPricingData,
+          });
+
+          console.log(`✅ [ADMIN/COURTS] Precios por deporte creados para cancha ${created.id}:`, sportPricingData);
+        } catch (error) {
+          console.error(`❌ [ADMIN/COURTS] Error creando precios por deporte para cancha ${created.id}:`, error);
+          // No fallar la creación de la cancha por este error
+        }
+      }
+
       const mapped = {
         id: created.id,
         name: created.name,
@@ -313,6 +353,7 @@ export async function POST(request: NextRequest) {
         createdAt: created.createdAt,
         isMultiuse: Boolean(courtData.isMultiuse),
         allowedSports: Array.isArray(courtData.allowedSports) ? courtData.allowedSports : [],
+        sportPricing: courtData.sportPricing || {},
       };
 
       return ApiResponse.success(mapped);

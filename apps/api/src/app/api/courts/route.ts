@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       const limit = validatedParams.limit;
       const skip = (page - 1) * limit;
 
-      // Obtener canchas con información del centro
+      // Obtener canchas con información del centro y precios por deporte
       const courts = await db.court.findMany({
         where,
         include: {
@@ -72,6 +72,13 @@ export async function GET(request: NextRequest) {
               address: true,
               phone: true,
               email: true,
+            },
+          },
+          // Incluir precios por deporte para canchas multiuso
+          sportPricing: {
+            select: {
+              sport: true,
+              pricePerHour: true,
             },
           },
           _count: {
@@ -89,31 +96,43 @@ export async function GET(request: NextRequest) {
       });
 
       // Formatear respuesta
-      const formattedCourts = courts.map((court: any) => ({
-        id: court.id,
-        name: court.name,
-        centerId: (court as any).centerId,
-        sportType: (court as any).sportType,
-        capacity: (court as any).capacity ?? 0,
-        pricePerHour: Number((court as any).basePricePerHour) || 0,
-        // Iluminación: exponer flags y precio extra por hora si existen en el modelo
-        hasLighting: Boolean((court as any).hasLighting),
-        lightingExtraPerHour: Number((court as any).lightingExtraPerHour ?? 0),
-        isActive: court.isActive,
-        // Campos necesarios para filtrado correcto
-        isMultiuse: Boolean((court as any).isMultiuse ?? false),
-        allowedSports: Array.isArray((court as any).allowedSports) 
-          ? (court as any).allowedSports 
-          : [],
-        amenities: [],
-        images: [],
-        center: court.center,
-        stats: {
-          activeReservations: (court as any)._count?.reservations || 0,
-        },
-        createdAt: court.createdAt,
-        updatedAt: court.updatedAt,
-      }));
+      const formattedCourts = courts.map((court: any) => {
+        // Convertir sportPricing array a objeto para fácil acceso
+        const sportPricingMap: Record<string, number> = {};
+        if (Array.isArray(court.sportPricing)) {
+          court.sportPricing.forEach((sp: any) => {
+            sportPricingMap[sp.sport] = Number(sp.pricePerHour);
+          });
+        }
+
+        return {
+          id: court.id,
+          name: court.name,
+          centerId: (court as any).centerId,
+          sportType: (court as any).sportType,
+          capacity: (court as any).capacity ?? 0,
+          pricePerHour: Number((court as any).basePricePerHour) || 0,
+          // Iluminación: exponer flags y precio extra por hora si existen en el modelo
+          hasLighting: Boolean((court as any).hasLighting),
+          lightingExtraPerHour: Number((court as any).lightingExtraPerHour ?? 0),
+          isActive: court.isActive,
+          // Campos necesarios para filtrado correcto
+          isMultiuse: Boolean((court as any).isMultiuse ?? false),
+          allowedSports: Array.isArray((court as any).allowedSports) 
+            ? (court as any).allowedSports 
+            : [],
+          // Precios por deporte para canchas multiuso
+          sportPricing: sportPricingMap,
+          amenities: [],
+          images: [],
+          center: court.center,
+          stats: {
+            activeReservations: (court as any)._count?.reservations || 0,
+          },
+          createdAt: court.createdAt,
+          updatedAt: court.updatedAt,
+        };
+      });
 
       return NextResponse.json({
         courts: formattedCourts,
