@@ -1,14 +1,10 @@
 generator client {
-  provider   = "prisma-client-js"
-  engineType = "library"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  // directUrl removido: no usamos Prisma Data Proxy, solo conexión directa
-  // Si necesitas usar Data Proxy en el futuro, descomenta la siguiente línea:
-  // directUrl = env("DIRECT_DATABASE_URL")
 }
 
 model Sport {
@@ -118,11 +114,23 @@ model Court {
   reservations         Reservation[]
   waitingLists         WaitingList[]
   tariffCourts         TariffCourt[]
+  sportPricing         CourtSportPricing[]
 
   @@index([sportType, isActive])
   @@index([maintenanceStatus, isActive])
   @@index([centerId, sportType])
   @@map("courts")
+}
+
+model CourtSportPricing {
+  id           String  @id @default(cuid())
+  courtId      String  @map("court_id")
+  sport        String
+  pricePerHour Decimal @map("price_per_hour") @db.Decimal(10, 2)
+  court        Court   @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  @@unique([courtId, sport])
+  @@map("court_sport_pricing")
 }
 
 model AgeBasedTariff {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
 import { useAdminNotifications } from '../hooks';
 import { adminApi } from '../api';
 import { BADGE_CONFIG } from '../config/badgeConfig';
@@ -16,6 +17,7 @@ interface BadgeCounts {
 }
 
 export function useSidebarBadges() {
+  const { data: session, status: sessionStatus } = useSession();
   const [badgeCounts, setBadgeCounts] = useState<BadgeCounts>({
     notifications: 0,
     maintenance: 0,
@@ -63,6 +65,10 @@ export function useSidebarBadges() {
 
   // Contador de reservas pendientes
   const getPendingReservationsCount = useCallback(async () => {
+    // No hacer petición si no hay sesión autenticada
+    if (sessionStatus !== 'authenticated' || !session) {
+      return 0;
+    }
     try {
       const { status, limit } = BADGE_CONFIG.reservations;
       const reservations = await adminApi.reservations.getAll({
@@ -70,11 +76,17 @@ export function useSidebarBadges() {
         limit
       });
       return Array.isArray(reservations) ? reservations.length : 0;
-    } catch (error) {
-      console.warn('Error obteniendo reservas pendientes:', error);
+    } catch (error: any) {
+      // Silenciar errores 401 (no autenticado) para evitar spam en consola
+      if (error?.status === 401 || error?.message?.includes('401')) {
+        return 0;
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('Error obteniendo reservas pendientes:', error);
+      }
       return 0;
     }
-  }, []);
+  }, [session, sessionStatus]);
 
   // Contador de pagos pendientes
   const getPendingPaymentsCount = useCallback(async () => {
@@ -210,6 +222,12 @@ export function useSidebarBadges() {
 
   // Función para actualizar todos los contadores
   const updateBadgeCounts = useCallback(async () => {
+    // No actualizar si no hay sesión autenticada
+    if (sessionStatus !== 'authenticated' || !session) {
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     try {
       // Actualizar notificaciones primero (ya está en memoria)
@@ -254,13 +272,29 @@ export function useSidebarBadges() {
     getPendingPaymentsCount,
     getNewUsersCount,
     getPendingOrdersCount,
-    getAuditAlertsCount
+    getAuditAlertsCount,
+    session,
+    sessionStatus
   ]);
 
-  // Actualizar contadores al montar el componente
+  // Actualizar contadores cuando la sesión esté lista
   useEffect(() => {
-    updateBadgeCounts();
-  }, [updateBadgeCounts]);
+    if (sessionStatus === 'authenticated') {
+      updateBadgeCounts();
+    } else if (sessionStatus === 'unauthenticated') {
+      // Si no hay sesión, resetear contadores
+      setBadgeCounts({
+        notifications: 0,
+        maintenance: 0,
+        pendingReservations: 0,
+        pendingPayments: 0,
+        newUsers: 0,
+        pendingOrders: 0,
+        auditAlerts: 0,
+      });
+      setLoading(false);
+    }
+  }, [updateBadgeCounts, sessionStatus]);
 
   // Actualizar contadores según configuración con throttling
   useEffect(() => {

@@ -15,7 +15,6 @@
     "cleanup:user-history": "tsx src/scripts/purge-user-history.ts"
   },
   "dependencies": {
-    "@prisma/client": "6.15.0",
     "@react-pdf/renderer": "^4.3.0",
     "@repo/auth": "workspace:*",
     "@repo/credit-system": "workspace:*",

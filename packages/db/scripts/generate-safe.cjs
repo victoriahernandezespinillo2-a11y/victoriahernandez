@@ -75,11 +75,17 @@ async function generatePrisma() {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       // Forzar regeneración eliminando cualquier cache primero
+      // CRÍTICO: Eliminar TODAS las variables que puedan forzar Data Proxy
       const env = {
         ...process.env,
         PRISMA_GENERATE_DATAPROXY: 'false',
-        PRISMA_CLI_QUERY_ENGINE_TYPE: 'library' // Forzar uso de engine library en lugar de binary
+        PRISMA_CLI_QUERY_ENGINE_TYPE: 'library', // Forzar uso de engine library en lugar de binary
+        PRISMA_CLIENT_ENGINE_TYPE: 'library',
       };
+      // Eliminar variables que puedan forzar Data Proxy
+      delete env.PRISMA_ACCELERATE;
+      delete env.PRISMA_GENERATE_DATAPROXY;
+      if (env.PRISMA_GENERATE_DATAPROXY) delete env.PRISMA_GENERATE_DATAPROXY;
 
       execSync('npx prisma generate', {
         stdio: 'inherit',

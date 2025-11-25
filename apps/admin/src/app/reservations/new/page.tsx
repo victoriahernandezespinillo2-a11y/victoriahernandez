@@ -393,8 +393,9 @@ function AdminNewReservationPageContent() {
       try {
         setSearchLoading(true);
         const res: any = await adminApi.users.getAll({ search: userSearch.trim(), limit: 15 });
-        // Corregir: res es un objeto con { data: [...], pagination: {...} }
-        setUserResults(Array.isArray(res?.data) ? res.data : []);
+        // adminApi.users.getAll devuelve { data: [...], pagination: {...} }
+        const users = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+        setUserResults(users);
       } catch (error) {
         console.error('Error buscando usuarios:', error);
         setUserResults([]);

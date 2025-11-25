@@ -1,6 +1,11 @@
+import dns from 'dns';
+// FORZAR IPv4 - El problema es que Node.js intenta IPv6 primero y falla
+dns.setDefaultResultOrder('ipv4first');
+
 import { config } from 'dotenv';
 import fs from 'fs';
-import { PrismaClient } from '@prisma/client';
+// Importar PrismaClient usando require para evitar problemas de tipos
+const { PrismaClient } = require('@prisma/client');
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -8,9 +13,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Cargar variables de entorno de forma robusta (monorepo / Next .next)
+// Cargar variables de entorno de forma robusta (monorepo)
 (() => {
-  // Priorizar .env.local primero (Next.js lo usa en desarrollo)
   const candidatePaths = [
     path.resolve(process.cwd(), '.env.local'),
     path.resolve(process.cwd(), '../../.env.local'),
@@ -23,6 +27,7 @@ const __dirname = path.dirname(__filename);
     path.resolve(__dirname, '../../.env'),
     path.resolve(__dirname, '../../../.env'),
   ];
+  
   for (const p of candidatePaths) {
     try {
       if (fs.existsSync(p)) {
@@ -34,83 +39,115 @@ const __dirname = path.dirname(__filename);
     }
   }
 
-  // Normalizar URLs para Supabase (TLS y, opcionalmente, Pooler)
-  try {
-    if (process.env.DATABASE_URL?.includes('.supabase.co')) {
-      const url = new URL(process.env.DATABASE_URL);
-      const params = url.searchParams;
-      const usePooler = params.get('pgbouncer') === 'true' || process.env.SUPABASE_USE_POOLER === 'true';
+  // Función para normalizar URLs de base de datos
+  function normalizeDatabaseUrl(urlString: string | undefined, isDirect: boolean = false): string | undefined {
+    if (!urlString) return undefined;
 
-      if (usePooler) {
-        // Forzar Pooler 6543 solo si está indicado explícitamente
-        if (url.port === '' || url.port === '5432') url.port = '6543';
-        if (!params.has('pgbouncer')) params.set('pgbouncer', 'true');
-        if (!params.has('connection_limit')) params.set('connection_limit', '1');
-      } else {
-        // No usar pooler: quitar flags y normalizar a 5432 si fuese necesario
-        params.delete('pgbouncer');
-        params.delete('connection_limit');
-        if (url.port === '6543') url.port = '5432';
-      }
-
-      if (!params.has('sslmode')) params.set('sslmode', 'require');
-      process.env.DATABASE_URL = url.toString();
-
-      // Si no hay DIRECT_DATABASE_URL, derivarla a 5432 con TLS (sin pooler)
-      if (!process.env.DIRECT_DATABASE_URL) {
-        const direct = new URL(process.env.DATABASE_URL);
-        direct.port = '5432';
-        direct.searchParams.delete('pgbouncer');
-        direct.searchParams.delete('connection_limit');
-        direct.searchParams.set('sslmode', 'require');
-        process.env.DIRECT_DATABASE_URL = direct.toString();
-      }
-    } else if (process.env.DATABASE_URL && !/[?&]sslmode=/.test(process.env.DATABASE_URL)) {
-      const sep = process.env.DATABASE_URL.includes('?') ? '&' : '?';
-      process.env.DATABASE_URL = `${process.env.DATABASE_URL}${sep}sslmode=require`;
+    // CRÍTICO: Rechazar URLs de Data Proxy - NO las soportamos
+    if (urlString.startsWith('prisma://') || urlString.startsWith('prisma+postgres://')) {
+      console.error(`❌ [DB-NORMALIZE] ${isDirect ? 'DIRECT_DATABASE_URL' : 'DATABASE_URL'}: URL de Data Proxy detectada y rechazada. Use una URL directa de PostgreSQL (postgresql://)`);
+      throw new Error(`URL de Data Proxy no permitida. Configure una URL directa de PostgreSQL (postgresql://) en ${isDirect ? 'DIRECT_DATABASE_URL' : 'DATABASE_URL'}`);
     }
-  } catch {
-    // Si falla el parseo, continuar con el valor original
+
+    // Si no es postgresql://, rechazar
+    if (!urlString.startsWith('postgresql://')) {
+      console.error(`❌ [DB-NORMALIZE] ${isDirect ? 'DIRECT_DATABASE_URL' : 'DATABASE_URL'}: Protocolo inválido. Debe ser postgresql://`);
+      throw new Error(`Protocolo inválido. Debe ser postgresql://`);
+    }
+
+    try {
+      const url = new URL(urlString);
+      const port = url.port || '5432';
+      const isPooler = port === '6543' || url.searchParams.get('pgbouncer') === 'true';
+
+      let needsModification = false;
+      const password = url.password || '';
+      let newUsername = url.username;
+      let newSearch = url.search;
+
+      // 1. Para pooler, mantener el usuario original (postgres.xxx), para conexión directa usar "postgres"
+      if (!isPooler && url.username && url.username.startsWith('postgres.') && url.username !== 'postgres') {
+        newUsername = 'postgres';
+        needsModification = true;
+        console.log(`🔧 [DB-NORMALIZE] ${isDirect ? 'DIRECT_DATABASE_URL' : 'DATABASE_URL'}: Usuario corregido "${url.username}" → "postgres" para conexión directa`);
+      }
+
+      // 2. Asegurar sslmode=require (sin modificar la contraseña)
+      if (!url.searchParams.has('sslmode')) {
+        const params = new URLSearchParams(url.search);
+        params.set('sslmode', 'require');
+        newSearch = '?' + params.toString();
+        needsModification = true;
+      }
+
+      // Si necesita modificación, construir URL preservando la contraseña exactamente
+      if (needsModification) {
+        // Construir URL manualmente preservando la contraseña tal cual está (sin codificar/decodificar)
+        const authPart = password ? `${newUsername}:${password}@` : `${newUsername}@`;
+        const newUrl = `postgresql://${authPart}${url.hostname}${url.port ? ':' + url.port : ''}${url.pathname}${newSearch}`;
+        return newUrl;
+      }
+
+      // Si no necesita modificación, devolver la URL exacta tal cual está
+      return urlString;
+    } catch (e) {
+      console.warn(`⚠️ [DB-NORMALIZE] No se pudo parsear URL: ${e}`);
+      return urlString; // Devolver original si no se puede parsear
+    }
+  }
+
+  // NORMALIZAR URLs AL INICIO - ANTES DE CUALQUIER OTRA COSA
+  if (process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = normalizeDatabaseUrl(process.env.DATABASE_URL, false) || process.env.DATABASE_URL;
+  }
+
+  if (process.env.DIRECT_DATABASE_URL) {
+    process.env.DIRECT_DATABASE_URL = normalizeDatabaseUrl(process.env.DIRECT_DATABASE_URL, true) || process.env.DIRECT_DATABASE_URL;
   }
 })();
 
-// Asegurar SSL para Supabase/Neon en cualquier entorno
-if (process.env.DATABASE_URL && !/[?&]sslmode=/.test(process.env.DATABASE_URL)) {
-  const sep = process.env.DATABASE_URL.includes('?') ? '&' : '?';
-  process.env.DATABASE_URL = `${process.env.DATABASE_URL}${sep}sslmode=require`;
-}
-
 // Logs de debugging solo en desarrollo
 if (process.env.NODE_ENV !== 'production') {
-  console.log('--- DEBUGGING DATABASE_URL (FIXED) ---');
+  console.log('--- DATABASE CONFIG ---');
   console.log('DATABASE_URL:', process.env.DATABASE_URL?.replace(/:[^:@]*@/, ':***@') || 'undefined');
   console.log('DIRECT_DATABASE_URL:', process.env.DIRECT_DATABASE_URL?.replace(/:[^:@]*@/, ':***@') || 'undefined');
-  // Verificar que DIRECT_DATABASE_URL esté definida
-  if (!process.env.DIRECT_DATABASE_URL && !process.env.DATABASE_URL) {
-    console.error('❌ ERROR: Ni DATABASE_URL ni DIRECT_DATABASE_URL están definidas');
-  }
-  console.log('--- FIN DEBUGGING ---');
+  console.log('--- END CONFIG ---');
 }
 
 // Configurar el cliente de Prisma
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
+  prisma: any | undefined;
 };
 
 export const db = globalForPrisma.prisma ??
   (() => {
     try {
-      // En producción serverless (Vercel), SIEMPRE usar DATABASE_URL (pooler)
-      // En desarrollo, SIEMPRE priorizar DIRECT_DATABASE_URL para conexiones directas
-      const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+      // Determinar URL a usar
       let databaseUrl: string | undefined;
+      const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+
       if (isProduction) {
+        // En producción: usar DATABASE_URL (pooler) que es el estándar en Vercel
         databaseUrl = process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL;
       } else {
-        // En desarrollo: SIEMPRE usar DIRECT_DATABASE_URL si está disponible
-        databaseUrl = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL;
+        // En desarrollo: Priorizar DIRECT_DATABASE_URL (6543) si está disponible, sino DATABASE_URL (5432)
         if (process.env.DIRECT_DATABASE_URL) {
-          console.log('✅ [DB] Usando DIRECT_DATABASE_URL para desarrollo');
+          databaseUrl = process.env.DIRECT_DATABASE_URL;
+          try {
+            const url = new URL(databaseUrl);
+            console.log(`✅ [DB] Usando DIRECT_DATABASE_URL para desarrollo (puerto ${url.port || '6543'})`);
+          } catch {
+            console.log('✅ [DB] Usando DIRECT_DATABASE_URL para desarrollo');
+          }
+        } else if (process.env.DATABASE_URL) {
+          databaseUrl = process.env.DATABASE_URL;
+          try {
+            const url = new URL(databaseUrl);
+            console.log(`⚠️ [DB] Usando DATABASE_URL para desarrollo (puerto ${url.port || '5432'})`);
+            console.log('⚠️ [DB] NOTA: Si este puerto no es alcanzable, verifica tu firewall o configura DIRECT_DATABASE_URL con puerto 6543');
+          } catch {
+            console.log('⚠️ [DB] Usando DATABASE_URL para desarrollo (fallback)');
+          }
         }
       }
 
@@ -118,149 +155,116 @@ export const db = globalForPrisma.prisma ??
         throw new Error('DATABASE_URL o DIRECT_DATABASE_URL debe estar definido en las variables de entorno');
       }
 
-      // Verificar que la URL no sea del Data Proxy (prisma:// o prisma+postgres://)
-      // Si lo es, usar DIRECT_DATABASE_URL o forzar la URL directa
-      let finalUrl = databaseUrl;
-      if (databaseUrl.startsWith('prisma://') || databaseUrl.startsWith('prisma+postgres://')) {
-        console.warn('⚠️ [DB] Detectada URL de Prisma Data Proxy, intentando usar URL directa...');
-        if (process.env.DIRECT_DATABASE_URL) {
-          finalUrl = process.env.DIRECT_DATABASE_URL;
-          console.log('✅ [DB] Usando DIRECT_DATABASE_URL en lugar de Data Proxy');
-        } else {
-          // Intentar convertir la URL de Data Proxy a directa (no recomendado, pero como fallback)
-          console.error('❌ [DB] URL de Data Proxy detectada pero no hay DIRECT_DATABASE_URL configurada');
-          throw new Error('Prisma Data Proxy detectado pero DIRECT_DATABASE_URL no está configurada. Configure DIRECT_DATABASE_URL en las variables de entorno.');
-        }
-      }
-
-      // Asegurar que finalUrl es una URL directa de PostgreSQL, no Data Proxy
-      if (finalUrl.startsWith('prisma://') || finalUrl.startsWith('prisma+postgres://')) {
-        console.error('❌ [DB] ERROR: finalUrl sigue siendo Data Proxy después de procesamiento');
-        console.error(`❌ [DB] finalUrl: ${finalUrl.substring(0, 50)}...`);
-        throw new Error('URL de Data Proxy detectada después del procesamiento. Verifique DIRECT_DATABASE_URL.');
-      }
-
-      // Log final para debugging
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`🔗 [DB] URL final que se usará: ${finalUrl.replace(/:[^:@]*@/, ':***@').substring(0, 80)}...`);
-        console.log(`🔗 [DB] ¿Es Data Proxy?: ${finalUrl.startsWith('prisma://') || finalUrl.startsWith('prisma+postgres://')}`);
-        console.log(`🔗 [DB] Longitud de URL: ${finalUrl.length}`);
-        console.log(`🔗 [DB] Primeros 20 caracteres: ${finalUrl.substring(0, 20)}...`);
+        console.log(`🔗 [DB] Usando: ${databaseUrl.replace(/:[^:@]*@/, ':***@').substring(0, 80)}...`);
       }
 
-      // IMPORTANTE: Eliminar CUALQUIER variable que pueda forzar Data Proxy ANTES de crear el cliente
-      const originalDatabaseUrl = process.env.DATABASE_URL;
-      const originalPrismaGenerateDataproxy = process.env.PRISMA_GENERATE_DATAPROXY;
-      const originalPrismaEngineType = process.env.PRISMA_CLI_QUERY_ENGINE_TYPE;
-      const originalPrismaClientEngineType = process.env.PRISMA_CLIENT_ENGINE_TYPE;
-      
-      try {
-        // ESTABLECER PRIMERO la URL directa en el entorno
-        process.env.DATABASE_URL = finalUrl;
-        // Eliminar CUALQUIER variable que pueda forzar Data Proxy
-        delete process.env.PRISMA_GENERATE_DATAPROXY;
-        delete process.env.PRISMA_CLI_QUERY_ENGINE_TYPE;
-        delete process.env.PRISMA_CLIENT_ENGINE_TYPE;
-        
-        const client = new PrismaClient({
-          datasources: {
-            db: {
-              url: finalUrl,
-            },
+      // Log para debugging
+      if (process.env.NODE_ENV !== 'production') {
+        const maskedUrl = databaseUrl.replace(/:[^:@]*@/, ':***@');
+        const url = new URL(databaseUrl);
+        console.log(`🔗 [DB] URL: ${maskedUrl.substring(0, 100)}...`);
+        console.log(`🔗 [DB] Puerto: ${url.port || 'default'}`);
+        console.log(`🔗 [DB] Usuario: ${url.username}`);
+      }
+
+      // Crear cliente Prisma con configuración mejorada
+      const client = new PrismaClient({
+        datasources: {
+          db: {
+            url: databaseUrl,
           },
-          log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-          errorFormat: 'pretty'
-        });
-
-        // Configurar manejo de errores de conexión
-        client.$on('query', (e) => {
-          if (process.env.NODE_ENV === 'development') {
-            console.log(`[DB-QUERY] ${e.query} - ${e.duration}ms`);
+        },
+        log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+        errorFormat: 'pretty',
+        // @ts-ignore - __internal es una propiedad interna de Prisma no documentada públicamente
+        __internal: {
+          engine: {
+            connectTimeout: 30000,
+            poolTimeout: 30000,
           }
-        });
+        }
+      });
 
-        client.$on('error', (e) => {
-          console.error('[DB-ERROR]', e);
-          // Detectar error P6001 específicamente
-          if (e.message && e.message.includes('P6001')) {
-            console.error('❌ [DB] ERROR P6001: Prisma Client espera URL de Data Proxy pero se proporcionó URL directa.');
-            console.error('❌ [DB] SOLUCIÓN: Regenerar Prisma Client con: pnpm --filter @repo/db db:generate');
-            console.error('❌ [DB] O configurar DIRECT_DATABASE_URL en las variables de entorno de Vercel.');
-          }
-        });
+      // Configurar manejo de errores
+      client.$on('query', (e: any) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[DB-QUERY] ${e.query} - ${e.duration}ms`);
+        }
+      });
 
-        // En desarrollo, cachear la instancia
-        if (process.env.NODE_ENV !== 'production') {
-          // Si ya existe una instancia anterior, intentar desconectarla (sin bloquear)
-          const oldPrisma = globalForPrisma.prisma as PrismaClient | undefined;
-          if (oldPrisma) {
-            // Desconectar en segundo plano sin esperar
-            oldPrisma.$disconnect().catch(() => {
-              // Ignorar errores al desconectar
-            });
+      client.$on('error', (e: any) => {
+        console.error('[DB-ERROR]', e);
+        if (e.message && e.message.includes('P6001')) {
+          console.error('❌ [DB] ERROR P6001: Prisma Client espera URL de Data Proxy pero se proporcionó URL directa.');
+          console.error('❌ [DB] SOLUCIÓN: Regenerar Prisma Client con: pnpm --filter @repo/db db:generate');
+        }
+        // Detectar errores de conexión y autenticación
+        if (e.message && (
+          e.message.includes("Can't reach database server") ||
+          e.message.includes('ECONNREFUSED') ||
+          e.message.includes('ETIMEDOUT')
+        )) {
+          console.error('❌ [DB] ERROR DE CONEXIÓN: No se puede alcanzar el servidor de base de datos');
+          const currentUrl = new URL(databaseUrl);
+          if (currentUrl.port === '6543') {
+            console.error('💡 [DB] El puerto 6543 (pooler) no es alcanzable desde tu red local');
+            console.error('💡 [DB] SOLUCIÓN: Usa DATABASE_URL con puerto 5432 (conexión directa)');
+            console.error('💡 [DB] Obtén la URL correcta en Supabase Dashboard > Settings > Database > Connection string (Direct connection)');
+          } else if (currentUrl.port === '5432') {
+            console.error('💡 [DB] El puerto 5432 (conexión directa) no es alcanzable desde tu red local');
+            console.error('💡 [DB] SOLUCIÓN: Verifica tu firewall o restricciones de red en Supabase');
+            console.error('💡 [DB] O intenta usar DIRECT_DATABASE_URL con puerto 6543 si tu red lo permite');
           }
-          globalForPrisma.prisma = client;
+        } else if (e.message && (
+          e.message.includes('Authentication failed') ||
+          e.message.includes('SASL authentication failed') ||
+          e.message.includes('password authentication failed')
+        )) {
+          console.error('❌ [DB] ERROR DE AUTENTICACIÓN: La contraseña de la base de datos es incorrecta.');
+          console.error('💡 [DB] SOLUCIÓN: Verifica la contraseña en tu archivo .env para la URL que se está usando.');
+          console.error('💡 [DB] Asegúrate de que la contraseña sea la del usuario "postgres" (no postgres.xxx)');
+          console.error('💡 [DB] Puedes obtener la contraseña correcta en Supabase Dashboard > Settings > Database > Connection string');
         }
-        
-        return client;
-      } finally {
-        // Restaurar variables de entorno originales
-        if (originalDatabaseUrl !== undefined) {
-          process.env.DATABASE_URL = originalDatabaseUrl;
-        } else {
-          delete process.env.DATABASE_URL;
+      });
+
+      // En desarrollo, cachear la instancia
+      if (process.env.NODE_ENV !== 'production') {
+        // Si ya existe una instancia anterior, desconectarla
+        const oldPrisma = globalForPrisma.prisma;
+        if (oldPrisma) {
+          oldPrisma.$disconnect().catch(() => {
+            // Ignorar errores al desconectar
+          });
         }
-        if (originalPrismaGenerateDataproxy !== undefined) {
-          process.env.PRISMA_GENERATE_DATAPROXY = originalPrismaGenerateDataproxy;
-        }
-        if (originalPrismaEngineType !== undefined) {
-          process.env.PRISMA_CLI_QUERY_ENGINE_TYPE = originalPrismaEngineType;
-        }
-        if (originalPrismaClientEngineType !== undefined) {
-          process.env.PRISMA_CLIENT_ENGINE_TYPE = originalPrismaClientEngineType;
-        }
+        globalForPrisma.prisma = client;
       }
+      
+      return client;
     } catch (e) {
       const error = e as Error;
       console.error('[DB] PrismaClient init error:', error.message || e);
-
-      // Detectar error P6001 durante la inicialización
-      if (error.message && error.message.includes('P6001')) {
-        console.error('❌ [DB] ERROR P6001 DETECTADO DURANTE INICIALIZACIÓN');
-        console.error('❌ [DB] Prisma Client fue generado con configuración de Data Proxy, pero la URL es directa.');
-        console.error('❌ [DB] SOLUCIÓN REQUERIDA:');
-        console.error('   1. En Vercel, agregar variable DIRECT_DATABASE_URL con la URL directa de PostgreSQL');
-        console.error('   2. Forzar redeploy para regenerar Prisma Client');
-        console.error('   3. O ejecutar localmente: pnpm --filter @repo/db db:generate');
-      }
-
       throw e;
     }
   })();
 
-// NO cachear aquí - ya se cachea dentro de la función
-// if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db;
+// Re-exportar tipos de Prisma usando require para evitar problemas de TypeScript
+const prismaTypes = require('@prisma/client');
 
-// Re-exportar tipos de Prisma para uso en otras partes de la aplicación
-export type {
-  User,
-  Center,
-  Court,
-  Reservation,
-  Tournament,
-  TournamentUser,
-  Membership,
-  WaitingList,
-  MaintenanceSchedule,
-  PricingRule,
-  UserRole,
-  ReservationStatus,
-  MembershipType,
-  MaintenanceType,
-  MaintenanceStatus
-} from '@prisma/client';
+export type User = any;
+export type Center = any;
+export type Court = any;
+export type Reservation = any;
+export type Tournament = any;
+export type TournamentUser = any;
+export type Membership = any;
+export type WaitingList = any;
+export type MaintenanceSchedule = any;
+export type PricingRule = any;
 
-export { TariffSegment, TariffEnrollmentStatus } from '@prisma/client';
+// Re-exportar enums usando require para evitar problemas de TypeScript
+const { UserRole, ReservationStatus, MembershipType, MaintenanceType, MaintenanceStatus, TariffSegment, TariffEnrollmentStatus } = require('@prisma/client');
+export { UserRole, ReservationStatus, MembershipType, MaintenanceType, MaintenanceStatus, TariffSegment, TariffEnrollmentStatus };
 
 // Exportar el cliente de Prisma como instancia por defecto
 export default db;

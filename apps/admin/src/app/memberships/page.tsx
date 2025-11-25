@@ -345,15 +345,18 @@ export default function MembershipsPage() {
     }
     setIsSearchingUsers(true);
     try {
-      const users = await adminApi.users.getAll({
+      const response = await adminApi.users.getAll({
         search: value.trim(),
         limit: 5,
       });
-      const items = Array.isArray(users)
-        ? users
-        : Array.isArray((users as any)?.items)
-          ? (users as any).items
-          : [];
+      // adminApi.users.getAll devuelve { data: [...], pagination: {...} }
+      const items = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+          ? response.data
+          : Array.isArray((response as any)?.items)
+            ? (response as any).items
+            : [];
       setFoundUsers(items);
     } catch (err) {
       console.error('Error buscando usuarios para membresía:', err);

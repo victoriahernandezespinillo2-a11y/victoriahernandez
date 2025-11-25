@@ -17,12 +17,12 @@
         "db:fix-memberships": "tsx src/fix-memberships.ts",
         "db:create-missing": "tsx src/create-missing-tables.ts",
         "db:seed": "tsx src/seed.ts",
-        "db:clean": "tsx src/clean.ts",
         "db:setup-production": "tsx src/setup-production.ts",
         "db:add-courts": "tsx src/add-courts.ts",
         "db:audit-users": "tsx src/audit-users.ts",
         "db:audit-reservations": "tsx src/audit-reservations.ts",
         "db:diagnose": "tsx scripts/diagnose-db.ts",
+        "db:test-connection": "tsx scripts/test-connection.ts",
         "lint": "eslint . --max-warnings 0",
         "check-types": "tsc --noEmit",
         "build": "node scripts/generate-safe.cjs || prisma generate"
@@ -31,13 +31,14 @@
         "schema": "prisma/schema.prisma"
     },
     "dependencies": {
-        "@prisma/client": "6.15.0",
+        "@prisma/client": "5.19.1",
         "@supabase/supabase-js": "^2.54.0",
         "bcryptjs": "^2.4.3",
         "dotenv": "^17.2.1",
         "firebase-admin": "^12.7.0",
         "next-auth": "5.0.0-beta.29",
         "pg": "^8.11.3",
+        "prisma": "5.19.1",
         "zod": "^3.24.1"
     },
     "devDependencies": {
@@ -47,7 +48,6 @@
         "@types/node": "^22.15.3",
         "eslint": "^9.31.0",
         "globals": "^16.3.0",
-        "prisma": "^6.14.0",
         "tsx": "^4.19.2",
         "typescript": "5.8.3"
     }

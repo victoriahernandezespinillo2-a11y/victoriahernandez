@@ -26,6 +26,7 @@ import {
   ChevronRightIcon,
   ChevronLeftIcon,
   ShieldCheckIcon,
+  EnvelopeIcon,
 } from '@heroicons/react/24/outline';
 import { useAdminNotifications } from '@/lib/hooks';
 import { useSidebarBadges } from '@/lib/hooks/useSidebarBadges';
@@ -153,11 +154,21 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
         { name: 'Comentarios', href: '/blog/comments', icon: ChatBubbleLeftRightIcon },
       ],
     },
+    {
+      name: 'Newsletter',
+      href: '/newsletter',
+      icon: EnvelopeIcon,
+    },
+    {
+      name: 'Emails',
+      href: '/emails',
+      icon: EnvelopeIcon,
+    },
   ];
 
   const toggleSubmenu = (itemName: string) => {
-    setExpandedItems(prev => 
-      prev.includes(itemName) 
+    setExpandedItems(prev =>
+      prev.includes(itemName)
         ? prev.filter(item => item !== itemName)
         : [...prev, itemName]
     );
@@ -171,9 +182,8 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
   };
 
   return (
-    <aside className={`bg-gray-900 text-white transition-all duration-300 flex flex-col h-screen overflow-y-auto border-r border-gray-800 ${
-      isCollapsed ? 'w-16' : 'w-64'
-    }`}>
+    <aside className={`bg-gray-900 text-white transition-all duration-300 flex flex-col h-screen overflow-y-auto border-r border-gray-800 ${isCollapsed ? 'w-16' : 'w-64'
+      }`}>
       {/* Header */}
       <div className="p-4 border-b border-gray-700">
         <div className="flex items-center justify-between">
@@ -203,11 +213,10 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
               <div>
                 <button
                   onClick={() => !isCollapsed && toggleSubmenu(item.name)}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors ${
-                    expandedItems.includes(item.name)
-                      ? 'bg-gray-700 text-blue-400'
-                      : 'hover:bg-gray-700'
-                  }`}
+                  className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors ${expandedItems.includes(item.name)
+                    ? 'bg-gray-700 text-blue-400'
+                    : 'hover:bg-gray-700'
+                    }`}
                 >
                   <div className="flex items-center space-x-3">
                     <item.icon className="h-5 w-5 flex-shrink-0" />
@@ -216,14 +225,13 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
                     )}
                   </div>
                   {!isCollapsed && (
-                    <ChevronRightIcon 
-                      className={`h-4 w-4 transition-transform ${
-                        expandedItems.includes(item.name) ? 'rotate-90' : ''
-                      }`} 
+                    <ChevronRightIcon
+                      className={`h-4 w-4 transition-transform ${expandedItems.includes(item.name) ? 'rotate-90' : ''
+                        }`}
                     />
                   )}
                 </button>
-                
+
                 {/* Submenu */}
                 {!isCollapsed && expandedItems.includes(item.name) && (
                   <div className="ml-6 mt-2 space-y-1">
@@ -231,37 +239,36 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
                       <Link
                         key={subItem.name}
                         href={subItem.href}
-                        className={`flex items-center justify-between p-2 rounded-lg transition-colors ${
-                          isActive(subItem.href)
-                            ? 'bg-blue-600 text-white'
-                            : 'hover:bg-gray-700'
-                        }`}
+                        className={`flex items-center justify-between p-2 rounded-lg transition-colors ${isActive(subItem.href)
+                          ? 'bg-blue-600 text-white'
+                          : 'hover:bg-gray-700'
+                          }`}
                       >
                         <div className="flex items-center space-x-3">
                           <subItem.icon className="h-4 w-4" />
                           <span className="text-sm">{subItem.name}</span>
                         </div>
                         {typeof subItem.badge === 'number' && subItem.badge > 0 && (
-                          <SidebarBadge 
-                            count={subItem.badge} 
+                          <SidebarBadge
+                            count={subItem.badge}
                             variant={
                               subItem.name === 'Reservas' ? 'warning' :
-                              subItem.name === 'Usuarios' ? 'info' :
-                              subItem.name === 'Pagos' ? 'error' :
-                              subItem.name === 'Pedidos' ? 'warning' :
-                              'default'
+                                subItem.name === 'Usuarios' ? 'info' :
+                                  subItem.name === 'Pagos' ? 'error' :
+                                    subItem.name === 'Pedidos' ? 'warning' :
+                                      'default'
                             }
                           />
                         )}
                         {typeof subItem.badge === 'function' && subItem.badge() > 0 && (
-                          <SidebarBadge 
-                            count={subItem.badge()} 
+                          <SidebarBadge
+                            count={subItem.badge()}
                             variant={
                               subItem.name === 'Reservas' ? 'warning' :
-                              subItem.name === 'Usuarios' ? 'info' :
-                              subItem.name === 'Pagos' ? 'error' :
-                              subItem.name === 'Pedidos' ? 'warning' :
-                              'default'
+                                subItem.name === 'Usuarios' ? 'info' :
+                                  subItem.name === 'Pagos' ? 'error' :
+                                    subItem.name === 'Pedidos' ? 'warning' :
+                                      'default'
                             }
                           />
                         )}
@@ -273,11 +280,10 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
             ) : (
               <Link
                 href={item.href}
-                className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
-                  isActive(item.href)
-                    ? 'bg-blue-600 text-white'
-                    : 'hover:bg-gray-700'
-                }`}
+                className={`flex items-center justify-between p-3 rounded-lg transition-colors ${isActive(item.href)
+                  ? 'bg-blue-600 text-white'
+                  : 'hover:bg-gray-700'
+                  }`}
                 title={isCollapsed ? item.name : undefined}
               >
                 <div className="flex items-center space-x-3">
@@ -291,28 +297,28 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
                 ) : (
                   <>
                     {typeof item.badge === 'number' && item.badge > 0 && (
-                      <SidebarBadge 
-                        count={item.badge} 
+                      <SidebarBadge
+                        count={item.badge}
                         variant={
                           item.name === 'Gestión' ? 'info' :
-                          item.name === 'Finanzas' ? 'error' :
-                          item.name === 'Mantenimiento' ? 'maintenance' :
-                          item.name === 'Notificaciones' ? 'notification' :
-                          item.name === 'Auditoría' ? 'warning' :
-                          'default'
+                            item.name === 'Finanzas' ? 'error' :
+                              item.name === 'Mantenimiento' ? 'maintenance' :
+                                item.name === 'Notificaciones' ? 'notification' :
+                                  item.name === 'Auditoría' ? 'warning' :
+                                    'default'
                         }
                       />
                     )}
                     {typeof item.badge === 'function' && item.badge() > 0 && (
-                      <SidebarBadge 
-                        count={item.badge()} 
+                      <SidebarBadge
+                        count={item.badge()}
                         variant={
                           item.name === 'Gestión' ? 'info' :
-                          item.name === 'Finanzas' ? 'error' :
-                          item.name === 'Mantenimiento' ? 'maintenance' :
-                          item.name === 'Notificaciones' ? 'notification' :
-                          item.name === 'Auditoría' ? 'warning' :
-                          'default'
+                            item.name === 'Finanzas' ? 'error' :
+                              item.name === 'Mantenimiento' ? 'maintenance' :
+                                item.name === 'Notificaciones' ? 'notification' :
+                                  item.name === 'Auditoría' ? 'warning' :
+                                    'default'
                         }
                       />
                     )}

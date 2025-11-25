@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
       });
 
       // Obtener datos de usuarios para actividad
-      const userIds = topUsersByActivity.map(u => u.userId);
+      const userIds = topUsersByActivity.map((u: any) => u.userId);
       const usersData = await db.user.findMany({
         where: { id: { in: userIds } },
         select: {
@@ -153,8 +153,8 @@ export async function GET(request: NextRequest) {
         }
       });
 
-      const topUsersWithData = topUsersByActivity.map(stat => {
-        const userData = usersData.find(u => u.id === stat.userId);
+      const topUsersWithData = topUsersByActivity.map((stat: any) => {
+        const userData = usersData.find((u: any) => u.id === stat.userId);
         return {
           ...userData,
           transactionCount: stat._count.userId
@@ -212,17 +212,17 @@ export async function GET(request: NextRequest) {
             : 0
         },
         transactions: {
-          byType: transactionsByType.map(t => ({
+          byType: transactionsByType.map((t: any) => ({
             type: t.type,
             count: t._count.type,
             totalCredits: Number(t._sum.credits || 0)
           })),
-          byReason: transactionsByReason.map(t => ({
+          byReason: transactionsByReason.map((t: any) => ({
             reason: t.reason,
             count: t._count.reason,
             totalCredits: Number(t._sum.credits || 0)
           })),
-          recent: recentTransactions.map(t => ({
+          recent: recentTransactions.map((t: any) => ({
             id: t.id,
             type: t.type,
             reason: t.reason,
@@ -236,7 +236,7 @@ export async function GET(request: NextRequest) {
           daily: dailyStats
         },
         topUsers: {
-          byBalance: topUsersByBalance.map(u => ({
+          byBalance: topUsersByBalance.map((u: any) => ({
             id: u.id,
             name: u.name,
             email: u.email,

@@ -241,14 +241,14 @@ export class EmailService {
         name: 'email-verification',
         subject: 'Verifica tu email - Polideportivo Victoria Hernández',
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #000000;">
             <h1 style="color: #2563eb;">Verifica tu cuenta</h1>
-            <p>Hola {{firstName}},</p>
-            <p>Gracias por registrarte. Por favor verifica tu correo haciendo clic en el siguiente botón:</p>
+            <p style="color: #000000;">Hola {{firstName}},</p>
+            <p style="color: #000000;">Gracias por registrarte. Por favor verifica tu correo haciendo clic en el siguiente botón:</p>
             <p style="margin: 24px 0;">
               <a href="{{verificationUrl}}" style="background-color:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Verificar correo</a>
             </p>
-            <p>Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
+            <p style="color: #000000;">Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
             <p><a href="{{verificationUrl}}" style="word-break: break-all; color:#2563eb;">{{verificationUrl}}</a></p>
             <p style="color: #6b7280; font-size: 14px;">Si no solicitaste esta verificación, puedes ignorar este mensaje.</p>
           </div>
@@ -260,15 +260,15 @@ export class EmailService {
         name: 'password-reset',
         subject: 'Restablecer contraseña - Polideportivo Victoria Hernández',
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #000000;">
             <h1 style="color: #2563eb;">Restablecer contraseña</h1>
-            <p>Hola {{firstName}},</p>
-            <p>Hemos recibido una solicitud para restablecer tu contraseña.</p>
-            <p>Haz clic en el botón para continuar. Este enlace expirará en 60 minutos.</p>
+            <p style="color: #000000;">Hola {{firstName}},</p>
+            <p style="color: #000000;">Hemos recibido una solicitud para restablecer tu contraseña.</p>
+            <p style="color: #000000;">Haz clic en el botón para continuar. Este enlace expirará en 60 minutos.</p>
             <p style="margin: 24px 0;">
               <a href="{{resetUrl}}" style="background-color:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Restablecer contraseña</a>
             </p>
-            <p>Si no solicitaste este cambio, ignora este mensaje.</p>
+            <p style="color: #000000;">Si no solicitaste este cambio, ignora este mensaje.</p>
           </div>
         `,
         variables: ['firstName', 'resetUrl'],
