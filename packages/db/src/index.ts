@@ -46,6 +46,8 @@ const __dirname = path.dirname(__filename);
   function normalizeDatabaseUrl(urlString: string | undefined, isDirect: boolean = false): string | undefined {
     if (!urlString) return undefined;
 
+    console.log(`🔍 [DB-NORMALIZE] Procesando ${isDirect ? 'DIRECT_DATABASE_URL' : 'DATABASE_URL'}: ${urlString.split('@')[1] || 'URL_MALFORMED'}`);
+
     // CRÍTICO: Rechazar URLs de Data Proxy - NO las soportamos
     if (urlString.startsWith('prisma://') || urlString.startsWith('prisma+postgres://')) {
       console.error(`❌ [DB-NORMALIZE] ${isDirect ? 'DIRECT_DATABASE_URL' : 'DATABASE_URL'}: URL de Data Proxy detectada y rechazada. Use una URL directa de PostgreSQL (postgresql://)`);
@@ -69,7 +71,8 @@ const __dirname = path.dirname(__filename);
       let newSearch = url.search;
 
       // 1. Para pooler, mantener el usuario original (postgres.xxx), para conexión directa usar "postgres"
-      if (!isPooler && url.username && url.username.startsWith('postgres.') && url.username !== 'postgres') {
+      // DESHABILITADO TEMPORALMENTE PARA PRODUCCIÓN - las URLs de Supabase pueden variar
+      if (false && !isPooler && url.username && url.username.startsWith('postgres.') && url.username !== 'postgres') {
         newUsername = 'postgres';
         needsModification = true;
         console.log(`🔧 [DB-NORMALIZE] ${isDirect ? 'DIRECT_DATABASE_URL' : 'DATABASE_URL'}: Usuario corregido "${url.username}" → "postgres" para conexión directa`);
