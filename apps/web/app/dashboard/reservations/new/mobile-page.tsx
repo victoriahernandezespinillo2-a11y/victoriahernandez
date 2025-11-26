@@ -36,7 +36,10 @@ interface Court {
   rating?: number;
   sportType?: string;
   lightingExtraPerHour?: number;
-  centerId?: string; // Added centerId to Court interface
+  centerId?: string;
+  isMultiuse?: boolean;
+  allowedSports?: string[];
+  sportPricing?: Record<string, number>;
 }
 
 interface CalendarSlot {
@@ -721,7 +724,7 @@ export default function MobileNewReservationPage() {
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
         reservationId={createdReservationId || ''}
-        amount={Number((pricing?.total ?? totalCost) || 0)}
+        amount={Number(totalCost || 0)}
         currency="COP"
         courtName={selectedCourt?.name || ''}
         dateLabel={selectedDate}

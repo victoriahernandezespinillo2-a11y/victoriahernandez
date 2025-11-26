@@ -1620,7 +1620,7 @@ export default function NewReservationPage() {
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
           reservationId={createdReservationId || ''}
-          amount={Number((pricing?.total ?? totalCost) || 0)}
+          amount={Number(totalPrice || 0)}
           currency="EUR"
           courtName={selectedCourt?.name || ''}
           dateLabel={selectedDate ? formatDate(selectedDate) : ''}
@@ -1629,9 +1629,9 @@ export default function NewReservationPage() {
           pricingDetails={
             pricing
               ? {
-                basePrice: pricing.basePrice ?? pricing.subtotal ?? totalCost ?? 0,
+                basePrice: totalPrice ?? 0,
                 discount: pricing.discount ?? 0,
-                total: pricing.total ?? totalCost ?? 0,
+                total: totalPrice ?? 0,
                 breakdown: Array.isArray(pricing.breakdown) ? pricing.breakdown : [],
                 appliedRules: Array.isArray(pricing.appliedRules) ? pricing.appliedRules : [],
               }
@@ -1643,7 +1643,7 @@ export default function NewReservationPage() {
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
           reservationId={createdReservationId || ''}
-          amount={Number((pricing?.total ?? totalCost) || 0)}
+          amount={Number(totalPrice || 0)}
           currency="EUR"
           courtName={selectedCourt?.name || ''}
           dateLabel={selectedDate ? formatDate(selectedDate) : ''}
@@ -1651,9 +1651,9 @@ export default function NewReservationPage() {
           pricingDetails={
             pricing
               ? {
-                basePrice: pricing.basePrice ?? pricing.subtotal ?? totalCost ?? 0,
+                basePrice: totalPrice ?? 0,
                 discount: pricing.discount ?? 0,
-                total: pricing.total ?? totalCost ?? 0,
+                total: totalPrice ?? 0,
                 breakdown: Array.isArray(pricing.breakdown) ? pricing.breakdown : [],
                 appliedRules: Array.isArray(pricing.appliedRules) ? pricing.appliedRules : [],
               }
