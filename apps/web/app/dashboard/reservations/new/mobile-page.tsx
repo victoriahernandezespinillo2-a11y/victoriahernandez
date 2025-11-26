@@ -107,6 +107,19 @@ export default function MobileNewReservationPage() {
     return icons[amenity] || <Check className="h-4 w-4" />;
   };
 
+  // Helper para obtener el precio correcto basado en el deporte seleccionado
+  const getCourtPrice = (court: Court, selectedSport: string): number => {
+    if (!court) return 0;
+    
+    // Si la cancha es multiuso y hay un deporte seleccionado, usar precio específico
+    if (court.isMultiuse && selectedSport && court.sportPricing?.[selectedSport]) {
+      return court.sportPricing[selectedSport];
+    }
+    
+    // Usar precio base
+    return court.pricePerHour;
+  };
+
   // Filtrar canchas por deporte
   const filteredCourts = useMemo(() => {
     if (!selectedSport || !courts) return [];
@@ -436,9 +449,11 @@ export default function MobileNewReservationPage() {
                     </div>
                     <div className="text-right">
                       <div className="font-bold text-xl text-gray-900">
-                        {formatCurrency(court.pricePerHour)}
+                        {formatCurrency(getCourtPrice(court, selectedSport))}
                       </div>
-                      <div className="text-sm text-gray-500">por hora</div>
+                      <div className="text-sm text-gray-500">
+                        {court.isMultiuse && selectedSport ? `${getSportLabel(selectedSport)} - por hora` : 'por hora'}
+                      </div>
                     </div>
                   </div>
                   

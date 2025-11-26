@@ -140,13 +140,13 @@ export const db = globalForPrisma.prisma ??
               const port = url.port || '6543';
               console.log(`✅ [DB] Usando DIRECT_DATABASE_URL para desarrollo (puerto ${port})`);
               
-              // CRÍTICO: Si DIRECT_DATABASE_URL no usa puerto 6543, forzar el cambio
-              if (port === '5432') {
-                console.log('🔧 [DB] ADVERTENCIA: DIRECT_DATABASE_URL usa puerto 5432, cambiando a 6543 (pooler)');
-                const newUrl = databaseUrl.replace(':5432/', ':6543/');
-                databaseUrl = newUrl;
-                console.log('✅ [DB] Puerto cambiado automáticamente a 6543');
-              }
+              // DESHABILITADO: Cambio automático de puerto causa problemas de conectividad local
+              // if (port === '5432') {
+              //   console.log('🔧 [DB] ADVERTENCIA: DIRECT_DATABASE_URL usa puerto 5432, cambiando a 6543 (pooler)');
+              //   const newUrl = databaseUrl.replace(':5432/', ':6543/');
+              //   databaseUrl = newUrl;
+              //   console.log('✅ [DB] Puerto cambiado automáticamente a 6543');
+              // }
             } catch {
               console.log('✅ [DB] Usando DIRECT_DATABASE_URL para desarrollo');
             }
@@ -157,13 +157,13 @@ export const db = globalForPrisma.prisma ??
               const port = url.port || '5432';
               console.log(`⚠️ [DB] Usando DATABASE_URL para desarrollo (puerto ${port})`);
               
-              // Si DATABASE_URL usa puerto 5432, intentar cambiarlo a 6543
-              if (port === '5432') {
-                console.log('🔧 [DB] Puerto 5432 no alcanzable, cambiando a 6543 (pooler)');
-                const newUrl = databaseUrl.replace(':5432/', ':6543/');
-                databaseUrl = newUrl;
-                console.log('✅ [DB] Puerto cambiado automáticamente a 6543');
-              }
+              // DESHABILITADO: Cambio automático de puerto causa problemas de conectividad local
+              // if (port === '5432') {
+              //   console.log('🔧 [DB] Puerto 5432 no alcanzable, cambiando a 6543 (pooler)');
+              //   const newUrl = databaseUrl.replace(':5432/', ':6543/');
+              //   databaseUrl = newUrl;
+              //   console.log('✅ [DB] Puerto cambiado automáticamente a 6543');
+              // }
             } catch {
               console.log('⚠️ [DB] Usando DATABASE_URL para desarrollo (fallback)');
             }

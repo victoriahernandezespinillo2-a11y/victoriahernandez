@@ -121,6 +121,19 @@ export function MobileCourtSelector({
     );
   };
 
+  // Helper para obtener el precio correcto basado en el deporte seleccionado
+  const getCourtPrice = (court: any, selectedSport: string): number => {
+    if (!court) return 0;
+    
+    // Si la cancha es multiuso y hay un deporte seleccionado, usar precio específico
+    if (court.isMultiuse && selectedSport && court.sportPricing?.[selectedSport]) {
+      return court.sportPricing[selectedSport];
+    }
+    
+    // Usar precio base
+    return court.pricePerHour;
+  };
+
   const getAmenityIcon = (amenity: string) => {
     const icons: { [key: string]: React.ReactElement } = {
       'Iluminación LED': <Zap className="h-4 w-4" />,
@@ -326,9 +339,11 @@ export function MobileCourtSelector({
                 </div>
                 <div className="text-right ml-3">
                   <div className="text-xl font-bold text-blue-600">
-                    {formatCurrency(court.pricePerHour)}
+                    {formatCurrency(getCourtPrice(court, selectedSport))}
                   </div>
-                  <div className="text-xs text-gray-500 font-medium">por hora</div>
+                  <div className="text-xs text-gray-500 font-medium">
+                    {court.isMultiuse && selectedSport ? `${getSportLabel(selectedSport)} - por hora` : 'por hora'}
+                  </div>
                 </div>
               </div>
 
