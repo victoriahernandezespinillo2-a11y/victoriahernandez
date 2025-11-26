@@ -190,7 +190,7 @@ export const db = globalForPrisma.prisma ??
 
       // Singleton pattern para evitar múltiples instancias en serverless
       const globalForPrisma = globalThis as unknown as {
-        prisma: PrismaClient | undefined
+        prisma: any | undefined
       }
 
       // Reutilizar instancia existente o crear nueva

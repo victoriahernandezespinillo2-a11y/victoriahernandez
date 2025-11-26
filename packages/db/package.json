@@ -26,7 +26,7 @@
     "db:force-sync": "tsx scripts/force-schema-sync.ts",
         "lint": "eslint . --max-warnings 0",
         "check-types": "tsc --noEmit",
-        "build": "rm -rf node_modules/.prisma && rm -rf .prisma && prisma generate --no-engine && prisma generate"
+        "build": "prisma generate"
     },
     "prisma": {
         "schema": "prisma/schema.prisma"
