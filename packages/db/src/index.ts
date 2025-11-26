@@ -30,7 +30,7 @@ const __dirname = path.dirname(__filename);
     path.resolve(__dirname, '../../.env'),
     path.resolve(__dirname, '../../../.env'),
   ];
-  
+
   for (const p of candidatePaths) {
     try {
       if (fs.existsSync(p)) {
@@ -48,58 +48,9 @@ const __dirname = path.dirname(__filename);
 
     console.log(`🔍 [DB-NORMALIZE] Procesando ${isDirect ? 'DIRECT_DATABASE_URL' : 'DATABASE_URL'}: ${urlString.split('@')[1] || 'URL_MALFORMED'}`);
 
-    // CRÍTICO: Rechazar URLs de Data Proxy - NO las soportamos
-    if (urlString.startsWith('prisma://') || urlString.startsWith('prisma+postgres://')) {
-      console.error(`❌ [DB-NORMALIZE] ${isDirect ? 'DIRECT_DATABASE_URL' : 'DATABASE_URL'}: URL de Data Proxy detectada y rechazada. Use una URL directa de PostgreSQL (postgresql://)`);
-      throw new Error(`URL de Data Proxy no permitida. Configure una URL directa de PostgreSQL (postgresql://) en ${isDirect ? 'DIRECT_DATABASE_URL' : 'DATABASE_URL'}`);
-    }
-
-    // Si no es postgresql://, rechazar
-    if (!urlString.startsWith('postgresql://')) {
-      console.error(`❌ [DB-NORMALIZE] ${isDirect ? 'DIRECT_DATABASE_URL' : 'DATABASE_URL'}: Protocolo inválido. Debe ser postgresql://`);
-      throw new Error(`Protocolo inválido. Debe ser postgresql://`);
-    }
-
-    try {
-      const url = new URL(urlString);
-      const port = url.port || '5432';
-      const isPooler = port === '6543' || url.searchParams.get('pgbouncer') === 'true';
-
-      let needsModification = false;
-      const password = url.password || '';
-      let newUsername = url.username;
-      let newSearch = url.search;
-
-      // 1. Para pooler, mantener el usuario original (postgres.xxx), para conexión directa usar "postgres"
-      // DESHABILITADO TEMPORALMENTE PARA PRODUCCIÓN - las URLs de Supabase pueden variar
-      if (false && !isPooler && url.username && url.username.startsWith('postgres.') && url.username !== 'postgres') {
-        newUsername = 'postgres';
-        needsModification = true;
-        console.log(`🔧 [DB-NORMALIZE] ${isDirect ? 'DIRECT_DATABASE_URL' : 'DATABASE_URL'}: Usuario corregido "${url.username}" → "postgres" para conexión directa`);
-      }
-
-      // 2. Asegurar sslmode=require (sin modificar la contraseña)
-      if (!url.searchParams.has('sslmode')) {
-        const params = new URLSearchParams(url.search);
-        params.set('sslmode', 'require');
-        newSearch = '?' + params.toString();
-        needsModification = true;
-      }
-
-      // Si necesita modificación, construir URL preservando la contraseña exactamente
-      if (needsModification) {
-        // Construir URL manualmente preservando la contraseña tal cual está (sin codificar/decodificar)
-        const authPart = password ? `${newUsername}:${password}@` : `${newUsername}@`;
-        const newUrl = `postgresql://${authPart}${url.hostname}${url.port ? ':' + url.port : ''}${url.pathname}${newSearch}`;
-        return newUrl;
-      }
-
-      // Si no necesita modificación, devolver la URL exacta tal cual está
-      return urlString;
-    } catch (e) {
-      console.warn(`⚠️ [DB-NORMALIZE] No se pudo parsear URL: ${e}`);
-      return urlString; // Devolver original si no se puede parsear
-    }
+    // URLs are used as-is without modifications
+    console.log(`✅ [DB-NORMALIZE] Using URL without modifications`);
+    return urlString;
   }
 
   // NORMALIZAR URLs AL INICIO - ANTES DE CUALQUIER OTRA COSA
@@ -135,44 +86,44 @@ export const db = globalForPrisma.prisma ??
       if (isProduction) {
         // En producción: usar DATABASE_URL (pooler) que es el estándar en Vercel
         databaseUrl = process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL;
-        } else {
-          // En desarrollo: Priorizar DIRECT_DATABASE_URL (6543) si está disponible, sino DATABASE_URL (5432)
-          if (process.env.DIRECT_DATABASE_URL) {
-            databaseUrl = process.env.DIRECT_DATABASE_URL;
-            try {
-              const url = new URL(databaseUrl);
-              const port = url.port || '6543';
-              console.log(`✅ [DB] Usando DIRECT_DATABASE_URL para desarrollo (puerto ${port})`);
-              
-              // DESHABILITADO: Cambio automático de puerto causa problemas de conectividad local
-              // if (port === '5432') {
-              //   console.log('🔧 [DB] ADVERTENCIA: DIRECT_DATABASE_URL usa puerto 5432, cambiando a 6543 (pooler)');
-              //   const newUrl = databaseUrl.replace(':5432/', ':6543/');
-              //   databaseUrl = newUrl;
-              //   console.log('✅ [DB] Puerto cambiado automáticamente a 6543');
-              // }
-            } catch {
-              console.log('✅ [DB] Usando DIRECT_DATABASE_URL para desarrollo');
-            }
-          } else if (process.env.DATABASE_URL) {
-            databaseUrl = process.env.DATABASE_URL;
-            try {
-              const url = new URL(databaseUrl);
-              const port = url.port || '5432';
-              console.log(`⚠️ [DB] Usando DATABASE_URL para desarrollo (puerto ${port})`);
-              
-              // DESHABILITADO: Cambio automático de puerto causa problemas de conectividad local
-              // if (port === '5432') {
-              //   console.log('🔧 [DB] Puerto 5432 no alcanzable, cambiando a 6543 (pooler)');
-              //   const newUrl = databaseUrl.replace(':5432/', ':6543/');
-              //   databaseUrl = newUrl;
-              //   console.log('✅ [DB] Puerto cambiado automáticamente a 6543');
-              // }
-            } catch {
-              console.log('⚠️ [DB] Usando DATABASE_URL para desarrollo (fallback)');
-            }
+      } else {
+        // En desarrollo: Priorizar DIRECT_DATABASE_URL (6543) si está disponible, sino DATABASE_URL (5432)
+        if (process.env.DIRECT_DATABASE_URL) {
+          databaseUrl = process.env.DIRECT_DATABASE_URL;
+          try {
+            const url = new URL(databaseUrl);
+            const port = url.port || '6543';
+            console.log(`✅ [DB] Usando DIRECT_DATABASE_URL para desarrollo (puerto ${port})`);
+
+            // DESHABILITADO: Cambio automático de puerto causa problemas de conectividad local
+            // if (port === '5432') {
+            //   console.log('🔧 [DB] ADVERTENCIA: DIRECT_DATABASE_URL usa puerto 5432, cambiando a 6543 (pooler)');
+            //   const newUrl = databaseUrl.replace(':5432/', ':6543/');
+            //   databaseUrl = newUrl;
+            //   console.log('✅ [DB] Puerto cambiado automáticamente a 6543');
+            // }
+          } catch {
+            console.log('✅ [DB] Usando DIRECT_DATABASE_URL para desarrollo');
+          }
+        } else if (process.env.DATABASE_URL) {
+          databaseUrl = process.env.DATABASE_URL;
+          try {
+            const url = new URL(databaseUrl);
+            const port = url.port || '5432';
+            console.log(`⚠️ [DB] Usando DATABASE_URL para desarrollo (puerto ${port})`);
+
+            // DESHABILITADO: Cambio automático de puerto causa problemas de conectividad local
+            // if (port === '5432') {
+            //   console.log('🔧 [DB] Puerto 5432 no alcanzable, cambiando a 6543 (pooler)');
+            //   const newUrl = databaseUrl.replace(':5432/', ':6543/');
+            //   databaseUrl = newUrl;
+            //   console.log('✅ [DB] Puerto cambiado automáticamente a 6543');
+            // }
+          } catch {
+            console.log('⚠️ [DB] Usando DATABASE_URL para desarrollo (fallback)');
           }
         }
+      }
 
       if (!databaseUrl) {
         throw new Error('DATABASE_URL o DIRECT_DATABASE_URL debe estar definido en las variables de entorno');
@@ -205,10 +156,26 @@ export const db = globalForPrisma.prisma ??
       console.log('🆕 [DB] Creando nueva instancia de cliente Prisma');
 
       // Crear cliente Prisma con configuración mejorada
+      // En producción, agregar pgbouncer=true para deshabilitar prepared statements
+      // Esto previene el error "prepared statement already exists" en connection poolers
+      let finalDatabaseUrl = databaseUrl;
+      if (isProduction) {
+        try {
+          const url = new URL(databaseUrl);
+          if (!url.searchParams.has('pgbouncer')) {
+            url.searchParams.set('pgbouncer', 'true');
+            finalDatabaseUrl = url.toString();
+            console.log('🔧 [DB] Agregado pgbouncer=true para prevenir conflictos de prepared statements');
+          }
+        } catch (e) {
+          console.warn('⚠️ [DB] No se pudo agregar parámetro pgbouncer, usando URL original');
+        }
+      }
+
       const client = new PrismaClient({
         datasources: {
           db: {
-            url: databaseUrl,
+            url: finalDatabaseUrl,
           },
         },
         log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
@@ -274,7 +241,7 @@ export const db = globalForPrisma.prisma ??
       }
       globalForPrisma.prisma = client;
       console.log('✅ [DB] Cliente Prisma cacheado globalmente (singleton)');
-      
+
       return client;
     } catch (e) {
       const error = e as Error;

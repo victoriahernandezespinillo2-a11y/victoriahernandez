@@ -46,19 +46,21 @@ export async function GET(request: NextRequest) {
       }
 
       // Verificar conexión a base de datos
+      // Usar una query simple del ORM en lugar de $queryRaw para evitar
+      // conflictos de prepared statements en entornos pooled
       const dbStartTime = Date.now();
-      await db.$queryRaw`SELECT 1 as health_check`;
+      await db.user.findFirst({ select: { id: true } });
       const dbResponseTime = Date.now() - dbStartTime;
-      
+
       health.database.status = 'connected';
       health.database.responseTime = dbResponseTime;
-      
+
       // Si la respuesta es muy lenta, marcar como degradado
       if (dbResponseTime > 5000) {
         health.status = 'degraded';
         health.database.status = 'slow';
       }
-      
+
       // Verificar que podemos acceder a usuarios (importante para autenticación)
       try {
         const userCount = await db.user.count();
@@ -67,7 +69,7 @@ export async function GET(request: NextRequest) {
         health.auth.status = 'error';
         health.status = 'degraded';
       }
-      
+
     } catch (error: any) {
       health.status = 'unhealthy';
       health.database.status = 'error';
@@ -77,7 +79,7 @@ export async function GET(request: NextRequest) {
         meta: error.meta
       };
       health.auth.status = 'error';
-      
+
       console.error('❌ [HEALTH] Error de base de datos:', error);
     }
 
@@ -88,16 +90,16 @@ export async function GET(request: NextRequest) {
     }
 
     const responseTime = Date.now() - startTime;
-    const statusCode = health.status === 'healthy' ? 200 : 
-                     health.status === 'degraded' ? 200 : 503;
+    const statusCode = health.status === 'healthy' ? 200 :
+      health.status === 'degraded' ? 200 : 503;
 
     const response = NextResponse.json(health, { status: statusCode });
-    
+
     // Headers para monitoreo
     response.headers.set('X-Response-Time', `${responseTime}ms`);
     response.headers.set('X-Health-Status', health.status);
     response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    
+
     return response;
   })(request);
 }
