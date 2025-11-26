@@ -25,7 +25,7 @@
         "db:test-connection": "tsx scripts/test-connection.ts",
         "lint": "eslint . --max-warnings 0",
         "check-types": "tsc --noEmit",
-        "build": "rm -rf node_modules/.prisma && prisma generate --force-reset"
+        "build": "rm -rf node_modules/.prisma && prisma generate"
     },
     "prisma": {
         "schema": "prisma/schema.prisma"
