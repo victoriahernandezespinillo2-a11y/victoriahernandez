@@ -188,6 +188,19 @@ export const db = globalForPrisma.prisma ??
         console.log(`🔗 [DB] Usuario: ${url.username}`);
       }
 
+      // Singleton pattern para evitar múltiples instancias en serverless
+      const globalForPrisma = globalThis as unknown as {
+        prisma: PrismaClient | undefined
+      }
+
+      // Reutilizar instancia existente o crear nueva
+      if (globalForPrisma.prisma) {
+        console.log('🔄 [DB] Reutilizando cliente Prisma existente (singleton)');
+        return globalForPrisma.prisma;
+      }
+
+      console.log('🆕 [DB] Creando nueva instancia de cliente Prisma');
+
       // Crear cliente Prisma con configuración mejorada
       const client = new PrismaClient({
         datasources: {
@@ -248,17 +261,16 @@ export const db = globalForPrisma.prisma ??
         }
       });
 
-      // En desarrollo, cachear la instancia
-      if (process.env.NODE_ENV !== 'production') {
-        // Si ya existe una instancia anterior, desconectarla
-        const oldPrisma = globalForPrisma.prisma;
-        if (oldPrisma) {
-          oldPrisma.$disconnect().catch(() => {
-            // Ignorar errores al desconectar
-          });
-        }
-        globalForPrisma.prisma = client;
+      // Cachear la instancia tanto en desarrollo como en producción (singleton)
+      // Si ya existe una instancia anterior, desconectarla
+      const oldPrisma = globalForPrisma.prisma;
+      if (oldPrisma) {
+        oldPrisma.$disconnect().catch(() => {
+          // Ignorar errores al desconectar
+        });
       }
+      globalForPrisma.prisma = client;
+      console.log('✅ [DB] Cliente Prisma cacheado globalmente (singleton)');
       
       return client;
     } catch (e) {
