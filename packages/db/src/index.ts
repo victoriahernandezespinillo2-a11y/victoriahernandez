@@ -2,7 +2,8 @@ import dns from 'dns';
 // FORZAR IPv4 - El problema es que Node.js intenta IPv6 primero y falla
 dns.setDefaultResultOrder('ipv4first');
 
-// Force Prisma Client regeneration in production - 2025-11-25
+// Force Prisma Client regeneration in production - 2025-11-26
+// Fix prepared statement conflicts by aggressive client regeneration
 
 import { config } from 'dotenv';
 import fs from 'fs';

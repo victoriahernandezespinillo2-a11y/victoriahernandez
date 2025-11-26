@@ -23,9 +23,10 @@
         "db:audit-reservations": "tsx src/audit-reservations.ts",
         "db:diagnose": "tsx scripts/diagnose-db.ts",
         "db:test-connection": "tsx scripts/test-connection.ts",
+    "db:force-sync": "tsx scripts/force-schema-sync.ts",
         "lint": "eslint . --max-warnings 0",
         "check-types": "tsc --noEmit",
-        "build": "rm -rf node_modules/.prisma && prisma generate"
+        "build": "rm -rf node_modules/.prisma && rm -rf .prisma && prisma generate --no-engine && prisma generate"
     },
     "prisma": {
         "schema": "prisma/schema.prisma"
