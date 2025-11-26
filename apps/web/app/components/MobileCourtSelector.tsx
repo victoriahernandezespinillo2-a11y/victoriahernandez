@@ -30,6 +30,10 @@ interface Court {
   description?: string;
   availability?: 'high' | 'medium' | 'low';
   lightingExtraPerHour?: number;
+  isMultiuse?: boolean;
+  allowedSports?: string[];
+  sportPricing?: Record<string, number>;
+  centerId?: string;
 }
 
 interface MobileCourtSelectorProps {
