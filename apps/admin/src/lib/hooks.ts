@@ -47,7 +47,6 @@ interface Court {
   isMultiuse?: boolean;
   allowedSports?: string[];
   primarySport?: string;
-  sportPricing?: Record<string, number>;
 }
 
 interface Reservation {
@@ -453,7 +452,6 @@ export function useAdminCourts() {
     hourlyRate: number;
     isMultiuse?: boolean;
     allowedSports?: string[];
-    sportPricing?: Record<string, number>;
   }) => {
     // Mapear al esquema que espera el backend (CreateCourtSchema)
     const payload: any = {
@@ -478,7 +476,6 @@ export function useAdminCourts() {
       covered: !!courtData.isIndoor,
       status: 'ACTIVE',
       ...(courtData.isMultiuse ? { isMultiuse: true, allowedSports: Array.isArray(courtData.allowedSports) ? courtData.allowedSports : [] } : { isMultiuse: false, allowedSports: [] }),
-      ...(courtData.sportPricing ? { sportPricing: courtData.sportPricing } : {}),
     };
 
     const newCourt = await adminApi.courts.create(payload) as Court;

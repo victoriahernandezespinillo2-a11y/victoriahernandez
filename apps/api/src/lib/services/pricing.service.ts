@@ -11,8 +11,6 @@ export const CalculatePriceSchema = z.object({
   userId: z.string().min(1).optional(),
   // Selección de iluminación por parte del usuario (opcional)
   lightingSelected: z.boolean().optional(),
-  // Deporte seleccionado para canchas multiuso
-  sport: z.string().optional(),
 });
 
 export const CreatePricingRuleSchema = z.object({
@@ -78,13 +76,6 @@ export class PricingService {
             adjustment: true,
           },
         },
-        // Incluir precios por deporte para canchas multiuso
-        sportPricing: {
-          select: {
-            sport: true,
-            pricePerHour: true,
-          },
-        },
       },
     });
 
@@ -120,21 +111,7 @@ export class PricingService {
 
     // Calcular precio base por hora
     const durationInHours = validatedInput.duration / 60;
-    
-    // Determinar precio por hora basado en si es cancha multiuso y deporte seleccionado
-    let basePerHour = Number(court.basePricePerHour || 0);
-    
-    // Si la cancha es multiuso y se especificó un deporte, usar precio específico
-    if (court.isMultiuse && validatedInput.sport && (court as any).sportPricing) {
-      const sportPricing = (court as any).sportPricing.find((sp: any) => sp.sport === validatedInput.sport);
-      if (sportPricing) {
-        basePerHour = Number(sportPricing.pricePerHour);
-        console.log(`🏆 [PRICING] Usando precio específico para ${validatedInput.sport}: €${basePerHour}/h`);
-      } else {
-        console.log(`⚠️ [PRICING] No se encontró precio específico para ${validatedInput.sport}, usando precio base: €${basePerHour}/h`);
-      }
-    }
-    
+    const basePerHour = Number(court.basePricePerHour || 0);
     const basePrice = basePerHour * durationInHours;
 
     // Encontrar reglas de precios aplicables

@@ -14,8 +14,8 @@ Reservas, membresías, torneos, pagos y administración en un único monorepo pr
 ```
 polideportivo-platform/
 ├─ apps/
-│  ├─ web/      # Frontend usuario (puerto 3001)
-│  ├─ admin/    # Panel administrador (puerto 3003)
+│  ├─ web/      # Frontend usuario (puerto 3000)
+│  ├─ admin/    # Panel administrador (puerto 3001)
 │  └─ api/      # Backend REST (puerto 3002)
 ├─ packages/
 │  ├─ auth/     # Config/handlers NextAuth compartidos
@@ -39,14 +39,14 @@ polideportivo-platform/
   - `AUTH_SECRET` (o `NEXTAUTH_SECRET`)
 
 - `apps/web/.env.local` (dev):
-  - `NEXTAUTH_URL=http://localhost:3001`
-  - `AUTH_URL=http://localhost:3001`
+  - `NEXTAUTH_URL=http://localhost:3000`
+  - `AUTH_URL=http://localhost:3000`
   - `NEXTAUTH_COOKIE_NAME=next-auth.session-token-web`
 
 - `apps/admin/.env.local` (dev):
-  - `NEXTAUTH_URL=http://localhost:3003`
-  - `AUTH_URL=http://localhost:3003`
-  - `NEXTAUTH_COOKIE_NAME=next-auth.session-token-3003`
+  - `NEXTAUTH_URL=http://localhost:3001`
+  - `AUTH_URL=http://localhost:3001`
+  - `NEXTAUTH_COOKIE_NAME=next-auth.session-token-3001`
   - `NEXT_PUBLIC_API_URL=http://localhost:3002` (si no se usan rewrites)
 
 Notas:
@@ -86,7 +86,7 @@ Importante (seguridad):
 pnpm dev
 ```
 
-Puertos: web 3001, api 3002, admin 3003.
+Puertos: web 3000, admin 3001, api 3002.
 
 Rewrites (evitar CORS en dev):
 - `apps/web/next.config.js` y `apps/admin/next.config.js` proxyean `/api/*` a `api` excepto `/api/auth/*`.

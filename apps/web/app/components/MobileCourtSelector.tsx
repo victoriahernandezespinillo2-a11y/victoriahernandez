@@ -30,10 +30,6 @@ interface Court {
   description?: string;
   availability?: 'high' | 'medium' | 'low';
   lightingExtraPerHour?: number;
-  isMultiuse?: boolean;
-  allowedSports?: string[];
-  sportPricing?: Record<string, number>;
-  centerId?: string;
 }
 
 interface MobileCourtSelectorProps {
@@ -62,6 +58,9 @@ export function MobileCourtSelector({
 
   // Funciones de utilidad - Iconos de deportes consistentes con la selección
   const getSportLabel = (sport: string) => {
+    if (!sport) return '';
+    // ✅ CORREGIDO: Normalizar y traducir a español
+    const normalized = (sport || '').toUpperCase().trim();
     const labels: Record<string, string> = {
       FOOTBALL: 'Fútbol',
       FOOTBALL7: 'Fútbol 7',
@@ -70,10 +69,26 @@ export function MobileCourtSelector({
       TENNIS: 'Tenis',
       VOLLEYBALL: 'Voleibol',
       PADDLE: 'Pádel',
+      PADDEL: 'Pádel', // Variante común
       SQUASH: 'Squash',
       MULTIPURPOSE: 'Multiuso',
     };
-    return labels[sport?.toUpperCase()] || sport;
+    
+    // Buscar traducción exacta
+    if (labels[normalized]) {
+      return labels[normalized];
+    }
+    
+    // Fallback: buscar por coincidencia parcial
+    const lower = normalized.toLowerCase();
+    if (lower.includes('football') || lower.includes('futbol')) return 'Fútbol';
+    if (lower.includes('basketball') || lower.includes('baloncesto')) return 'Baloncesto';
+    if (lower.includes('tennis') || lower.includes('tenis')) return 'Tenis';
+    if (lower.includes('volleyball') || lower.includes('voleibol')) return 'Voleibol';
+    if (lower.includes('paddle') || lower.includes('padel') || lower.includes('paddel')) return 'Pádel';
+    
+    // Si no hay coincidencia, devolver el valor original (pero capitalizado)
+    return sport.charAt(0).toUpperCase() + sport.slice(1).toLowerCase();
   };
 
 
@@ -123,19 +138,6 @@ export function MobileCourtSelector({
         </div>
       </div>
     );
-  };
-
-  // Helper para obtener el precio correcto basado en el deporte seleccionado
-  const getCourtPrice = (court: any, selectedSport: string): number => {
-    if (!court) return 0;
-    
-    // Si la cancha es multiuso y hay un deporte seleccionado, usar precio específico
-    if (court.isMultiuse && selectedSport && court.sportPricing?.[selectedSport]) {
-      return court.sportPricing[selectedSport];
-    }
-    
-    // Usar precio base
-    return court.pricePerHour;
   };
 
   const getAmenityIcon = (amenity: string) => {
@@ -262,7 +264,7 @@ export function MobileCourtSelector({
       {/* Header con título */}
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          Elige tu cancha de {selectedSport}
+          Elige tu cancha de {getSportLabel(selectedSport)}
         </h2>
         <p className="text-gray-600">
           {courts.length} canchas disponibles
@@ -343,11 +345,9 @@ export function MobileCourtSelector({
                 </div>
                 <div className="text-right ml-3">
                   <div className="text-xl font-bold text-blue-600">
-                    {formatCurrency(getCourtPrice(court, selectedSport))}
+                    {formatCurrency(court.pricePerHour)}
                   </div>
-                  <div className="text-xs text-gray-500 font-medium">
-                    {court.isMultiuse && selectedSport ? `${getSportLabel(selectedSport)} - por hora` : 'por hora'}
-                  </div>
+                  <div className="text-xs text-gray-500 font-medium">por hora</div>
                 </div>
               </div>
 

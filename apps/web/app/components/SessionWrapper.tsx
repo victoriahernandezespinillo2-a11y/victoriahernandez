@@ -20,35 +20,77 @@ export function SessionWrapper({ children }: SessionWrapperProps) {
     // Asegurar que estamos en el cliente
     setIsClient(true);
     
-    // Manejar errores de chunks globalmente
-    const handleChunkError = (event: ErrorEvent) => {
-      if (event.error?.name === 'ChunkLoadError' || 
-          event.error?.message?.includes('Loading chunk')) {
-        console.log('🔄 [SESSION-WRAPPER] Detectado error de chunk, reintentando...');
-        setSessionError(event.error);
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    // Manejar errores de chunks globalmente con estrategia de reintentos
+    const handleChunkError = (event: ErrorEvent | PromiseRejectionEvent) => {
+      const error = event instanceof ErrorEvent ? event.error : event.reason;
+      const isChunkError = error?.name === 'ChunkLoadError' || 
+                          error?.message?.includes('Loading chunk') ||
+                          error?.message?.includes('timeout') ||
+                          (event instanceof ErrorEvent && event.target && 
+                           (event.target as HTMLElement).tagName === 'SCRIPT');
+      
+      if (isChunkError) {
+        if (retryCount >= maxRetries) {
+          console.error('🚨 [SESSION-WRAPPER] Máximo de reintentos alcanzado para chunk error');
+          setSessionError(new Error('Error al cargar la aplicación. Por favor, recarga la página manualmente.'));
+          return;
+        }
         
-        // Limpiar cache y recargar después de un delay
+        retryCount++;
+        console.log(`🔄 [SESSION-WRAPPER] Detectado error de chunk, reintentando... (${retryCount}/${maxRetries})`);
+        setSessionError(error as Error);
+        
+        // Limpiar cache y recargar después de un delay exponencial
+        const delay = 1000 * Math.pow(2, retryCount - 1); // Backoff exponencial: 1s, 2s, 4s
+        
         setTimeout(() => {
-          if (typeof window !== 'undefined' && 'caches' in window) {
-            caches.keys().then(cacheNames => {
-              cacheNames.forEach(cacheName => {
-                if (cacheName.includes('next-') || cacheName.includes('chunks')) {
-                  caches.delete(cacheName);
+          if (typeof window !== 'undefined') {
+            // Limpiar todas las cachés relacionadas con Next.js
+            if ('caches' in window) {
+              caches.keys().then(cacheNames => {
+                cacheNames.forEach(cacheName => {
+                  if (cacheName.includes('next-') || 
+                      cacheName.includes('chunks') || 
+                      cacheName.includes('static')) {
+                    caches.delete(cacheName).catch(() => {
+                      // Ignorar errores al eliminar cachés
+                    });
+                  }
+                });
+              }).catch(() => {
+                // Continuar aunque falle la limpieza de caché
+              });
+            }
+            
+            // Limpiar el sessionStorage y localStorage de Next.js
+            try {
+              Object.keys(sessionStorage).forEach(key => {
+                if (key.startsWith('next-') || key.includes('chunk')) {
+                  sessionStorage.removeItem(key);
                 }
               });
-            });
+            } catch (e) {
+              // Ignorar errores de sessionStorage
+            }
+            
+            // Recargar la página
+            window.location.reload();
           }
-          window.location.reload();
-        }, 2000);
+        }, delay);
       }
     };
 
     // Escuchar errores de chunks
-    window.addEventListener('error', handleChunkError);
+    window.addEventListener('error', handleChunkError as EventListener);
+    window.addEventListener('unhandledrejection', handleChunkError as EventListener);
     
     // Cleanup
     return () => {
-      window.removeEventListener('error', handleChunkError);
+      window.removeEventListener('error', handleChunkError as EventListener);
+      window.removeEventListener('unhandledrejection', handleChunkError as EventListener);
     };
   }, []);
 

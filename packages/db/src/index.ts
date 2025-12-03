@@ -1,14 +1,6 @@
-import dns from 'dns';
-// FORZAR IPv4 - El problema es que Node.js intenta IPv6 primero y falla
-dns.setDefaultResultOrder('ipv4first');
-
-// Force Prisma Client regeneration in production - 2025-11-26
-// Fix prepared statement conflicts by aggressive client regeneration
-
 import { config } from 'dotenv';
 import fs from 'fs';
-// Importar PrismaClient usando require para evitar problemas de tipos
-const { PrismaClient } = require('@prisma/client');
+import { PrismaClient, Prisma } from '@prisma/client';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -30,7 +22,7 @@ const __dirname = path.dirname(__filename);
     path.resolve(__dirname, '../../.env'),
     path.resolve(__dirname, '../../../.env'),
   ];
-
+  
   for (const p of candidatePaths) {
     try {
       if (fs.existsSync(p)) {
@@ -42,24 +34,10 @@ const __dirname = path.dirname(__filename);
     }
   }
 
-  // Función para normalizar URLs de base de datos
-  function normalizeDatabaseUrl(urlString: string | undefined, isDirect: boolean = false): string | undefined {
-    if (!urlString) return undefined;
-
-    console.log(`🔍 [DB-NORMALIZE] Procesando ${isDirect ? 'DIRECT_DATABASE_URL' : 'DATABASE_URL'}: ${urlString.split('@')[1] || 'URL_MALFORMED'}`);
-
-    // URLs are used as-is without modifications
-    console.log(`✅ [DB-NORMALIZE] Using URL without modifications`);
-    return urlString;
-  }
-
-  // NORMALIZAR URLs AL INICIO - ANTES DE CUALQUIER OTRA COSA
-  if (process.env.DATABASE_URL) {
-    process.env.DATABASE_URL = normalizeDatabaseUrl(process.env.DATABASE_URL, false) || process.env.DATABASE_URL;
-  }
-
-  if (process.env.DIRECT_DATABASE_URL) {
-    process.env.DIRECT_DATABASE_URL = normalizeDatabaseUrl(process.env.DIRECT_DATABASE_URL, true) || process.env.DIRECT_DATABASE_URL;
+  // Normalizar URLs para Supabase (agregar SSL si falta)
+  if (process.env.DATABASE_URL && !/[?&]sslmode=/.test(process.env.DATABASE_URL)) {
+    const sep = process.env.DATABASE_URL.includes('?') ? '&' : '?';
+    process.env.DATABASE_URL = `${process.env.DATABASE_URL}${sep}sslmode=require`;
   }
 })();
 
@@ -73,57 +51,18 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Configurar el cliente de Prisma
 const globalForPrisma = globalThis as unknown as {
-  prisma: any | undefined;
+  prisma: PrismaClient | undefined;
 };
 
 export const db = globalForPrisma.prisma ??
   (() => {
     try {
-      // Determinar URL a usar
-      let databaseUrl: string | undefined;
+      // En producción serverless (Vercel), usar DATABASE_URL (pooler)
+      // En desarrollo, priorizar DIRECT_DATABASE_URL para conexiones directas
       const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
-
-      if (isProduction) {
-        // En producción: usar DATABASE_URL (pooler) que es el estándar en Vercel
-        databaseUrl = process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL;
-      } else {
-        // En desarrollo: Priorizar DIRECT_DATABASE_URL (6543) si está disponible, sino DATABASE_URL (5432)
-        if (process.env.DIRECT_DATABASE_URL) {
-          databaseUrl = process.env.DIRECT_DATABASE_URL;
-          try {
-            const url = new URL(databaseUrl);
-            const port = url.port || '6543';
-            console.log(`✅ [DB] Usando DIRECT_DATABASE_URL para desarrollo (puerto ${port})`);
-
-            // DESHABILITADO: Cambio automático de puerto causa problemas de conectividad local
-            // if (port === '5432') {
-            //   console.log('🔧 [DB] ADVERTENCIA: DIRECT_DATABASE_URL usa puerto 5432, cambiando a 6543 (pooler)');
-            //   const newUrl = databaseUrl.replace(':5432/', ':6543/');
-            //   databaseUrl = newUrl;
-            //   console.log('✅ [DB] Puerto cambiado automáticamente a 6543');
-            // }
-          } catch {
-            console.log('✅ [DB] Usando DIRECT_DATABASE_URL para desarrollo');
-          }
-        } else if (process.env.DATABASE_URL) {
-          databaseUrl = process.env.DATABASE_URL;
-          try {
-            const url = new URL(databaseUrl);
-            const port = url.port || '5432';
-            console.log(`⚠️ [DB] Usando DATABASE_URL para desarrollo (puerto ${port})`);
-
-            // DESHABILITADO: Cambio automático de puerto causa problemas de conectividad local
-            // if (port === '5432') {
-            //   console.log('🔧 [DB] Puerto 5432 no alcanzable, cambiando a 6543 (pooler)');
-            //   const newUrl = databaseUrl.replace(':5432/', ':6543/');
-            //   databaseUrl = newUrl;
-            //   console.log('✅ [DB] Puerto cambiado automáticamente a 6543');
-            // }
-          } catch {
-            console.log('⚠️ [DB] Usando DATABASE_URL para desarrollo (fallback)');
-          }
-        }
-      }
+      const databaseUrl = isProduction 
+        ? (process.env.DATABASE_URL || process.env.DIRECT_DATABASE_URL)
+        : (process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL);
 
       if (!databaseUrl) {
         throw new Error('DATABASE_URL o DIRECT_DATABASE_URL debe estar definido en las variables de entorno');
@@ -133,115 +72,32 @@ export const db = globalForPrisma.prisma ??
         console.log(`🔗 [DB] Usando: ${databaseUrl.replace(/:[^:@]*@/, ':***@').substring(0, 80)}...`);
       }
 
-      // Log para debugging
-      if (process.env.NODE_ENV !== 'production') {
-        const maskedUrl = databaseUrl.replace(/:[^:@]*@/, ':***@');
-        const url = new URL(databaseUrl);
-        console.log(`🔗 [DB] URL: ${maskedUrl.substring(0, 100)}...`);
-        console.log(`🔗 [DB] Puerto: ${url.port || 'default'}`);
-        console.log(`🔗 [DB] Usuario: ${url.username}`);
-      }
-
-      // Singleton pattern para evitar múltiples instancias en serverless
-      const globalForPrisma = globalThis as unknown as {
-        prisma: any | undefined
-      }
-
-      // Reutilizar instancia existente o crear nueva
-      if (globalForPrisma.prisma) {
-        console.log('🔄 [DB] Reutilizando cliente Prisma existente (singleton)');
-        return globalForPrisma.prisma;
-      }
-
-      console.log('🆕 [DB] Creando nueva instancia de cliente Prisma');
-
-      // Crear cliente Prisma con configuración mejorada
-      // En producción, agregar pgbouncer=true para deshabilitar prepared statements
-      // Esto previene el error "prepared statement already exists" en connection poolers
-      let finalDatabaseUrl = databaseUrl;
-      if (isProduction) {
-        try {
-          const url = new URL(databaseUrl);
-          if (!url.searchParams.has('pgbouncer')) {
-            url.searchParams.set('pgbouncer', 'true');
-            finalDatabaseUrl = url.toString();
-            console.log('🔧 [DB] Agregado pgbouncer=true para prevenir conflictos de prepared statements');
-          }
-        } catch (e) {
-          console.warn('⚠️ [DB] No se pudo agregar parámetro pgbouncer, usando URL original');
-        }
-      }
-
+      // Crear cliente Prisma con configuración simple
       const client = new PrismaClient({
         datasources: {
           db: {
-            url: finalDatabaseUrl,
+            url: databaseUrl,
           },
         },
-        log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-        errorFormat: 'pretty',
-        // @ts-ignore - __internal es una propiedad interna de Prisma no documentada públicamente
-        __internal: {
-          engine: {
-            connectTimeout: 30000,
-            poolTimeout: 30000,
-          }
-        }
+        log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+        errorFormat: 'pretty'
       });
 
-      // Configurar manejo de errores
-      client.$on('query', (e: any) => {
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`[DB-QUERY] ${e.query} - ${e.duration}ms`);
-        }
-      });
+      // ✅ CORREGIDO: Prisma no soporta el evento 'error' en $on
+      // Los errores se manejan automáticamente a través de try/catch en las operaciones
 
-      client.$on('error', (e: any) => {
-        console.error('[DB-ERROR]', e);
-        if (e.message && e.message.includes('P6001')) {
-          console.error('❌ [DB] ERROR P6001: Prisma Client espera URL de Data Proxy pero se proporcionó URL directa.');
-          console.error('❌ [DB] SOLUCIÓN: Regenerar Prisma Client con: pnpm --filter @repo/db db:generate');
+      // En desarrollo, cachear la instancia
+      if (process.env.NODE_ENV !== 'production') {
+        // Si ya existe una instancia anterior, desconectarla
+        const oldPrisma = globalForPrisma.prisma as PrismaClient | undefined;
+        if (oldPrisma) {
+          oldPrisma.$disconnect().catch(() => {
+            // Ignorar errores al desconectar
+          });
         }
-        // Detectar errores de conexión y autenticación
-        if (e.message && (
-          e.message.includes("Can't reach database server") ||
-          e.message.includes('ECONNREFUSED') ||
-          e.message.includes('ETIMEDOUT')
-        )) {
-          console.error('❌ [DB] ERROR DE CONEXIÓN: No se puede alcanzar el servidor de base de datos');
-          const currentUrl = new URL(databaseUrl);
-          if (currentUrl.port === '6543') {
-            console.error('💡 [DB] El puerto 6543 (pooler) no es alcanzable desde tu red local');
-            console.error('💡 [DB] SOLUCIÓN: Usa DATABASE_URL con puerto 5432 (conexión directa)');
-            console.error('💡 [DB] Obtén la URL correcta en Supabase Dashboard > Settings > Database > Connection string (Direct connection)');
-          } else if (currentUrl.port === '5432') {
-            console.error('💡 [DB] El puerto 5432 (conexión directa) no es alcanzable desde tu red local');
-            console.error('💡 [DB] SOLUCIÓN: Verifica tu firewall o restricciones de red en Supabase');
-            console.error('💡 [DB] O intenta usar DIRECT_DATABASE_URL con puerto 6543 si tu red lo permite');
-          }
-        } else if (e.message && (
-          e.message.includes('Authentication failed') ||
-          e.message.includes('SASL authentication failed') ||
-          e.message.includes('password authentication failed')
-        )) {
-          console.error('❌ [DB] ERROR DE AUTENTICACIÓN: La contraseña de la base de datos es incorrecta.');
-          console.error('💡 [DB] SOLUCIÓN: Verifica la contraseña en tu archivo .env para la URL que se está usando.');
-          console.error('💡 [DB] Asegúrate de que la contraseña sea la del usuario "postgres" (no postgres.xxx)');
-          console.error('💡 [DB] Puedes obtener la contraseña correcta en Supabase Dashboard > Settings > Database > Connection string');
-        }
-      });
-
-      // Cachear la instancia tanto en desarrollo como en producción (singleton)
-      // Si ya existe una instancia anterior, desconectarla
-      const oldPrisma = globalForPrisma.prisma;
-      if (oldPrisma) {
-        oldPrisma.$disconnect().catch(() => {
-          // Ignorar errores al desconectar
-        });
+        globalForPrisma.prisma = client;
       }
-      globalForPrisma.prisma = client;
-      console.log('✅ [DB] Cliente Prisma cacheado globalmente (singleton)');
-
+      
       return client;
     } catch (e) {
       const error = e as Error;
@@ -250,23 +106,20 @@ export const db = globalForPrisma.prisma ??
     }
   })();
 
-// Re-exportar tipos de Prisma usando require para evitar problemas de TypeScript
-const prismaTypes = require('@prisma/client');
+// Re-exportar tipos de Prisma para uso en otras partes de la aplicación
+export type User = Prisma.UserGetPayload<{}>;
+export type Center = Prisma.CenterGetPayload<{}>;
+export type Court = Prisma.CourtGetPayload<{}>;
+export type Reservation = Prisma.ReservationGetPayload<{}>;
+export type Tournament = Prisma.TournamentGetPayload<{}>;
+export type TournamentUser = Prisma.TournamentUserGetPayload<{}>;
+export type Membership = Prisma.MembershipGetPayload<{}>;
+export type WaitingList = Prisma.WaitingListGetPayload<{}>;
+export type MaintenanceSchedule = Prisma.MaintenanceScheduleGetPayload<{}>;
+export type PricingRule = Prisma.PricingRuleGetPayload<{}>;
 
-export type User = any;
-export type Center = any;
-export type Court = any;
-export type Reservation = any;
-export type Tournament = any;
-export type TournamentUser = any;
-export type Membership = any;
-export type WaitingList = any;
-export type MaintenanceSchedule = any;
-export type PricingRule = any;
-
-// Re-exportar enums usando require para evitar problemas de TypeScript
-const { UserRole, ReservationStatus, MembershipType, MaintenanceType, MaintenanceStatus, TariffSegment, TariffEnrollmentStatus } = require('@prisma/client');
-export { UserRole, ReservationStatus, MembershipType, MaintenanceType, MaintenanceStatus, TariffSegment, TariffEnrollmentStatus };
+// Re-exportar enums de Prisma
+export { UserRole, ReservationStatus, MembershipType, MaintenanceType, MaintenanceStatus, TariffSegment, TariffEnrollmentStatus } from '@prisma/client';
 
 // Exportar el cliente de Prisma como instancia por defecto
 export default db;

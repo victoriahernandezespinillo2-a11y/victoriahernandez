@@ -72,7 +72,36 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Registrar evento en outbox para que el front muestre estado "REFUNDED"
+      // Registrar eventos de reembolso
+      const refundAmount = input.amount || Number(reservation.totalPrice || 0);
+      
+      // Si es reembolso con créditos, crear evento específico
+      if (paymentMethod === 'CREDITS' && creditsToRefund > 0) {
+        const settings: any = (reservation.court?.center as any)?.settings || {};
+        const creditsCfg: any = settings.credits || {};
+        const euroPerCredit = typeof creditsCfg.euroPerCredit === 'number' && creditsCfg.euroPerCredit > 0 
+          ? creditsCfg.euroPerCredit 
+          : 1;
+        
+        await db.outboxEvent.create({
+          data: {
+            eventType: 'CREDITS_REFUNDED',
+            eventData: {
+              reservationId: reservation.id,
+              userId: reservation.userId,
+              credits: creditsToRefund,
+              creditsRefunded: creditsToRefund,
+              amount: refundAmount,
+              amountEuro: refundAmount,
+              euroPerCredit,
+              reason: input.reason,
+              method: 'CREDITS',
+            } as any,
+          },
+        });
+      }
+      
+      // Registrar evento de reembolso de reserva
       await db.outboxEvent.create({
         data: {
           eventType: 'RESERVATION_REFUNDED',
@@ -80,9 +109,10 @@ export async function POST(request: NextRequest) {
             reservationId: reservation.id,
             paymentIntentId,
             refundId: refund?.refundId || null,
-            amount: input.amount || Number(reservation.totalPrice || 0),
+            amount: refundAmount,
             reason: input.reason,
             creditsRefunded: creditsToRefund,
+            method: paymentMethod,
           } as any,
         },
       });

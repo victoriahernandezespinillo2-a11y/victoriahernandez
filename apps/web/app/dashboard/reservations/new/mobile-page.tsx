@@ -36,10 +36,7 @@ interface Court {
   rating?: number;
   sportType?: string;
   lightingExtraPerHour?: number;
-  centerId?: string;
-  isMultiuse?: boolean;
-  allowedSports?: string[];
-  sportPricing?: Record<string, number>;
+  centerId?: string; // Added centerId to Court interface
 }
 
 interface CalendarSlot {
@@ -76,28 +73,70 @@ export default function MobileNewReservationPage() {
   const [bookingPolicy, setBookingPolicy] = useState<{ maxAdvanceDays: number; minAdvanceHours: number } | null>(null);
   const [policyCache, setPolicyCache] = useState<Record<string, { maxAdvanceDays: number; minAdvanceHours: number }>>({});
 
-  // Deportes disponibles
-  const sports = ['football', 'basketball', 'tennis', 'volleyball'];
+  // ✅ CORREGIDO: Obtener deportes dinámicamente de las canchas disponibles (igual que desktop)
+  const sports = useMemo(() => {
+    const courtsArray: any[] = Array.isArray(courts) ? (courts as any[]) : [];
+    const unique = new Set<string>();
+    courtsArray.forEach((c: any) => { 
+      if (c?.sportType) unique.add(c.sportType.toUpperCase()); 
+      // También incluir deportes permitidos en canchas multiuso
+      if (Array.isArray(c?.allowedSports)) {
+        c.allowedSports.forEach((s: string) => unique.add(s.toUpperCase()));
+      }
+    });
+    return Array.from(unique);
+  }, [courts]);
 
   // Funciones de utilidad
   const getSportIcon = (sport: string) => {
+    const normalized = (sport || '').toUpperCase();
     const icons: { [key: string]: string } = {
-      football: '⚽',
-      basketball: '🏀',
-      tennis: '🎾',
-      volleyball: '🏐',
+      FOOTBALL: '⚽',
+      FOOTBALL7: '⚽',
+      FUTSAL: '⚽',
+      BASKETBALL: '🏀',
+      TENNIS: '🎾',
+      VOLLEYBALL: '🏐',
+      PADDLE: '🏓',
+      PADDEL: '🏓', // Variante común
+      SQUASH: '🏸',
+      MULTIPURPOSE: '🏃',
     };
-    return icons[sport] || '🏃';
+    return icons[normalized] || '🏃';
   };
 
   const getSportLabel = (sport: string) => {
+    if (!sport) return '';
+    // ✅ CORREGIDO: Normalizar y traducir a español
+    const normalized = (sport || '').toUpperCase().trim();
     const labels: { [key: string]: string } = {
-      football: 'Fútbol',
-      basketball: 'Baloncesto',
-      tennis: 'Tenis',
-      volleyball: 'Voleibol',
+      FOOTBALL: 'Fútbol',
+      FOOTBALL7: 'Fútbol 7',
+      FUTSAL: 'Fútbol Sala',
+      BASKETBALL: 'Baloncesto',
+      TENNIS: 'Tenis',
+      VOLLEYBALL: 'Voleibol',
+      PADDLE: 'Pádel',
+      PADDEL: 'Pádel', // Variante común
+      SQUASH: 'Squash',
+      MULTIPURPOSE: 'Multiuso',
     };
-    return labels[sport] || sport;
+    
+    // Buscar traducción exacta
+    if (labels[normalized]) {
+      return labels[normalized];
+    }
+    
+    // Fallback: buscar por coincidencia parcial (case-insensitive)
+    const lower = normalized.toLowerCase();
+    if (lower.includes('football') || lower.includes('futbol')) return 'Fútbol';
+    if (lower.includes('basketball') || lower.includes('baloncesto')) return 'Baloncesto';
+    if (lower.includes('tennis') || lower.includes('tenis')) return 'Tenis';
+    if (lower.includes('volleyball') || lower.includes('voleibol')) return 'Voleibol';
+    if (lower.includes('paddle') || lower.includes('padel') || lower.includes('paddel')) return 'Pádel';
+    
+    // Si no hay coincidencia, devolver el valor original (pero capitalizado)
+    return sport.charAt(0).toUpperCase() + sport.slice(1).toLowerCase();
   };
 
   const getAmenityIcon = (amenity: string) => {
@@ -110,23 +149,28 @@ export default function MobileNewReservationPage() {
     return icons[amenity] || <Check className="h-4 w-4" />;
   };
 
-  // Helper para obtener el precio correcto basado en el deporte seleccionado
-  const getCourtPrice = (court: Court, selectedSport: string): number => {
-    if (!court) return 0;
-    
-    // Si la cancha es multiuso y hay un deporte seleccionado, usar precio específico
-    if (court.isMultiuse && selectedSport && court.sportPricing?.[selectedSport]) {
-      return court.sportPricing[selectedSport];
-    }
-    
-    // Usar precio base
-    return court.pricePerHour;
-  };
-
   // Filtrar canchas por deporte
+  // ✅ CORREGIDO: Filtrar canchas por deporte (igual que desktop, con soporte para multiuso)
   const filteredCourts = useMemo(() => {
     if (!selectedSport || !courts) return [];
-    return courts.filter(court => court.sportType === selectedSport);
+    const normalize = (s: string) => (s || '').toUpperCase().trim();
+    const selected = normalize(selectedSport);
+    
+    return courts.filter((court: any) => {
+      const type = normalize(court.sportType);
+      const allowed: string[] = Array.isArray(court.allowedSports) 
+        ? court.allowedSports.map((x: string) => normalize(x)) 
+        : [];
+      const isMultiuse = Boolean(court.isMultiuse);
+      
+      // Coincidencia exacta por tipo de cancha
+      if (type === selected) return true;
+      
+      // Cancha multiuso que permite el deporte seleccionado
+      if (isMultiuse && allowed.includes(selected)) return true;
+      
+      return false;
+    });
   }, [selectedSport, courts]);
 
   const DEFAULT_MAX_ADVANCE_DAYS = 90;
@@ -452,11 +496,9 @@ export default function MobileNewReservationPage() {
                     </div>
                     <div className="text-right">
                       <div className="font-bold text-xl text-gray-900">
-                        {formatCurrency(getCourtPrice(court, selectedSport))}
+                        {formatCurrency(court.pricePerHour)}
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {court.isMultiuse && selectedSport ? `${getSportLabel(selectedSport)} - por hora` : 'por hora'}
-                      </div>
+                      <div className="text-sm text-gray-500">por hora</div>
                     </div>
                   </div>
                   
@@ -724,7 +766,7 @@ export default function MobileNewReservationPage() {
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
         reservationId={createdReservationId || ''}
-        amount={Number(totalCost || 0)}
+        amount={Number((pricing?.total ?? totalCost) || 0)}
         currency="COP"
         courtName={selectedCourt?.name || ''}
         dateLabel={selectedDate}

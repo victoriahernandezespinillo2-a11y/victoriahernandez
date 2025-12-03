@@ -90,7 +90,9 @@ const UpdateSettingsSchema = z.object({
     })).optional(),
     seasonalPricing: z.boolean().optional(),
     dynamicPricing: z.boolean().optional(),
-    membershipDiscounts: z.boolean().optional()
+    membershipDiscounts: z.boolean().optional(),
+    // ✅ CORREGIDO: Agregar cancellationHours al schema de validación
+    cancellationHours: z.number().int().min(0).max(168).optional()
   }).optional()
 });
 

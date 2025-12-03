@@ -123,8 +123,6 @@ export function useCourts() {
       lighting: Boolean((c as any).lighting ?? (c as any).hasLighting),
       lightingExtraPerHour: toNumber((c as any).lightingExtraPerHour),
       covered: Boolean((c as any).covered),
-      // CRÍTICO: Incluir precios por deporte para canchas multiuso
-      sportPricing: (c as any).sportPricing || {},
       createdAt: c.createdAt,
     };
   };

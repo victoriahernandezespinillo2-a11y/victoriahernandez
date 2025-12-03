@@ -249,6 +249,8 @@ export default function SettingsPage() {
           seasonalPricing: !!b.seasonalPricing,
           dynamicPricing: !!b.dynamicPricing,
           membershipDiscounts: !!b.membershipDiscounts,
+          // ✅ CORREGIDO: Incluir cancellationHours para que se guarde en la BD
+          cancellationHours: typeof b.cancellationHours === 'number' ? b.cancellationHours : undefined,
         };
       }
 

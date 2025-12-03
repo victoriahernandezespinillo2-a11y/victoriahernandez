@@ -21,9 +21,42 @@ const nextConfig = {
     optimizePackageImports: ['@heroicons/react', 'lucide-react'],
   },
   
+  // Configuración para evitar timeouts de chunks en desarrollo
+  onDemandEntries: {
+    // Tiempo máximo que una página puede estar inactiva antes de ser descartada
+    maxInactiveAge: 25 * 1000,
+    // Número de páginas que deben mantenerse simultáneamente sin ser descartadas
+    pagesBufferLength: 2,
+  },
+  
+  // Configuración de compilación para desarrollo
+  ...(process.env.NODE_ENV === 'development' && {
+    // Deshabilitar la optimización de imágenes en desarrollo para mejorar velocidad
+    images: {
+      unoptimized: false,
+    },
+  }),
+  
   // Configuración de webpack para manejo robusto de chunks
   webpack: (config, { dev, isServer }) => {
-    // Configuración enterprise para chunks
+    // Configuración para desarrollo: mejorar la carga de chunks
+    if (dev && !isServer) {
+      // Aumentar el timeout para la carga de chunks en desarrollo
+      config.resolve = {
+        ...config.resolve,
+        symlinks: false,
+      };
+      
+      // Configuración para mejorar la estabilidad de chunks en desarrollo
+      config.optimization = {
+        ...config.optimization,
+        removeAvailableModules: false,
+        removeEmptyChunks: false,
+        splitChunks: false, // Deshabilitar code splitting en desarrollo para evitar problemas
+      };
+    }
+    
+    // Configuración enterprise para chunks en producción
     if (!dev && !isServer) {
       config.optimization = {
         ...config.optimization,

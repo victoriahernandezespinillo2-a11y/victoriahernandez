@@ -20,7 +20,7 @@ import {
 
 const GetAdminReservationsSchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
-  limit: z.coerce.number().int().min(1).max(500).optional().default(50),
+  limit: z.coerce.number().int().min(1).max(2000).optional().default(50),
   status: z.enum(['PENDING','PAID','IN_PROGRESS','COMPLETED','CANCELLED','NO_SHOW']).optional(),
   userId: z.string().optional(),
   courtId: z.string().optional(),
@@ -127,20 +127,8 @@ export async function GET(request: NextRequest) {
 
       console.log('Admin reservations query results:', { itemsCount: items.length, total });
 
-      // Detectar reembolsos recientes por reservationId a partir de outbox
-      const idsSet = new Set(items.map((r: any) => r.id));
-      const refundedEvents = await db.outboxEvent.findMany({
-        where: { eventType: 'RESERVATION_REFUNDED' },
-        select: { eventData: true },
-        orderBy: { createdAt: 'desc' },
-      }).catch(() => []);
-      const refundedIds = new Set<string>();
-      for (const ev of refundedEvents as any[]) {
-        const rid = ev?.eventData?.reservationId as string | undefined;
-        if (rid && idsSet.has(rid)) refundedIds.add(rid);
-      }
-
       // Detectar overrides de precio (tomar el más reciente por reserva)
+      const idsSet = new Set(items.map((r: any) => r.id));
       const overrideEvents = await db.outboxEvent.findMany({
         where: { eventType: 'PRICE_OVERRIDE' },
         select: { eventData: true, createdAt: true },
@@ -156,52 +144,52 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Detectar si existe un pago registrado (PAYMENT_RECORDED o RESERVATION_PAID)
-      const paymentEvents = await db.outboxEvent.findMany({
-        where: {
-          eventType: { in: ['PAYMENT_RECORDED','RESERVATION_PAID'] },
-        },
-        select: { eventData: true, createdAt: true },
-        orderBy: { createdAt: 'desc' },
-      }).catch(() => [] as any[]);
-      const hasPaymentMap = new Set<string>();
-      for (const ev of paymentEvents as any[]) {
-        const rid = ev?.eventData?.reservationId as string | undefined;
-        if (rid && idsSet.has(rid)) hasPaymentMap.add(rid);
-      }
-
-      const mapped = items.map((r: any) => ({
-        id: r.id,
-        userId: r.userId,
-        userName: r.user?.name || 'Usuario',
-        userEmail: r.user?.email || '',
-        courtId: r.courtId,
-        courtName: r.court?.name || '',
-        centerName: r.court?.center?.name || '',
-        date: r.startTime.toISOString().split('T')[0],
-        startTime: new Date(r.startTime).toLocaleTimeString('es-ES', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          timeZone: 'Europe/Madrid'
-        }),
-        endTime: new Date(r.endTime).toLocaleTimeString('es-ES', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          timeZone: 'Europe/Madrid'
-        }),
-        duration: Math.max(0, Math.round((r.endTime.getTime() - r.startTime.getTime()) / (60 * 60 * 1000))),
-        totalAmount: Number(r.totalPrice || 0),
-        status: r.status as any,
-        paymentStatus: refundedIds.has(r.id)
-          ? 'REFUNDED'
-          : (r.status === 'PAID' || hasPaymentMap.has(r.id) ? 'PAID' : 'PENDING'),
-        paymentMethod: (r as any).paymentMethod || null,
-        promoCode: (r as any).promoCode || null,
-        promoDiscount: (r as any).promoDiscount || null,
-        override: overrideMap.get(r.id) || null,
-        notes: r.notes || undefined,
-        createdAt: r.createdAt,
-      }));
+      const mapped = items.map((r: any) => {
+        // ✅ CORREGIDO: Usar directamente el campo paymentStatus de la reserva
+        // Si no existe, inferirlo del estado de la reserva como fallback
+        let paymentStatus: 'PENDING' | 'PAID' | 'REFUNDED' = 'PENDING';
+        
+        // Prioridad 1: Usar el campo paymentStatus directamente de la BD
+        if ((r as any).paymentStatus) {
+          paymentStatus = (r as any).paymentStatus as 'PENDING' | 'PAID' | 'REFUNDED';
+        } 
+        // Prioridad 2: Si el status es PAID, asumir que está pagado
+        else if (r.status === 'PAID') {
+          paymentStatus = 'PAID';
+        }
+        // Prioridad 3: Por defecto PENDING
+        
+        return {
+          id: r.id,
+          userId: r.userId,
+          userName: r.user?.name || 'Usuario',
+          userEmail: r.user?.email || '',
+          courtId: r.courtId,
+          courtName: r.court?.name || '',
+          centerName: r.court?.center?.name || '',
+          date: r.startTime.toISOString().split('T')[0],
+          startTime: new Date(r.startTime).toLocaleTimeString('es-ES', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            timeZone: 'Europe/Madrid'
+          }),
+          endTime: new Date(r.endTime).toLocaleTimeString('es-ES', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            timeZone: 'Europe/Madrid'
+          }),
+          duration: Math.max(0, Math.round((r.endTime.getTime() - r.startTime.getTime()) / (60 * 60 * 1000))),
+          totalAmount: Number(r.totalPrice || 0),
+          status: r.status as any,
+          paymentStatus: paymentStatus,
+          paymentMethod: (r as any).paymentMethod || null,
+          promoCode: (r as any).promoCode || null,
+          promoDiscount: (r as any).promoDiscount || null,
+          override: overrideMap.get(r.id) || null,
+          notes: r.notes || undefined,
+          createdAt: r.createdAt,
+        };
+      });
 
       return ApiResponse.success({
         data: mapped,

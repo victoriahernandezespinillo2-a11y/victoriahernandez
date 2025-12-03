@@ -78,7 +78,8 @@ export default function ReservationsPage() {
   const { reservations, loading, error, updateReservation, cancelReservation, getReservations } = useAdminReservations();
   const { showToast } = useToast();
   useEffect(() => {
-    getReservations({ page: 1, limit: 200 }).catch(() => {});
+    // ✅ Aumentado el límite para incluir todas las reservas (incluyendo reembolsadas)
+    getReservations({ page: 1, limit: 1000 }).catch(() => {});
   }, [getReservations]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ACTIVE'); // Filtrar reservas activas por defecto
@@ -223,8 +224,11 @@ export default function ReservationsPage() {
       (reservation.courtName as string)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (reservation.centerName as string)?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = statusFilter === 'ALL' || 
-      (statusFilter === 'ACTIVE' ? !['CANCELLED', 'NO_SHOW'].includes(reservation.status as string) : reservation.status === statusFilter);
+    // ✅ CORREGIDO: Si se filtra por REFUNDED, permitir también reservas canceladas
+    // Las reservas reembolsadas suelen estar canceladas
+    const effectiveStatusFilter = paymentFilter === 'REFUNDED' ? 'ALL' : statusFilter;
+    const matchesStatus = effectiveStatusFilter === 'ALL' || 
+      (effectiveStatusFilter === 'ACTIVE' ? !['CANCELLED', 'NO_SHOW'].includes(reservation.status as string) : reservation.status === effectiveStatusFilter);
     const matchesPayment = paymentFilter === 'ALL' || reservation.paymentStatus === paymentFilter;
     const normalizedMethod = normalizeMethod((reservation as any).paymentMethod as string);
     const matchesPaymentMethod = paymentMethodFilter === 'ALL' || normalizedMethod === paymentMethodFilter;
@@ -327,11 +331,15 @@ export default function ReservationsPage() {
   };
 
   // Calcular estadísticas
-  const totalRevenue = filteredReservations
-    .filter((r: any) => r.paymentStatus === 'PAID')
-    .reduce((sum, r: any) => sum + (r.totalAmount as number), 0);
+  // ✅ CORREGIDO: Ingresos totales = PAID - REFUNDED (neto)
+  const paidReservations = filteredReservations.filter((r: any) => r.paymentStatus === 'PAID');
+  const refundedReservations = filteredReservations.filter((r: any) => r.paymentStatus === 'REFUNDED');
+  const totalRevenue = paidReservations.reduce((sum, r: any) => sum + (r.totalAmount as number), 0);
+  const totalRefunded = refundedReservations.reduce((sum, r: any) => sum + (r.totalAmount as number), 0);
+  const netRevenue = totalRevenue - totalRefunded;
   
   const todayReservations = filteredReservations.filter((r: any) => r.date === new Date().toISOString().split('T')[0]);
+  const confirmedReservations = filteredReservations.filter((r: any) => r.status === 'PAID' && r.paymentStatus === 'PAID');
 
   return (
     <div className="space-y-6">
@@ -390,7 +398,12 @@ export default function ReservationsPage() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Ingresos Totales</p>
-              <p className="text-2xl font-semibold text-gray-900">€{totalRevenue.toFixed(2)}</p>
+              <p className="text-2xl font-semibold text-gray-900">€{netRevenue.toFixed(2)}</p>
+              {totalRefunded > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Bruto: €{totalRevenue.toFixed(2)} | Reembolsos: -€{totalRefunded.toFixed(2)}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -401,9 +414,12 @@ export default function ReservationsPage() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Confirmadas</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {filteredReservations.filter(r => r.status === 'PAID').length}
-              </p>
+              <p className="text-2xl font-semibold text-gray-900">{confirmedReservations.length}</p>
+              {refundedReservations.length > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Reembolsadas: {refundedReservations.length}
+                </p>
+              )}
             </div>
           </div>
         </div>

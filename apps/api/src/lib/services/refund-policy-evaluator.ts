@@ -33,8 +33,11 @@ export function evaluateAutoCreditRefund(input: RefundEvaluationInput): RefundEv
       deadlineHours = numberOrFallback(paymentsCfg.refundDeadlineHours, numberOrFallback(businessCfg.cancellationHours, 24));
       break;
     case 'moderate':
-      // Usa refundDeadlineHours si está definido, si no 48h
-      deadlineHours = numberOrFallback(paymentsCfg.refundDeadlineHours, 48);
+      // ✅ CORREGIDO: Usa refundDeadlineHours si está definido, si no cancellationHours, si no 48h
+      deadlineHours = numberOrFallback(
+        paymentsCfg.refundDeadlineHours, 
+        numberOrFallback(businessCfg.cancellationHours, 48)
+      );
       break;
     case 'strict':
       deadlineHours = 0; // Nunca reembolsa automáticamente

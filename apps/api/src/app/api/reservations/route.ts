@@ -324,14 +324,29 @@ export async function POST(request: NextRequest) {
 
         await tx.outboxEvent.create({
           data: {
-            type: 'reservation_paid',
-            payload: {
+            eventType: 'CREDITS_DEBITED',
+            eventData: {
+              reservationId: reservation.id,
+              userId: finalUserId,
+              amountEuro: amount,
+              credits: creditsNeeded,
+              euroPerCredit,
+              paymentMethod: 'CREDITS'
+            } as any,
+          }
+        });
+        
+        // También crear evento de pago completado
+        await tx.outboxEvent.create({
+          data: {
+            eventType: 'RESERVATION_PAID',
+            eventData: {
               reservationId: reservation.id,
               userId: finalUserId,
               amount,
               creditsUsed: creditsNeeded,
               paymentMethod: 'CREDITS'
-            },
+            } as any,
           }
         });
       });

@@ -730,6 +730,38 @@ export class ReservationPaymentService {
           }
         });
 
+        // Emitir evento de créditos reintegrados
+        await tx.outboxEvent.create({
+          data: {
+            eventType: 'CREDITS_REFUNDED',
+            eventData: {
+              reservationId: params.reservationId,
+              userId: reservation.userId,
+              credits: refundAmount,
+              creditsRefunded: refundAmount,
+              amount: refundAmount,
+              amountEuro: refundAmount,
+              reason: params.reason,
+              adminUserId: params.adminUserId,
+            } as any,
+          }
+        });
+        
+        // Emitir evento de reembolso de reserva
+        await tx.outboxEvent.create({
+          data: {
+            eventType: 'RESERVATION_REFUNDED',
+            eventData: {
+              reservationId: params.reservationId,
+              amount: refundAmount,
+              creditsRefunded: refundAmount,
+              reason: params.reason,
+              method: 'CREDITS',
+              adminUserId: params.adminUserId,
+            } as any,
+          }
+        });
+
         // Registrar en ledger
         try {
           await ledgerService.recordRefund({

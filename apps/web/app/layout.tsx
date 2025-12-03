@@ -80,7 +80,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
         
-        {/* Script de manejo de errores de chunks */}
+        {/* Script de manejo de errores de chunks - Enterprise Solution */}
         <Script
           id="chunk-error-handler"
           strategy="beforeInteractive"
@@ -90,48 +90,90 @@ export default function RootLayout({
               (function() {
                 let retryCount = 0;
                 const maxRetries = 3;
+                let isHandling = false;
                 
                 function isChunkError(error) {
-                  return error && (
-                    error.name === 'ChunkLoadError' ||
-                    error.message?.includes('Loading chunk') ||
-                    error.message?.includes('timeout')
-                  );
+                  if (!error) return false;
+                  return error.name === 'ChunkLoadError' ||
+                         error.message?.includes('Loading chunk') ||
+                         error.message?.includes('timeout') ||
+                         error.message?.includes('Failed to fetch');
+                }
+                
+                function isChunkScriptError(event) {
+                  // Detectar errores en scripts de chunks
+                  if (event.target && event.target.tagName === 'SCRIPT') {
+                    const src = event.target.src || event.target.getAttribute('src');
+                    if (src && (src.includes('/_next/static/chunks/') || src.includes('/_next/static/'))) {
+                      return true;
+                    }
+                  }
+                  return false;
+                }
+                
+                async function clearCaches() {
+                  if ('caches' in window) {
+                    try {
+                      const cacheNames = await caches.keys();
+                      await Promise.all(
+                        cacheNames
+                          .filter(name => name.includes('next-') || name.includes('chunks') || name.includes('static'))
+                          .map(name => caches.delete(name).catch(() => {}))
+                      );
+                    } catch (e) {
+                      console.warn('⚠️ Error al limpiar cachés:', e);
+                    }
+                  }
+                  
+                  // Limpiar sessionStorage y localStorage de Next.js
+                  try {
+                    Object.keys(sessionStorage).forEach(key => {
+                      if (key.startsWith('next-') || key.includes('chunk')) {
+                        sessionStorage.removeItem(key);
+                      }
+                    });
+                  } catch (e) {
+                    // Ignorar errores de sessionStorage
+                  }
                 }
                 
                 function handleChunkError() {
+                  if (isHandling) return;
+                  
                   if (retryCount >= maxRetries) {
-                    console.error('🚨 Máximo de reintentos alcanzado para chunk error');
+                    console.error('🚨 [CHUNK-ERROR-HANDLER] Máximo de reintentos alcanzado');
+                    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;font-family:system-ui"><h1 style="color:#dc2626;margin-bottom:1rem">Error al cargar la aplicación</h1><p style="color:#6b7280;margin-bottom:2rem">Por favor, recarga la página manualmente (Ctrl+F5 o Cmd+Shift+R)</p><button onclick="window.location.reload()" style="padding:0.75rem 1.5rem;background:#2563eb;color:white;border:none;border-radius:0.5rem;cursor:pointer">Recargar página</button></div>';
                     return;
                   }
                   
+                  isHandling = true;
                   retryCount++;
-                  console.log('🔄 Reintentando carga de chunk (intento ' + retryCount + '/' + maxRetries + ')');
+                  const delay = 1000 * Math.pow(2, retryCount - 1); // Backoff exponencial
+                  console.log('🔄 [CHUNK-ERROR-HANDLER] Reintentando carga (intento ' + retryCount + '/' + maxRetries + ') - Delay: ' + delay + 'ms');
                   
-                  // Limpiar cache y recargar
-                  if ('caches' in window) {
-                    caches.keys().then(function(cacheNames) {
-                      cacheNames.forEach(function(cacheName) {
-                        if (cacheName.includes('next-') || cacheName.includes('chunks')) {
-                          caches.delete(cacheName);
-                        }
-                      });
-                    });
-                  }
-                  
-                  setTimeout(function() {
-                    window.location.reload();
-                  }, 2000 * Math.pow(2, retryCount - 1));
+                  clearCaches().then(function() {
+                    setTimeout(function() {
+                      window.location.reload();
+                    }, delay);
+                  }).catch(function() {
+                    setTimeout(function() {
+                      window.location.reload();
+                    }, delay);
+                  });
                 }
                 
+                // Escuchar errores de JavaScript
                 window.addEventListener('error', function(event) {
-                  if (isChunkError(event.error)) {
+                  if (isChunkError(event.error) || isChunkScriptError(event)) {
+                    event.preventDefault();
                     handleChunkError();
                   }
-                });
+                }, true); // Usar capture phase para interceptar antes
                 
+                // Escuchar promesas rechazadas
                 window.addEventListener('unhandledrejection', function(event) {
                   if (isChunkError(event.reason)) {
+                    event.preventDefault();
                     handleChunkError();
                   }
                 });

@@ -126,6 +126,24 @@ export async function processReservationAutoRefund(reservationId: string, cancel
         }
       });
 
+      // Emitir evento de créditos reintegrados
+      await tx.outboxEvent.create({
+        data: {
+          eventType: 'CREDITS_REFUNDED',
+          eventData: {
+            reservationId,
+            userId: (reservation as any).userId,
+            credits: creditsToRefund,
+            creditsRefunded: creditsToRefund,
+            amount: amountEuro,
+            amountEuro: amountEuro,
+            euroPerCredit,
+            reason: 'AUTO_REFUND',
+            policy: evaluation.policyUsed,
+          } as any,
+        }
+      });
+      
       // Emitir outbox para que el front marque como reembolsada
       await tx.outboxEvent.create({
         data: {
@@ -136,6 +154,7 @@ export async function processReservationAutoRefund(reservationId: string, cancel
             amount: amountEuro,
             reason: 'AUTO_REFUND',
             creditsRefunded: creditsToRefund,
+            method: 'CREDITS',
           } as any,
         }
       });
