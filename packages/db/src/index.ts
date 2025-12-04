@@ -72,11 +72,35 @@ export const db = globalForPrisma.prisma ??
         console.log(`🔗 [DB] Usando: ${databaseUrl.replace(/:[^:@]*@/, ':***@').substring(0, 80)}...`);
       }
 
-      // Crear cliente Prisma con configuración simple
+      // En producción con poolers (Supabase, Neon, etc.), agregar pgbouncer=true
+      // para prevenir conflictos de prepared statements
+      let finalDatabaseUrl = databaseUrl;
+      if (isProduction) {
+        try {
+          const url = new URL(databaseUrl);
+          // Detectar si es un pooler (puerto 6543 en Supabase, o contiene "pooler" en el host)
+          const isPooler = url.port === '6543' || 
+                          url.hostname.includes('pooler') || 
+                          url.hostname.includes('pool');
+          
+          if (isPooler && !url.searchParams.has('pgbouncer')) {
+            url.searchParams.set('pgbouncer', 'true');
+            finalDatabaseUrl = url.toString();
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('🔧 [DB] Agregado pgbouncer=true para prevenir conflictos de prepared statements');
+            }
+          }
+        } catch (e) {
+          // Si no se puede parsear la URL, usar la original
+          console.warn('⚠️ [DB] No se pudo agregar parámetro pgbouncer, usando URL original');
+        }
+      }
+
+      // Crear cliente Prisma con configuración optimizada
       const client = new PrismaClient({
         datasources: {
           db: {
-            url: databaseUrl,
+            url: finalDatabaseUrl,
           },
         },
         log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
@@ -86,17 +110,17 @@ export const db = globalForPrisma.prisma ??
       // ✅ CORREGIDO: Prisma no soporta el evento 'error' en $on
       // Los errores se manejan automáticamente a través de try/catch en las operaciones
 
-      // En desarrollo, cachear la instancia
-      if (process.env.NODE_ENV !== 'production') {
-        // Si ya existe una instancia anterior, desconectarla
-        const oldPrisma = globalForPrisma.prisma as PrismaClient | undefined;
-        if (oldPrisma) {
-          oldPrisma.$disconnect().catch(() => {
-            // Ignorar errores al desconectar
-          });
-        }
-        globalForPrisma.prisma = client;
+      // Cachear la instancia tanto en desarrollo como en producción (singleton)
+      // En Vercel/serverless, globalThis persiste entre invocaciones dentro del mismo contenedor
+      // Esto previene múltiples instancias que causan conflictos de prepared statements
+      const oldPrisma = globalForPrisma.prisma as PrismaClient | undefined;
+      if (oldPrisma) {
+        // Si ya existe una instancia anterior, desconectarla antes de crear una nueva
+        oldPrisma.$disconnect().catch(() => {
+          // Ignorar errores al desconectar
+        });
       }
+      globalForPrisma.prisma = client;
       
       return client;
     } catch (e) {
