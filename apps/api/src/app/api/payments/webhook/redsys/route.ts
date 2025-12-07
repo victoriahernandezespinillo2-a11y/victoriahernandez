@@ -329,35 +329,60 @@ export async function POST(request: NextRequest) {
         if (merchantData?.type === 'reservation' && merchantData?.reservationId) {
           if (result.success) {
             try {
-              // 1) Marcar como pagada (idempotente) y actualizar estado operativo
+              // Obtener la reserva para obtener el monto y el userId
+              const res = await db.reservation.findUnique({ 
+                where: { id: merchantData.reservationId },
+                select: { id: true, totalPrice: true, userId: true }
+              });
+              
+              if (!res) {
+                console.warn('Reserva no encontrada para conciliación:', merchantData.reservationId);
+                return NextResponse.json({ error: 'Reserva no encontrada' }, { status: 404 });
+              }
+
+              const amount = Number(res.totalPrice || 0);
+
+              // 1) Marcar como pagada (idempotente) y actualizar estado operativo y método de pago
               await db.reservation.update({ 
                 where: { id: merchantData.reservationId }, 
                 data: { 
                   paymentStatus: 'PAID' as any, 
                   status: 'PAID' as any,  // Actualizar estado operativo
+                  paymentMethod: 'CARD' as any,  // Actualizar método de pago a CARD (Redsys = tarjeta)
                   paidAt: new Date() 
                 } 
               });
+              
               // Registrar asiento en Ledger (idempotente)
               try {
-                const res = await db.reservation.findUnique({ where: { id: merchantData.reservationId } });
-                if (res) {
-                  await ledgerService.recordPayment({
-                    paymentStatus: 'PAID',
-                    sourceType: 'RESERVATION',
-                    sourceId: res.id,
-                    direction: 'CREDIT',
-                    amountEuro: Number(res.totalPrice || 0),
-                    currency: 'EUR',
-                    method: 'CARD',
-                    paidAt: new Date(),
-                    idempotencyKey: `REDSYS:RES:${res.id}:${dsOrder || ''}:${dsAuth || ''}`,
-                    gatewayRef: [dsOrder, dsAuth].filter(Boolean).join(':') || undefined,
-                    metadata: { provider: 'REDSYS' }
-                  });
-                }
+                await ledgerService.recordPayment({
+                  paymentStatus: 'PAID',
+                  sourceType: 'RESERVATION',
+                  sourceId: res.id,
+                  direction: 'CREDIT',
+                  amountEuro: amount,
+                  currency: 'EUR',
+                  method: 'CARD',
+                  paidAt: new Date(),
+                  idempotencyKey: `REDSYS:RES:${res.id}:${dsOrder || ''}:${dsAuth || ''}`,
+                  gatewayRef: [dsOrder, dsAuth].filter(Boolean).join(':') || undefined,
+                  metadata: { provider: 'REDSYS' }
+                });
               } catch (e) { console.warn('Ledger recordPayment failed (REDSYS RESERVATION):', e); }
-              await db.outboxEvent.create({ data: { eventType: 'RESERVATION_PAID', eventData: { reservationId: merchantData.reservationId, provider: 'REDSYS' } as any } });
+              
+              // Crear evento de auditoría con información completa
+              await db.outboxEvent.create({ 
+                data: { 
+                  eventType: 'RESERVATION_PAID', 
+                  eventData: { 
+                    reservationId: merchantData.reservationId,
+                    userId: res.userId,
+                    paymentMethod: 'CARD',
+                    amount: amount,
+                    provider: 'REDSYS'
+                  } as any 
+                } 
+              });
 
               // 2) Enviar email con links a recibo y pase (idempotente por outbox)
               const alreadySent = await db.outboxEvent.findFirst({

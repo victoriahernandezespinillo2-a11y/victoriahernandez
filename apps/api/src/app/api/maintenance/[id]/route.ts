@@ -111,6 +111,17 @@ export async function DELETE(
         return ApiResponse.badRequest('ID de mantenimiento requerido');
       }
       
+      // Detectar si es la ruta especial occurrences:delete y delegar al handler correcto
+      if (id === 'occurrences:delete') {
+        const body = await req.json();
+        const ids: string[] = Array.isArray(body?.ids) ? body.ids : [];
+        const includeStates = Array.isArray(body?.includeStates) ? body.includeStates : undefined;
+        const dryRunBody = Boolean(body?.dryRun);
+        const reasonBody = typeof body?.reason === 'string' ? body.reason : undefined;
+        const result = await maintenanceService.deleteOccurrencesByIds(ids, { includeStates: includeStates as any, dryRun: dryRunBody, reason: reasonBody });
+        return ApiResponse.success(result);
+      }
+      
       console.log(`🗑️ [MAINTENANCE] Eliminación individual ${id} dryRun=${dryRun} por admin ${user.email}`);
 
       if (dryRun) {
