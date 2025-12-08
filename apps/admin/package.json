@@ -21,7 +21,7 @@
     "@repo/db": "workspace:*",
     "@repo/ui": "workspace:*",
     "lucide-react": "^0.294.0",
-    "next": "15.4.7",
+    "next": "15.4.8",
     "next-auth": "5.0.0-beta.29",
     "qr-scanner": "^1.4.2",
     "react": "^18.3.1",
