@@ -12,16 +12,16 @@ import { reservationService } from '@/lib/services/reservation.service';
 import { ReservationReminderService } from '@/lib/services/reservation-reminder.service';
 import { reservationNotificationService } from '@/lib/services/reservation-notification.service';
 import { AutoCompleteService } from '@/lib/services/auto-complete.service';
-import { 
-  AdminPaymentMethodSchema, 
+import {
+  AdminPaymentMethodSchema,
   PricingOverrideSchema,
-  validatePriceOverride 
+  validatePriceOverride
 } from '@/lib/validators/reservation.validator';
 
 const GetAdminReservationsSchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(2000).optional().default(50),
-  status: z.enum(['PENDING','PAID','IN_PROGRESS','COMPLETED','CANCELLED','NO_SHOW']).optional(),
+  status: z.enum(['PENDING', 'PAID', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW']).optional(),
   userId: z.string().optional(),
   courtId: z.string().optional(),
   courtName: z.string().optional(),
@@ -29,10 +29,10 @@ const GetAdminReservationsSchema = z.object({
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
   search: z.string().optional(),
-  sortBy: z.enum(['createdAt','startTime','endTime','status','paidAt']).optional().default('createdAt'),
-  sortOrder: z.enum(['asc','desc']).optional().default('desc'),
+  sortBy: z.enum(['createdAt', 'startTime', 'endTime', 'status', 'paidAt']).optional().default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
   // Campo de fecha a considerar para el filtrado temporal. Por defecto startTime para coherencia con los reportes
-  dateField: z.enum(['startTime','createdAt','paidAt']).optional().default('startTime'),
+  dateField: z.enum(['startTime', 'createdAt', 'paidAt']).optional().default('startTime'),
 });
 
 export async function GET(request: NextRequest) {
@@ -44,10 +44,10 @@ export async function GET(request: NextRequest) {
         const graceMin = Math.max(0, Number(process.env.NO_SHOW_GRACE_MINUTES || '5'));
         const cutoff = new Date(now.getTime() - graceMin * 60000);
         await db.reservation.updateMany({
-          where: { endTime: { lt: cutoff }, checkInTime: null, status: { in: ['PENDING','PAID'] as any } },
+          where: { endTime: { lt: cutoff }, checkInTime: null, status: { in: ['PENDING', 'PAID'] as any } },
           data: { status: 'NO_SHOW' as any },
         });
-      } catch {}
+      } catch { }
 
       // ✅ AUTO-COMPLETAR: Marcar como COMPLETED las reservas que ya terminaron
       try {
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
       const { searchParams } = req.nextUrl;
       console.log('Admin reservations request params:', Object.fromEntries(searchParams.entries()));
-      
+
       let params;
       try {
         params = GetAdminReservationsSchema.parse(Object.fromEntries(searchParams.entries()));
@@ -148,17 +148,17 @@ export async function GET(request: NextRequest) {
         // ✅ CORREGIDO: Usar directamente el campo paymentStatus de la reserva
         // Si no existe, inferirlo del estado de la reserva como fallback
         let paymentStatus: 'PENDING' | 'PAID' | 'REFUNDED' = 'PENDING';
-        
+
         // Prioridad 1: Usar el campo paymentStatus directamente de la BD
         if ((r as any).paymentStatus) {
           paymentStatus = (r as any).paymentStatus as 'PENDING' | 'PAID' | 'REFUNDED';
-        } 
+        }
         // Prioridad 2: Si el status es PAID, asumir que está pagado
         else if (r.status === 'PAID') {
           paymentStatus = 'PAID';
         }
         // Prioridad 3: Por defecto PENDING
-        
+
         return {
           id: r.id,
           userId: r.userId,
@@ -168,13 +168,13 @@ export async function GET(request: NextRequest) {
           courtName: r.court?.name || '',
           centerName: r.court?.center?.name || '',
           date: r.startTime.toISOString().split('T')[0],
-          startTime: new Date(r.startTime).toLocaleTimeString('es-ES', { 
-            hour: '2-digit', 
+          startTime: new Date(r.startTime).toLocaleTimeString('es-ES', {
+            hour: '2-digit',
             minute: '2-digit',
             timeZone: 'Europe/Madrid'
           }),
-          endTime: new Date(r.endTime).toLocaleTimeString('es-ES', { 
-            hour: '2-digit', 
+          endTime: new Date(r.endTime).toLocaleTimeString('es-ES', {
+            hour: '2-digit',
             minute: '2-digit',
             timeZone: 'Europe/Madrid'
           }),
@@ -207,10 +207,10 @@ export async function GET(request: NextRequest) {
           error.errors.map((err) => ({ field: err.path.join('.'), message: err.message }))
         );
       }
-      
+
       console.error('Error in admin reservations GET:', error);
       console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-      
+
       // Proporcionar más información del error
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
       return ApiResponse.internalError(`Error interno del servidor: ${errorMessage}`);
@@ -286,11 +286,11 @@ export async function POST(request: NextRequest) {
             try {
               const { NotificationService } = await import('@repo/notifications');
               const notificationService = new NotificationService();
-              
+
               await notificationService.sendEmailTemplate('welcome', created.email, {
                 name: created.name || created.email?.split('@')[0] || 'Usuario'
               });
-              
+
               console.log(`Correo de bienvenida enviado a usuario creado por admin: ${created.email}`);
             } catch (emailError) {
               console.error('Error enviando correo de bienvenida:', emailError);
@@ -310,6 +310,7 @@ export async function POST(request: NextRequest) {
         duration: input.duration,
         isRecurring: false, // Las reservas manuales de admin no son recurrentes
         notes: input.notes,
+        isAdminReservation: true, // 🔧 FIX Issue #5: Bypass límite de días para admin
         // paymentMethod se omite intencionalmente - se procesa en el paso 3
       });
 
@@ -317,10 +318,10 @@ export async function POST(request: NextRequest) {
       if (input.pricingOverride) {
         const oldTotal = Number(reservation.totalPrice || 0);
         const delta = input.pricingOverride.amount;
-        
+
         // Validación robusta usando función centralizada
         const validation = validatePriceOverride(delta, oldTotal);
-        
+
         if (!validation.isValid) {
           console.error('[PRICE_OVERRIDE] Validación fallida:', {
             reservationId: reservation.id,
@@ -331,7 +332,7 @@ export async function POST(request: NextRequest) {
           });
           return ApiResponse.forbidden(validation.error || 'Override supera el límite permitido');
         }
-        
+
         // Logging detallado para auditoría
         console.log('[PRICE_OVERRIDE] Aplicando override:', {
           reservationId: reservation.id,
@@ -342,25 +343,25 @@ export async function POST(request: NextRequest) {
           percentageApplied: validation.details?.percentageApplied,
           timestamp: new Date().toISOString()
         });
-        
+
         reservation = await db.reservation.update({
           where: { id: reservation.id },
           data: { totalPrice: oldTotal + delta },
         });
-        
+
         // Registrar evento de auditoría con detalles completos
         await db.outboxEvent.create({
-          data: { 
-            eventType: 'PRICE_OVERRIDE', 
-            eventData: { 
-              reservationId: reservation.id, 
-              delta, 
+          data: {
+            eventType: 'PRICE_OVERRIDE',
+            eventData: {
+              reservationId: reservation.id,
+              delta,
               reason: input.pricingOverride.reason,
               oldTotal,
               newTotal: oldTotal + delta,
               percentageApplied: validation.details?.percentageApplied,
               timestamp: new Date().toISOString()
-            } as any 
+            } as any
           },
         });
       }
@@ -519,19 +520,19 @@ export async function POST(request: NextRequest) {
       }
 
       // 4) Si el método es LINK, generar enlace de pago (Redsys redirect) y enviar por email
-  if (input.payment?.method === 'LINK') {
+      if (input.payment?.method === 'LINK') {
         const amountDue = Number(reservation.totalPrice || 0);
         // Reglas: no generar si importe 0 o estado incompatible o ya hay pago
-        const blockedStatuses = new Set(['PAID','COMPLETED','CANCELLED']);
+        const blockedStatuses = new Set(['PAID', 'COMPLETED', 'CANCELLED']);
         if (blockedStatuses.has((reservation.status as any) || '')) {
           return ApiResponse.badRequest('La reserva no admite enlace de pago en su estado actual');
         }
         if (!(amountDue > 0)) {
           return ApiResponse.badRequest('La reserva no tiene importe a cobrar');
         }
-    const existingPayment = await db.outboxEvent.findFirst({
+        const existingPayment = await db.outboxEvent.findFirst({
           where: {
-            eventType: { in: ['PAYMENT_RECORDED','RESERVATION_PAID'] },
+            eventType: { in: ['PAYMENT_RECORDED', 'RESERVATION_PAID'] },
             eventData: { path: ['reservationId'], equals: reservation.id } as any,
           },
         } as any);
@@ -542,7 +543,7 @@ export async function POST(request: NextRequest) {
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
         const redirectUrl = `${apiUrl}/api/payments/redsys/redirect?rid=${encodeURIComponent(reservation.id)}`;
-    paymentLinkUrl = redirectUrl;
+        paymentLinkUrl = redirectUrl;
         await db.outboxEvent.create({
           data: {
             eventType: 'PAYMENT_LINK_CREATED',
@@ -557,13 +558,13 @@ export async function POST(request: NextRequest) {
           },
         });
 
-    if (shouldSendEmail && paymentLinkUrl) {
-      await reservationNotificationService.sendPendingPaymentReminder(reservation.id, {
-        paymentLinkUrl,
-        expiresAt: linkExpiresAt,
-        ctaLabel: 'Completar pago',
-      });
-    }
+        if (shouldSendEmail && paymentLinkUrl) {
+          await reservationNotificationService.sendPendingPaymentReminder(reservation.id, {
+            paymentLinkUrl,
+            expiresAt: linkExpiresAt,
+            ctaLabel: 'Completar pago',
+          });
+        }
       }
 
       // 5) Notificaciones básicas (deferred via outbox)

@@ -47,7 +47,7 @@ export interface PriceCalculation {
   lighting?: {
     selected: boolean;
     extra: number;
-    policy: 'OPTIONAL_DAY' | 'INCLUDED_NIGHT' | 'UNAVAILABLE' | 'NO_SELECTION';
+    policy: 'OPTIONAL_DAY' | 'INCLUDED_NIGHT' | 'MIXED_DAY_NIGHT' | 'UNAVAILABLE' | 'NO_SELECTION';
   };
 }
 
@@ -244,6 +244,7 @@ export class PricingService {
         const userSelected = !!validatedInput.lightingSelected;
 
         // 🔍 DEBUG: Logging detallado para iluminación
+        const minutesInNight = validatedInput.duration - minutesInDay;
         console.log('🔍 [LIGHTING-DEBUG] Calculando iluminación:', {
           courtId: court.id,
           centerDayStart: dayStartStr,
@@ -257,29 +258,88 @@ export class PricingService {
           timezone: tz,
           startIsDay,
           minutesInDay,
-          minutesInNight: validatedInput.duration - minutesInDay,
+          minutesInNight,
           userSelected,
           duration: validatedInput.duration,
           lightingExtraPerHour: perHourExtra
         });
 
-        if (startIsDay) {
-          // Política: en día es opcional
-          console.log('✅ [LIGHTING-DEBUG] Entrando en rama DIURNA (iluminación opcional)');
-          const extra = userSelected ? (perHourExtra * (minutesInDay / 60)) : 0;
-          console.log('🔍 [LIGHTING-DEBUG] Cargo calculado:', { extra, userSelected, minutesInDay, perHourExtra });
-          if (extra > 0) breakdown.push({ description: `Iluminación (${(minutesInDay / 60).toFixed(2)}h × €${perHourExtra})`, amount: extra });
-          total += extra;
-          lightingInfo = { selected: userSelected, extra, policy: 'OPTIONAL_DAY' };
-        } else {
-          // Noche: obligatoria CON coste
-          console.log('🌙 [LIGHTING-DEBUG] Entrando en rama NOCTURNA (iluminación obligatoria)');
-          const extra = perHourExtra * ((validatedInput.duration - minutesInDay) / 60);
-          console.log('🔍 [LIGHTING-DEBUG] Cargo nocturno calculado:', { extra, minutesInNight: validatedInput.duration - minutesInDay, perHourExtra });
-          if (extra > 0) breakdown.push({ description: `Iluminación nocturna (${((validatedInput.duration - minutesInDay) / 60).toFixed(2)}h × €${perHourExtra})`, amount: extra });
-          total += extra;
-          lightingInfo = { selected: true, extra, policy: 'INCLUDED_NIGHT' };
+        // ======================================================================
+        // 🔧 FIX Issue #4: Cobro correcto de iluminación día/noche
+        // 
+        // Lógica:
+        // - Porción DIURNA: Solo se cobra si el usuario selecciona luz (opcional)
+        // - Porción NOCTURNA: SIEMPRE se cobra (obligatoria)
+        //
+        // Esto permite que reservas que cruzan de día a noche cobren correctamente:
+        // Ej: 17:00-19:00 con nightStart=18:00
+        //   - 17:00-18:00 (1h día): opcional, según userSelected
+        //   - 18:00-19:00 (1h noche): obligatoria, siempre se cobra
+        // ======================================================================
+
+        let dayLightingCost = 0;
+        let nightLightingCost = 0;
+
+        // Calcular cargo por iluminación diurna (opcional)
+        if (minutesInDay > 0 && userSelected) {
+          dayLightingCost = perHourExtra * (minutesInDay / 60);
+          console.log('☀️ [LIGHTING] Cargo diurno (usuario seleccionó luz):', {
+            minutesInDay,
+            dayLightingCost
+          });
         }
+
+        // Calcular cargo por iluminación nocturna (obligatoria)
+        if (minutesInNight > 0) {
+          nightLightingCost = perHourExtra * (minutesInNight / 60);
+          console.log('🌙 [LIGHTING] Cargo nocturno (obligatorio):', {
+            minutesInNight,
+            nightLightingCost
+          });
+        }
+
+        const totalLightingCost = dayLightingCost + nightLightingCost;
+
+        // Agregar al breakdown con descripciones claras
+        if (dayLightingCost > 0) {
+          breakdown.push({
+            description: `Iluminación diurna (${(minutesInDay / 60).toFixed(2)}h × €${perHourExtra})`,
+            amount: dayLightingCost
+          });
+        }
+        if (nightLightingCost > 0) {
+          breakdown.push({
+            description: `Iluminación nocturna (${(minutesInNight / 60).toFixed(2)}h × €${perHourExtra})`,
+            amount: nightLightingCost
+          });
+        }
+
+        total += totalLightingCost;
+
+        // Determinar política basada en la composición de la reserva
+        let policy: 'OPTIONAL_DAY' | 'INCLUDED_NIGHT' | 'MIXED_DAY_NIGHT' = 'OPTIONAL_DAY';
+        if (minutesInNight > 0 && minutesInDay > 0) {
+          policy = 'MIXED_DAY_NIGHT';
+        } else if (minutesInNight > 0) {
+          policy = 'INCLUDED_NIGHT';
+        }
+
+        // La luz se considera "seleccionada" si hay cualquier cargo de iluminación
+        const lightingIsActive = totalLightingCost > 0;
+
+        lightingInfo = {
+          selected: lightingIsActive,
+          extra: totalLightingCost,
+          policy
+        };
+
+        console.log('✅ [LIGHTING] Resultado final:', {
+          dayLightingCost,
+          nightLightingCost,
+          totalLightingCost,
+          policy,
+          lightingIsActive
+        });
       } else {
         lightingInfo = { selected: false, extra: 0, policy: 'UNAVAILABLE' };
       }

@@ -8,6 +8,7 @@ import { withAdminReservationsMiddleware, ApiResponse } from '@/lib/middleware';
 import { db } from '@repo/db';
 import { z } from 'zod';
 import { reservationNotificationService } from '@/lib/services/reservation-notification.service';
+import { getCreditSystemService } from '@/lib/services/credit-system.service';
 
 const UpdatePaymentSchema = z.object({
   paymentMethod: z.enum(['CASH', 'CARD', 'TRANSFER', 'ONSITE', 'CREDITS', 'BIZUM']),
@@ -28,11 +29,12 @@ export async function PUT(request: NextRequest) {
       // Verificar que la reserva existe
       const existingReservation = await db.reservation.findUnique({
         where: { id },
-        select: { 
-          id: true, 
-          status: true, 
+        select: {
+          id: true,
+          status: true,
           totalPrice: true,
           paymentMethod: true,
+          paymentStatus: true,
           userId: true
         }
       });
@@ -46,16 +48,58 @@ export async function PUT(request: NextRequest) {
         return ApiResponse.badRequest('El monto no coincide con el total de la reserva');
       }
 
+      const amount = Number(existingReservation.totalPrice);
+
+      // 🔧 FIX: Si el método de pago es CREDITS, deducir del balance del usuario
+      if (data.paymentMethod === 'CREDITS') {
+        console.log('💳 [ADMIN-PAYMENT] Procesando pago con créditos:', {
+          reservationId: id,
+          userId: existingReservation.userId,
+          amount
+        });
+
+        const creditService = getCreditSystemService();
+
+        // Verificar saldo suficiente
+        const canAfford = await creditService.canAfford(existingReservation.userId, amount);
+        if (!canAfford) {
+          console.warn('❌ [ADMIN-PAYMENT] Usuario sin créditos suficientes:', {
+            userId: existingReservation.userId,
+            requiredAmount: amount
+          });
+          return ApiResponse.badRequest(
+            `El usuario no tiene créditos suficientes. Se requieren €${amount.toFixed(2)}`
+          );
+        }
+
+        // Deducir créditos
+        const deductResult = await creditService.deductCredits({
+          userId: existingReservation.userId,
+          credits: amount,
+          reason: 'Pago de reserva (confirmado por admin)',
+          metadata: {
+            reservationId: id,
+            confirmedBy: 'ADMIN',
+            notes: data.notes || undefined
+          }
+        });
+
+        console.log('✅ [ADMIN-PAYMENT] Créditos deducidos:', {
+          userId: existingReservation.userId,
+          amount,
+          balanceAfter: deductResult.balanceAfter
+        });
+      }
+
       // Preparar datos de actualización
       const updateData: any = {
         paymentMethod: data.paymentMethod,
+        paymentStatus: 'PAID',
         updatedAt: new Date(),
       };
 
-      // Si se marca como pagado, actualizar el estado de la reserva
-      if (data.paymentStatus === 'PAID' || data.paymentMethod) {
-        updateData.status = 'PAID';
-      }
+      // Actualizar el estado de la reserva
+      updateData.status = 'PAID';
 
       // Actualizar la reserva
       const updatedReservation = await db.reservation.update({
@@ -103,9 +147,9 @@ export async function PUT(request: NextRequest) {
     } catch (error) {
       if (error instanceof z.ZodError) {
         return ApiResponse.validation(
-          error.errors.map(e => ({ 
-            field: e.path.join('.'), 
-            message: e.message 
+          error.errors.map(e => ({
+            field: e.path.join('.'),
+            message: e.message
           }))
         );
       }

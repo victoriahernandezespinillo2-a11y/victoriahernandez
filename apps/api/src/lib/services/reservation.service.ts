@@ -37,6 +37,8 @@ export const CreateReservationSchema = z.object({
   lightingSelected: z.boolean().optional(),
   // Campo sport para canchas multiuso
   sport: z.string().optional(),
+  // Flag para reservas creadas por admin (bypass de restricciones)
+  isAdminReservation: z.boolean().optional().default(false),
 });
 
 export const UpdateReservationSchema = z.object({
@@ -95,7 +97,8 @@ export class ReservationService {
       throw new ValidationAppError('La fecha seleccionada ya ha pasado');
     }
 
-    if (!validateWithinAdvanceWindow(startTime, now, maxAdvanceDays)) {
+    // 🔧 FIX Issue #5: Admins pueden crear reservas sin límite de días
+    if (!validatedInput.isAdminReservation && !validateWithinAdvanceWindow(startTime, now, maxAdvanceDays)) {
       throw new ValidationAppError(`Las reservas solo pueden realizarse con hasta ${maxAdvanceDays} días de antelación`);
     }
 
