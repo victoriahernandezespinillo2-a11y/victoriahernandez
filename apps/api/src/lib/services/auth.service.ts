@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 import { db } from '@repo/db';
 import { NotificationService } from './notification.service';
+import { getFirebaseAdminAuth, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 
 const prisma = db;
 const notificationService = new NotificationService();
@@ -118,7 +119,7 @@ export class AuthService {
       const referrer = await prisma.user.findUnique({
         where: { referralCode: validatedData.referredBy }
       });
-      
+
       if (referrer) {
         referrerId = referrer.id;
         console.log('🎯 [SIGNUP] Usuario referido por:', referrer.email);
@@ -235,8 +236,8 @@ export class AuthService {
   async signOut(refreshToken: string): Promise<void> {
     try {
       // Verificar y decodificar el refresh token
-    const decoded = jwt.verify(refreshToken, this.JWT_REFRESH_SECRET as jwt.Secret) as any;
-      
+      const decoded = jwt.verify(refreshToken, this.JWT_REFRESH_SECRET as jwt.Secret) as any;
+
       // Invalidar el refresh token en la base de datos
       await prisma.refreshToken.deleteMany({
         where: {
@@ -258,7 +259,7 @@ export class AuthService {
     try {
       // Verificar refresh token
       const decoded = jwt.verify(validatedData.refreshToken, this.JWT_REFRESH_SECRET as jwt.Secret) as any;
-      
+
       // Verificar que el token existe en la base de datos
       const storedToken = await prisma.refreshToken.findFirst({
         where: {
@@ -358,7 +359,7 @@ export class AuthService {
     // Actualizar contraseña y marcar token como usado
     await prisma.$transaction([
       prisma.user.update({
-        where: { id: resetToken.userId },
+        where: { id: user.id },
         data: { password: hashedPassword }
       }),
       prisma.passwordResetToken.update({
@@ -367,9 +368,23 @@ export class AuthService {
       }),
       // Invalidar todos los refresh tokens del usuario
       prisma.refreshToken.deleteMany({
-        where: { userId: resetToken.userId }
+        where: { userId: user.id }
       })
     ]);
+
+    // Intentar actualizar también en Firebase si está configurado
+    if (user.firebaseUid && isFirebaseAdminConfigured()) {
+      try {
+        const auth = getFirebaseAdminAuth();
+        await auth.updateUser(user.firebaseUid, {
+          password: validatedData.password
+        });
+        console.log(`[AuthService] Contraseña sincronizada con Firebase para uid: ${user.firebaseUid}`);
+      } catch (fbError) {
+        console.error(`[AuthService] Error al sincronizar contraseña de reset con Firebase para firebaseUid ${user.firebaseUid}:`, fbError);
+        // Continuamos para no romper el flujo principal, ya que se guardó en DB
+      }
+    }
 
     // Enviar notificación de cambio de contraseña
     await this.sendPasswordChangedNotification(resetToken.user);
@@ -440,11 +455,25 @@ export class AuthService {
       })
     ]);
 
+    // Intentar actualizar también en Firebase si está configurado
+    if (user.firebaseUid && isFirebaseAdminConfigured()) {
+      try {
+        const auth = getFirebaseAdminAuth();
+        await auth.updateUser(user.firebaseUid, {
+          password: validatedData.password
+        });
+        console.log(`[AuthService] Contraseña inicial sincronizada con Firebase para uid: ${user.firebaseUid}`);
+      } catch (fbError) {
+        console.error(`[AuthService] Error al sincronizar la contraseña inicial con Firebase para firebaseUid ${user.firebaseUid}:`, fbError);
+        // Continuamos para no romper el flujo principal
+      }
+    }
+
     // Enviar notificación de activación exitosa
     try {
       const { NotificationService } = await import('@repo/notifications');
       const notificationService = new NotificationService();
-      
+
       await notificationService.sendEmail({
         to: user.email,
         subject: 'Cuenta activada exitosamente',
@@ -518,10 +547,10 @@ export class AuthService {
   async verifyEmail(token: string): Promise<void> {
     try {
       const decoded = jwt.verify(token, this.JWT_SECRET as jwt.Secret) as any;
-      
+
       await prisma.user.update({
         where: { id: decoded.userId },
-        data: { 
+        data: {
           emailVerified: true,
           emailVerifiedAt: new Date()
         }
@@ -559,7 +588,7 @@ export class AuthService {
         throw new Error('JWT_SECRET no está configurado');
       }
       const decoded = jwt.verify(token, this.JWT_SECRET) as any;
-      
+
       const userId = decoded.userId || decoded.id || decoded.sub;
       const email = decoded.email;
 
@@ -571,7 +600,7 @@ export class AuthService {
           where: { id: userId }
         });
       }
-      
+
       // 2. Si no se encuentra por ID, intentar buscar por email (fallback)
       if (!user && email) {
         user = await prisma.user.findUnique({
@@ -690,8 +719,8 @@ export class AuthService {
    * Generar token de restablecimiento
    */
   private generateResetToken(): string {
-    return Math.random().toString(36).substring(2, 15) + 
-           Math.random().toString(36).substring(2, 15);
+    return Math.random().toString(36).substring(2, 15) +
+      Math.random().toString(36).substring(2, 15);
   }
 
   /**
