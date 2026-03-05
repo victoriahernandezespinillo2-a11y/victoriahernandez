@@ -353,6 +353,8 @@ export class AuthService {
       throw new Error('Token de restablecimiento inválido o expirado');
     }
 
+    const user = resetToken.user;
+
     // Hash de la nueva contraseña
     const hashedPassword = await bcrypt.hash(validatedData.password, this.BCRYPT_ROUNDS);
 
