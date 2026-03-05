@@ -375,15 +375,37 @@ export class AuthService {
     ]);
 
     // Intentar actualizar también en Firebase si está configurado
-    if (user.firebaseUid && isFirebaseAdminConfigured()) {
+    if (isFirebaseAdminConfigured()) {
       try {
         const auth = getFirebaseAdminAuth();
-        await auth.updateUser(user.firebaseUid, {
-          password: validatedData.password
-        });
-        console.log(`[AuthService] Contraseña sincronizada con Firebase para uid: ${user.firebaseUid}`);
+        let uidToUpdate = user.firebaseUid;
+
+        // Si no tenemos el UID, intentar buscar el usuario en Firebase por email
+        if (!uidToUpdate) {
+          try {
+            const fbUser = await auth.getUserByEmail(user.email);
+            uidToUpdate = fbUser.uid;
+
+            // Guardar el uid encontrado en nuestra DB para usos futuros
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { firebaseUid: uidToUpdate }
+            });
+            console.log(`[AuthService] Encontrado firebaseUid por email para ${user.email}: ${uidToUpdate}`);
+          } catch (e) {
+            // El usuario no existe en Firebase auth o hubo otro error
+            console.log(`[AuthService] Usuario ${user.email} no encontrado en Firebase Auth`);
+          }
+        }
+
+        if (uidToUpdate) {
+          await auth.updateUser(uidToUpdate, {
+            password: validatedData.password
+          });
+          console.log(`[AuthService] Contraseña sincronizada con Firebase para uid: ${uidToUpdate}`);
+        }
       } catch (fbError) {
-        console.error(`[AuthService] Error al sincronizar contraseña de reset con Firebase para firebaseUid ${user.firebaseUid}:`, fbError);
+        console.error(`[AuthService] Error al sincronizar contraseña de reset con Firebase:`, fbError);
         // Continuamos para no romper el flujo principal, ya que se guardó en DB
       }
     }
@@ -458,15 +480,37 @@ export class AuthService {
     ]);
 
     // Intentar actualizar también en Firebase si está configurado
-    if (user.firebaseUid && isFirebaseAdminConfigured()) {
+    if (isFirebaseAdminConfigured()) {
       try {
         const auth = getFirebaseAdminAuth();
-        await auth.updateUser(user.firebaseUid, {
-          password: validatedData.password
-        });
-        console.log(`[AuthService] Contraseña inicial sincronizada con Firebase para uid: ${user.firebaseUid}`);
+        let uidToUpdate = user.firebaseUid;
+
+        // Si no tenemos el UID, intentar buscar el usuario en Firebase por email
+        if (!uidToUpdate) {
+          try {
+            const fbUser = await auth.getUserByEmail(user.email);
+            uidToUpdate = fbUser.uid;
+
+            // Guardar el uid encontrado en nuestra DB para usos futuros
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { firebaseUid: uidToUpdate }
+            });
+            console.log(`[AuthService] Contraseña inicial: Encontrado firebaseUid por email para ${user.email}: ${uidToUpdate}`);
+          } catch (e) {
+            // El usuario no existe en Firebase auth o hubo otro error
+            console.log(`[AuthService] Contraseña inicial: Usuario ${user.email} no encontrado en Firebase Auth`);
+          }
+        }
+
+        if (uidToUpdate) {
+          await auth.updateUser(uidToUpdate, {
+            password: validatedData.password
+          });
+          console.log(`[AuthService] Contraseña inicial sincronizada con Firebase para uid: ${uidToUpdate}`);
+        }
       } catch (fbError) {
-        console.error(`[AuthService] Error al sincronizar la contraseña inicial con Firebase para firebaseUid ${user.firebaseUid}:`, fbError);
+        console.error(`[AuthService] Error al sincronizar la contraseña inicial con Firebase:`, fbError);
         // Continuamos para no romper el flujo principal
       }
     }
