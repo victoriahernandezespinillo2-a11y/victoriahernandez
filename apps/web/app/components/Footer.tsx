@@ -13,7 +13,7 @@ export function Footer() {
   // Evitar hidratación no determinista: inicializar tras montar
   const [mounted, setMounted] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
-  const [centerStatus, setCenterStatus] = useState<{ open: boolean; status: 'OPEN'|'CLOSED'; nextChangeAt?: string } | null>(null);
+  const [centerStatus, setCenterStatus] = useState<{ open: boolean; status: 'OPEN' | 'CLOSED'; nextChangeAt?: string } | null>(null);
   const [email, setEmail] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
   const { sports, sportsList } = useLandingData();
@@ -52,19 +52,19 @@ export function Footer() {
       try {
         // Importar el cliente de API dinámicamente para usar autenticación correcta
         const { api } = await import('@/lib/api');
-        
+
         // Obtener primer centro usando el cliente de API autenticado
         const centersData = await api.centers.getAll({ limit: 1 });
         const list = Array.isArray(centersData?.data) ? centersData.data : (Array.isArray(centersData) ? centersData : []);
         const id = list?.[0]?.id as string | undefined;
         if (!id || cancelled) return;
-        
+
         // Obtener estado del centro usando el cliente de API autenticado
         const { apiRequest } = await import('@/lib/api');
         const statusData = await apiRequest(`/api/centers/${id}/status`);
         if (!cancelled) setCenterStatus(statusData?.data || statusData);
-      } catch (error) {
-        console.warn('⚠️ [Footer] Error cargando estado del centro:', error);
+      } catch {
+        // Silenciado: es normal que falle para visitantes no autenticados
       }
     };
     loadStatus();
@@ -234,10 +234,10 @@ export function Footer() {
   const sportsLinks = (sportsList && sportsList.length > 0
     ? sportsList.map((s) => ({ label: s, href: '#deportes', icon: 'fas fa-dumbbell' }))
     : (sports || []).map((category) => ({
-        label: category.name,
-        href: '#deportes',
-        icon: normalizeIcon(category.icon || 'dumbbell'),
-      }))
+      label: category.name,
+      href: '#deportes',
+      icon: normalizeIcon(category.icon || 'dumbbell'),
+    }))
   );
 
   const footerSections = [
@@ -293,13 +293,12 @@ export function Footer() {
     { icon: "fas fa-calendar-plus", label: "Reservar Ahora", href: "/dashboard/reservations/new", color: "from-emerald-500 to-green-600", type: 'link' as const },
     { icon: "fas fa-mobile-alt", label: "Descargar App", href: "#install-pwa", color: "from-blue-500 to-indigo-600", type: 'pwa' as const },
     { icon: "fab fa-whatsapp", label: "WhatsApp", href: `https://wa.me/57${contactInfo.whatsapp.replace(/\D/g, '')}`, color: "from-green-500 to-emerald-600", type: 'link' as const },
-    { icon: "fas fa-map-marker-alt", label: "Ubicación", href: `https://maps.google.com/?q=${configuredLat},${configuredLng}` , color: "from-orange-500 to-red-600", type: 'link' as const }
+    { icon: "fas fa-map-marker-alt", label: "Ubicación", href: `https://maps.google.com/?q=${configuredLat},${configuredLng}`, color: "from-orange-500 to-red-600", type: 'link' as const }
   ];
 
   return (
-    <footer className={`bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden ${
-      isDashboardRoute ? 'hidden md:block' : ''
-    }`}>
+    <footer className={`bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden ${isDashboardRoute ? 'hidden md:block' : ''
+      }`}>
       {/* Enhanced Background Pattern */}
       <div className="absolute inset-0 opacity-5">
         <div className="absolute inset-0" style={{
@@ -350,9 +349,9 @@ export function Footer() {
             <div className="lg:col-span-2">
               <div className="flex items-center space-x-3 mb-6">
                 <div className="relative">
-                  <Image 
-                    src="/images/logo.png" 
-                    alt="Polideportivo Victoria Hernandez" 
+                  <Image
+                    src="/images/logo.png"
+                    alt="Polideportivo Victoria Hernandez"
                     width={64}
                     height={64}
                     className="rounded-2xl shadow-2xl hover:scale-110 transition-transform duration-300 bg-white ring-1 ring-gray-200"
@@ -374,25 +373,25 @@ export function Footer() {
                   <h2 className="text-2xl font-bold text-white">
                     Polideportivo Victoria Hernandez
                   </h2>
-                    <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2">
                     <p className="text-emerald-400 font-semibold">
                       Centro Deportivo
                     </p>
-                      {mounted && (
-                        <div className={`flex items-center space-x-1 ${getCurrentStatus().color}`} suppressHydrationWarning>
-                          <i className={`${getCurrentStatus().icon} text-xs animate-pulse`}></i>
-                          <span className="text-xs font-medium">{getCurrentStatus().status}</span>
-                        </div>
-                      )}
+                    {mounted && (
+                      <div className={`flex items-center space-x-1 ${getCurrentStatus().color}`} suppressHydrationWarning>
+                        <i className={`${getCurrentStatus().icon} text-xs animate-pulse`}></i>
+                        <span className="text-xs font-medium">{getCurrentStatus().status}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-              
+
               <p className="text-gray-300 text-lg leading-relaxed mb-6">
-                El centro deportivo más moderno de Victoria Hernandez. Ofrecemos instalaciones de primera clase, 
+                El centro deportivo más moderno de Victoria Hernandez. Ofrecemos instalaciones de primera clase,
                 programas deportivos innovadores y una experiencia única para toda la familia.
               </p>
-              
+
               {/* Enhanced Quick Stats */}
               <div className="grid grid-cols-3 gap-4 mb-6">
                 <div className="text-center p-4 bg-white/5 rounded-xl backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-all duration-300 group">
@@ -426,7 +425,7 @@ export function Footer() {
                 <ul className="space-y-3">
                   {section.links.map((link, linkIndex) => (
                     <li key={linkIndex}>
-                      <a 
+                      <a
                         href={link.href}
                         className="flex items-center justify-between text-gray-300 hover:text-emerald-400 transition-all duration-300 hover:translate-x-1 group p-2 rounded-lg hover:bg-white/5"
                       >
@@ -435,15 +434,14 @@ export function Footer() {
                           <span className="text-sm">{link.label}</span>
                         </div>
                         {link.badge && (
-                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                            link.badge === 'Popular' ? 'bg-orange-500/20 text-orange-400' :
-                            link.badge === 'Nuevo' ? 'bg-green-500/20 text-green-400' :
-                            link.badge === 'Premium' ? 'bg-purple-500/20 text-purple-400' :
-                            link.badge === 'Gratis' ? 'bg-blue-500/20 text-blue-400' :
-                            link.badge === 'Live' ? 'bg-red-500/20 text-red-400 animate-pulse' :
-                            link.badge === 'Ofertas' ? 'bg-yellow-500/20 text-yellow-400' :
-                            'bg-gray-500/20 text-gray-400'
-                          }`}>
+                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${link.badge === 'Popular' ? 'bg-orange-500/20 text-orange-400' :
+                              link.badge === 'Nuevo' ? 'bg-green-500/20 text-green-400' :
+                                link.badge === 'Premium' ? 'bg-purple-500/20 text-purple-400' :
+                                  link.badge === 'Gratis' ? 'bg-blue-500/20 text-blue-400' :
+                                    link.badge === 'Live' ? 'bg-red-500/20 text-red-400 animate-pulse' :
+                                      link.badge === 'Ofertas' ? 'bg-yellow-500/20 text-yellow-400' :
+                                        'bg-gray-500/20 text-gray-400'
+                            }`}>
                             {link.badge}
                           </span>
                         )}
@@ -593,7 +591,7 @@ export function Footer() {
 
               {/* Development Credit */}
               <div className="text-center lg:text-right">
-                <a 
+                <a
                   href="https://ve.linkedin.com/in/arturo-nieve-288065105?trk=public_post_follow-view-profile"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -611,8 +609,8 @@ export function Footer() {
             <div className="text-center py-4 border-t border-gray-700/50">
               {mounted && currentTime && (
                 <p className="text-gray-500 text-xs" suppressHydrationWarning>
-                  Última actualización: {currentTime.toLocaleDateString('es-CO')} • 
-                  Versión 2.1.0 • 
+                  Última actualización: {currentTime.toLocaleDateString('es-CO')} •
+                  Versión 2.1.0 •
                   <span className="text-emerald-400">Sistema Activo</span>
                 </p>
               )}
@@ -622,10 +620,9 @@ export function Footer() {
 
         {/* Enhanced Floating Action Button */}
         {isVisible && (
-          <div className={`fixed bottom-6 right-6 z-50 ${
-            isDashboardRoute ? 'hidden md:block' : ''
-          }`}>
-            <button 
+          <div className={`fixed bottom-6 right-6 z-50 ${isDashboardRoute ? 'hidden md:block' : ''
+            }`}>
+            <button
               onClick={scrollToTop}
               className="group relative w-14 h-14 bg-gradient-to-r from-emerald-500 to-blue-600 text-white rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-110 hover:rotate-12 flex items-center justify-center"
               aria-label="Volver arriba"
@@ -640,9 +637,8 @@ export function Footer() {
         )}
 
         {/* Emergency Contact Floating Button */}
-        <div className={`fixed bottom-6 left-6 z-50 ${
-          isDashboardRoute ? 'hidden md:block' : ''
-        }`}>
+        <div className={`fixed bottom-6 left-6 z-50 ${isDashboardRoute ? 'hidden md:block' : ''
+          }`}>
           <a
             href={`tel:${contactInfo.emergency}`}
             className="group relative w-12 h-12 bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-110 flex items-center justify-center"

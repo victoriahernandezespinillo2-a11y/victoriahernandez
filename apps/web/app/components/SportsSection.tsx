@@ -33,11 +33,6 @@ export function SportsSection() {
     return 'from-emerald-500 to-blue-600';
   };
 
-  // Debug logs
-  console.log('SportsSection - loading:', loading);
-  console.log('SportsSection - sports:', sports);
-  console.log('SportsSection - sports length:', sports?.length);
-
   const handleReserveNow = () => {
     router.push('/dashboard/reservations/new');
   };
@@ -46,8 +41,8 @@ export function SportsSection() {
     router.push(`/sports/${sportId}`);
   };
 
-  const handleLikeSport = (sportId: string) => {
-    console.log(`Like dado al deporte: ${sportId}`);
+  const handleLikeSport = (_sportId: string) => {
+    // TODO: implement like functionality
   };
 
   useEffect(() => {
@@ -92,18 +87,18 @@ export function SportsSection() {
               <i className="fas fa-medal text-green-600"></i>
               <span className="font-semibold text-sm">Instalaciones Deportivas</span>
             </div>
-            
+
             <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-6">
               Descubre nuestras
               <span className="gradient-text block">Instalaciones Modernas</span>
             </h2>
-            
+
             <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-              Desde canchas de fútbol hasta gimnasios completamente equipados, 
+              Desde canchas de fútbol hasta gimnasios completamente equipados,
               tenemos todo lo que necesitas para alcanzar tus objetivos deportivos.
             </p>
           </div>
-          
+
           {/* Skeleton para el contenido */}
           <div className="animate-pulse">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -135,33 +130,31 @@ export function SportsSection() {
             <i className="fas fa-medal text-green-600"></i>
             <span className="font-semibold text-sm">Instalaciones Deportivas</span>
           </div>
-          
+
           <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-6">
             Descubre nuestras
             <span className="gradient-text block">Instalaciones Modernas</span>
           </h2>
-          
+
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-            Desde canchas de fútbol hasta gimnasios completamente equipados, 
+            Desde canchas de fútbol hasta gimnasios completamente equipados,
             tenemos todo lo que necesitas para alcanzar tus objetivos deportivos.
           </p>
         </div>
 
         {/* Category Tabs */}
         {sports && sports.length > 0 && (
-          <div className={`flex flex-wrap justify-center mb-12 transition-all duration-1000 delay-200 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-          }`}>
+          <div className={`flex flex-wrap justify-center mb-12 transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+            }`}>
             <div className="bg-gray-100 rounded-2xl p-2 flex flex-wrap gap-2">
               {sports.map((category, index) => (
                 <button
                   key={category.id}
                   onClick={() => setActiveTab(index)}
-                  className={`flex items-center space-x-3 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                    activeTab === index
+                  className={`flex items-center space-x-3 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${activeTab === index
                       ? `bg-gradient-to-r ${gradientFor(category.color)} text-white shadow-lg scale-105`
                       : 'text-gray-600 hover:text-gray-900 hover:bg-white'
-                  }`}
+                    }`}
                 >
                   <i className={category.icon}></i>
                   <span className="hidden sm:inline">{category.name}</span>
@@ -173,9 +166,8 @@ export function SportsSection() {
 
         {/* Sports Grid */}
         {currentSports && currentSports.length > 0 ? (
-          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 transition-all duration-1000 delay-400 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-          }`}>
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+            }`}>
             {currentSports.map((sport, index) => (
               <div
                 key={index}
@@ -184,8 +176,8 @@ export function SportsSection() {
                 {/* Image */}
                 <div className="relative h-48 bg-gradient-to-br from-gray-200 to-gray-300 overflow-hidden">
                   {sport.imageUrl ? (
-                    <img 
-                      src={sport.imageUrl} 
+                    <img
+                      src={sport.imageUrl}
                       alt={sport.name}
                       className="w-full h-full object-cover"
                     />
@@ -194,14 +186,13 @@ export function SportsSection() {
                       <i className={`${currentCategory?.icon || 'fas fa-trophy'} text-6xl text-white opacity-50`}></i>
                     </div>
                   )}
-                  
+
                   {/* Availability Badge */}
                   <div className="absolute top-4 left-4">
-                    <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      sport.availability === 'Disponible' 
-                        ? 'bg-green-100 text-green-800' 
+                    <div className={`px-3 py-1 rounded-full text-xs font-semibold ${sport.availability === 'Disponible'
+                        ? 'bg-green-100 text-green-800'
                         : 'bg-orange-100 text-orange-800'
-                    }`}>
+                      }`}>
                       {sport.availability}
                     </div>
                   </div>
@@ -216,7 +207,7 @@ export function SportsSection() {
 
                   {/* Hover Overlay */}
                   <div className={`absolute inset-0 bg-gradient-to-br ${gradientFor(currentCategory?.color)} opacity-0 group-hover:opacity-80 transition-opacity duration-300 flex items-center justify-center`}>
-                    <button 
+                    <button
                       onClick={() => handleViewDetails(sport.name.toLowerCase().replace(/\s+/g, '-'))}
                       className="bg-white text-gray-900 px-6 py-3 rounded-xl font-semibold transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300"
                     >
@@ -233,7 +224,7 @@ export function SportsSection() {
                       {sport.price}
                     </div>
                   </div>
-                  
+
                   <p className="text-gray-600 text-sm leading-relaxed mb-4">
                     {sport.description}
                   </p>
@@ -255,13 +246,13 @@ export function SportsSection() {
 
                   {/* Action Buttons */}
                   <div className="flex space-x-3">
-                    <button 
+                    <button
                       onClick={handleReserveNow}
                       className={`flex-1 bg-gradient-to-r ${gradientFor(currentCategory?.color)} text-white py-3 rounded-xl font-semibold text-sm hover:shadow-lg transition-all duration-300 hover:scale-105`}
                     >
                       Reservar Ahora
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleLikeSport(sport.name.toLowerCase().replace(/\s+/g, '-'))}
                       className="px-4 py-3 border border-gray-200 rounded-xl text-gray-600 hover:text-gray-900 hover:border-gray-300 transition-colors duration-300"
                     >
@@ -273,16 +264,15 @@ export function SportsSection() {
             ))}
           </div>
         ) : (
-          <div className={`text-center py-16 transition-all duration-1000 delay-400 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-          }`}>
+          <div className={`text-center py-16 transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+            }`}>
             <div className="bg-gray-50 rounded-3xl p-12 border border-gray-100">
               <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
                 <i className="fas fa-info-circle text-white text-3xl"></i>
               </div>
               <h3 className="text-2xl font-bold text-gray-900 mb-4">Instalaciones en Preparación</h3>
               <p className="text-gray-600 max-w-md mx-auto">
-                Estamos preparando nuestras instalaciones deportivas para ofrecerte la mejor experiencia. 
+                Estamos preparando nuestras instalaciones deportivas para ofrecerte la mejor experiencia.
                 Pronto tendremos toda la información disponible.
               </p>
             </div>
@@ -290,9 +280,8 @@ export function SportsSection() {
         )}
 
         {/* Bottom Stats */}
-        <div className={`mt-20 transition-all duration-1000 delay-600 ${
-          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-        }`}>
+        <div className={`mt-20 transition-all duration-1000 delay-600 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
           <div className="bg-gradient-to-r from-gray-50 to-white rounded-3xl p-8 border border-gray-100">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
               <div>

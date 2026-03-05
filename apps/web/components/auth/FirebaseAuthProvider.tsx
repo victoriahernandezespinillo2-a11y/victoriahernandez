@@ -23,7 +23,7 @@ interface FirebaseAuthContextType {
 const FirebaseAuthContext = createContext<FirebaseAuthContextType>({
   firebaseUser: null,
   loading: true,
-  signOutFirebase: async () => {}
+  signOutFirebase: async () => { }
 });
 
 export const useFirebaseAuth = () => {
@@ -84,17 +84,10 @@ export const FirebaseAuthProvider = ({ children }: FirebaseAuthProviderProps) =>
   // Suscribirse a cambios de autenticación cuando auth esté listo
   useEffect(() => {
     if (configError || !authInstance) {
-      console.log('⚠️ [FirebaseAuth] No se puede suscribir:', { configError, hasAuthInstance: !!authInstance });
       return;
     }
 
-    console.log('✅ [FirebaseAuth] Suscribiéndose a cambios de autenticación...');
     const unsubscribe = onAuthStateChanged(authInstance, (user: User | null) => {
-      console.log('🔍 [FirebaseAuth] Estado de autenticación cambió:', {
-        hasUser: !!user,
-        userId: user?.uid,
-        email: user?.email
-      });
       setFirebaseUser(user);
     });
 
@@ -119,7 +112,7 @@ export const FirebaseAuthProvider = ({ children }: FirebaseAuthProviderProps) =>
 
   // Renderizado condicional del contenido manteniendo el orden de hooks
   const providerValue = configError
-    ? { firebaseUser: null, loading: false, signOutFirebase: async () => {} }
+    ? { firebaseUser: null, loading: false, signOutFirebase: async () => { } }
     : value;
 
   return (

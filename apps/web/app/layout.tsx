@@ -65,6 +65,32 @@ export default function RootLayout({
   return (
     <html lang="es" className="scroll-smooth" data-scroll-behavior="smooth">
       <head>
+        {/* 🔒 Production Console Silencer — Anti información disclosure */}
+        <Script
+          id="console-silencer"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var isProd = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+                  if (!isProd) return;
+                  var noop = function() {};
+                  var methods = ['log','warn','info','debug','table','trace','dir','dirxml','group','groupCollapsed','groupEnd','time','timeEnd','timeLog','count','countReset','assert','profile','profileEnd','clear'];
+                  for (var i = 0; i < methods.length; i++) {
+                    console[methods[i]] = noop;
+                  }
+                  // console.error: mantener pero sanitizar (no exponer stack traces)
+                  var origError = console.error;
+                  console.error = function() {
+                    // Solo mostrar un mensaje genérico, sin detalles internos
+                    origError.call(console, '[App] An error occurred.');
+                  };
+                } catch(e) {}
+              })();
+            `
+          }}
+        />
         {/* Favicon configuration for maximum compatibility */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/images/logo.png?v=2" type="image/png" sizes="32x32" />
@@ -73,13 +99,13 @@ export default function RootLayout({
         <link rel="shortcut icon" href="/favicon.ico" />
         <meta name="msapplication-TileImage" content="/images/logo.png?v=2" />
         <meta name="msapplication-TileColor" content="#0ea5e9" />
-        
+
         <link rel="manifest" href="/manifest.webmanifest" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-        
+
         {/* Script de manejo de errores de chunks - Enterprise Solution */}
         <Script
           id="chunk-error-handler"
@@ -121,7 +147,7 @@ export default function RootLayout({
                           .map(name => caches.delete(name).catch(() => {}))
                       );
                     } catch (e) {
-                      console.warn('⚠️ Error al limpiar cachés:', e);
+                      // silenced
                     }
                   }
                   
@@ -141,15 +167,13 @@ export default function RootLayout({
                   if (isHandling) return;
                   
                   if (retryCount >= maxRetries) {
-                    console.error('🚨 [CHUNK-ERROR-HANDLER] Máximo de reintentos alcanzado');
                     document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;font-family:system-ui"><h1 style="color:#dc2626;margin-bottom:1rem">Error al cargar la aplicación</h1><p style="color:#6b7280;margin-bottom:2rem">Por favor, recarga la página manualmente (Ctrl+F5 o Cmd+Shift+R)</p><button onclick="window.location.reload()" style="padding:0.75rem 1.5rem;background:#2563eb;color:white;border:none;border-radius:0.5rem;cursor:pointer">Recargar página</button></div>';
                     return;
                   }
                   
                   isHandling = true;
                   retryCount++;
-                  const delay = 1000 * Math.pow(2, retryCount - 1); // Backoff exponencial
-                  console.log('🔄 [CHUNK-ERROR-HANDLER] Reintentando carga (intento ' + retryCount + '/' + maxRetries + ') - Delay: ' + delay + 'ms');
+                  var delay = 1000 * Math.pow(2, retryCount - 1);
                   
                   clearCaches().then(function() {
                     setTimeout(function() {

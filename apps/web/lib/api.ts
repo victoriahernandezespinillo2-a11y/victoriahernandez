@@ -35,17 +35,14 @@ const awaitFirebaseToken = (timeout = 10000): Promise<string | null> => {
         try {
           const token = await auth.currentUser.getIdToken(false); // false: no forzar refresh si ya hay uno válido
           if (token) {
-            console.log(`✅ [API] Firebase ID Token obtenido después de ${Date.now() - startTime}ms`);
             return resolve(token);
           }
-        } catch (e) {
-          console.warn('⚠️ [API] Pequeño error obteniendo token, reintentando...', e);
+        } catch {
         }
       }
 
       if (Date.now() - startTime > timeout) {
-        console.error('❌ [API] Timeout esperando Firebase ID Token.');
-        return resolve(null); // Resolve with null instead of rejecting
+        return resolve(null); // Timeout: resolver con null sin log excesivo
       }
 
       setTimeout(checkToken, 200); // Reintentar cada 200ms
@@ -82,7 +79,7 @@ const getJwtTokenSafe = async (): Promise<string | null> => {
     // Obtener Firebase ID Token primero
     const firebaseToken = await getFirebaseIdTokenSafe();
     if (!firebaseToken) {
-      console.log('🔍 [API] No hay Firebase token disponible para obtener JWT');
+      // No Firebase token available - user not authenticated
       return null;
     }
 
@@ -99,7 +96,7 @@ const getJwtTokenSafe = async (): Promise<string | null> => {
       const data = await response.json();
       if (data.token) {
         lastJwtTokenCache = { token: data.token, fetchedAt: Date.now() };
-        console.log('✅ [API] JWT obtenido exitosamente');
+
         return data.token;
       }
     } else {
@@ -164,12 +161,12 @@ export async function apiRequest<T = any>(
 
       // Fallback a relativo (proxy Next.js) solo cuando desarrollamos en localhost y la API remota devolvió 404
       if (isLocalhost && response.status === 404) {
-        console.log(`🔄 [API-REQUEST] Local fallback: ${absoluteUrl} → ${relativeUrl}`);
+
         response = await fetch(relativeUrl, baseConfig);
       }
     } catch (networkErr) {
       if (isLocalhost) {
-        console.log(`🔄 [API-REQUEST] Network fallback dev: ${absoluteUrl} → ${relativeUrl}`);
+
         response = await fetch(relativeUrl, baseConfig);
       } else {
         console.error(`🚨 [API-REQUEST] Network error en producción:`, networkErr);
@@ -217,16 +214,16 @@ export async function apiRequest<T = any>(
 
     try {
       const data = await response.json();
-      console.log('🔍 [API-REQUEST] Response data:', data);
+
 
       // Si la respuesta tiene la estructura ApiResponse, devolver solo el campo data
       if (data && typeof data === 'object' && 'success' in data) {
-        console.log('📦 [API-REQUEST] ApiResponse structure detected, returning data:', data.data);
+
         return data.data;
       }
 
       // Si no tiene la estructura ApiResponse, devolver la respuesta completa
-      console.log('📦 [API-REQUEST] Non-ApiResponse structure, returning full data');
+
       return data as T;
     } catch {
       const text = await response.text();
